@@ -1,16 +1,9 @@
-# Compiled class file
+# ─────────────────────────────────────────────
+# Java / Maven (backend)
+# ─────────────────────────────────────────────
 *.class
-
-# Log file
-*.log
-
-# BlueJ files
 *.ctxt
-
-# Mobile Tools for Java (J2ME)
 .mtj.tmp/
-
-# Package Files #
 *.jar
 *.war
 *.nar
@@ -18,7 +11,97 @@
 *.zip
 *.tar.gz
 *.rar
-
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+# ─────────────────────────────────────────────
+# Build / dependency / output directories
+# ─────────────────────────────────────────────
+**/target/
+**/build/
+**/dist/
+**/out/
+**/.next/
+**/node_modules/
+
+# ─────────────────────────────────────────────
+# Logs
+# ─────────────────────────────────────────────
+*.log
+
+# ─────────────────────────────────────────────
+# Living planning documents (kept locally, not versioned)
+# ─────────────────────────────────────────────
+BACKEND_PLAN.md
+FRONTEND_PLAN.md
+
+# ─────────────────────────────────────────────
+# Sensitive / environment files (any depth)
+# Including *.example templates — user prefers no env files in the repo.
+# ─────────────────────────────────────────────
+.env
+.env.*
+**/.env
+**/.env.*
+**/application-local.yml
+**/application-local.yaml
+**/application-local.properties
+**/application-*.local.yml
+**/application-*.local.yaml
+**/application-*.local.properties
+**/application-local.yml.example
+**/application-local.yaml.example
+**/application-local.properties.example
+
+# Secrets / credentials directories
+secrets/
+credentials/
+.secrets/
+.credentials/
+
+# Certificates and private keys
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.truststore
+
+# Cloud provider config
+.aws/
+.gcp/
+service-account*.json
+gcp-key*.json
+firebase-adminsdk*.json
+
+# ─────────────────────────────────────────────
+# IDE / editor
+# ─────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+*.tsbuildinfo
+next-env.d.ts
+
+# IDE-local run configs that often hold secrets
+.idea/runConfigurations/*.local.xml
+.vscode/launch.local.json
+
+# ─────────────────────────────────────────────
+# Claude Code per-user local settings
+# (Shared project settings.json IS committed, .local.json is per-user.)
+# ─────────────────────────────────────────────
+.claude/settings.local.json
+.claude/.credentials.json
+
+# ─────────────────────────────────────────────
+# OS junk
+# ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db

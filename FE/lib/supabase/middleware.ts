@@ -1,5 +1,7 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+
+type CookieToSet = { name: string; value: string; options: CookieOptions };
 
 const PUBLIC_PATHS = ["/", "/auth/login", "/auth/signup", "/auth/callback"];
 
@@ -8,13 +10,13 @@ export async function updateSession(request: NextRequest) {
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
       cookies: {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: CookieToSet[]) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value),
           );

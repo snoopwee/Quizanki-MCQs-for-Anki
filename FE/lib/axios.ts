@@ -17,16 +17,4 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
-api.interceptors.response.use(
-  (res) => res,
-  async (error) => {
-    if (error.response?.status === 401 && typeof window !== "undefined") {
-      const supabase = createClient();
-      await supabase.auth.signOut();
-      window.location.href = "/auth/login";
-    }
-    return Promise.reject(error);
-  },
-);
-
 export default api;

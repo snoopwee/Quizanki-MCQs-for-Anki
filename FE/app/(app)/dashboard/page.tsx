@@ -18,9 +18,17 @@ export default function DashboardPage() {
     api
       .get<Me>("/me")
       .then((res) => setMe(res.data))
-      .catch((err) =>
-        setError(err.response?.data?.message ?? err.message ?? "Failed"),
-      );
+      .catch((err) => {
+        if (err.response) {
+          const body =
+            typeof err.response.data === "string"
+              ? err.response.data
+              : JSON.stringify(err.response.data);
+          setError(`HTTP ${err.response.status} — ${body || "(empty body)"}`);
+        } else {
+          setError(`Network error — ${err.message}`);
+        }
+      });
   }, []);
 
   return (

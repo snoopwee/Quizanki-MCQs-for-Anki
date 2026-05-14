@@ -5,9 +5,10 @@ spring:
     active: local
 
 supabase:
-  # HS256 signing secret from Supabase: Project Settings -> API -> JWT Secret.
-  # Override per-environment via the SUPABASE_JWT_SECRET env var.
-  jwt-secret: ${SUPABASE_JWT_SECRET:replace-me}
+  # Project URL, e.g. https://<project-ref>.supabase.co
+  # The JWKS endpoint and JWT issuer are derived from this.
+  # Override per-environment via the SUPABASE_URL env var.
+  url: ${SUPABASE_URL:https://replace-me.supabase.co}
 
 app:
   cors:

@@ -16,7 +16,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/me")
 @SecurityRequirement(name = "bearerAuth")
-public class MeController {
+public class AuthenticationController {
 
     @GetMapping
     public Map<String, Object> me(@AuthenticationPrincipal Jwt jwt) {

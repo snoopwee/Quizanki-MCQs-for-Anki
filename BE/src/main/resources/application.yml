@@ -4,6 +4,32 @@ spring:
   profiles:
     active: local
 
+  datasource:
+    # JDBC URL for the Supabase Postgres instance.
+    # Format: jdbc:postgresql://db.<project-ref>.supabase.co:5432/postgres
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      # Don't block startup if the DB is briefly unreachable.
+      initialization-fail-timeout: -1
+
+  jpa:
+    hibernate:
+      # Phase 0 has no entities yet. Switch to `validate` once entities exist.
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          time_zone: UTC
+
+  data:
+    redis:
+      url: ${UPSTASH_REDIS_URL:redis://localhost:6379}
+
 supabase:
   # Project URL, e.g. https://<project-ref>.supabase.co
   # The JWKS endpoint and JWT issuer are derived from this.
@@ -17,8 +43,9 @@ app:
 springdoc:
   api-docs:
     path: /v3/api-docs
-  swagger-ui:
-    path: /swagger-ui
+  # swagger-ui.path left at default (/swagger-ui/index.html) so the
+  # /swagger-ui.html convenience redirect lands somewhere our security
+  # config already allows via /swagger-ui/**.
 
 server:
   port: 8080
@@ -28,3 +55,11 @@ management:
     web:
       exposure:
         include: health
+  endpoint:
+    health:
+      # Surface which sub-component is DOWN. Safe in dev; tighten in prod.
+      show-details: always
+  health:
+    redis:
+      # Phase 0 doesn't use Redis yet, so don't gate /actuator/health on it.
+      enabled: false

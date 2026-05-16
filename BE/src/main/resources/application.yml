@@ -17,14 +17,23 @@ spring:
 
   jpa:
     hibernate:
-      # Phase 0 has no entities yet. Switch to `validate` once entities exist.
-      ddl-auto: none
+      # Schema is owned by Flyway. Hibernate only validates that entities match.
+      # No entities yet (Phase 0) so this is effectively a no-op for now.
+      ddl-auto: validate
     open-in-view: false
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
         jdbc:
           time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # V1 already ran manually in Supabase — baseline tells Flyway "treat existing
+    # schema as the starting point" so it won't try to re-create the tables.
+    # New Supabase projects without any tables: Flyway runs V1 normally.
+    baseline-on-migrate: true
+    baseline-version: 0
 
   data:
     redis:

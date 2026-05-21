@@ -14,7 +14,7 @@ import java.util.Map;
  * to confirm the Supabase JWT is being accepted by Spring Security.
  */
 @RestController
-@RequestMapping("/api/v1/me")
+@RequestMapping("/api/v1/authentication")
 @SecurityRequirement(name = "bearerAuth")
 public class AuthenticationController {
 

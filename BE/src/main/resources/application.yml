@@ -4,6 +4,15 @@ spring:
   profiles:
     active: local
 
+  servlet:
+    multipart:
+      # We only read the small collection.anki* db, but the upload includes media
+      # we discard, so the cap must fit the whole .apkg. 100MB covers most real
+      # decks while bounding this public endpoint; per-IP rate limiting (later
+      # chunk) is the real abuse backstop, not this cap alone.
+      max-file-size: 100MB
+      max-request-size: 110MB
+
   datasource:
     # JDBC URL for the Supabase Postgres instance.
     # Format: jdbc:postgresql://db.<project-ref>.supabase.co:5432/postgres

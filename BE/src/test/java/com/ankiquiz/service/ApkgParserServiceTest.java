@@ -1,0 +1,252 @@
+package com.ankiquiz.service;
+
+import com.ankiquiz.dto.response.ApkgNotesResponse;
+import com.ankiquiz.dto.response.ApkgNotesResponse.NoteTypeNotes;
+import com.ankiquiz.exception.ApkgParseException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.luben.zstd.ZstdOutputStream;
+import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockMultipartFile;
+
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.Statement;
+import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class ApkgParserServiceTest {
+
+    private final ApkgParserService service = new ApkgParserService(new ObjectMapper());
+
+    /** Anki's field separator inside the `flds` blob. */
+    private static final char SEP = 0x1F;
+
+    private static final String BASIC_MODEL = """
+            {"1607392319":{"id":1607392319,"name":"Basic","type":0,
+              "flds":[{"name":"Front","ord":0},{"name":"Back","ord":1}]}}
+            """;
+
+    private record NoteRow(long mid, String tags, String flds) {
+    }
+
+    private static String flds(String... values) {
+        return String.join(String.valueOf(SEP), values);
+    }
+
+    private static MockMultipartFile apkg(String filename, byte[] bytes) {
+        return new MockMultipartFile("file", filename, "application/octet-stream", bytes);
+    }
+
+    // ── Happy paths ───────────────────────────────────────────────────────────
+
+    @Test
+    void parsesNotes_mapsFieldsToNoteTypeNames() throws Exception {
+        byte[] bytes = buildApkg("collection.anki2", BASIC_MODEL,
+                List.of(new NoteRow(1607392319L, "", flds("こんにちは", "hello"))));
+
+        ApkgNotesResponse resp = service.parseNotes(apkg("deck.apkg", bytes));
+
+        assertEquals("legacy", resp.schema());
+        assertEquals(1, resp.totalNotes());
+        assertEquals(0, resp.skippedNotes());
+        assertEquals(1, resp.noteTypes().size());
+
+        NoteTypeNotes type = resp.noteTypes().get(0);
+        assertEquals("Basic", type.name());
+        assertEquals(List.of("Front", "Back"), type.fieldNames());
+        assertEquals(1, type.noteCount());
+        assertEquals("こんにちは", type.sample().get(0).fields().get("Front"));
+        assertEquals("hello", type.sample().get(0).fields().get("Back"));
+    }
+
+    @Test
+    void cleansValues_blockTagsBecomeSpace_inlineTagsDropped_soundAndEntitiesHandled() throws Exception {
+        String dirty = "<div>line one</div><br>line two &amp; <b>bold</b>word [sound:a.mp3]";
+        byte[] bytes = buildApkg("collection.anki2", BASIC_MODEL,
+                List.of(new NoteRow(1607392319L, "", flds("Q", dirty))));
+
+        ApkgNotesResponse resp = service.parseNotes(apkg("deck.apkg", bytes));
+
+        // <div>/<br> -> space (no word mashing), <b> dropped (no word split),
+        // [sound:] removed, &amp; decoded, whitespace collapsed.
+        assertEquals("line one line two & boldword",
+                resp.noteTypes().get(0).sample().get(0).fields().get("Back"));
+    }
+
+    @Test
+    void parsesTags_trimsAndSplitsOnWhitespace() throws Exception {
+        byte[] bytes = buildApkg("collection.anki2", BASIC_MODEL,
+                List.of(new NoteRow(1607392319L, "  greeting  jp  ", flds("a", "b"))));
+
+        List<String> tags = service.parseNotes(apkg("deck.apkg", bytes))
+                .noteTypes().get(0).sample().get(0).tags();
+
+        assertEquals(List.of("greeting", "jp"), tags);
+    }
+
+    @Test
+    void padsMissingFields_whenNoteHasFewerValuesThanFieldNames() throws Exception {
+        byte[] bytes = buildApkg("collection.anki2", BASIC_MODEL,
+                List.of(new NoteRow(1607392319L, "", "only front"))); // no separator -> 1 value
+
+        var fields = service.parseNotes(apkg("deck.apkg", bytes))
+                .noteTypes().get(0).sample().get(0).fields();
+
+        assertEquals("only front", fields.get("Front"));
+        assertEquals("", fields.get("Back"));
+    }
+
+    @Test
+    void groupsNotesByNoteType_acrossMultipleModels() throws Exception {
+        String models = """
+                {"100":{"id":100,"name":"Basic","type":0,
+                   "flds":[{"name":"Front","ord":0},{"name":"Back","ord":1}]},
+                 "200":{"id":200,"name":"Cloze","type":1,
+                   "flds":[{"name":"Text","ord":0}]}}
+                """;
+        byte[] bytes = buildApkg("collection.anki2", models, List.of(
+                new NoteRow(100L, "", flds("f1", "b1")),
+                new NoteRow(100L, "", flds("f2", "b2")),
+                new NoteRow(200L, "", "some {{c1::cloze}}")));
+
+        ApkgNotesResponse resp = service.parseNotes(apkg("deck.apkg", bytes));
+
+        assertEquals(3, resp.totalNotes());
+        NoteTypeNotes basic = resp.noteTypes().stream()
+                .filter(t -> t.name().equals("Basic")).findFirst().orElseThrow();
+        NoteTypeNotes cloze = resp.noteTypes().stream()
+                .filter(t -> t.name().equals("Cloze")).findFirst().orElseThrow();
+        assertEquals(2, basic.noteCount());
+        assertEquals(1, cloze.noteCount());
+        assertTrue(cloze.cloze(), "type:1 model should be flagged cloze");
+    }
+
+    @Test
+    void countsNotesWithUnknownModel_asSkipped() throws Exception {
+        byte[] bytes = buildApkg("collection.anki2", BASIC_MODEL, List.of(
+                new NoteRow(1607392319L, "", flds("a", "b")),
+                new NoteRow(999999L, "", flds("orphan", "note")))); // mid not in models
+
+        ApkgNotesResponse resp = service.parseNotes(apkg("deck.apkg", bytes));
+
+        assertEquals(1, resp.totalNotes());
+        assertEquals(1, resp.skippedNotes());
+    }
+
+    @Test
+    void parsesZstdCompressedCollection() throws Exception {
+        byte[] bytes = buildApkg("collection.anki21b", BASIC_MODEL,
+                List.of(new NoteRow(1607392319L, "", flds("zstd", "works"))));
+
+        ApkgNotesResponse resp = service.parseNotes(apkg("deck.apkg", bytes));
+
+        assertEquals("collection.anki21b", resp.collectionFile());
+        assertEquals(1, resp.totalNotes());
+        assertEquals("works", resp.noteTypes().get(0).sample().get(0).fields().get("Back"));
+    }
+
+    // ── Rejections ────────────────────────────────────────────────────────────
+
+    @Test
+    void rejectsEmptyFile() {
+        ApkgParseException ex = assertThrows(ApkgParseException.class,
+                () -> service.parseNotes(apkg("deck.apkg", new byte[0])));
+        assertTrue(ex.getMessage().toLowerCase().contains("empty"));
+    }
+
+    @Test
+    void rejectsNonApkgExtension() {
+        ApkgParseException ex = assertThrows(ApkgParseException.class,
+                () -> service.parseNotes(apkg("notes.txt", new byte[]{1, 2, 3})));
+        assertTrue(ex.getMessage().contains("Only .apkg"));
+    }
+
+    @Test
+    void rejectsNonZipContent() {
+        byte[] notAZip = "this is plainly not a zip file".getBytes(StandardCharsets.UTF_8);
+        // Either "not a valid .apkg (zip)" or "No Anki collection", depending on how
+        // ZipInputStream reacts to the garbage — both are ApkgParseException.
+        assertThrows(ApkgParseException.class,
+                () -> service.parseNotes(apkg("deck.apkg", notAZip)));
+    }
+
+    @Test
+    void rejectsZipWithoutCollection() throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            zos.putNextEntry(new ZipEntry("media"));
+            zos.write("{}".getBytes(StandardCharsets.UTF_8));
+            zos.closeEntry();
+        }
+        ApkgParseException ex = assertThrows(ApkgParseException.class,
+                () -> service.parseNotes(apkg("deck.apkg", baos.toByteArray())));
+        assertTrue(ex.getMessage().contains("No Anki collection"));
+    }
+
+    // ── Fixture builder ─────────────────────────────────────────────────────────
+
+    /**
+     * Builds a minimal {@code .apkg}: a zip containing a SQLite collection (with
+     * the {@code col.models} JSON and {@code notes} rows) plus an empty media
+     * manifest. When {@code entryName} is {@code collection.anki21b} the db is
+     * zstd-compressed, mirroring newer Anki exports.
+     */
+    private static byte[] buildApkg(String entryName, String modelsJson, List<NoteRow> notes)
+            throws Exception {
+        Path db = Files.createTempFile("fixture-", ".sqlite");
+        try {
+            try (Connection c = DriverManager.getConnection("jdbc:sqlite:" + db.toAbsolutePath())) {
+                try (Statement st = c.createStatement()) {
+                    st.execute("CREATE TABLE col (models TEXT)");
+                    st.execute("CREATE TABLE notes (id INTEGER PRIMARY KEY, mid INTEGER, tags TEXT, flds TEXT)");
+                }
+                try (PreparedStatement ps = c.prepareStatement("INSERT INTO col(models) VALUES (?)")) {
+                    ps.setString(1, modelsJson);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps =
+                             c.prepareStatement("INSERT INTO notes(mid, tags, flds) VALUES (?, ?, ?)")) {
+                    for (NoteRow n : notes) {
+                        ps.setLong(1, n.mid());
+                        ps.setString(2, n.tags());
+                        ps.setString(3, n.flds());
+                        ps.addBatch();
+                    }
+                    ps.executeBatch();
+                }
+            }
+
+            byte[] dbBytes = Files.readAllBytes(db);
+            if (entryName.equals("collection.anki21b")) {
+                ByteArrayOutputStream compressed = new ByteArrayOutputStream();
+                try (ZstdOutputStream z = new ZstdOutputStream(compressed)) {
+                    z.write(dbBytes);
+                }
+                dbBytes = compressed.toByteArray();
+            }
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+                zos.putNextEntry(new ZipEntry(entryName));
+                zos.write(dbBytes);
+                zos.closeEntry();
+                zos.putNextEntry(new ZipEntry("media"));
+                zos.write("{}".getBytes(StandardCharsets.UTF_8));
+                zos.closeEntry();
+            }
+            return baos.toByteArray();
+        } finally {
+            Files.deleteIfExists(db);
+        }
+    }
+}

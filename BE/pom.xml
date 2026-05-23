@@ -65,6 +65,19 @@
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
+        <!-- .apkg parsing: the collection is a SQLite db inside a zip;
+             newer Anki exports (collection.anki21b) are zstd-compressed. -->
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>3.47.1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.luben</groupId>
+            <artifactId>zstd-jni</artifactId>
+            <version>1.5.6-9</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>

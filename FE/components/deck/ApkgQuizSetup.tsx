@@ -168,7 +168,9 @@ function NoteTypeQuiz({
 
   function handleStart() {
     const pool: QuizNote[] = noteType.notes.map((n, i) => ({
-      id: n.ankiNoteId ?? `${noteType.id}-${i}`,
+      // Prefer the persisted note UUID (saved decks) so answers record against the
+      // real note; fall back to the Anki id / a synthetic id for fresh parses.
+      id: n.id ?? n.ankiNoteId ?? `${noteType.id}-${i}`,
       fields: n.fields,
     }));
     const questions = buildQuestions(

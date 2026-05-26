@@ -22,6 +22,12 @@ export default function LandingPage() {
           Sign up
         </Link>
       </div>
+      <Link
+        href="/try"
+        className="text-sm font-medium text-neutral-600 underline underline-offset-4 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
+      >
+        Try it without an account →
+      </Link>
     </main>
   );
 }

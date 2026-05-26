@@ -11,6 +11,8 @@ import { QuizSession } from "@/components/quiz/QuizSession";
 import { Modal } from "@/components/shared/Modal";
 import type { ParseResult } from "@/lib/parseDeck";
 import { reshuffleQuestions, type Question } from "@/lib/buildQuestions";
+import { parsedToImportRequest } from "@/lib/parsedToImportRequest";
+import { useImportDeck } from "@/hooks/useDecks";
 import { useQuizStore } from "@/stores/quizStore";
 import type { ApkgParseResponse, DeckResponse } from "@/types/api";
 
@@ -26,9 +28,17 @@ export default function ImportPage() {
   const [step, setStep] = useState<Step>({ kind: "import" });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const startSession = useQuizStore((s) => s.startSession);
+  const importDeck = useImportDeck();
 
-  // Trial quiz: no backend session, so an empty sessionId keeps QuizSession from
-  // recording answers. Saving comes later (Chunk 3) via POST /decks.
+  // /import is logged-in only, so a successfully parsed .apkg is auto-saved to the
+  // user's decks. The flashcard/test flow continues regardless of the save result.
+  function handleParsed(parsed: ApkgParseResponse) {
+    setStep({ kind: "flashcards", parsed });
+    importDeck.mutate(parsedToImportRequest(parsed));
+  }
+
+  // Trial/preview quiz on this page uses an empty sessionId so QuizSession doesn't
+  // record answers; the saved deck is studied/tested from the dashboard instead.
   function startTrial(parsed: ApkgParseResponse, questions: Question[]) {
     setSettingsOpen(false);
     // Reshuffle so a retake/new-test never repeats the same answer positions.
@@ -44,7 +54,7 @@ export default function ImportPage() {
     <div className={`mx-auto ${containerWidth}`}>
       {step.kind === "import" && (
         <div className="space-y-8">
-          <ApkgUploader onContinue={(parsed) => setStep({ kind: "flashcards", parsed })} />
+          <ApkgUploader onContinue={handleParsed} />
           <div className="border-t border-neutral-200 pt-8 dark:border-neutral-800">
             <DeckImporter onContinue={(result) => setStep({ kind: "detect", result })} />
           </div>
@@ -60,19 +70,31 @@ export default function ImportPage() {
       )}
 
       {step.kind === "flashcards" && (
-        <FlashcardViewer
-          parsed={step.parsed}
-          onBack={() => setStep({ kind: "import" })}
-          onStartTest={() => setStep({ kind: "apkg-setup", parsed: step.parsed })}
-        />
+        <div className="space-y-4">
+          <SaveStatus
+            state={importDeck.status}
+            onRetry={() => importDeck.mutate(parsedToImportRequest(step.parsed))}
+          />
+          <FlashcardViewer
+            parsed={step.parsed}
+            onBack={() => setStep({ kind: "import" })}
+            onStartTest={() => setStep({ kind: "apkg-setup", parsed: step.parsed })}
+          />
+        </div>
       )}
 
       {step.kind === "apkg-setup" && (
-        <ApkgQuizSetup
-          parsed={step.parsed}
-          onBack={() => setStep({ kind: "flashcards", parsed: step.parsed })}
-          onStart={(questions) => startTrial(step.parsed, questions)}
-        />
+        <div className="space-y-4">
+          <SaveStatus
+            state={importDeck.status}
+            onRetry={() => importDeck.mutate(parsedToImportRequest(step.parsed))}
+          />
+          <ApkgQuizSetup
+            parsed={step.parsed}
+            onBack={() => setStep({ kind: "flashcards", parsed: step.parsed })}
+            onStart={(questions) => startTrial(step.parsed, questions)}
+          />
+        </div>
       )}
 
       {step.kind === "apkg-quiz" && (
@@ -128,4 +150,39 @@ export default function ImportPage() {
       )}
     </div>
   );
+}
+
+// Small banner reflecting the auto-save of the imported deck.
+function SaveStatus({
+  state,
+  onRetry,
+}: {
+  state: "idle" | "pending" | "success" | "error";
+  onRetry: () => void;
+}) {
+  if (state === "pending") {
+    return (
+      <p className="rounded-md bg-neutral-100 px-3 py-2 text-sm text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300">
+        Saving deck to your account…
+      </p>
+    );
+  }
+  if (state === "success") {
+    return (
+      <p className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-800 dark:bg-green-900/30 dark:text-green-300">
+        ✓ Saved to your decks
+      </p>
+    );
+  }
+  if (state === "error") {
+    return (
+      <p className="flex items-center justify-between gap-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-300">
+        <span>Couldn&apos;t save this deck to your account.</span>
+        <button type="button" onClick={onRetry} className="font-medium underline">
+          Retry
+        </button>
+      </p>
+    );
+  }
+  return null;
 }

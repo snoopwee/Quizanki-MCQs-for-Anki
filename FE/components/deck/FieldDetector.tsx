@@ -42,10 +42,18 @@ export function FieldDetector({
     const request: ImportDeckRequest = {
       name: name.trim(),
       subdeckPath: null,
-      questionField,
-      answerField,
-      detectionConfidence: detection.confidence,
-      notes: result.notes.map((n) => ({ fields: n.fields, tags: n.tags })),
+      sourceFilename: null,
+      noteTypes: [
+        {
+          ankiModelId: null,
+          name: "Imported",
+          cloze: false,
+          fieldNames: result.fieldNames,
+          frontFields: [questionField],
+          backFields: [answerField],
+          notes: result.notes.map((n) => ({ fields: n.fields, tags: n.tags })),
+        },
+      ],
     };
 
     const parsed = importDeckSchema.safeParse(request);

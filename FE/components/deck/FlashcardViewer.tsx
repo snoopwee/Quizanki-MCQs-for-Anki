@@ -16,11 +16,13 @@ export function FlashcardViewer({
   onBack,
   onStartTest,
   onSave,
+  backLabel = "Import another",
 }: {
   parsed: ApkgParseResponse;
   onBack: () => void;
   onStartTest: () => void;
   onSave?: () => void;
+  backLabel?: string;
 }) {
   const cards = useMemo(() => buildFlashcards(parsed.noteTypes), [parsed]);
   const [index, setIndex] = useState(0);
@@ -47,7 +49,7 @@ export function FlashcardViewer({
           onClick={onBack}
           className="rounded-md border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
         >
-          Import another
+          {backLabel}
         </button>
       </div>
     );
@@ -119,7 +121,7 @@ export function FlashcardViewer({
           onClick={onBack}
           className="rounded-md border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
         >
-          Import another
+          {backLabel}
         </button>
         {onSave && (
           <button

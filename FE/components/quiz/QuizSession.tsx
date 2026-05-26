@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useQuizStore } from "@/stores/quizStore";
 import { useRecordAnswer } from "@/hooks/useQuizSession";
 import { reshuffleQuestions } from "@/lib/buildQuestions";
@@ -12,12 +13,16 @@ export function QuizSession({
   onRetry,
   onExit,
   onOpenSettings,
+  onFinish,
 }: {
   onRetry: () => void;
   onExit: () => void;
   // When provided, a Settings button appears during the active quiz (opens the
   // setting modal). Omitted by the saved-deck quiz, which has no live settings.
   onOpenSettings?: () => void;
+  // Fired once when the quiz reaches the results screen. Used by the guest trial
+  // to prompt sign-up; fires again after a retake completes.
+  onFinish?: () => void;
 }) {
   const questions = useQuizStore((s) => s.questions);
   const currentIndex = useQuizStore((s) => s.currentIndex);
@@ -32,6 +37,17 @@ export function QuizSession({
   const recordAnswer = useRecordAnswer();
 
   const finished = currentIndex >= questions.length;
+
+  // Fire onFinish once per completion (reset when a new/retake quiz starts).
+  const finishFiredRef = useRef(false);
+  useEffect(() => {
+    if (finished && !finishFiredRef.current) {
+      finishFiredRef.current = true;
+      onFinish?.();
+    } else if (!finished) {
+      finishFiredRef.current = false;
+    }
+  }, [finished, onFinish]);
 
   if (finished) {
     // Same/wrong-only replays run locally (empty sessionId), so they don't append

@@ -50,7 +50,7 @@ export default function DashboardPage() {
                   href={`/decks/${deck.id}/quiz`}
                   className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
                 >
-                  Start quiz
+                  Study &amp; test
                 </Link>
                 <button
                   type="button"

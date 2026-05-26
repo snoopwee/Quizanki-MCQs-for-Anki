@@ -15,9 +15,7 @@ export interface DeckResponse {
   id: string;
   name: string;
   subdeckPath: string | null;
-  questionField: string;
-  answerField: string;
-  detectionConfidence: number | null;
+  sourceFilename: string | null;
   cardCount: number | null;
   importedAt: string | null;
 }
@@ -44,13 +42,24 @@ export interface NoteRequest {
   tags: string[];
 }
 
+export interface NoteTypeRequest {
+  ankiModelId?: number | null;
+  name: string;
+  cloze: boolean;
+  fieldNames: string[];
+  frontFields: string[];
+  backFields: string[];
+  notes: NoteRequest[];
+}
+
+// The whole flashcard deck: note types + their notes. Field choice is made at
+// test time, so it's no longer part of the deck (see the 2026-05-26 direction
+// change). Mirrors the BE ImportDeckRequest.
 export interface ImportDeckRequest {
   name: string;
   subdeckPath?: string | null;
-  questionField: string;
-  answerField: string;
-  detectionConfidence?: number | null;
-  notes: NoteRequest[];
+  sourceFilename?: string | null;
+  noteTypes: NoteTypeRequest[];
 }
 
 export interface StartSessionRequest {
@@ -75,6 +84,10 @@ export interface RecordAnswerResponse {
 
 // .apkg parse endpoint (POST /api/v1/public/parse-apkg) — public, stateless.
 export interface ApkgParsedNote {
+  // The persisted note UUID. Undefined for a fresh parse (not yet saved); set
+  // when a saved deck's contents are adapted into this shape, so the quiz can
+  // record answers against the real note id.
+  id?: string;
   ankiNoteId: string | null;
   fields: Record<string, string>;
   tags: string[];
@@ -101,4 +114,34 @@ export interface ApkgParseResponse {
   totalNotes: number;
   skippedNotes: number;
   noteTypes: ApkgNoteType[];
+}
+
+// GET /api/v1/decks/{id}/contents — a saved deck's full flashcard structure.
+export interface DeckContentsNote {
+  id: string;
+  ankiNoteId: string | null;
+  fields: Record<string, string>;
+  tags: string[];
+}
+
+export interface DeckContentsNoteType {
+  id: string;
+  ankiModelId: number | null;
+  name: string;
+  cloze: boolean;
+  fieldNames: string[];
+  frontFields: string[];
+  backFields: string[];
+  noteCount: number;
+  notes: DeckContentsNote[];
+}
+
+export interface DeckContentsResponse {
+  id: string;
+  name: string;
+  subdeckPath: string | null;
+  sourceFilename: string | null;
+  cardCount: number | null;
+  importedAt: string | null;
+  noteTypes: DeckContentsNoteType[];
 }

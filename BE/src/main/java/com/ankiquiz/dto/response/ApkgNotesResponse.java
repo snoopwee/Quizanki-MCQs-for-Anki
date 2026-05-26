@@ -4,13 +4,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Chunk 4 response: notes extracted from the collection, grouped by note type.
- * Each note's fields are mapped to its own note type's field names and cleaned
- * (HTML / {@code [sound:]} stripped, entities decoded).
+ * Parsed notes from a {@code .apkg}, grouped by note type. Each note's fields are
+ * mapped to its own note type's field names and cleaned (HTML / {@code [sound:]}
+ * stripped, entities decoded). Returns the deck's full note set so the client can
+ * run field detection and build the quiz pool; a note whose model id has no
+ * matching note type is counted in {@code skippedNotes}.
  *
- * <p>For reviewability this returns a small {@code sample} per note type plus the
- * full {@code noteCount}; the FE-ready version (later) returns all notes. A note
- * whose model id has no matching note type is counted in {@code skippedNotes}.
+ * <p>Each {@link ParsedNote} carries its Anki note id so the save path can upsert
+ * by {@code ankiNoteId} (matching {@code NoteRequest}).
  */
 public record ApkgNotesResponse(
         String filename,
@@ -26,10 +27,10 @@ public record ApkgNotesResponse(
             boolean cloze,
             List<String> fieldNames,
             int noteCount,
-            List<ParsedNote> sample
+            List<ParsedNote> notes
     ) {
     }
 
-    public record ParsedNote(Map<String, String> fields, List<String> tags) {
+    public record ParsedNote(String ankiNoteId, Map<String, String> fields, List<String> tags) {
     }
 }

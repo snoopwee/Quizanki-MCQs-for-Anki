@@ -9,7 +9,7 @@ const deck: QuizNote[] = [
   { id: "5", fields: { q: "話す", a: "to speak" } },
 ];
 
-const config = { questionField: "q", answerField: "a" as const };
+const config = { questionFields: ["q"], answerField: "a" };
 const rng = () => 0; // deterministic
 
 describe("buildQuestions", () => {
@@ -38,18 +38,26 @@ describe("buildQuestions", () => {
     expect(new Set(distractors).size).toBe(distractors.length);
   });
 
-  it("swaps prompt and answer for BACK_TO_FRONT direction", () => {
+  it("bundles multiple question fields into a labelled prompt, dropping empties", () => {
+    const bundleDeck: QuizNote[] = [
+      { id: "1", fields: { term: "提案", reading: "ていあん", example: "新しい提案", a: "proposal" } },
+      { id: "2", fields: { term: "会議", reading: "かいぎ", example: "", a: "meeting" } },
+    ];
     const questions = buildQuestions(
-      deck,
-      1,
-      { ...config, direction: "BACK_TO_FRONT" },
-      deck,
+      bundleDeck,
+      2,
+      { questionFields: ["term", "reading", "example"], answerField: "a" },
+      bundleDeck,
       rng,
     );
-    const q = questions[0];
-    const source = deck.find((n) => n.id === q.noteId)!;
-    expect(q.question).toBe(source.fields.a);
-    expect(q.correct).toBe(source.fields.q);
+    const teian = questions.find((q) => q.correct === "proposal")!;
+    expect(teian.prompt.map((s) => s.label)).toEqual(["term", "reading", "example"]);
+    expect(teian.prompt.map((s) => s.value)).toEqual(["提案", "ていあん", "新しい提案"]);
+    expect(teian.question).toBe("提案 — ていあん — 新しい提案");
+
+    // The empty "example" field is dropped from this note's prompt.
+    const kaigi = questions.find((q) => q.correct === "meeting")!;
+    expect(kaigi.prompt.map((s) => s.label)).toEqual(["term", "reading"]);
   });
 
   it("degrades gracefully when the answer pool has fewer than 4 unique values", () => {

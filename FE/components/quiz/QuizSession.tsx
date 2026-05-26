@@ -58,7 +58,7 @@ export function QuizSession({
   return (
     <div className="space-y-5">
       <ProgressBar current={currentIndex} total={questions.length} />
-      <QuestionCard question={question.question} />
+      <QuestionCard prompt={question.prompt} />
 
       <div className="space-y-2">
         {question.options.map((option) => (

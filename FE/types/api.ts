@@ -72,3 +72,28 @@ export interface RecordAnswerResponse {
   accuracy: number;
   streak: number;
 }
+
+// .apkg parse endpoint (POST /api/v1/public/parse-apkg) — public, stateless.
+export interface ApkgParsedNote {
+  ankiNoteId: string | null;
+  fields: Record<string, string>;
+  tags: string[];
+}
+
+export interface ApkgNoteType {
+  id: number;
+  name: string;
+  cloze: boolean;
+  fieldNames: string[];
+  noteCount: number;
+  notes: ApkgParsedNote[];
+}
+
+export interface ApkgParseResponse {
+  filename: string;
+  collectionFile: string;
+  schema: string;
+  totalNotes: number;
+  skippedNotes: number;
+  noteTypes: ApkgNoteType[];
+}

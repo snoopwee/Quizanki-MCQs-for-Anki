@@ -65,9 +65,6 @@ public class ApkgParserService {
     /** Anki joins a note's field values with the unit-separator (0x1F) control char. */
     private static final String FIELD_SEPARATOR = String.valueOf((char) 0x1F);
 
-    /** Per-note-type sample size in the diagnostic response. */
-    private static final int SAMPLE_SIZE = 5;
-
     private static final Pattern SOUND_TAG = Pattern.compile("\\[sound:[^]]*]");
     // Block / line-break tags become a space so adjacent text isn't mashed together
     // (e.g. "...đóng2." from list items, lines joined by <br>); remaining inline
@@ -116,7 +113,7 @@ public class ApkgParserService {
             int total = 0;
             int skipped = 0;
             try (Statement st = conn.createStatement();
-                 ResultSet rs = st.executeQuery("SELECT mid, tags, flds FROM notes")) {
+                 ResultSet rs = st.executeQuery("SELECT id, mid, tags, flds FROM notes")) {
                 while (rs.next()) {
                     NoteTypeInfo type = types.get(rs.getLong("mid"));
                     if (type == null) {
@@ -124,6 +121,7 @@ public class ApkgParserService {
                         continue;
                     }
                     ParsedNote note = new ParsedNote(
+                            String.valueOf(rs.getLong("id")),
                             mapFields(type.fieldNames(), rs.getString("flds")),
                             parseTags(rs.getString("tags")));
                     notesByType.computeIfAbsent(type.id(), k -> new ArrayList<>()).add(note);
@@ -136,7 +134,7 @@ public class ApkgParserService {
                 List<ParsedNote> notes = notesByType.getOrDefault(type.id(), List.of());
                 out.add(new NoteTypeNotes(
                         type.id(), type.name(), type.cloze(), type.fieldNames(),
-                        notes.size(), notes.stream().limit(SAMPLE_SIZE).toList()));
+                        notes.size(), notes));
             }
             return new ApkgNotesResponse(
                     file.getOriginalFilename(), col.name(), modern ? "modern" : "legacy",

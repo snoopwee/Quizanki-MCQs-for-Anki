@@ -6,6 +6,7 @@ import type { ParseResult } from "@/lib/parseDeck";
 import { importDeckSchema } from "@/schemas/deck.schema";
 import { useImportDeck } from "@/hooks/useDecks";
 import { ConfidenceBadge } from "@/components/shared/ConfidenceBadge";
+import { FieldSelect } from "@/components/deck/FieldSelect";
 import type { DeckResponse, ImportDeckRequest } from "@/types/api";
 
 function sampleValue(result: ParseResult, field: string): string {
@@ -129,40 +130,6 @@ export function FieldDetector({
           {importMutation.isPending ? "Importing…" : `Import ${result.notes.length} cards`}
         </button>
       </div>
-    </div>
-  );
-}
-
-function FieldSelect({
-  label,
-  value,
-  fields,
-  sample,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  fields: string[];
-  sample: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label className="text-sm font-medium">{label}</label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-neutral-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-900 dark:border-neutral-700 dark:focus:border-neutral-200"
-      >
-        {fields.map((f) => (
-          <option key={f} value={f}>
-            {f}
-          </option>
-        ))}
-      </select>
-      <p className="truncate text-xs text-neutral-500" title={sample}>
-        e.g. {sample}
-      </p>
     </div>
   );
 }

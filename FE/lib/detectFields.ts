@@ -94,6 +94,27 @@ function scoreField(name: string, index: number, signals: FieldSignals): FieldSc
   return { name, questionScore, answerScore };
 }
 
+// Fields worth offering as a quiz question/answer. Hides "metadata" fields that
+// make poor multiple-choice material: mostly-empty fields, single-value fields,
+// and low-cardinality categorical fields (e.g. "JLPT Level", "Jouyou Grade").
+// Picking those would pair an irrelevant prompt with an answer and collapse the
+// distractor pool to a few repeated values.
+export function selectableFields(notes: ParsedNote[], fieldNames: string[]): string[] {
+  return fieldNames.filter((name) => {
+    const values = notes.map((n) => n.fields[name] ?? "");
+    const nonEmpty = values.filter((v) => v.length > 0);
+    if (nonEmpty.length === 0) return false;
+    if ((values.length - nonEmpty.length) / values.length > 0.5) return false;
+
+    const distinct = new Set(nonEmpty).size;
+    if (distinct < 2) return false;
+    // With enough data, very few distinct values means categorical metadata,
+    // not quiz content (e.g. 3787 notes but only 5 distinct "JLPT Level"s).
+    if (nonEmpty.length >= 20 && distinct <= 10) return false;
+    return true;
+  });
+}
+
 export function detectFields(notes: ParsedNote[], fieldNames: string[]): FieldDetection {
   if (fieldNames.length === 0) {
     return { questionField: "", answerField: "", confidence: 0 };

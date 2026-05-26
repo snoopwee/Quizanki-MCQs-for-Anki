@@ -1,8 +1,8 @@
-// Builds multiple-choice questions from a deck's notes. Distractors are always
-// drawn from the FULL deck's answer pool (deduplicated, excluding the correct
-// value) so a tag-filtered quiz doesn't collapse to a tiny distractor set.
-
-import type { QuizDirection } from "@/types/api";
+// Builds multiple-choice questions from a deck's notes. The prompt can bundle
+// several fields together (e.g. term + reading + example sentence); the answer
+// is always a single field. Distractors are always drawn from the FULL deck's
+// answer pool (deduplicated, excluding the correct value) so a tag-filtered quiz
+// doesn't collapse to a tiny distractor set.
 
 export interface QuizNote {
   id: string;
@@ -10,13 +10,21 @@ export interface QuizNote {
 }
 
 export interface QuizConfig {
-  questionField: string;
+  // One or more fields bundled into the prompt, shown in this order.
+  questionFields: string[];
   answerField: string;
-  direction?: QuizDirection;
+}
+
+// A single labelled line of the bundled prompt.
+export interface PromptSegment {
+  label: string;
+  value: string;
 }
 
 export interface Question {
   noteId: string;
+  prompt: PromptSegment[];
+  // Flattened prompt text, kept for answer records / the results summary.
   question: string;
   correct: string;
   options: string[];
@@ -42,9 +50,7 @@ export function buildQuestions(
   fullPool: QuizNote[] = notes,
   rng: () => number = Math.random,
 ): Question[] {
-  const swap = config.direction === "BACK_TO_FRONT";
-  const questionField = swap ? config.answerField : config.questionField;
-  const answerField = swap ? config.questionField : config.answerField;
+  const { questionFields, answerField } = config;
 
   const allAnswers = Array.from(
     new Set(fullPool.map((n) => n.fields[answerField] ?? "").filter((v) => v.length > 0)),
@@ -54,7 +60,12 @@ export function buildQuestions(
 
   return selected.map((note) => {
     const correct = note.fields[answerField] ?? "";
-    const question = note.fields[questionField] ?? "";
+
+    // Bundle the chosen prompt fields, dropping any that are empty for this note.
+    const prompt = questionFields
+      .map((field) => ({ label: field, value: note.fields[field] ?? "" }))
+      .filter((seg) => seg.value.length > 0);
+    const question = prompt.map((seg) => seg.value).join(" — ");
 
     const distractors = shuffle(
       allAnswers.filter((a) => a !== correct),
@@ -63,6 +74,7 @@ export function buildQuestions(
 
     return {
       noteId: note.id,
+      prompt,
       question,
       correct,
       options: shuffle([correct, ...distractors], rng),

@@ -30,9 +30,8 @@ export default function QuizPage() {
     if (!deck) return;
     const quizNotes: QuizNote[] = notes.map((n) => ({ id: n.id, fields: n.fields }));
     const questions = buildQuestions(quizNotes, quizNotes.length, {
-      questionField: deck.questionField,
+      questionFields: [deck.questionField],
       answerField: deck.answerField,
-      direction: "FRONT_TO_BACK",
     });
     startSession.mutate(
       { deckId, questionCount: quizNotes.length, direction: "FRONT_TO_BACK" },

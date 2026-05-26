@@ -65,8 +65,8 @@ class ApkgParserServiceTest {
         assertEquals("Basic", type.name());
         assertEquals(List.of("Front", "Back"), type.fieldNames());
         assertEquals(1, type.noteCount());
-        assertEquals("こんにちは", type.sample().get(0).fields().get("Front"));
-        assertEquals("hello", type.sample().get(0).fields().get("Back"));
+        assertEquals("こんにちは", type.notes().get(0).fields().get("Front"));
+        assertEquals("hello", type.notes().get(0).fields().get("Back"));
     }
 
     @Test
@@ -80,7 +80,7 @@ class ApkgParserServiceTest {
         // <div>/<br> -> space (no word mashing), <b> dropped (no word split),
         // [sound:] removed, &amp; decoded, whitespace collapsed.
         assertEquals("line one line two & boldword",
-                resp.noteTypes().get(0).sample().get(0).fields().get("Back"));
+                resp.noteTypes().get(0).notes().get(0).fields().get("Back"));
     }
 
     @Test
@@ -89,7 +89,7 @@ class ApkgParserServiceTest {
                 List.of(new NoteRow(1607392319L, "  greeting  jp  ", flds("a", "b"))));
 
         List<String> tags = service.parseNotes(apkg("deck.apkg", bytes))
-                .noteTypes().get(0).sample().get(0).tags();
+                .noteTypes().get(0).notes().get(0).tags();
 
         assertEquals(List.of("greeting", "jp"), tags);
     }
@@ -100,7 +100,7 @@ class ApkgParserServiceTest {
                 List.of(new NoteRow(1607392319L, "", "only front"))); // no separator -> 1 value
 
         var fields = service.parseNotes(apkg("deck.apkg", bytes))
-                .noteTypes().get(0).sample().get(0).fields();
+                .noteTypes().get(0).notes().get(0).fields();
 
         assertEquals("only front", fields.get("Front"));
         assertEquals("", fields.get("Back"));
@@ -152,7 +152,7 @@ class ApkgParserServiceTest {
 
         assertEquals("collection.anki21b", resp.collectionFile());
         assertEquals(1, resp.totalNotes());
-        assertEquals("works", resp.noteTypes().get(0).sample().get(0).fields().get("Back"));
+        assertEquals("works", resp.noteTypes().get(0).notes().get(0).fields().get("Back"));
     }
 
     // ── Rejections ────────────────────────────────────────────────────────────

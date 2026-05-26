@@ -27,14 +27,8 @@ public class Deck {
     @Column(name = "subdeck_path")
     private String subdeckPath;
 
-    @Column(name = "question_field", nullable = false)
-    private String questionField;
-
-    @Column(name = "answer_field", nullable = false)
-    private String answerField;
-
-    @Column(name = "detection_confidence")
-    private Double detectionConfidence;
+    @Column(name = "source_filename")
+    private String sourceFilename;
 
     @Column(name = "card_count")
     private Integer cardCount;
@@ -74,28 +68,12 @@ public class Deck {
         this.subdeckPath = subdeckPath;
     }
 
-    public String getQuestionField() {
-        return questionField;
+    public String getSourceFilename() {
+        return sourceFilename;
     }
 
-    public void setQuestionField(String questionField) {
-        this.questionField = questionField;
-    }
-
-    public String getAnswerField() {
-        return answerField;
-    }
-
-    public void setAnswerField(String answerField) {
-        this.answerField = answerField;
-    }
-
-    public Double getDetectionConfidence() {
-        return detectionConfidence;
-    }
-
-    public void setDetectionConfidence(Double detectionConfidence) {
-        this.detectionConfidence = detectionConfidence;
+    public void setSourceFilename(String sourceFilename) {
+        this.sourceFilename = sourceFilename;
     }
 
     public Integer getCardCount() {

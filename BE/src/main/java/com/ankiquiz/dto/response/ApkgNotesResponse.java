@@ -12,6 +12,13 @@ import java.util.Map;
  *
  * <p>Each {@link ParsedNote} carries its Anki note id so the save path can upsert
  * by {@code ankiNoteId} (matching {@code NoteRequest}).
+ *
+ * <p>{@code frontFields}/{@code backFields} are the field names the deck author
+ * placed on the card's question/answer side, derived from the note type's first
+ * card template (legacy decks only). The client uses them to pre-select the quiz
+ * prompt and answer; they're empty when no template is available (e.g. modern
+ * decks whose template config is protobuf-encoded), and the client then falls
+ * back to its own field-detection heuristic.
  */
 public record ApkgNotesResponse(
         String filename,
@@ -26,6 +33,8 @@ public record ApkgNotesResponse(
             String name,
             boolean cloze,
             List<String> fieldNames,
+            List<String> frontFields,
+            List<String> backFields,
             int noteCount,
             List<ParsedNote> notes
     ) {

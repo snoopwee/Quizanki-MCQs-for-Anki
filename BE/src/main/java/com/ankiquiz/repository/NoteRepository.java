@@ -15,6 +15,8 @@ public interface NoteRepository extends JpaRepository<Note, UUID> {
 
     List<Note> findAllByDeckIdAndAnkiNoteIdIn(UUID deckId, Collection<String> ankiNoteIds);
 
+    List<Note> findAllByDeckIdOrderById(UUID deckId);
+
     long countByDeckId(UUID deckId);
 
     /**

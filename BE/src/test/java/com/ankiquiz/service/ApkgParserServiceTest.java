@@ -33,7 +33,9 @@ class ApkgParserServiceTest {
 
     private static final String BASIC_MODEL = """
             {"1607392319":{"id":1607392319,"name":"Basic","type":0,
-              "flds":[{"name":"Front","ord":0},{"name":"Back","ord":1}]}}
+              "flds":[{"name":"Front","ord":0},{"name":"Back","ord":1}],
+              "tmpls":[{"name":"Card 1","ord":0,
+                "qfmt":"{{Front}}","afmt":"{{FrontSide}}<hr>{{Back}}"}]}}
             """;
 
     private record NoteRow(long mid, String tags, String flds) {
@@ -67,6 +69,33 @@ class ApkgParserServiceTest {
         assertEquals(1, type.noteCount());
         assertEquals("こんにちは", type.notes().get(0).fields().get("Front"));
         assertEquals("hello", type.notes().get(0).fields().get("Back"));
+        // Front/back derived from the card template (qfmt/afmt).
+        assertEquals(List.of("Front"), type.frontFields());
+        assertEquals(List.of("Back"), type.backFields());
+    }
+
+    @Test
+    void derivesFrontBackFields_fromTemplate_handlingFiltersConditionalsAndFrontSide() throws Exception {
+        // qfmt uses a {{hint:...}} filter; afmt re-shows the front via {{FrontSide}},
+        // references a field twice (plain + {{#...}} conditional), and adds a new one.
+        String models = """
+                {"300":{"id":300,"name":"Vocab","type":0,
+                   "flds":[{"name":"Word","ord":0},{"name":"Reading","ord":1},
+                           {"name":"Meaning","ord":2},{"name":"Example","ord":3}],
+                   "tmpls":[{"name":"Recognition","ord":0,
+                     "qfmt":"{{Word}}<br>{{hint:Reading}}",
+                     "afmt":"{{FrontSide}}<hr>{{Meaning}}{{#Example}}<div>{{Example}}</div>{{/Example}}"}]}}
+                """;
+        byte[] bytes = buildApkg("collection.anki2", models,
+                List.of(new NoteRow(300L, "", flds("猫", "ねこ", "cat", "猫がいる"))));
+
+        NoteTypeNotes type = service.parseNotes(apkg("deck.apkg", bytes)).noteTypes().get(0);
+
+        // {{hint:Reading}} -> Reading; order preserved.
+        assertEquals(List.of("Word", "Reading"), type.frontFields());
+        // {{FrontSide}} is not a field; Word/Reading already on front are excluded;
+        // Example appears twice (conditional + value) but is de-duplicated.
+        assertEquals(List.of("Meaning", "Example"), type.backFields());
     }
 
     @Test

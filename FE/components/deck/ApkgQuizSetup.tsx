@@ -13,16 +13,22 @@ function isQuizable(t: ApkgNoteType): boolean {
   return t.fieldNames.length >= 2 && t.noteCount > 0;
 }
 
-const COUNT_CHOICES = [10, 20, 50, 100];
-
 export function ApkgQuizSetup({
   parsed,
   onStart,
   onBack,
+  showHeading = true,
+  backLabel = "Back",
+  startLabel = "Start quiz",
 }: {
   parsed: ApkgParseResponse;
   onStart: (questions: Question[]) => void;
   onBack: () => void;
+  // When rendered inside a modal the surrounding chrome supplies the heading and
+  // the buttons read as Cancel/Apply instead of Back/Start quiz.
+  showHeading?: boolean;
+  backLabel?: string;
+  startLabel?: string;
 }) {
   const quizable = useMemo(() => parsed.noteTypes.filter(isQuizable), [parsed]);
   const [noteTypeId, setNoteTypeId] = useState<number | null>(quizable[0]?.id ?? null);
@@ -31,7 +37,7 @@ export function ApkgQuizSetup({
   if (quizable.length === 0) {
     return (
       <div className="space-y-5">
-        <h1 className="text-2xl font-semibold">Set up a quiz</h1>
+        {showHeading && <h1 className="text-2xl font-semibold">Set up a quiz</h1>}
         <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
           None of the note types in <span className="font-medium">{parsed.filename}</span> have
           enough text fields to build a quiz. Cloze and single-field (e.g. image-only) note types
@@ -42,7 +48,7 @@ export function ApkgQuizSetup({
           onClick={onBack}
           className="rounded-md border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
         >
-          Back
+          {backLabel}
         </button>
       </div>
     );
@@ -50,7 +56,7 @@ export function ApkgQuizSetup({
 
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-semibold">Set up a quiz</h1>
+      {showHeading && <h1 className="text-2xl font-semibold">Set up a quiz</h1>}
 
       {quizable.length > 1 && (
         <div className="space-y-1.5">
@@ -78,7 +84,14 @@ export function ApkgQuizSetup({
 
       {/* Remount per note type so detection-derived field defaults reset cleanly. */}
       {selected && (
-        <NoteTypeQuiz key={selected.id} noteType={selected} onStart={onStart} onBack={onBack} />
+        <NoteTypeQuiz
+          key={selected.id}
+          noteType={selected}
+          onStart={onStart}
+          onBack={onBack}
+          backLabel={backLabel}
+          startLabel={startLabel}
+        />
       )}
     </div>
   );
@@ -93,39 +106,59 @@ function NoteTypeQuiz({
   noteType,
   onStart,
   onBack,
+  backLabel,
+  startLabel,
 }: {
   noteType: ApkgNoteType;
   onStart: (questions: Question[]) => void;
   onBack: () => void;
+  backLabel: string;
+  startLabel: string;
 }) {
   const detection = useMemo(
     () => detectFields(noteType.notes, noteType.fieldNames),
     [noteType],
   );
 
-  // Offer only fields that make sense as quiz content; always keep the detected
-  // question/answer fields, and fall back to all fields if filtering is too harsh.
+  // The deck author's card layout, when the backend could read it (legacy decks).
+  const hasTemplate = noteType.frontFields.length > 0 || noteType.backFields.length > 0;
+
+  // Offer only fields that make sense as quiz content, but always keep the
+  // template fields and the detected fields; fall back to all fields if filtering
+  // would leave too few.
   const fieldChoices = useMemo(() => {
     const allowed = selectableFields(noteType.notes, noteType.fieldNames);
-    const choices = noteType.fieldNames.filter(
-      (f) =>
-        allowed.includes(f) || f === detection.questionField || f === detection.answerField,
-    );
+    const keep = new Set([
+      ...allowed,
+      ...noteType.frontFields,
+      ...noteType.backFields,
+      detection.questionField,
+      detection.answerField,
+    ]);
+    const choices = noteType.fieldNames.filter((f) => keep.has(f));
     return choices.length >= 2 ? choices : noteType.fieldNames;
   }, [noteType, detection]);
-  const hiddenCount = noteType.fieldNames.length - fieldChoices.length;
 
-  const [answerField, setAnswerField] = useState(detection.answerField);
-  const [questionFields, setQuestionFields] = useState<string[]>(() =>
-    detection.questionField ? [detection.questionField] : [],
+  // Defaults: prefer the deck's own front/back layout, else the detection heuristic.
+  const [answerField, setAnswerField] = useState(
+    () => noteType.backFields[0] ?? detection.answerField,
   );
-  const [count, setCount] = useState(() => Math.min(20, noteType.noteCount));
+  const [questionFields, setQuestionFields] = useState<string[]>(() =>
+    hasTemplate
+      ? noteType.frontFields
+      : detection.questionField
+        ? [detection.questionField]
+        : [],
+  );
+  // Held as text so the field can be cleared/retyped; non-digits are stripped on
+  // input. The clamped number below is what the quiz actually uses.
+  const [countText, setCountText] = useState(() => String(Math.min(20, noteType.noteCount)));
+  const count = Math.min(noteType.noteCount, Math.max(1, Number(countText) || 1));
 
   // The answer field can't also be a question field; keep prompt order = field order.
   const questionOptions = fieldChoices.filter((f) => f !== answerField);
   const selectedQuestionFields = questionOptions.filter((f) => questionFields.includes(f));
   const canStart = selectedQuestionFields.length > 0;
-  const countOptions = COUNT_CHOICES.filter((c) => c < noteType.noteCount);
 
   function toggleQuestionField(field: string) {
     setQuestionFields((prev) =>
@@ -151,13 +184,19 @@ function NoteTypeQuiz({
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <span className="text-sm text-neutral-500">{noteType.noteCount} notes available</span>
-        <ConfidenceBadge confidence={detection.confidence} />
+        {!hasTemplate && <ConfidenceBadge confidence={detection.confidence} />}
       </div>
 
-      {detection.confidence < 0.7 && (
-        <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-          Detection is unsure about this note type — please check the question and answer fields.
+      {hasTemplate ? (
+        <p className="text-xs text-neutral-500">
+          Pre-filled from the deck&apos;s card layout — adjust if needed.
         </p>
+      ) : (
+        detection.confidence < 0.7 && (
+          <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+            Detection is unsure about this note type — please check the question and answer fields.
+          </p>
+        )
       )}
 
       <fieldset className="space-y-2">
@@ -190,13 +229,6 @@ function NoteTypeQuiz({
         onChange={setAnswerField}
       />
 
-      {hiddenCount > 0 && (
-        <p className="text-xs text-neutral-500">
-          {hiddenCount} metadata field{hiddenCount === 1 ? "" : "s"} (e.g. levels, counts) hidden —
-          they don&apos;t make good quiz questions or answers.
-        </p>
-      )}
-
       {!canStart && (
         <p className="text-sm text-red-600 dark:text-red-400">
           Pick at least one field for the question.
@@ -207,28 +239,18 @@ function NoteTypeQuiz({
         <label htmlFor="quiz-count" className="text-sm font-medium">
           Questions
         </label>
-        <select
+        <input
           id="quiz-count"
-          value={count}
-          onChange={(e) => setCount(Number(e.target.value))}
+          type="text"
+          inputMode="numeric"
+          value={countText}
+          onChange={(e) => setCountText(e.target.value.replace(/\D/g, ""))}
+          onBlur={() => setCountText(String(count))}
           className="w-full rounded-md border border-neutral-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-900 dark:border-neutral-700 dark:focus:border-neutral-200"
-        >
-          {countOptions.map((c) => (
-            <option
-              key={c}
-              value={c}
-              className="bg-white text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
-            >
-              {c}
-            </option>
-          ))}
-          <option
-            value={noteType.noteCount}
-            className="bg-white text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
-          >
-            All {noteType.noteCount}
-          </option>
-        </select>
+        />
+        <p className="text-xs text-neutral-500">
+          How many questions to take — 1 to {noteType.noteCount}.
+        </p>
       </div>
 
       <div className="flex gap-3">
@@ -237,7 +259,7 @@ function NoteTypeQuiz({
           onClick={onBack}
           className="rounded-md border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
         >
-          Back
+          {backLabel}
         </button>
         <button
           type="button"
@@ -245,7 +267,7 @@ function NoteTypeQuiz({
           onClick={handleStart}
           className="flex-1 rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
         >
-          Start quiz
+          {startLabel}
         </button>
       </div>
     </div>

@@ -32,8 +32,10 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
@@ -74,6 +76,9 @@ public class ApkgParserService {
     private static final Pattern HTML_TAG = Pattern.compile("<[^>]*>");
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
+    /** A {@code {{...}}} placeholder in an Anki card template (qfmt/afmt). */
+    private static final Pattern TEMPLATE_FIELD = Pattern.compile("\\{\\{(.+?)}}");
+
     /**
      * Coarse guard against pathological archives. Media-heavy decks legitimately
      * have many entries, so this is generous; the real zip-bomb defense is
@@ -98,8 +103,14 @@ public class ApkgParserService {
     private record FieldRef(int ord, String name) {
     }
 
-    /** Resolved note type: its ordered field names + cloze flag. */
-    private record NoteTypeInfo(long id, String name, boolean cloze, List<String> fieldNames) {
+    /**
+     * Resolved note type: ordered field names, cloze flag, and the fields the
+     * author placed on the card's question ({@code frontFields}) / answer
+     * ({@code backFields}) side per the first card template. Front/back are empty
+     * when no template is available (modern decks).
+     */
+    private record NoteTypeInfo(long id, String name, boolean cloze, List<String> fieldNames,
+            List<String> frontFields, List<String> backFields) {
     }
 
     /** Extracts the collection and returns its notes grouped by note type. */
@@ -134,6 +145,7 @@ public class ApkgParserService {
                 List<ParsedNote> notes = notesByType.getOrDefault(type.id(), List.of());
                 out.add(new NoteTypeNotes(
                         type.id(), type.name(), type.cloze(), type.fieldNames(),
+                        type.frontFields(), type.backFields(),
                         notes.size(), notes));
             }
             return new ApkgNotesResponse(
@@ -218,7 +230,18 @@ public class ApkgParserService {
                 for (JsonNode f : model.path("flds")) {
                     flds.add(new FieldRef(f.path("ord").asInt(flds.size()), f.path("name").asText("")));
                 }
-                result.put(id, new NoteTypeInfo(id, name, cloze, orderedNames(flds)));
+                List<String> fieldNames = orderedNames(flds);
+
+                // The author's front/back layout comes from the first card template.
+                Set<String> valid = Set.copyOf(fieldNames);
+                JsonNode firstTmpl = model.path("tmpls").path(0);
+                List<String> front = templateFieldRefs(firstTmpl.path("qfmt").asText(""), valid);
+                List<String> backAll = templateFieldRefs(firstTmpl.path("afmt").asText(""), valid);
+                // The answer side = fields that appear on the back but not already on
+                // the front (afmt usually re-renders the front via {{FrontSide}}).
+                List<String> back = backAll.stream().filter(f -> !front.contains(f)).toList();
+
+                result.put(id, new NoteTypeInfo(id, name, cloze, fieldNames, front, back));
             }
         } catch (JsonProcessingException e) {
             throw new ApkgParseException("Could not parse note-type definitions (col.models JSON).", e);
@@ -249,12 +272,47 @@ public class ApkgParserService {
 
         Map<Long, NoteTypeInfo> result = new LinkedHashMap<>();
         for (Map.Entry<Long, String> e : typeNames.entrySet()) {
-            // Cloze flag in the modern schema lives in a protobuf `config` blob we
-            // don't decode here; defer cloze detection to a later chunk.
+            // Cloze flag and card templates in the modern schema live in protobuf
+            // `config` blobs we don't decode here; defer to a later chunk. Front/back
+            // are left empty so the client falls back to its detection heuristic.
             result.put(e.getKey(), new NoteTypeInfo(e.getKey(), e.getValue(), false,
-                    orderedNames(fieldsByType.getOrDefault(e.getKey(), List.of()))));
+                    orderedNames(fieldsByType.getOrDefault(e.getKey(), List.of())),
+                    List.of(), List.of()));
         }
         return result;
+    }
+
+    /**
+     * Extracts the field names referenced by a card template ({@code qfmt}/{@code afmt}),
+     * in first-occurrence order, keeping only names that are real fields of the note
+     * type. Handles Anki's template syntax: section/conditional markers
+     * ({@code {{#Field}}}, {@code {{/Field}}}, {@code {{^Field}}}) and filters
+     * ({@code {{type:Field}}}, {@code {{hint:Field}}}, {@code {{cloze:Field}}},
+     * {@code {{tts ...:Field}}}) — the field name is whatever follows the last colon.
+     * Special tokens like {@code {{FrontSide}}} aren't fields, so they fall out via
+     * the {@code validFields} filter.
+     */
+    private static List<String> templateFieldRefs(String template, Set<String> validFields) {
+        if (template == null || template.isEmpty() || validFields.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<String> refs = new LinkedHashSet<>();
+        Matcher m = TEMPLATE_FIELD.matcher(template);
+        while (m.find()) {
+            String token = m.group(1).trim();
+            if (!token.isEmpty() && (token.charAt(0) == '#' || token.charAt(0) == '/'
+                    || token.charAt(0) == '^')) {
+                token = token.substring(1).trim();
+            }
+            int lastColon = token.lastIndexOf(':');
+            if (lastColon >= 0) {
+                token = token.substring(lastColon + 1).trim();
+            }
+            if (validFields.contains(token)) {
+                refs.add(token);
+            }
+        }
+        return List.copyOf(refs);
     }
 
     private static List<String> orderedNames(List<FieldRef> flds) {

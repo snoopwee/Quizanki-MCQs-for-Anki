@@ -2,6 +2,7 @@ package com.ankiquiz.controller;
 
 import com.ankiquiz.dto.request.ImportDeckRequest;
 import com.ankiquiz.dto.request.NoteRequest;
+import com.ankiquiz.dto.request.NoteTypeRequest;
 import com.ankiquiz.dto.response.DeckResponse;
 import com.ankiquiz.exception.GlobalExceptionHandler;
 import com.ankiquiz.service.DeckService;
@@ -44,22 +45,29 @@ class DeckControllerTest {
     @MockBean
     private JwtDecoder jwtDecoder;
 
+    private static NoteTypeRequest noteType(String name, NoteRequest... notes) {
+        return new NoteTypeRequest(
+                1234567890L, name, false,
+                List.of("Front", "Back"), List.of("Front"), List.of("Back"),
+                List.of(notes)
+        );
+    }
+
     @Test
     void importDeck_returns201_withDeckResponse() throws Exception {
         UUID deckId = UUID.randomUUID();
         DeckResponse response = new DeckResponse(
-                deckId, "JLPT N4", "Japanese::N4", "Front", "Back",
-                0.91, 1, OffsetDateTime.now()
+                deckId, "JLPT N4", "Japanese::N4", "n4.apkg", 1, OffsetDateTime.now()
         );
         when(deckService.importDeck(eq("user-123"), any())).thenReturn(response);
 
         ImportDeckRequest request = new ImportDeckRequest(
-                "JLPT N4", "Japanese::N4", "Front", "Back", 0.91,
-                List.of(new NoteRequest(
+                "JLPT N4", "Japanese::N4", "n4.apkg",
+                List.of(noteType("Basic", new NoteRequest(
                         "1234567890",
                         Map.of("Front", "食べる", "Back", "to eat"),
                         List.of("N4", "verb")
-                ))
+                )))
         );
 
         mockMvc.perform(post("/api/v1/decks")
@@ -75,8 +83,8 @@ class DeckControllerTest {
     @Test
     void importDeck_returns400_whenNameBlank() throws Exception {
         ImportDeckRequest request = new ImportDeckRequest(
-                "", null, "Front", "Back", 0.5,
-                List.of(new NoteRequest("1", Map.of("Front", "a", "Back", "b"), List.of()))
+                "", null, "n4.apkg",
+                List.of(noteType("Basic", new NoteRequest("1", Map.of("Front", "a", "Back", "b"), List.of())))
         );
 
         mockMvc.perform(post("/api/v1/decks")
@@ -88,9 +96,9 @@ class DeckControllerTest {
     }
 
     @Test
-    void importDeck_returns400_whenNotesEmpty() throws Exception {
+    void importDeck_returns400_whenNoteTypesEmpty() throws Exception {
         ImportDeckRequest request = new ImportDeckRequest(
-                "deck", null, "Front", "Back", 0.5, List.of()
+                "deck", null, "n4.apkg", List.of()
         );
 
         mockMvc.perform(post("/api/v1/decks")
@@ -98,6 +106,6 @@ class DeckControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.details.notes").exists());
+                .andExpect(jsonPath("$.details.noteTypes").exists());
     }
 }

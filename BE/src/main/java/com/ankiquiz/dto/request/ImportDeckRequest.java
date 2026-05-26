@@ -1,20 +1,21 @@
 package com.ankiquiz.dto.request;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
+/**
+ * Imports the whole flashcard deck: its note types and their notes. The
+ * question/answer field choice is no longer part of the deck — it's made at test
+ * time — so the request mirrors the {@code /public/parse-apkg} response shape.
+ */
 public record ImportDeckRequest(
         @NotBlank @Size(max = 200) String name,
         @Size(max = 500) String subdeckPath,
-        @NotBlank @Size(max = 100) String questionField,
-        @NotBlank @Size(max = 100) String answerField,
-        @DecimalMin("0.0") @DecimalMax("1.0") Double detectionConfidence,
-        @NotEmpty @Valid List<NoteRequest> notes
+        @Size(max = 300) String sourceFilename,
+        @NotEmpty @Valid List<NoteTypeRequest> noteTypes
 ) {
 }

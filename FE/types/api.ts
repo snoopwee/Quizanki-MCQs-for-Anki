@@ -85,6 +85,11 @@ export interface ApkgNoteType {
   name: string;
   cloze: boolean;
   fieldNames: string[];
+  // Fields the deck author placed on the card's question/answer side, from the
+  // note type's first card template. Empty when no template is available (e.g.
+  // modern decks); the client then falls back to its detection heuristic.
+  frontFields: string[];
+  backFields: string[];
   noteCount: number;
   notes: ApkgParsedNote[];
 }

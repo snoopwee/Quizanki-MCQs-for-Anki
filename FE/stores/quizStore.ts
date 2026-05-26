@@ -1,9 +1,12 @@
 import { create } from "zustand";
-import type { Question } from "@/lib/buildQuestions";
+import type { Question, PromptSegment } from "@/lib/buildQuestions";
 
 export interface AnswerRecord {
   noteId: string;
   question: string;
+  // The bundled prompt segments, so the results screen can render the missed
+  // card front/back exactly like the flashcard list.
+  prompt: PromptSegment[];
   correct: string;
   selected: string;
   wasCorrect: boolean;
@@ -55,6 +58,7 @@ export const useQuizStore = create<QuizState>((set, get) => ({
         {
           noteId: question.noteId,
           question: question.question,
+          prompt: question.prompt,
           correct: question.correct,
           selected: answer,
           wasCorrect,

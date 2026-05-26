@@ -1,6 +1,7 @@
 package com.ankiquiz.controller;
 
 import com.ankiquiz.dto.request.ImportDeckRequest;
+import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.DeckResponse;
 import com.ankiquiz.service.DeckService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -47,6 +48,17 @@ public class DeckController {
     ) {
         DeckResponse body = deckService.importDeck(jwt.getSubject(), request);
         return ResponseEntity.status(HttpStatus.CREATED).body(body);
+    }
+
+    @GetMapping("/{deckId}/contents")
+    @Operation(summary = "Get a deck's full flashcard structure (note types + notes)",
+            description = "Returns the deck in the same shape as /public/parse-apkg so the client "
+                    + "can study it as flashcards and set up a test from it.")
+    public DeckContentsResponse getDeckContents(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId
+    ) {
+        return deckService.getDeckContents(jwt.getSubject(), deckId);
     }
 
     @DeleteMapping("/{deckId}")

@@ -23,6 +23,9 @@ public class Note {
     @Column(name = "deck_id", nullable = false)
     private UUID deckId;
 
+    @Column(name = "note_type_id")
+    private UUID noteTypeId;
+
     @Column(name = "anki_note_id")
     private String ankiNoteId;
 
@@ -48,6 +51,14 @@ public class Note {
 
     public void setDeckId(UUID deckId) {
         this.deckId = deckId;
+    }
+
+    public UUID getNoteTypeId() {
+        return noteTypeId;
+    }
+
+    public void setNoteTypeId(UUID noteTypeId) {
+        this.noteTypeId = noteTypeId;
     }
 
     public String getAnkiNoteId() {

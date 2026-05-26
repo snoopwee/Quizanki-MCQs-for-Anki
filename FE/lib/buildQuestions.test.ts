@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildQuestions, type QuizNote } from "@/lib/buildQuestions";
+import { buildQuestions, reshuffleQuestions, type QuizNote } from "@/lib/buildQuestions";
 
 const deck: QuizNote[] = [
   { id: "1", fields: { q: "食べる", a: "to eat" } },
@@ -58,6 +58,32 @@ describe("buildQuestions", () => {
     // The empty "example" field is dropped from this note's prompt.
     const kaigi = questions.find((q) => q.correct === "meeting")!;
     expect(kaigi.prompt.map((s) => s.label)).toEqual(["term", "reading"]);
+  });
+
+  it("reshuffles option positions and question order without changing content", () => {
+    const original = buildQuestions(deck, 5, config, deck, rng);
+    // A non-trivial rng so the shuffle actually moves things (rng=0 is a no-op).
+    let seed = 0;
+    const varyRng = () => {
+      seed = (seed * 9301 + 49297) % 233280;
+      return seed / 233280;
+    };
+    const reshuffled = reshuffleQuestions(original, varyRng);
+
+    // Same questions, same per-question option membership and correct answer.
+    expect(reshuffled).toHaveLength(original.length);
+    for (const q of original) {
+      const match = reshuffled.find((r) => r.noteId === q.noteId)!;
+      expect(match.correct).toBe(q.correct);
+      expect([...match.options].sort()).toEqual([...q.options].sort());
+    }
+
+    // ...but at least one question's option order actually changed.
+    const someOrderChanged = original.some((q) => {
+      const match = reshuffled.find((r) => r.noteId === q.noteId)!;
+      return match.options.join("|") !== q.options.join("|");
+    });
+    expect(someOrderChanged).toBe(true);
   });
 
   it("degrades gracefully when the answer pool has fewer than 4 unique values", () => {

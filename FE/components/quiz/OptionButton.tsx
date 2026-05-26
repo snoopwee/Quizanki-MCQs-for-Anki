@@ -12,7 +12,7 @@ export function OptionButton({
   onSelect: () => void;
 }) {
   let className =
-    "w-full rounded-md border px-4 py-3 text-left text-sm transition-colors break-words ";
+    "nice-scroll flex h-full min-h-0 w-full items-center justify-center overflow-y-auto rounded-md border px-4 py-4 text-center text-sm transition-colors break-words ";
 
   if (!answered) {
     className +=

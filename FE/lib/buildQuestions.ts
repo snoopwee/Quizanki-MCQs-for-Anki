@@ -41,6 +41,19 @@ function shuffle<T>(items: T[], rng: () => number): T[] {
   return result;
 }
 
+// Re-randomizes an existing set of questions for a retake: shuffles the question
+// order and the option positions within each question, so the answer never sits
+// in the same spot twice. Reuses each question's existing options (no rebuild).
+export function reshuffleQuestions(
+  questions: Question[],
+  rng: () => number = Math.random,
+): Question[] {
+  return shuffle(questions, rng).map((q) => ({
+    ...q,
+    options: shuffle(q.options, rng),
+  }));
+}
+
 export function buildQuestions(
   notes: QuizNote[],
   count: number,

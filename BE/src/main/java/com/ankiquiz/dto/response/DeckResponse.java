@@ -9,9 +9,7 @@ public record DeckResponse(
         UUID id,
         String name,
         String subdeckPath,
-        String questionField,
-        String answerField,
-        Double detectionConfidence,
+        String sourceFilename,
         Integer cardCount,
         OffsetDateTime importedAt
 ) {
@@ -20,9 +18,7 @@ public record DeckResponse(
                 deck.getId(),
                 deck.getName(),
                 deck.getSubdeckPath(),
-                deck.getQuestionField(),
-                deck.getAnswerField(),
-                deck.getDetectionConfidence(),
+                deck.getSourceFilename(),
                 deck.getCardCount(),
                 deck.getImportedAt()
         );

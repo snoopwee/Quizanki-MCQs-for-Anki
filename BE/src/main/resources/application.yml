@@ -4,10 +4,55 @@ spring:
   profiles:
     active: local
 
+  servlet:
+    multipart:
+      # We only read the small collection.anki* db, but the upload includes media
+      # we discard, so the cap must fit the whole .apkg. 100MB covers most real
+      # decks while bounding this public endpoint; per-IP rate limiting (later
+      # chunk) is the real abuse backstop, not this cap alone.
+      max-file-size: 100MB
+      max-request-size: 110MB
+
+  datasource:
+    # JDBC URL for the Supabase Postgres instance.
+    # Format: jdbc:postgresql://db.<project-ref>.supabase.co:5432/postgres
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      # Don't block startup if the DB is briefly unreachable.
+      initialization-fail-timeout: -1
+
+  jpa:
+    hibernate:
+      # Schema is owned by Flyway. Hibernate only validates that entities match.
+      # No entities yet (Phase 0) so this is effectively a no-op for now.
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # V1 already ran manually in Supabase — baseline tells Flyway "treat existing
+    # schema as the starting point" so it won't try to re-create the tables.
+    # New Supabase projects without any tables: Flyway runs V1 normally.
+    baseline-on-migrate: true
+    baseline-version: 0
+
+  data:
+    redis:
+      url: ${UPSTASH_REDIS_URL:redis://localhost:6379}
+
 supabase:
-  # HS256 signing secret from Supabase: Project Settings -> API -> JWT Secret.
-  # Override per-environment via the SUPABASE_JWT_SECRET env var.
-  jwt-secret: ${SUPABASE_JWT_SECRET:replace-me}
+  # Project URL, e.g. https://<project-ref>.supabase.co
+  # The JWKS endpoint and JWT issuer are derived from this.
+  # Override per-environment via the SUPABASE_URL env var.
+  url: ${SUPABASE_URL:https://replace-me.supabase.co}
 
 app:
   cors:
@@ -16,8 +61,9 @@ app:
 springdoc:
   api-docs:
     path: /v3/api-docs
-  swagger-ui:
-    path: /swagger-ui
+  # swagger-ui.path left at default (/swagger-ui/index.html) so the
+  # /swagger-ui.html convenience redirect lands somewhere our security
+  # config already allows via /swagger-ui/**.
 
 server:
   port: 8080
@@ -27,3 +73,11 @@ management:
     web:
       exposure:
         include: health
+  endpoint:
+    health:
+      # Surface which sub-component is DOWN. Safe in dev; tighten in prod.
+      show-details: always
+  health:
+    redis:
+      # Phase 0 doesn't use Redis yet, so don't gate /actuator/health on it.
+      enabled: false

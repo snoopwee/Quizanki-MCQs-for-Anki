@@ -1,0 +1,147 @@
+// TypeScript shapes mirroring the Spring Boot DTOs (com.ankiquiz.dto).
+// Keep in sync with BE when contracts change.
+
+export type QuizDirection = "FRONT_TO_BACK" | "BACK_TO_FRONT";
+
+export interface CardStatsResponse {
+  timesSeen: number;
+  timesCorrect: number;
+  accuracy: number;
+  streak: number;
+  lastSeenAt: string | null;
+}
+
+export interface DeckResponse {
+  id: string;
+  name: string;
+  subdeckPath: string | null;
+  sourceFilename: string | null;
+  cardCount: number | null;
+  importedAt: string | null;
+}
+
+export interface NoteResponse {
+  id: string;
+  deckId: string;
+  fields: Record<string, string>;
+  tags: string[];
+  cardStats: CardStatsResponse | null;
+}
+
+export interface DeckStatsResponse {
+  totalCards: number;
+  seenCards: number;
+  averageAccuracy: number;
+  weakCards: number;
+  masteredCards: number;
+}
+
+export interface NoteRequest {
+  ankiNoteId?: string | null;
+  fields: Record<string, string>;
+  tags: string[];
+}
+
+export interface NoteTypeRequest {
+  ankiModelId?: number | null;
+  name: string;
+  cloze: boolean;
+  fieldNames: string[];
+  frontFields: string[];
+  backFields: string[];
+  notes: NoteRequest[];
+}
+
+// The whole flashcard deck: note types + their notes. Field choice is made at
+// test time, so it's no longer part of the deck (see the 2026-05-26 direction
+// change). Mirrors the BE ImportDeckRequest.
+export interface ImportDeckRequest {
+  name: string;
+  subdeckPath?: string | null;
+  sourceFilename?: string | null;
+  noteTypes: NoteTypeRequest[];
+}
+
+export interface StartSessionRequest {
+  deckId: string;
+  questionCount?: number | null;
+  direction?: QuizDirection | null;
+}
+
+export interface StartSessionResponse {
+  sessionId: string;
+}
+
+export interface RecordAnswerRequest {
+  noteId: string;
+  correct: boolean;
+}
+
+export interface RecordAnswerResponse {
+  accuracy: number;
+  streak: number;
+}
+
+// .apkg parse endpoint (POST /api/v1/public/parse-apkg) — public, stateless.
+export interface ApkgParsedNote {
+  // The persisted note UUID. Undefined for a fresh parse (not yet saved); set
+  // when a saved deck's contents are adapted into this shape, so the quiz can
+  // record answers against the real note id.
+  id?: string;
+  ankiNoteId: string | null;
+  fields: Record<string, string>;
+  tags: string[];
+}
+
+export interface ApkgNoteType {
+  id: number;
+  name: string;
+  cloze: boolean;
+  fieldNames: string[];
+  // Fields the deck author placed on the card's question/answer side, from the
+  // note type's first card template. Empty when no template is available (e.g.
+  // modern decks); the client then falls back to its detection heuristic.
+  frontFields: string[];
+  backFields: string[];
+  noteCount: number;
+  notes: ApkgParsedNote[];
+}
+
+export interface ApkgParseResponse {
+  filename: string;
+  collectionFile: string;
+  schema: string;
+  totalNotes: number;
+  skippedNotes: number;
+  noteTypes: ApkgNoteType[];
+}
+
+// GET /api/v1/decks/{id}/contents — a saved deck's full flashcard structure.
+export interface DeckContentsNote {
+  id: string;
+  ankiNoteId: string | null;
+  fields: Record<string, string>;
+  tags: string[];
+}
+
+export interface DeckContentsNoteType {
+  id: string;
+  ankiModelId: number | null;
+  name: string;
+  cloze: boolean;
+  fieldNames: string[];
+  frontFields: string[];
+  backFields: string[];
+  noteCount: number;
+  notes: DeckContentsNote[];
+}
+
+export interface DeckContentsResponse {
+  id: string;
+  name: string;
+  subdeckPath: string | null;
+  sourceFilename: string | null;
+  cardCount: number | null;
+  importedAt: string | null;
+  noteTypes: DeckContentsNoteType[];
+}

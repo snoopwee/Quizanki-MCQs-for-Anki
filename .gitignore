@@ -105,3 +105,7 @@ next-env.d.ts
 # ─────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+ROADMAP.md
+BE/CLAUDE.md
+FE/CLAUDE.md
+CLAUDE.md

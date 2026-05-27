@@ -1,0 +1,10 @@
+target/
+!target/*.jar
+*.md
+.mvn/wrapper/maven-wrapper.jar
+mvnw.cmd
+.idea/
+*.iml
+.vscode/
+src/main/resources/application-local.yml
+src/main/resources/application-local.yml.example

@@ -1,0 +1,36 @@
+name: Backend
+
+on:
+  push:
+    branches: [main, "Dev/Test"]
+    paths:
+      - 'BE/**'
+      - '.github/workflows/backend.yml'
+  pull_request:
+    paths:
+      - 'BE/**'
+      - '.github/workflows/backend.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: BE
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Make mvnw executable
+        run: chmod +x mvnw
+
+      - name: Run tests
+        run: ./mvnw -B test
+
+      - name: Package
+        run: ./mvnw -B package -DskipTests

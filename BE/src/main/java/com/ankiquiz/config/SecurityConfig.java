@@ -7,7 +7,9 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
@@ -20,14 +22,14 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private final String jwtSecret;
+    private final String supabaseUrl;
     private final List<String> allowedOrigins;
 
     public SecurityConfig(
-            @Value("${supabase.jwt-secret}") String jwtSecret,
+            @Value("${supabase.url}") String supabaseUrl,
             @Value("${app.cors.allowed-origins}") List<String> allowedOrigins
     ) {
-        this.jwtSecret = jwtSecret;
+        this.supabaseUrl = supabaseUrl;
         this.allowedOrigins = allowedOrigins;
     }
 
@@ -43,7 +45,10 @@ public class SecurityConfig {
                                 "/actuator/health",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
-                                "/v3/api-docs/**"
+                                "/v3/api-docs/**",
+                                // Public .apkg parse for guest try-before-signup.
+                                // Stateless (persists nothing); rate-limited in a later chunk.
+                                "/api/v1/public/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
@@ -52,17 +57,20 @@ public class SecurityConfig {
     }
 
     /**
-     * Supabase signs JWTs with HS256 using the project's JWT secret (legacy default).
-     * If you have migrated to the new asymmetric (RS256) keys, swap this for
-     * NimbusJwtDecoder.withJwkSetUri(jwksUri).build() and remove the jwt-secret property.
+     * Validates Supabase JWTs against the project's public JWKS endpoint.
+     * Supabase signs access tokens with ES256 (EC P-256) under the current
+     * API-key system, so the decoder is pinned to that algorithm. The issuer
+     * check rejects tokens minted by any other Supabase project.
      */
     @Bean
     public JwtDecoder jwtDecoder() {
-        javax.crypto.spec.SecretKeySpec key =
-                new javax.crypto.spec.SecretKeySpec(jwtSecret.getBytes(), "HmacSHA256");
-        return NimbusJwtDecoder.withSecretKey(key).macAlgorithm(
-                org.springframework.security.oauth2.jose.jws.MacAlgorithm.HS256
-        ).build();
+        String jwksUri = supabaseUrl + "/auth/v1/.well-known/jwks.json";
+        String issuer = supabaseUrl + "/auth/v1";
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(jwksUri)
+                .jwsAlgorithm(SignatureAlgorithm.ES256)
+                .build();
+        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(issuer));
+        return decoder;
     }
 
     @Bean

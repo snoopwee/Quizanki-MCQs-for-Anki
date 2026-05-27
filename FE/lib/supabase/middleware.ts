@@ -3,7 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
-const PUBLIC_PATHS = ["/", "/try", "/auth/login", "/auth/signup", "/auth/callback"];
+// Auth is modal-first: there are no dedicated login/signup pages. The landing
+// page ("/") hosts the auth modal; "/auth/callback" handles the Supabase email/
+// OAuth redirect.
+const PUBLIC_PATHS = ["/", "/try", "/auth/callback"];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -39,15 +42,11 @@ export async function updateSession(request: NextRequest) {
   );
 
   if (!user && !isPublic) {
+    // Send them to the landing page, which opens the auth modal and returns them
+    // to `next` once authenticated.
     const url = request.nextUrl.clone();
-    url.pathname = "/auth/login";
+    url.pathname = "/";
     url.searchParams.set("next", path);
-    return NextResponse.redirect(url);
-  }
-
-  if (user && (path === "/auth/login" || path === "/auth/signup")) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
     return NextResponse.redirect(url);
   }
 

@@ -58,6 +58,14 @@ export default function DeckTestPage() {
     router.push(`/decks/${deckId}?step=setup`);
   }
 
+  // Result-screen "End the test" goes to the deck's flashcard list rather than
+  // straight back to setup, so the learner can see their updated mastery badges
+  // before deciding what to do next.
+  function endTest() {
+    setSettingsOpen(false);
+    router.push(`/decks/${deckId}`);
+  }
+
   function applySettings(next: Question[]) {
     setSettingsOpen(false);
     if (!parsed) return;
@@ -85,7 +93,10 @@ export default function DeckTestPage() {
       <QuizSession
         onRetry={exitToSetup}
         onExit={exitToSetup}
+        onEndTest={endTest}
         onOpenSettings={() => setSettingsOpen(true)}
+        getStats={getStats}
+        inputDisabled={settingsOpen}
       />
       {settingsOpen && parsed && (
         <Modal title="Quiz settings" onClose={() => setSettingsOpen(false)}>

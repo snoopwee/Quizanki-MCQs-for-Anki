@@ -8,7 +8,7 @@ export function ResultsSummary({
   onRetakeSame,
   onRetakeWrong,
   onRetakeNew,
-  onBackToDeck,
+  onEndTest,
 }: {
   answers: AnswerRecord[];
   score: number;
@@ -19,11 +19,12 @@ export function ResultsSummary({
   onRetakeWrong: () => void;
   // Build a fresh quiz from the deck.
   onRetakeNew: () => void;
-  // Leave the quiz and go back to the deck.
-  onBackToDeck: () => void;
+  // End the test and return to the deck's flashcard list.
+  onEndTest: () => void;
 }) {
   const pct = total === 0 ? 0 : Math.round((score / total) * 100);
   const missed = answers.filter((a) => !a.wasCorrect);
+  const correct = answers.filter((a) => a.wasCorrect);
 
   const buttonClass =
     "rounded-md border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 disabled:opacity-40 dark:border-neutral-700 dark:hover:bg-neutral-900";
@@ -56,33 +57,46 @@ export function ResultsSummary({
             <button type="button" onClick={onRetakeNew} className={buttonClass}>
               New test
             </button>
-            <button type="button" onClick={onBackToDeck} className={buttonClass}>
-              Back to decks
+            <button type="button" onClick={onEndTest} className={buttonClass}>
+              End the test
             </button>
           </div>
         </div>
       </div>
 
       {missed.length > 0 ? (
-        <div className="space-y-2">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">
-            Missed cards ({missed.length})
-          </h2>
-          <ul className="space-y-2">
-            {missed.map((a, i) => (
-              <CardPreviewRow
-                key={`${a.noteId}-${i}`}
-                front={a.prompt.map((seg) => seg.value)}
-                back={[a.correct]}
-              />
-            ))}
-          </ul>
-        </div>
+        <AnswerList title={`Missed cards (${missed.length})`} answers={missed} />
       ) : (
         <p className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-800 dark:bg-green-900/30 dark:text-green-300">
           Perfect run — no missed cards.
         </p>
       )}
+
+      {correct.length > 0 && (
+        <AnswerList title={`Correct cards (${correct.length})`} answers={correct} />
+      )}
+    </div>
+  );
+}
+
+// Each row shows the card's post-answer mastery via the same StageBadge used in
+// the flashcard list, so the learner sees the curve advance/retreat in place.
+// timesSeen is forced to 1 — every answer here was just answered, so the badge
+// never shows "New" on this screen.
+function AnswerList({ title, answers }: { title: string; answers: AnswerRecord[] }) {
+  return (
+    <div className="space-y-2">
+      <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">{title}</h2>
+      <ul className="space-y-2">
+        {answers.map((a, i) => (
+          <CardPreviewRow
+            key={`${a.noteId}-${i}`}
+            front={a.prompt.map((seg) => seg.value)}
+            back={[a.correct]}
+            stats={{ mastery: a.newMastery, timesSeen: 1 }}
+          />
+        ))}
+      </ul>
     </div>
   );
 }

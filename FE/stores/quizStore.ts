@@ -10,6 +10,10 @@ export interface AnswerRecord {
   correct: string;
   selected: string;
   wasCorrect: boolean;
+  // Post-answer mastery (0-100). Computed optimistically on the client using
+  // the same +15/-20 curve the BE runs, so the results screen has a value to
+  // show even if the server hasn't acked yet.
+  newMastery: number;
 }
 
 interface QuizState {
@@ -21,7 +25,9 @@ interface QuizState {
   sessionId: string | null;
 
   startSession: (questions: Question[], sessionId: string) => void;
-  selectAnswer: (answer: string) => void;
+  // `newMastery` is computed by the caller (it knows the card's current
+  // mastery); the store just records it alongside the answer.
+  selectAnswer: (answer: string, newMastery: number) => void;
   nextQuestion: () => void;
   reset: () => void;
 }
@@ -44,7 +50,7 @@ export const useQuizStore = create<QuizState>((set, get) => ({
       answers: [],
     }),
 
-  selectAnswer: (answer) => {
+  selectAnswer: (answer, newMastery) => {
     const { selectedAnswer, questions, currentIndex, answers, score } = get();
     if (selectedAnswer !== null) return; // locked once answered
     const question = questions[currentIndex];
@@ -62,6 +68,7 @@ export const useQuizStore = create<QuizState>((set, get) => ({
           correct: question.correct,
           selected: answer,
           wasCorrect,
+          newMastery,
         },
       ],
     });

@@ -110,7 +110,11 @@ function DeckDetail() {
       <Breadcrumb
         items={[
           { label: "Dashboard", href: "/dashboard" },
-          { label: deckName },
+          // When on the setup step, the deck name becomes a link back to the
+          // flashcard view; on the flashcard view it's the current page (no href).
+          step === "setup"
+            ? { label: deckName, href: `/decks/${deckId}` }
+            : { label: deckName },
           ...(step === "setup" ? [{ label: "Set up quiz" }] : []),
         ]}
       />
@@ -137,6 +141,7 @@ function DeckDetail() {
           <FlashcardViewer
             parsed={parsed}
             completion={contentsQuery.data.completion}
+            getStats={getStats}
             hideActions
             onBack={() => router.push("/dashboard")}
             onStartTest={goToSetup}

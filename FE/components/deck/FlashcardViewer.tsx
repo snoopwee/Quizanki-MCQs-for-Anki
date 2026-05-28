@@ -2,8 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { buildFlashcards } from "@/lib/flashcards";
-import { CardPreviewRow, Lines } from "./CardPreview";
+import { classifyMastery } from "@/lib/masteryStage";
+import { CardPreviewRow, Lines, StageBadge } from "./CardPreview";
 import type { ApkgParseResponse } from "@/types/api";
+
+// Same shape ApkgQuizSetup uses — callers can pass a single lookup that serves
+// both screens.
+type StatsLookup = (noteId: string) =>
+  | { mastery?: number; timesSeen?: number }
+  | undefined;
 
 const INITIAL_VISIBLE = 20;
 const SHOW_MORE_STEP = 50;
@@ -14,6 +21,7 @@ const SHOW_MORE_STEP = 50;
 export function FlashcardViewer({
   parsed,
   completion,
+  getStats,
   onBack,
   onStartTest,
   onSave,
@@ -24,6 +32,10 @@ export function FlashcardViewer({
   // Mean mastery across the deck (0-100). Surfaced as a percent + progress bar
   // when present; hidden for the trial flow where no server-side completion exists.
   completion?: number;
+  // Per-card mastery lookup. When provided, each card surfaces a colour-coded
+  // stage badge (New / Learning / Practicing / Mastered) so the learner can
+  // scan progress at a glance.
+  getStats?: StatsLookup;
   onBack: () => void;
   onStartTest: () => void;
   onSave?: () => void;
@@ -64,6 +76,7 @@ export function FlashcardViewer({
   }
 
   const card = cards[index];
+  const cardStage = getStats ? classifyMastery(getStats(card.id)) : null;
 
   function go(delta: number) {
     setFlipped(false);
@@ -101,9 +114,12 @@ export function FlashcardViewer({
         onClick={() => setFlipped((f) => !f)}
         className="flex h-[28rem] w-full flex-col rounded-xl border border-neutral-200 p-6 text-center transition hover:border-neutral-400 dark:border-neutral-800 dark:hover:border-neutral-600"
       >
-        <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-neutral-400">
-          {flipped ? "Back" : "Front"}
-        </span>
+        <div className="flex shrink-0 items-center justify-between gap-3">
+          <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">
+            {flipped ? "Back" : "Front"}
+          </span>
+          {cardStage && <StageBadge info={cardStage} />}
+        </div>
         <div className="nice-scroll flex flex-1 flex-col items-center overflow-y-auto py-3">
           {/* my-auto centers content when it fits, but collapses so the top stays
               scrollable when content overflows (justify-center would clip it). */}
@@ -174,7 +190,12 @@ export function FlashcardViewer({
         </h2>
         <ul className="space-y-2">
           {cards.slice(0, visible).map((c, i) => (
-            <CardPreviewRow key={`${c.id}-${i}`} front={c.front} back={c.back} />
+            <CardPreviewRow
+              key={`${c.id}-${i}`}
+              front={c.front}
+              back={c.back}
+              stats={getStats?.(c.id)}
+            />
           ))}
         </ul>
 

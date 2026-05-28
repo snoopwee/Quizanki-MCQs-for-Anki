@@ -45,7 +45,10 @@ export function buildFlashcards(noteTypes: ApkgNoteType[]): Flashcard[] {
       const back = bundle(note.fields, backFields);
       if (front.length === 0 && back.length === 0) return; // nothing to show
       cards.push({
-        id: note.ankiNoteId ?? `${nt.id}-${i}`,
+        // Mirror the id scheme ApkgQuizSetup uses for the quiz pool: persisted
+        // UUID first (saved decks), then ankiNoteId, then a synthetic key. This
+        // lets one getStats lookup serve both the flashcard list and the quiz.
+        id: note.id ?? note.ankiNoteId ?? `${nt.id}-${i}`,
         front,
         back,
         noteType: nt.name,

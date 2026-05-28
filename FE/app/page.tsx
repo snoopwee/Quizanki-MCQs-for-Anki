@@ -148,6 +148,7 @@ function Landing() {
           {step.kind === "flashcards" && (
             <FlashcardViewer
               parsed={step.parsed}
+              getStats={guestGetStats}
               backLabel="Start over"
               onBack={() => setStep({ kind: "import" })}
               onStartTest={() => setStep({ kind: "setup", parsed: step.parsed })}
@@ -172,8 +173,14 @@ function Landing() {
                   setSettingsOpen(false);
                   setStep({ kind: "setup", parsed: step.parsed });
                 }}
+                onEndTest={() => {
+                  setSettingsOpen(false);
+                  setStep({ kind: "flashcards", parsed: step.parsed });
+                }}
                 onOpenSettings={() => setSettingsOpen(true)}
                 onFinish={() => !user && setSaveOpen(true)}
+                getStats={guestGetStats}
+                inputDisabled={settingsOpen || saveOpen || authOpen}
               />
               {settingsOpen && (
                 <Modal title="Quiz settings" onClose={() => setSettingsOpen(false)}>

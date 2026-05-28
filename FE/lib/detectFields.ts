@@ -2,7 +2,12 @@
 // answer for a parsed deck. Returns a confidence in [0, 1]; callers should show a
 // manual field picker when confidence < 0.7.
 
-import type { ParsedNote } from "@/lib/parseDeck";
+// Shape of a single parsed note from any source (legacy plain-text parser is
+// gone, but `.apkg` notes flow through the same heuristic via the same shape).
+export interface ParsedNote {
+  fields: Record<string, string>;
+  tags: string[];
+}
 
 export interface FieldDetection {
   questionField: string;

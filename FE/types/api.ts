@@ -8,6 +8,8 @@ export interface CardStatsResponse {
   timesCorrect: number;
   accuracy: number;
   streak: number;
+  // 0-100. The signal that drives quiz card selection. Distinct from accuracy.
+  mastery: number;
   lastSeenAt: string | null;
 }
 
@@ -18,6 +20,9 @@ export interface DeckResponse {
   sourceFilename: string | null;
   cardCount: number | null;
   importedAt: string | null;
+  // 0-100. Mean mastery across every note in the deck, with unseen notes
+  // counted as 0 (so a fresh deck is 0%, not undefined).
+  completion: number;
 }
 
 export interface NoteResponse {
@@ -34,6 +39,7 @@ export interface DeckStatsResponse {
   averageAccuracy: number;
   weakCards: number;
   masteredCards: number;
+  averageMastery: number;
 }
 
 export interface NoteRequest {
@@ -80,6 +86,9 @@ export interface RecordAnswerRequest {
 export interface RecordAnswerResponse {
   accuracy: number;
   streak: number;
+  // The note's updated mastery after this answer, so the client can re-weight
+  // selection without refetching the whole notes list.
+  mastery: number;
 }
 
 // .apkg parse endpoint (POST /api/v1/public/parse-apkg) — public, stateless.
@@ -143,5 +152,6 @@ export interface DeckContentsResponse {
   sourceFilename: string | null;
   cardCount: number | null;
   importedAt: string | null;
+  completion: number;
   noteTypes: DeckContentsNoteType[];
 }

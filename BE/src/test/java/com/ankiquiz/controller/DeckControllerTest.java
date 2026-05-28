@@ -57,7 +57,7 @@ class DeckControllerTest {
     void importDeck_returns201_withDeckResponse() throws Exception {
         UUID deckId = UUID.randomUUID();
         DeckResponse response = new DeckResponse(
-                deckId, "JLPT N4", "Japanese::N4", "n4.apkg", 1, OffsetDateTime.now()
+                deckId, "JLPT N4", "Japanese::N4", "n4.apkg", 1, OffsetDateTime.now(), 0.0
         );
         when(deckService.importDeck(eq("user-123"), any())).thenReturn(response);
 
@@ -77,7 +77,8 @@ class DeckControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(deckId.toString()))
                 .andExpect(jsonPath("$.name").value("JLPT N4"))
-                .andExpect(jsonPath("$.cardCount").value(1));
+                .andExpect(jsonPath("$.cardCount").value(1))
+                .andExpect(jsonPath("$.completion").value(0.0));
     }
 
     @Test

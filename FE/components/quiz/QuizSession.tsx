@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useQuizStore } from "@/stores/quizStore";
+import { useGuestMastery } from "@/stores/guestMasteryStore";
 import { useRecordAnswer } from "@/hooks/useQuizSession";
 import { reshuffleQuestions } from "@/lib/buildQuestions";
 import { ProgressBar } from "./ProgressBar";
@@ -35,6 +37,8 @@ export function QuizSession({
   const nextQuestion = useQuizStore((s) => s.nextQuestion);
 
   const recordAnswer = useRecordAnswer();
+  const queryClient = useQueryClient();
+  const recordGuestAnswer = useGuestMastery((s) => s.recordAnswer);
 
   const finished = currentIndex >= questions.length;
 
@@ -82,12 +86,24 @@ export function QuizSession({
   function handleSelect(option: string) {
     if (answered) return;
     selectAnswer(option);
+    const correct = option === question.correct;
     if (sessionId) {
-      recordAnswer.mutate({
-        sessionId,
-        noteId: question.noteId,
-        correct: option === question.correct,
-      });
+      // Authed: server is the source of truth for mastery. Invalidate notes so
+      // the next "set up a quiz" picks the new mastery up (and the dashboard
+      // completion %, after the user navigates back).
+      recordAnswer.mutate(
+        { sessionId, noteId: question.noteId, correct },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["notes"] });
+            queryClient.invalidateQueries({ queryKey: ["decks"] });
+            queryClient.invalidateQueries({ queryKey: ["deck-contents"] });
+          },
+        },
+      );
+    } else {
+      // Guest trial: mastery lives client-side, applyAnswer mirrors the SQL curve.
+      recordGuestAnswer(question.noteId, correct);
     }
   }
 

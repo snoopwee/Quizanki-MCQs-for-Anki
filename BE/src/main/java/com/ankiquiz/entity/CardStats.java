@@ -28,6 +28,9 @@ public class CardStats {
     @Column(name = "streak")
     private Integer streak;
 
+    @Column(name = "mastery")
+    private Double mastery;
+
     @Column(name = "last_seen_at")
     private OffsetDateTime lastSeenAt;
 
@@ -69,6 +72,14 @@ public class CardStats {
 
     public void setStreak(Integer streak) {
         this.streak = streak;
+    }
+
+    public Double getMastery() {
+        return mastery;
+    }
+
+    public void setMastery(Double mastery) {
+        this.mastery = mastery;
     }
 
     public OffsetDateTime getLastSeenAt() {

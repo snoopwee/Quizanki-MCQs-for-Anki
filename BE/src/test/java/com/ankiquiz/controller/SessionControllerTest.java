@@ -74,7 +74,7 @@ class SessionControllerTest {
     void recordAnswer_returns200_withUpdatedStats() throws Exception {
         UUID sessionId = UUID.randomUUID();
         when(sessionService.recordAnswer(eq("user-1"), any()))
-                .thenReturn(new RecordAnswerResponse(0.75, 3));
+                .thenReturn(new RecordAnswerResponse(0.75, 3, 60.0));
 
         RecordAnswerRequest request = new RecordAnswerRequest(UUID.randomUUID(), true);
 
@@ -84,6 +84,7 @@ class SessionControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accuracy").value(0.75))
-                .andExpect(jsonPath("$.streak").value(3));
+                .andExpect(jsonPath("$.streak").value(3))
+                .andExpect(jsonPath("$.mastery").value(60.0));
     }
 }

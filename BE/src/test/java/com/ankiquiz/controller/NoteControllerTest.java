@@ -48,7 +48,7 @@ class NoteControllerTest {
                 noteId, deckId,
                 Map.of("Front", "食べる", "Back", "to eat"),
                 List.of("N4", "verb"),
-                new CardStatsResponse(3, 2, 0.66, 0, OffsetDateTime.now())
+                new CardStatsResponse(3, 2, 0.66, 0, 40.0, OffsetDateTime.now())
         );
         when(noteService.getNotes(eq("user-1"), eq(deckId), any(), anyBoolean(), any()))
                 .thenReturn(List.of(note));
@@ -57,7 +57,8 @@ class NoteControllerTest {
                         .with(jwt().jwt(j -> j.subject("user-1"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(noteId.toString()))
-                .andExpect(jsonPath("$[0].cardStats.accuracy").value(0.66));
+                .andExpect(jsonPath("$[0].cardStats.accuracy").value(0.66))
+                .andExpect(jsonPath("$[0].cardStats.mastery").value(40.0));
     }
 
     @Test

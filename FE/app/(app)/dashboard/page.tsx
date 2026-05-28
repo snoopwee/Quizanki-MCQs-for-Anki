@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useDecks, useDeleteDeck } from "@/hooks/useDecks";
+import { useDecks } from "@/hooks/useDecks";
 
 export default function DashboardPage() {
   const decksQuery = useDecks();
-  const deleteDeck = useDeleteDeck();
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Your decks</h1>
         <Link
@@ -36,33 +35,32 @@ export default function DashboardPage() {
 
       {decksQuery.data && decksQuery.data.length > 0 && (
         <ul className="space-y-3">
-          {decksQuery.data.map((deck) => (
-            <li
-              key={deck.id}
-              className="flex items-center justify-between rounded-lg border border-neutral-200 p-4 dark:border-neutral-800"
-            >
-              <div className="min-w-0">
-                <p className="truncate font-medium">{deck.name}</p>
-                <p className="text-sm text-neutral-500">{deck.cardCount ?? 0} cards</p>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
+          {decksQuery.data.map((deck) => {
+            const completion = Math.round(deck.completion ?? 0);
+            return (
+              <li key={deck.id}>
+                {/* Whole card is the link; delete moves to the deck detail page. */}
                 <Link
-                  href={`/decks/${deck.id}/quiz`}
-                  className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+                  href={`/decks/${deck.id}`}
+                  className="block rounded-lg border border-neutral-200 p-4 transition-colors hover:border-neutral-400 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:border-neutral-600 dark:hover:bg-neutral-900/40"
                 >
-                  Study &amp; test
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="truncate font-medium">{deck.name}</p>
+                    <span className="shrink-0 text-sm text-neutral-500">
+                      {completion}% complete
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-neutral-500">{deck.cardCount ?? 0} cards</p>
+                  <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
+                    <div
+                      className="h-full bg-neutral-900 transition-[width] dark:bg-neutral-100"
+                      style={{ width: `${completion}%` }}
+                    />
+                  </div>
                 </Link>
-                <button
-                  type="button"
-                  onClick={() => deleteDeck.mutate(deck.id)}
-                  disabled={deleteDeck.isPending}
-                  className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
-                >
-                  Delete
-                </button>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

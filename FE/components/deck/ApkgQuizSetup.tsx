@@ -13,10 +13,19 @@ function isQuizable(t: ApkgNoteType): boolean {
   return t.fieldNames.length >= 2 && t.noteCount > 0;
 }
 
+// Stats lookup used by the mastery-weighted card selection. The caller is
+// responsible for sourcing the data — authed callers build it from card_stats
+// returned by /decks/{id}/notes; the guest trial reads from localStorage.
+// Returning undefined / a zero record both mean "treat as a new card."
+export type NoteStatsLookup = (noteId: string) =>
+  | { mastery: number; timesSeen: number }
+  | undefined;
+
 export function ApkgQuizSetup({
   parsed,
   onStart,
   onBack,
+  getStats,
   showHeading = true,
   backLabel = "Back",
   startLabel = "Start quiz",
@@ -24,6 +33,7 @@ export function ApkgQuizSetup({
   parsed: ApkgParseResponse;
   onStart: (questions: Question[]) => void;
   onBack: () => void;
+  getStats?: NoteStatsLookup;
   // When rendered inside a modal the surrounding chrome supplies the heading and
   // the buttons read as Cancel/Apply instead of Back/Start quiz.
   showHeading?: boolean;
@@ -89,6 +99,7 @@ export function ApkgQuizSetup({
           noteType={selected}
           onStart={onStart}
           onBack={onBack}
+          getStats={getStats}
           backLabel={backLabel}
           startLabel={startLabel}
         />
@@ -106,12 +117,14 @@ function NoteTypeQuiz({
   noteType,
   onStart,
   onBack,
+  getStats,
   backLabel,
   startLabel,
 }: {
   noteType: ApkgNoteType;
   onStart: (questions: Question[]) => void;
   onBack: () => void;
+  getStats?: NoteStatsLookup;
   backLabel: string;
   startLabel: string;
 }) {
@@ -167,12 +180,18 @@ function NoteTypeQuiz({
   }
 
   function handleStart() {
-    const pool: QuizNote[] = noteType.notes.map((n, i) => ({
+    const pool: QuizNote[] = noteType.notes.map((n, i) => {
       // Prefer the persisted note UUID (saved decks) so answers record against the
       // real note; fall back to the Anki id / a synthetic id for fresh parses.
-      id: n.id ?? n.ankiNoteId ?? `${noteType.id}-${i}`,
-      fields: n.fields,
-    }));
+      const id = n.id ?? n.ankiNoteId ?? `${noteType.id}-${i}`;
+      const stats = getStats?.(id);
+      return {
+        id,
+        fields: n.fields,
+        mastery: stats?.mastery ?? 0,
+        timesSeen: stats?.timesSeen ?? 0,
+      };
+    });
     const questions = buildQuestions(
       pool,
       count,

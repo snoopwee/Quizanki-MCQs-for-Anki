@@ -18,6 +18,7 @@ public record DeckContentsResponse(
         String sourceFilename,
         Integer cardCount,
         OffsetDateTime importedAt,
+        Double completion,
         List<NoteTypeContents> noteTypes
 ) {
     public record NoteTypeContents(

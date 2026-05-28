@@ -50,5 +50,15 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Logged-in users' home is the dashboard, not the marketing landing page.
+  // Skip the redirect when `?next=` is present so the post-login round-trip
+  // (modal opens on /, redirects to next on success) still works.
+  if (user && path === "/" && !request.nextUrl.searchParams.get("next")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
   return response;
 }

@@ -14,11 +14,13 @@ import com.ankiquiz.exception.NotFoundException;
 import com.ankiquiz.repository.DeckRepository;
 import com.ankiquiz.repository.NoteRepository;
 import com.ankiquiz.repository.NoteTypeRepository;
+import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -30,19 +32,27 @@ public class DeckService {
     private final DeckRepository deckRepository;
     private final NoteTypeRepository noteTypeRepository;
     private final NoteRepository noteRepository;
+    private final EntityManager entityManager;
 
     public DeckService(DeckRepository deckRepository,
                        NoteTypeRepository noteTypeRepository,
-                       NoteRepository noteRepository) {
+                       NoteRepository noteRepository,
+                       EntityManager entityManager) {
         this.deckRepository = deckRepository;
         this.noteTypeRepository = noteTypeRepository;
         this.noteRepository = noteRepository;
+        this.entityManager = entityManager;
     }
 
     @Transactional(readOnly = true)
     public List<DeckResponse> getDecksForUser(String userId) {
-        return deckRepository.findAllByUserIdOrderByImportedAtDesc(userId).stream()
-                .map(DeckResponse::from)
+        List<Deck> decks = deckRepository.findAllByUserIdOrderByImportedAtDesc(userId);
+        if (decks.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, Double> completion = completionByDeckForUser(userId);
+        return decks.stream()
+                .map(d -> DeckResponse.from(d, completion.getOrDefault(d.getId(), 0.0)))
                 .toList();
     }
 
@@ -83,7 +93,8 @@ public class DeckService {
             noteRepository.saveAll(notes);
         }
 
-        return DeckResponse.from(savedDeck);
+        // A freshly-imported deck has no card_stats yet, so completion is 0.
+        return DeckResponse.from(savedDeck, 0.0);
     }
 
     @Transactional(readOnly = true)
@@ -122,8 +133,48 @@ public class DeckService {
                 deck.getSourceFilename(),
                 deck.getCardCount(),
                 deck.getImportedAt(),
+                completionForDeck(deckId),
                 typeContents
         );
+    }
+
+    // Mean mastery across every note in the deck, with unseen notes counted as 0
+    // (inner COALESCE turns a missing card_stats row into 0 instead of NULL,
+    // which AVG would otherwise skip). Returned as 0-100, matching the column.
+    private double completionForDeck(UUID deckId) {
+        Object value = entityManager.createNativeQuery("""
+                SELECT COALESCE(AVG(COALESCE(cs.mastery, 0)), 0)
+                FROM notes n
+                LEFT JOIN card_stats cs ON cs.note_id = n.id
+                WHERE n.deck_id = :deckId
+                """)
+                .setParameter("deckId", deckId)
+                .getSingleResult();
+        return value == null ? 0.0 : ((Number) value).doubleValue();
+    }
+
+    // Bulk version for the deck-list endpoint: one round trip for all of a user's
+    // decks instead of one per deck. Returns deck_id -> completion (0-100).
+    private Map<UUID, Double> completionByDeckForUser(String userId) {
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = entityManager.createNativeQuery("""
+                SELECT d.id, COALESCE(AVG(COALESCE(cs.mastery, 0)), 0)
+                FROM decks d
+                LEFT JOIN notes n ON n.deck_id = d.id
+                LEFT JOIN card_stats cs ON cs.note_id = n.id
+                WHERE d.user_id = :userId
+                GROUP BY d.id
+                """)
+                .setParameter("userId", userId)
+                .getResultList();
+
+        Map<UUID, Double> result = new HashMap<>(rows.size());
+        for (Object[] row : rows) {
+            UUID deckId = (UUID) row[0];
+            double completion = row[1] == null ? 0.0 : ((Number) row[1]).doubleValue();
+            result.put(deckId, completion);
+        }
+        return result;
     }
 
     private static List<Note> buildNotes(UUID deckId, UUID noteTypeId, List<NoteRequest> incoming) {

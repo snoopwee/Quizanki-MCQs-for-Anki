@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ApkgUploader } from "@/components/deck/ApkgUploader";
 import { FlashcardViewer } from "@/components/deck/FlashcardViewer";
-import { ApkgQuizSetup } from "@/components/deck/ApkgQuizSetup";
+import { ApkgQuizSetup, type NoteStatsLookup } from "@/components/deck/ApkgQuizSetup";
 import { QuizSession } from "@/components/quiz/QuizSession";
 import { Modal } from "@/components/shared/Modal";
 import { AuthModal } from "@/components/auth/AuthModal";
@@ -14,6 +14,7 @@ import { parsedToImportRequest } from "@/lib/parsedToImportRequest";
 import { useImportDeck } from "@/hooks/useDecks";
 import { useSession } from "@/hooks/useSession";
 import { useQuizStore } from "@/stores/quizStore";
+import { useGuestMastery } from "@/stores/guestMasteryStore";
 import type { ApkgParseResponse } from "@/types/api";
 
 // The landing page IS the product trial: a guest can upload a deck and study /
@@ -45,6 +46,11 @@ function Landing() {
   const [authOpen, setAuthOpen] = useState(Boolean(next));
   const startSession = useQuizStore((s) => s.startSession);
   const importDeck = useImportDeck();
+  // Trial mastery lives entirely client-side. Reading via getState() in the
+  // lookup callback keeps `selectQuizNotes` working from current data without
+  // forcing a re-render every time another card is answered.
+  const guestGetStats: NoteStatsLookup = (noteId) =>
+    useGuestMastery.getState().getStats(noteId);
 
   // Trial quiz: empty sessionId so QuizSession never records answers.
   function startTrial(parsed: ApkgParseResponse, questions: Question[]) {
@@ -151,6 +157,7 @@ function Landing() {
           {step.kind === "setup" && (
             <ApkgQuizSetup
               parsed={step.parsed}
+              getStats={guestGetStats}
               backLabel="Back to flashcards"
               onBack={() => setStep({ kind: "flashcards", parsed: step.parsed })}
               onStart={(questions) => startTrial(step.parsed, questions)}
@@ -172,6 +179,7 @@ function Landing() {
                 <Modal title="Quiz settings" onClose={() => setSettingsOpen(false)}>
                   <ApkgQuizSetup
                     parsed={step.parsed}
+                    getStats={guestGetStats}
                     showHeading={false}
                     backLabel="Cancel"
                     startLabel="Apply"
@@ -189,7 +197,7 @@ function Landing() {
                   onClose={() => setSaveOpen(false)}
                   onAuthed={async () => {
                     const deck = await importDeck.mutateAsync(parsedToImportRequest(step.parsed));
-                    router.push(`/decks/${deck.id}/quiz`);
+                    router.push(`/decks/${deck.id}`);
                     router.refresh();
                   }}
                 />

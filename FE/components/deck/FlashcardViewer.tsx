@@ -13,16 +13,24 @@ const SHOW_MORE_STEP = 50;
 // the save chunk via the optional onSave prop).
 export function FlashcardViewer({
   parsed,
+  completion,
   onBack,
   onStartTest,
   onSave,
   backLabel = "Import another",
+  hideActions = false,
 }: {
   parsed: ApkgParseResponse;
+  // Mean mastery across the deck (0-100). Surfaced as a percent + progress bar
+  // when present; hidden for the trial flow where no server-side completion exists.
+  completion?: number;
   onBack: () => void;
   onStartTest: () => void;
   onSave?: () => void;
   backLabel?: string;
+  // When true, suppress the bottom Back/Save/Start-quiz row — the surrounding
+  // page chrome (breadcrumb + action bar) handles those actions instead.
+  hideActions?: boolean;
 }) {
   const cards = useMemo(() => buildFlashcards(parsed.noteTypes), [parsed]);
   const [index, setIndex] = useState(0);
@@ -69,6 +77,22 @@ export function FlashcardViewer({
         <p className="mt-1 text-sm text-neutral-500">
           {cards.length} cards — study them, then set up a quiz.
         </p>
+        {completion !== undefined && (
+          <div className="mt-3 max-w-xs">
+            <div className="flex items-center justify-between text-xs text-neutral-500">
+              <span>Deck completion</span>
+              <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                {Math.round(completion)}%
+              </span>
+            </div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
+              <div
+                className="h-full bg-neutral-900 transition-[width] dark:bg-neutral-100"
+                style={{ width: `${Math.round(completion)}%` }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Fixed height so front and back are the same size; long content scrolls. */}
@@ -115,31 +139,33 @@ export function FlashcardViewer({
         </button>
       </div>
 
-      <div className="flex gap-3 border-t border-neutral-200 pt-5 dark:border-neutral-800">
-        <button
-          type="button"
-          onClick={onBack}
-          className="rounded-md border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
-        >
-          {backLabel}
-        </button>
-        {onSave && (
+      {!hideActions && (
+        <div className="flex gap-3 border-t border-neutral-200 pt-5 dark:border-neutral-800">
           <button
             type="button"
-            onClick={onSave}
+            onClick={onBack}
             className="rounded-md border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
           >
-            Save deck
+            {backLabel}
           </button>
-        )}
-        <button
-          type="button"
-          onClick={onStartTest}
-          className="ml-auto rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
-        >
-          Set up a quiz →
-        </button>
-      </div>
+          {onSave && (
+            <button
+              type="button"
+              onClick={onSave}
+              className="rounded-md border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+            >
+              Save deck
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onStartTest}
+            className="ml-auto rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+          >
+            Set up a quiz →
+          </button>
+        </div>
+      )}
 
       {/* Full preview list (Quizlet-style), rendered incrementally for big decks. */}
       <div className="space-y-3">

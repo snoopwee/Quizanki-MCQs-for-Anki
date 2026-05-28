@@ -141,21 +141,37 @@ describe("selectQuizNotes", () => {
     for (const p of picked) expect(notes.find((n) => n.id === p.id)).toBeDefined();
   });
 
-  it("seen-but-none-ready: admits zero new cards, all picks come from seen pool", () => {
-    // Some cards are in flight (seen, low mastery); the rest are brand new.
-    // None has reached 30% mastery yet, so the algorithm must focus on the
-    // in-flight cards and not dilute the session with new cards.
-    const notes = [
-      ...makeNotes([
-        { id: "s1", mastery: 15, timesSeen: 1 },
-        { id: "s2", mastery: 0, timesSeen: 2 },
-        { id: "s3", mastery: 20, timesSeen: 3 },
-      ]),
-      ...makeNotes(Array.from({ length: 10 }, (_, i) => ({ id: `new${i}` }))),
-    ];
+  it("seen-but-none-ready: prefers the seen pool, but spills to new when seen can't fill the quiz", () => {
+    // Three cards in flight (all under the ready threshold) plus 10 fresh cards.
+    // The user asks for 3 questions — the seen pool can carry that on its own,
+    // so the quiz should be entirely seen.
+    const seen = makeNotes([
+      { id: "s1", mastery: 15, timesSeen: 1 },
+      { id: "s2", mastery: 0, timesSeen: 2 },
+      { id: "s3", mastery: 20, timesSeen: 3 },
+    ]);
+    const notes = [...seen, ...makeNotes(Array.from({ length: 10 }, (_, i) => ({ id: `new${i}` })))];
     const picked = selectQuizNotes(notes, 3, makeRng());
     expect(picked).toHaveLength(3);
     for (const p of picked) expect(p.id.startsWith("s")).toBe(true);
+  });
+
+  it("seen pool too small: spills to new cards so the quiz isn't choked", () => {
+    // Regression: previously a deck where the user had answered only 1 card
+    // (mastery < 30) produced a 1-question quiz no matter what count was asked
+    // for, because the algorithm refused to admit new cards while seen-and-not-
+    // ready cards existed.
+    const notes = [
+      ...makeNotes([{ id: "s1", mastery: 10, timesSeen: 1 }]),
+      ...makeNotes(Array.from({ length: 30 }, (_, i) => ({ id: `new${i}` }))),
+    ];
+    const picked = selectQuizNotes(notes, 20, makeRng());
+    expect(picked).toHaveLength(20);
+    // The lone seen card should still appear, since the seen pool is preferred.
+    expect(picked.some((p) => p.id === "s1")).toBe(true);
+    // The remaining 19 slots come from new.
+    const newCount = picked.filter((p) => p.id.startsWith("new")).length;
+    expect(newCount).toBe(19);
   });
 
   it("admits at least one new card once any card reaches the 30% ready threshold", () => {

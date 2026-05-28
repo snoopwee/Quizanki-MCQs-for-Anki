@@ -120,21 +120,30 @@ export function selectQuizNotes<T extends QuizNote>(
     else seenPool.push(n);
   }
 
-  // How many cards do we want to admit from the new pool this quiz?
-  let newQuota: number;
+  // How many *seen* cards to admit, before any cap. The new-card share is
+  // gated by how "familiar" the deck feels (ready ratio), but we always favour
+  // the seen pool — picks from new fill whatever the seen pool can't provide.
+  let preferredNew: number;
   if (seenPool.length === 0) {
     // Cold start — every card is new, so the quiz is all new.
-    newQuota = Math.min(count, newPool.length);
+    preferredNew = count;
   } else {
     const ready = seenPool.filter((n) => (n.mastery ?? 0) >= READY_THRESHOLD).length;
     const readyRatio = ready / notes.length;
-    newQuota = Math.min(Math.round(count * MAX_NEW_SHARE * readyRatio), newPool.length);
+    preferredNew = Math.round(count * MAX_NEW_SHARE * readyRatio);
     // Once at least one card is "ready," let one new card in even when the
     // ratio rounds to 0, so introduction is monotonic in progress.
-    if (ready > 0 && newPool.length > 0 && newQuota === 0) newQuota = 1;
+    if (ready > 0 && preferredNew === 0) preferredNew = 1;
   }
+  preferredNew = Math.min(preferredNew, newPool.length);
 
-  const seenQuota = count - newQuota;
+  // Cap the seen take by what the seen pool actually has — without this, a
+  // partially-played deck where only 1–2 cards have been answered and none has
+  // hit the ready threshold yields a 1-question quiz instead of filling the
+  // remaining slots from the new pool.
+  const seenQuota = Math.min(count - preferredNew, seenPool.length);
+  const newQuota = Math.min(count - seenQuota, newPool.length);
+
   const fromNew = weightedSampleWithoutReplacement(newPool, newQuota, () => 1, rng);
   const fromSeen = weightedSampleWithoutReplacement(
     seenPool,

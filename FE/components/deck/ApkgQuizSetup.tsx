@@ -264,6 +264,13 @@ function NoteTypeQuiz({
           id="quiz-count"
           type="text"
           inputMode="numeric"
+          // Suppress the browser's history-of-prior-values dropdown and the
+          // autofill colour wash that goes with it. `name=""` would still leave
+          // some browsers offering suggestions by id, so this triple is the
+          // belt-and-braces incantation.
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
           value={countText}
           onChange={(e) => setCountText(e.target.value.replace(/\D/g, ""))}
           onBlur={() => setCountText(String(count))}

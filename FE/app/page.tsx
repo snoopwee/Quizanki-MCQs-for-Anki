@@ -180,7 +180,6 @@ function Landing() {
                 onOpenSettings={() => setSettingsOpen(true)}
                 onFinish={() => !user && setSaveOpen(true)}
                 getStats={guestGetStats}
-                inputDisabled={settingsOpen || saveOpen || authOpen}
               />
               {settingsOpen && (
                 <Modal title="Quiz settings" onClose={() => setSettingsOpen(false)}>

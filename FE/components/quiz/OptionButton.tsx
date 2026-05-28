@@ -1,22 +1,18 @@
 export function OptionButton({
   option,
-  index,
   answered,
   isCorrect,
   isSelected,
   onSelect,
 }: {
   option: string;
-  // 0-based; shown as 1-4 in the corner badge so the keyboard-shortcut mapping
-  // is discoverable without an extra legend line.
-  index: number;
   answered: boolean;
   isCorrect: boolean;
   isSelected: boolean;
   onSelect: () => void;
 }) {
   let className =
-    "nice-scroll relative flex h-full min-h-0 w-full items-center justify-center overflow-y-auto rounded-md border px-8 py-4 text-center text-sm transition-colors break-words ";
+    "nice-scroll flex h-full min-h-0 w-full items-center justify-center overflow-y-auto rounded-md border px-4 py-4 text-center text-sm transition-colors break-words ";
 
   if (!answered) {
     className +=
@@ -33,12 +29,6 @@ export function OptionButton({
 
   return (
     <button type="button" disabled={answered} onClick={onSelect} className={className}>
-      <span
-        aria-hidden
-        className="absolute left-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded border border-neutral-300 text-[11px] font-medium text-neutral-500 dark:border-neutral-700 dark:text-neutral-400"
-      >
-        {index + 1}
-      </span>
       {option}
     </button>
   );

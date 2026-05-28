@@ -94,7 +94,6 @@ export default function ImportPage() {
               setStep({ kind: "flashcards", parsed: step.parsed });
             }}
             onOpenSettings={() => setSettingsOpen(true)}
-            inputDisabled={settingsOpen}
           />
           {settingsOpen && (
             <Modal title="Quiz settings" onClose={() => setSettingsOpen(false)}>

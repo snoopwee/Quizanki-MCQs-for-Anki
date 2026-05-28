@@ -96,7 +96,6 @@ export default function DeckTestPage() {
         onEndTest={endTest}
         onOpenSettings={() => setSettingsOpen(true)}
         getStats={getStats}
-        inputDisabled={settingsOpen}
       />
       {settingsOpen && parsed && (
         <Modal title="Quiz settings" onClose={() => setSettingsOpen(false)}>

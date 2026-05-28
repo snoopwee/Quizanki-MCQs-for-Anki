@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useQuizStore } from "@/stores/quizStore";
 import { useGuestMastery } from "@/stores/guestMasteryStore";
@@ -25,7 +25,6 @@ export function QuizSession({
   onOpenSettings,
   onFinish,
   getStats,
-  inputDisabled = false,
 }: {
   onRetry: () => void;
   // Mid-quiz "← End quiz" — bails out before reaching the results screen.
@@ -43,9 +42,6 @@ export function QuizSession({
   // the results screen. Optional so callers without a lookup (e.g. mid-rebuild)
   // still get a working quiz — answers default to mastery 0.
   getStats?: StatsLookup;
-  // Suspends the keyboard shortcuts. Callers pass true while a modal (settings,
-  // save, etc.) is open so 1-4 / Enter don't leak through to the quiz behind it.
-  inputDisabled?: boolean;
 }) {
   const questions = useQuizStore((s) => s.questions);
   const currentIndex = useQuizStore((s) => s.currentIndex);
@@ -74,84 +70,6 @@ export function QuizSession({
     }
   }, [finished, onFinish]);
 
-  // Pre-compute these unconditionally so the hooks below see consistent values;
-  // when finished, `question` is undefined and the hooks guard accordingly.
-  const question = questions[currentIndex];
-  const answered = selectedAnswer !== null;
-  const isLast = currentIndex === questions.length - 1;
-
-  const handleSelect = useCallback(
-    (option: string) => {
-      if (answered || !question) return;
-      const correct = option === question.correct;
-      // Same +15/-20 curve the BE runs, so the optimistic value matches the
-      // server-confirmed mastery — no flicker on the results screen.
-      const prevMastery = getStats?.(question.noteId)?.mastery ?? 0;
-      const newMastery = applyAnswer(prevMastery, correct);
-      selectAnswer(option, newMastery);
-      if (sessionId) {
-        // Authed: server is the source of truth for mastery. Invalidate notes so
-        // the next "set up a quiz" picks the new mastery up (and the dashboard
-        // completion %, after the user navigates back).
-        recordAnswer.mutate(
-          { sessionId, noteId: question.noteId, correct },
-          {
-            onSuccess: () => {
-              queryClient.invalidateQueries({ queryKey: ["notes"] });
-              queryClient.invalidateQueries({ queryKey: ["decks"] });
-              queryClient.invalidateQueries({ queryKey: ["deck-contents"] });
-            },
-          },
-        );
-      } else {
-        // Guest trial: mastery lives client-side, applyAnswer mirrors the SQL curve.
-        recordGuestAnswer(question.noteId, correct);
-      }
-    },
-    [
-      answered,
-      question,
-      getStats,
-      selectAnswer,
-      sessionId,
-      recordAnswer,
-      queryClient,
-      recordGuestAnswer,
-    ],
-  );
-
-  // 1-4 selects the matching option (when not yet answered); Enter/Space
-  // advances (when answered). Skips when focus is in a form control or when
-  // the parent has suspended input (modal open). Listener is rebound when any
-  // of the captured pieces change — cheap, and avoids stale closures over
-  // `question` / `answered` / handlers.
-  useEffect(() => {
-    if (finished || inputDisabled || !question) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.repeat || e.defaultPrevented) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      const target = e.target as HTMLElement | null;
-      if (target) {
-        const tag = target.tagName;
-        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-        if (target.isContentEditable) return;
-      }
-
-      const digit = "1234".indexOf(e.key);
-      if (digit !== -1 && !answered && digit < question.options.length) {
-        e.preventDefault();
-        handleSelect(question.options[digit]);
-        return;
-      }
-      if ((e.key === "Enter" || e.key === " ") && answered) {
-        e.preventDefault();
-        nextQuestion();
-      }
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [finished, inputDisabled, answered, question, nextQuestion, handleSelect]);
-
   if (finished) {
     // Same/wrong-only replays run locally (empty sessionId), so they don't append
     // answers to an already-finished backend session. "New test" is a full rebuild
@@ -176,6 +94,38 @@ export function QuizSession({
         onEndTest={onEndTest}
       />
     );
+  }
+
+  const question = questions[currentIndex];
+  const answered = selectedAnswer !== null;
+  const isLast = currentIndex === questions.length - 1;
+
+  function handleSelect(option: string) {
+    if (answered) return;
+    const correct = option === question.correct;
+    // Same +15/-20 curve the BE runs, so the optimistic value matches the
+    // server-confirmed mastery — no flicker on the results screen.
+    const prevMastery = getStats?.(question.noteId)?.mastery ?? 0;
+    const newMastery = applyAnswer(prevMastery, correct);
+    selectAnswer(option, newMastery);
+    if (sessionId) {
+      // Authed: server is the source of truth for mastery. Invalidate notes so
+      // the next "set up a quiz" picks the new mastery up (and the dashboard
+      // completion %, after the user navigates back).
+      recordAnswer.mutate(
+        { sessionId, noteId: question.noteId, correct },
+        {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["notes"] });
+            queryClient.invalidateQueries({ queryKey: ["decks"] });
+            queryClient.invalidateQueries({ queryKey: ["deck-contents"] });
+          },
+        },
+      );
+    } else {
+      // Guest trial: mastery lives client-side, applyAnswer mirrors the SQL curve.
+      recordGuestAnswer(question.noteId, correct);
+    }
   }
 
   return (
@@ -211,11 +161,10 @@ export function QuizSession({
 
         <div className="flex min-h-0 flex-col gap-4 overflow-hidden p-6">
           <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-3">
-            {question.options.map((option, i) => (
+            {question.options.map((option) => (
               <OptionButton
                 key={option}
                 option={option}
-                index={i}
                 answered={answered}
                 isCorrect={option === question.correct}
                 isSelected={option === selectedAnswer}
@@ -224,22 +173,14 @@ export function QuizSession({
             ))}
           </div>
 
-          <div className="space-y-1">
-            <button
-              type="button"
-              onClick={nextQuestion}
-              disabled={!answered}
-              className="w-full rounded-md bg-black px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
-            >
-              {isLast ? "See results" : "Next question"}
-            </button>
-            <p className="text-center text-[11px] text-neutral-400">
-              Keys: <kbd className="rounded border border-neutral-300 px-1 dark:border-neutral-700">1</kbd>–
-              <kbd className="rounded border border-neutral-300 px-1 dark:border-neutral-700">4</kbd> to
-              answer · <kbd className="rounded border border-neutral-300 px-1 dark:border-neutral-700">Enter</kbd>{" "}
-              for next
-            </p>
-          </div>
+          <button
+            type="button"
+            onClick={nextQuestion}
+            disabled={!answered}
+            className="w-full rounded-md bg-black px-4 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+          >
+            {isLast ? "See results" : "Next question"}
+          </button>
         </div>
       </div>
     </div>

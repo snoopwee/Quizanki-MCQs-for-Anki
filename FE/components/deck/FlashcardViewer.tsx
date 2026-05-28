@@ -56,6 +56,44 @@ export function FlashcardViewer({
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Keyboard nav: ←/A previous card, →/D next card. Skipped when focus is in a
+  // form control (so other inputs on the page keep their native behavior) and
+  // when a modal is open (Delete-confirm sets aria-modal, so this won't fight
+  // it). No-ops on an empty deck — the lastIndex math just clamps to 0.
+  useEffect(() => {
+    const lastIndex = cards.length - 1;
+    function onKey(e: KeyboardEvent) {
+      if (e.repeat || e.defaultPrevented) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+        if (target.isContentEditable) return;
+      }
+      if (document.querySelector('[aria-modal="true"]')) return;
+
+      const isPrev = e.key === "ArrowLeft" || e.key === "a" || e.key === "A";
+      const isNext = e.key === "ArrowRight" || e.key === "d" || e.key === "D";
+      const isFlip = e.key === " ";
+      if (isPrev) {
+        e.preventDefault();
+        setFlipped(false);
+        setIndex((i) => Math.max(0, i - 1));
+      } else if (isNext) {
+        e.preventDefault();
+        setFlipped(false);
+        setIndex((i) => Math.min(lastIndex, i + 1));
+      } else if (isFlip) {
+        // Preempt the browser default (page scroll) so Space stays a flip key.
+        e.preventDefault();
+        setFlipped((f) => !f);
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [cards.length]);
+
   if (cards.length === 0) {
     return (
       <div className="space-y-5">
@@ -154,6 +192,13 @@ export function FlashcardViewer({
           Next →
         </button>
       </div>
+      <p className="text-center text-[11px] text-neutral-400">
+        Keys: <kbd className="rounded border border-neutral-300 px-1 dark:border-neutral-700">←</kbd>
+        /<kbd className="rounded border border-neutral-300 px-1 dark:border-neutral-700">A</kbd> prev
+        · <kbd className="rounded border border-neutral-300 px-1 dark:border-neutral-700">→</kbd>
+        /<kbd className="rounded border border-neutral-300 px-1 dark:border-neutral-700">D</kbd> next
+        · <kbd className="rounded border border-neutral-300 px-1 dark:border-neutral-700">Space</kbd> flip
+      </p>
 
       {!hideActions && (
         <div className="flex gap-3 border-t border-neutral-200 pt-5 dark:border-neutral-800">

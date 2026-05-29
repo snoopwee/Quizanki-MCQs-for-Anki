@@ -1,15 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ApkgUploader } from "@/components/deck/ApkgUploader";
 import { FlashcardViewer } from "@/components/deck/FlashcardViewer";
 import { ApkgQuizSetup } from "@/components/deck/ApkgQuizSetup";
 import { QuizSession } from "@/components/quiz/QuizSession";
 import { Modal } from "@/components/shared/Modal";
-import { Toast } from "@/components/shared/Toast";
+import { useImportContext } from "@/components/import/ImportProvider";
 import { reshuffleQuestions, type Question } from "@/lib/buildQuestions";
-import { parsedToImportRequest } from "@/lib/parsedToImportRequest";
-import { useImportDeck } from "@/hooks/useDecks";
 import { useQuizStore } from "@/stores/quizStore";
 import type { ApkgParseResponse } from "@/types/api";
 
@@ -22,16 +20,17 @@ type Step =
 export default function ImportPage() {
   const [step, setStep] = useState<Step>({ kind: "import" });
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [toastDismissed, setToastDismissed] = useState(false);
   const startSession = useQuizStore((s) => s.startSession);
-  const importDeck = useImportDeck();
+  // The deck-save mutation + its status toast live in AppShell's ImportProvider,
+  // so navigating away mid-save keeps the toast visible and the deck still
+  // arrives in the dashboard list once the POST completes.
+  const { startImport } = useImportContext();
 
   // /import is logged-in only, so a successfully parsed .apkg is auto-saved to the
   // user's decks. The flashcard/test flow continues regardless of the save result.
   function handleParsed(parsed: ApkgParseResponse) {
     setStep({ kind: "flashcards", parsed });
-    setToastDismissed(false);
-    importDeck.mutate(parsedToImportRequest(parsed));
+    startImport(parsed);
   }
 
   // Trial/preview quiz on this page uses an empty sessionId so QuizSession doesn't
@@ -44,20 +43,8 @@ export default function ImportPage() {
     setStep({ kind: "apkg-quiz", parsed, questions: shuffled });
   }
 
-  // Reset the toast-dismiss latch whenever a new save kicks off so the next
-  // status (success/error) gets its own toast instead of staying hidden.
-  useEffect(() => {
-    if (importDeck.status === "pending") setToastDismissed(false);
-  }, [importDeck.status]);
-
   // The quiz screen uses a wide two-column layout; other steps stay narrow.
   const containerWidth = step.kind === "apkg-quiz" ? "max-w-7xl" : "max-w-2xl";
-
-  function retrySave() {
-    if (step.kind === "import") return;
-    setToastDismissed(false);
-    importDeck.mutate(parsedToImportRequest(step.parsed));
-  }
 
   return (
     <div className={`mx-auto ${containerWidth}`}>
@@ -108,30 +95,6 @@ export default function ImportPage() {
             </Modal>
           )}
         </>
-      )}
-
-      {!toastDismissed && importDeck.status === "pending" && (
-        <Toast
-          kind="pending"
-          message="Saving deck to your account…"
-          onDismiss={() => setToastDismissed(true)}
-        />
-      )}
-      {!toastDismissed && importDeck.status === "success" && (
-        <Toast
-          kind="success"
-          message="Saved to your decks"
-          onDismiss={() => setToastDismissed(true)}
-        />
-      )}
-      {!toastDismissed && importDeck.status === "error" && (
-        <Toast
-          kind="error"
-          message="Couldn't save this deck to your account."
-          actionLabel="Retry"
-          onAction={retrySave}
-          onDismiss={() => setToastDismissed(true)}
-        />
       )}
     </div>
   );

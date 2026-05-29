@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildClozeQuestions,
   buildQuestions,
+  countClozeCards,
+  detectClozeField,
   reshuffleQuestions,
   selectQuizNotes,
   type QuizNote,
@@ -253,5 +256,88 @@ describe("selectQuizNotes", () => {
     );
     const picked = selectQuizNotes(notes, 3, makeRng());
     expect(picked).toHaveLength(3);
+  });
+});
+
+describe("cloze helpers", () => {
+  it("detectClozeField returns the first field with a cloze marker", () => {
+    const notes = [
+      { fields: { Text: "{{c1::Tokyo}} is the capital.", Extra: "annotation" } },
+    ];
+    expect(detectClozeField(["Text", "Extra"], notes)).toBe("Text");
+  });
+
+  it("detectClozeField returns null when nothing has a cloze marker", () => {
+    const notes = [{ fields: { Text: "plain note" } }];
+    expect(detectClozeField(["Text"], notes)).toBeNull();
+  });
+
+  it("countClozeCards sums unique cloze indices across notes", () => {
+    const notes: QuizNote[] = [
+      { id: "1", fields: { Text: "{{c1::A}} {{c2::B}}" } },     // 2 cards
+      { id: "2", fields: { Text: "{{c1::C}} {{c1::D}}" } },     // 1 card (same index)
+      { id: "3", fields: { Text: "no cloze here" } },           // 0 cards
+    ];
+    expect(countClozeCards(notes, "Text")).toBe(3);
+  });
+});
+
+describe("buildClozeQuestions", () => {
+  const clozeDeck: QuizNote[] = [
+    { id: "1", fields: { Text: "Capital of Japan is {{c1::Tokyo}}, currency is {{c2::yen}}." } },
+    { id: "2", fields: { Text: "Capital of France is {{c1::Paris}}, currency is {{c2::euro}}." } },
+    { id: "3", fields: { Text: "Capital of Italy is {{c1::Rome}}, currency is {{c2::euro}}." } },
+  ];
+
+  it("emits one question per unique cloze index across selected notes", () => {
+    // 3 notes × 2 unique indices each = 6 cards available; ask for them all.
+    const out = buildClozeQuestions(clozeDeck, 6, "Text", clozeDeck, makeRng());
+    expect(out).toHaveLength(6);
+    for (const q of out) {
+      expect(q.options).toHaveLength(4);
+      expect(q.options).toContain(q.correct);
+      expect(new Set(q.options).size).toBe(4);
+    }
+  });
+
+  it("hides the active cloze in the prompt and reveals the other one", () => {
+    const out = buildClozeQuestions(clozeDeck, 6, "Text", clozeDeck, makeRng());
+    const tokyoQ = out.find((q) => q.correct === "Tokyo")!;
+    expect(tokyoQ.question).toContain("[...]");
+    // The other cloze of the same note should be revealed inline (yen).
+    expect(tokyoQ.question).toContain("yen");
+    expect(tokyoQ.question).not.toContain("{{c");
+  });
+
+  it("draws distractors from every cloze answer in the full pool", () => {
+    const out = buildClozeQuestions(clozeDeck, 6, "Text", clozeDeck, makeRng());
+    const tokyoQ = out.find((q) => q.correct === "Tokyo")!;
+    const distractors = tokyoQ.options.filter((o) => o !== "Tokyo");
+    // Distractors must come from {Paris, Rome, yen, euro} — the rest of the
+    // cloze answer pool minus Tokyo itself.
+    const expectedPool = new Set(["Paris", "Rome", "yen", "euro"]);
+    for (const d of distractors) {
+      expect(expectedPool.has(d)).toBe(true);
+    }
+  });
+
+  it("returns the parent note id so answer recording lands on the real note", () => {
+    const out = buildClozeQuestions(clozeDeck, 6, "Text", clozeDeck, makeRng());
+    // Every emitted noteId must be one of the original deck ids — never the
+    // synthetic "1-c1" / "1-c2" form. The BE only knows real note rows.
+    const realIds = new Set(clozeDeck.map((n) => n.id));
+    for (const q of out) {
+      expect(realIds.has(q.noteId)).toBe(true);
+      expect(q.noteId).not.toContain("-c");
+    }
+  });
+
+  it("joins same-index repeated clozes as one correct answer", () => {
+    const note: QuizNote[] = [
+      { id: "1", fields: { Text: "{{c1::Hydrogen}} and {{c1::Helium}} are gases." } },
+    ];
+    const [q] = buildClozeQuestions(note, 1, "Text", note, makeRng());
+    expect(q.correct).toBe("Hydrogen · Helium");
+    expect(q.question).toBe("[...] and [...] are gases.");
   });
 });

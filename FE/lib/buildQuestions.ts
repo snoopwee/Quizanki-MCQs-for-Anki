@@ -3,6 +3,18 @@
 // is always a single field. Distractors are always drawn from the FULL deck's
 // answer pool (deduplicated, excluding the correct value) so a tag-filtered quiz
 // doesn't collapse to a tiny distractor set.
+//
+// Cloze notes ({@link buildClozeQuestions}) have their own path: each unique
+// cloze index in a note becomes a synthetic card whose mastery inherits from
+// the parent note. We don't materialize per-cloze stats — the BE still tracks
+// mastery at the note level, so all clozes of one note share one number.
+
+import {
+  clozeAnswer,
+  allClozeAnswers,
+  renderClozeFront,
+  uniqueClozeIndices,
+} from "@/lib/cloze";
 
 export interface QuizNote {
   id: string;
@@ -153,6 +165,108 @@ export function selectQuizNotes<T extends QuizNote>(
   );
 
   return shuffle([...fromNew, ...fromSeen], rng);
+}
+
+/**
+ * Counts every unique cloze deletion across the given notes' {@code textField}.
+ * Useful for the setup UI's "available questions" bound — cloze notes can yield
+ * many more cards than the raw note count.
+ */
+export function countClozeCards(notes: QuizNote[], textField: string): number {
+  let total = 0;
+  for (const n of notes) {
+    total += uniqueClozeIndices(n.fields[textField] ?? "").length;
+  }
+  return total;
+}
+
+/**
+ * Detects the field that holds cloze syntax inside a note type. Anki's built-in
+ * Cloze type calls it "Text" but community types vary; we look at the actual
+ * note content rather than the name. Returns the first field where any note
+ * contains a {@code {{c<n>::...}}} marker, or {@code null} when none does.
+ */
+export function detectClozeField(
+  fieldNames: string[],
+  notes: Array<{ fields: Record<string, string> }>,
+): string | null {
+  for (const f of fieldNames) {
+    for (const n of notes) {
+      if (uniqueClozeIndices(n.fields[f] ?? "").length > 0) {
+        return f;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Builds MCQ questions from cloze notes. Each unique cloze index in a note
+ * produces one quiz card; mastery weighting and selection share the parent
+ * note's stats (the BE tracks mastery at the note level, not per-cloze).
+ *
+ * Distractors are pulled from every cloze answer in {@code fullPool}, so even
+ * a 4-note deck has a decent answer pool as long as it has enough clozes.
+ */
+export function buildClozeQuestions(
+  notes: QuizNote[],
+  count: number,
+  textField: string,
+  fullPool: QuizNote[] = notes,
+  rng: () => number = Math.random,
+): Question[] {
+  // One synthetic QuizNote per cloze deletion. The selection layer treats them
+  // exactly like normal notes, so mastery weighting "just works" — every
+  // synthetic clone of a note shares the same mastery/timesSeen.
+  type Synth = QuizNote & {
+    clozeIndex: number;
+    clozeText: string;
+    parentId: string;
+  };
+  const synthetic: Synth[] = [];
+  for (const n of notes) {
+    const text = n.fields[textField] ?? "";
+    for (const idx of uniqueClozeIndices(text)) {
+      synthetic.push({
+        id: `${n.id}-c${idx}`,
+        fields: n.fields,
+        mastery: n.mastery,
+        timesSeen: n.timesSeen,
+        clozeIndex: idx,
+        clozeText: text,
+        parentId: n.id,
+      });
+    }
+  }
+
+  const answerPool = Array.from(
+    new Set(
+      fullPool.flatMap((n) => allClozeAnswers(n.fields[textField] ?? "")).filter(
+        (a) => a.length > 0,
+      ),
+    ),
+  );
+
+  const selected = selectQuizNotes(synthetic, Math.max(0, count), rng);
+
+  return selected.map((s) => {
+    const correct = clozeAnswer(s.clozeText, s.clozeIndex);
+    const question = renderClozeFront(s.clozeText, s.clozeIndex);
+    const distractors = shuffle(
+      answerPool.filter((a) => a !== correct),
+      rng,
+    ).slice(0, OPTION_COUNT - 1);
+
+    return {
+      // Parent note id, not the synthetic one — answer recording + mastery
+      // updates need to land on the real note row.
+      noteId: s.parentId,
+      prompt: [{ label: "Cloze", value: question }],
+      question,
+      correct,
+      options: shuffle([correct, ...distractors], rng),
+    };
+  });
 }
 
 export function buildQuestions(

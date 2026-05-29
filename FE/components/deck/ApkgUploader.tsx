@@ -7,13 +7,14 @@ import type { ApkgParseResponse } from "@/types/api";
 
 // Mirrors the backend multipart cap; checked client-side so an oversized deck
 // gets a clear message instead of a confusing dropped connection.
-const MAX_BYTES = 100 * 1024 * 1024;
+const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_MB = MAX_BYTES / 1024 / 1024;
 
 function errorMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {
     const msg = (err.response?.data as { message?: string } | undefined)?.message;
     if (msg) return msg;
-    if (err.response?.status === 413) return "That file is too large (limit 100 MB).";
+    if (err.response?.status === 413) return `That file is too large (limit ${MAX_MB} MB).`;
   }
   return "Could not parse the file. Please try a different .apkg.";
 }
@@ -40,7 +41,7 @@ export function ApkgUploader({
     }
     if (file.size > MAX_BYTES) {
       setValidationError(
-        `That deck is ${(file.size / 1024 / 1024).toFixed(0)} MB — the limit is 100 MB.`,
+        `That deck is ${(file.size / 1024 / 1024).toFixed(0)} MB — the limit is ${MAX_MB} MB.`,
       );
       return;
     }
@@ -111,7 +112,7 @@ export function ApkgUploader({
         <span className="text-sm font-medium">
           {parse.isPending ? "Reading your deck…" : "Drop your .apkg here, or click to browse"}
         </span>
-        <span className="text-xs text-neutral-500">Anki deck export · up to 100 MB</span>
+        <span className="text-xs text-neutral-500">Anki deck export · up to {MAX_MB} MB</span>
       </button>
 
       {validationError && (
@@ -133,16 +134,29 @@ function ApkgSummary({
   result: ApkgParseResponse;
   onContinue?: (result: ApkgParseResponse) => void;
 }) {
-  // A note type can drive a quiz only with ≥2 text fields (prompt + answer).
-  const usable = result.noteTypes.filter((t) => t.fieldNames.length >= 2 && t.noteCount > 0);
+  // A note type can drive a quiz if it's a cloze type (each {{c<n>::...}} is a
+  // card) OR a basic type with ≥2 text fields (prompt + answer).
+  const usable = result.noteTypes.filter(
+    (t) => t.noteCount > 0 && (t.cloze || t.fieldNames.length >= 2),
+  );
 
   return (
     <div className="space-y-3 rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950">
       <p className="text-sm">
         <span className="font-medium">{result.filename}</span> — {result.totalNotes} notes
-        {result.skippedNotes > 0 && `, ${result.skippedNotes} skipped`} across{" "}
-        {result.noteTypes.length} note type{result.noteTypes.length === 1 ? "" : "s"}.
+        {result.skippedNotes > 0 && `, ${result.skippedNotes} skipped`}
+        {result.imageOnlyNotes > 0 &&
+          `, ${result.imageOnlyNotes} image-occlusion excluded`}{" "}
+        across {result.noteTypes.length} note type
+        {result.noteTypes.length === 1 ? "" : "s"}.
       </p>
+      {result.imageOnlyNotes > 0 && (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300">
+          Image-occlusion cards aren&apos;t supported in multiple-choice quizzes — they have no
+          text to ask about. {result.imageOnlyNotes} card{result.imageOnlyNotes === 1 ? "" : "s"}{" "}
+          excluded.
+        </p>
+      )}
 
       <ul className="space-y-2">
         {result.noteTypes.map((t) => (
@@ -151,17 +165,12 @@ function ApkgSummary({
               <span className="font-medium">{t.name}</span>
               <span className="text-neutral-500">· {t.noteCount} notes</span>
               {t.cloze && (
-                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                <span className="rounded bg-sky-100 px-1.5 py-0.5 text-xs text-sky-800 dark:bg-sky-900/40 dark:text-sky-300">
                   cloze
                 </span>
               )}
             </div>
             <p className="mt-1 truncate text-xs text-neutral-500">{t.fieldNames.join(" · ")}</p>
-            {t.cloze && (
-              <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                Cloze cards aren&apos;t fully supported yet — answers may not generate well.
-              </p>
-            )}
           </li>
         ))}
       </ul>

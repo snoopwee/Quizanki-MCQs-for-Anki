@@ -7,11 +7,12 @@ spring:
   servlet:
     multipart:
       # We only read the small collection.anki* db, but the upload includes media
-      # we discard, so the cap must fit the whole .apkg. 100MB covers most real
-      # decks while bounding this public endpoint; per-IP rate limiting (later
-      # chunk) is the real abuse backstop, not this cap alone.
-      max-file-size: 100MB
-      max-request-size: 110MB
+      # we discard, so the cap must fit the whole .apkg. 50MB covers ~95% of real
+      # decks (typical JLPT / vocab / chapter exports) while keeping the free-tier
+      # memory + egress bill bounded. Media-heavy multi-GB decks (full AnKing) are
+      # intentionally out of scope; per-IP rate limiting is the real abuse backstop.
+      max-file-size: 50MB
+      max-request-size: 55MB
 
   datasource:
     # JDBC URL for the Supabase Postgres instance.

@@ -2,15 +2,25 @@
 
 import { useMemo, useState } from "react";
 import { detectFields, selectableFields } from "@/lib/detectFields";
-import { buildQuestions, type Question, type QuizNote } from "@/lib/buildQuestions";
+import {
+  buildClozeQuestions,
+  buildQuestions,
+  countClozeCards,
+  detectClozeField,
+  type Question,
+  type QuizNote,
+} from "@/lib/buildQuestions";
 import { ConfidenceBadge } from "@/components/shared/ConfidenceBadge";
 import { FieldSelect } from "@/components/deck/FieldSelect";
 import type { ApkgNoteType, ApkgParseResponse } from "@/types/api";
 
-// A note type can power a multiple-choice quiz only if it has at least two
-// fields (a prompt and an answer) and at least one note.
+// A note type can power a multiple-choice quiz when:
+//   - it's a cloze type with at least one cloze deletion in any note, OR
+//   - it has at least two text fields (prompt + answer) and at least one note.
 function isQuizable(t: ApkgNoteType): boolean {
-  return t.fieldNames.length >= 2 && t.noteCount > 0;
+  if (t.noteCount === 0) return false;
+  if (t.cloze) return detectClozeField(t.fieldNames, t.notes) !== null;
+  return t.fieldNames.length >= 2;
 }
 
 // Stats lookup used by the mastery-weighted card selection. The caller is
@@ -50,8 +60,8 @@ export function ApkgQuizSetup({
         {showHeading && <h1 className="text-2xl font-semibold">Set up a quiz</h1>}
         <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
           None of the note types in <span className="font-medium">{parsed.filename}</span> have
-          enough text fields to build a quiz. Cloze and single-field (e.g. image-only) note types
-          aren&apos;t supported yet.
+          enough quizzable content. Decks with only single-field or image-only note types
+          aren&apos;t supported.
         </p>
         <button
           type="button"
@@ -93,7 +103,17 @@ export function ApkgQuizSetup({
       )}
 
       {/* Remount per note type so detection-derived field defaults reset cleanly. */}
-      {selected && (
+      {selected && (selected.cloze ? (
+        <ClozeNoteTypeQuiz
+          key={selected.id}
+          noteType={selected}
+          onStart={onStart}
+          onBack={onBack}
+          getStats={getStats}
+          backLabel={backLabel}
+          startLabel={startLabel}
+        />
+      ) : (
         <NoteTypeQuiz
           key={selected.id}
           noteType={selected}
@@ -103,7 +123,7 @@ export function ApkgQuizSetup({
           backLabel={backLabel}
           startLabel={startLabel}
         />
-      )}
+      ))}
     </div>
   );
 }
@@ -292,6 +312,129 @@ function NoteTypeQuiz({
         <button
           type="button"
           disabled={!canStart}
+          onClick={handleStart}
+          className="flex-1 rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+        >
+          {startLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Cloze setup: no question/answer pickers — Anki cloze notes have one text
+// field with embedded {{c<n>::answer}} markers, and each unique <n> becomes a
+// quiz card. The setup only needs to surface how many cards are available and
+// let the user pick how many to take.
+function ClozeNoteTypeQuiz({
+  noteType,
+  onStart,
+  onBack,
+  getStats,
+  backLabel,
+  startLabel,
+}: {
+  noteType: ApkgNoteType;
+  onStart: (questions: Question[]) => void;
+  onBack: () => void;
+  getStats?: NoteStatsLookup;
+  backLabel: string;
+  startLabel: string;
+}) {
+  const clozeField = useMemo(
+    () => detectClozeField(noteType.fieldNames, noteType.notes),
+    [noteType],
+  );
+  const pool = useMemo<QuizNote[]>(
+    () =>
+      noteType.notes.map((n, i) => {
+        const id = n.id ?? n.ankiNoteId ?? `${noteType.id}-${i}`;
+        const stats = getStats?.(id);
+        return {
+          id,
+          fields: n.fields,
+          mastery: stats?.mastery ?? 0,
+          timesSeen: stats?.timesSeen ?? 0,
+        };
+      }),
+    [noteType, getStats],
+  );
+  const totalCards = useMemo(
+    () => (clozeField ? countClozeCards(pool, clozeField) : 0),
+    [pool, clozeField],
+  );
+
+  const [countText, setCountText] = useState(() => String(Math.min(20, totalCards || 1)));
+  const count = Math.min(Math.max(totalCards, 1), Math.max(1, Number(countText) || 1));
+
+  if (!clozeField) {
+    return (
+      <div className="space-y-5">
+        <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+          This note type is marked as cloze but none of its notes contain a cloze deletion
+          (<code>{`{{c1::...}}`}</code>), so there&apos;s nothing to quiz.
+        </p>
+        <button
+          type="button"
+          onClick={onBack}
+          className="rounded-md border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+        >
+          {backLabel}
+        </button>
+      </div>
+    );
+  }
+
+  function handleStart() {
+    if (!clozeField) return;
+    const questions = buildClozeQuestions(pool, count, clozeField, pool);
+    onStart(questions);
+  }
+
+  return (
+    <div className="space-y-5">
+      <p className="text-sm text-neutral-500">
+        Cloze field: <span className="font-medium text-neutral-700 dark:text-neutral-300">{clozeField}</span>
+        {" · "}
+        {totalCards} cloze card{totalCards === 1 ? "" : "s"} available
+      </p>
+      <p className="text-xs text-neutral-500">
+        Each <code>{`{{c1::...}}`}</code> deletion in a note becomes one quiz card. The hidden
+        text is the correct answer; distractors are pulled from the other clozes in this deck.
+      </p>
+
+      <div className="space-y-1.5">
+        <label htmlFor="quiz-count" className="text-sm font-medium">
+          Questions
+        </label>
+        <input
+          id="quiz-count"
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          value={countText}
+          onChange={(e) => setCountText(e.target.value.replace(/\D/g, ""))}
+          onBlur={() => setCountText(String(count))}
+          className="w-full rounded-md border border-neutral-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-900 dark:border-neutral-700 dark:focus:border-neutral-200"
+        />
+        <p className="text-xs text-neutral-500">
+          How many cloze cards to take — 1 to {totalCards}.
+        </p>
+      </div>
+
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="rounded-md border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+        >
+          {backLabel}
+        </button>
+        <button
+          type="button"
+          disabled={totalCards === 0}
           onClick={handleStart}
           className="flex-1 rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
         >

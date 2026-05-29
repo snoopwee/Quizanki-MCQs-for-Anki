@@ -122,6 +122,9 @@ export interface ApkgParseResponse {
   schema: string;
   totalNotes: number;
   skippedNotes: number;
+  // Notes excluded because every field was empty after cleaning — image-occlusion
+  // and other media-only cards that can't be quizzed as multiple choice.
+  imageOnlyNotes: number;
   noteTypes: ApkgNoteType[];
 }
 

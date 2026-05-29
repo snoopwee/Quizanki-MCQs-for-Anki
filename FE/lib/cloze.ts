@@ -68,6 +68,15 @@ export function renderClozeFront(text: string, activeIndex: number): string {
 }
 
 /**
+ * Renders the answer side of a cloze card: every cloze is revealed to its
+ * answer text. Used by the flashcard viewer's back face so the learner sees
+ * the full sentence with the missing word filled in.
+ */
+export function renderClozeBack(text: string): string {
+  return text.replace(CLOZE, (_full, _idxStr: string, answer: string) => answer);
+}
+
+/**
  * The canonical answer string for a given cloze index. When the index appears
  * more than once in the same field (e.g. two {@code {{c1::...}}} markers, a
  * common pattern for "match these two terms"), the answers are joined with a

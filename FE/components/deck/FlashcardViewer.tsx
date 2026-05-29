@@ -37,7 +37,9 @@ export function FlashcardViewer({
   // scan progress at a glance.
   getStats?: StatsLookup;
   onBack: () => void;
-  onStartTest: () => void;
+  // Optional: when absent, the bottom row drops the "Set up a quiz" button.
+  // Used by the auth /import flow, which keeps quiz launches on the dashboard.
+  onStartTest?: () => void;
   onSave?: () => void;
   backLabel?: string;
   // When true, suppress the bottom Back/Save/Start-quiz row — the surrounding
@@ -218,13 +220,15 @@ export function FlashcardViewer({
               Save deck
             </button>
           )}
-          <button
-            type="button"
-            onClick={onStartTest}
-            className="ml-auto rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
-          >
-            Set up a quiz →
-          </button>
+          {onStartTest && (
+            <button
+              type="button"
+              onClick={onStartTest}
+              className="ml-auto rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+            >
+              Set up a quiz →
+            </button>
+          )}
         </div>
       )}
 

@@ -102,6 +102,7 @@ export default function DeckTestPage() {
           <ApkgQuizSetup
             parsed={parsed}
             getStats={getStats}
+            deckId={deckId}
             showHeading={false}
             backLabel="Cancel"
             startLabel="Apply"

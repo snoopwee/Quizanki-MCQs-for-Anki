@@ -1,7 +1,9 @@
 // Buckets a per-card learning state into one of four named stages, with display
-// metadata (label, percent, Tailwind colour classes). The thresholds are chosen
-// to match the selection algorithm in `buildQuestions.ts` — a card becomes
-// "Practicing" at the same 30% mark that lets new cards trickle back in.
+// metadata (label, percent, Tailwind colour classes). These thresholds drive
+// the badge / progress UI only — the quiz selection algorithm in
+// `buildQuestions.ts` uses a flat new-card share rather than gating on any
+// mastery threshold, so the numbers here can be tuned for legibility without
+// affecting selection.
 //
 // Stage naming note: the "Practicing" tier sits between Learning and Mastered.
 // Alternatives the product could swap in without touching anything else:

@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   buildClozeQuestions,
+  buildMixedQuestions,
   buildQuestions,
   countClozeCards,
   detectClozeField,
   reshuffleQuestions,
   selectQuizNotes,
+  type NoteTypeQuizSpec,
   type QuizNote,
 } from "@/lib/buildQuestions";
 
@@ -144,19 +146,22 @@ describe("selectQuizNotes", () => {
     for (const p of picked) expect(notes.find((n) => n.id === p.id)).toBeDefined();
   });
 
-  it("seen-but-none-ready: prefers the seen pool, but spills to new when seen can't fill the quiz", () => {
-    // Three cards in flight (all under the ready threshold) plus 10 fresh cards.
-    // The user asks for 3 questions — the seen pool can carry that on its own,
-    // so the quiz should be entirely seen.
+  it("flat new share: even with low-mastery seen cards, new cards still come in", () => {
+    // Three cards in flight (all low mastery) plus 10 fresh cards, 5-question
+    // quiz. Old behavior: 0 new because no card was "ready". New behavior:
+    // round(5 * 0.4) = 2 new, the remaining 3 from the seen pool.
     const seen = makeNotes([
       { id: "s1", mastery: 15, timesSeen: 1 },
       { id: "s2", mastery: 0, timesSeen: 2 },
       { id: "s3", mastery: 20, timesSeen: 3 },
     ]);
     const notes = [...seen, ...makeNotes(Array.from({ length: 10 }, (_, i) => ({ id: `new${i}` })))];
-    const picked = selectQuizNotes(notes, 3, makeRng());
-    expect(picked).toHaveLength(3);
-    for (const p of picked) expect(p.id.startsWith("s")).toBe(true);
+    const picked = selectQuizNotes(notes, 5, makeRng());
+    expect(picked).toHaveLength(5);
+    const newCount = picked.filter((p) => p.id.startsWith("new")).length;
+    const seenCount = picked.filter((p) => p.id.startsWith("s") && !p.id.startsWith("new")).length;
+    expect(newCount).toBe(2);
+    expect(seenCount).toBe(3);
   });
 
   it("seen pool too small: spills to new cards so the quiz isn't choked", () => {
@@ -177,31 +182,30 @@ describe("selectQuizNotes", () => {
     expect(newCount).toBe(19);
   });
 
-  it("admits at least one new card once any card reaches the 30% ready threshold", () => {
-    // Heavy seen pool (all not-ready) plus a tiny ready card and many new cards.
-    // The "monotonic in progress" rule says: as soon as one card is ready, new
-    // cards start trickling in — even if the rounded quota would be 0.
+  it("always admits new cards regardless of seen-pool mastery state", () => {
+    // Heavy seen pool, all struggling (mastery 10) — old behavior would return
+    // 0 new because no card was "ready". The flat-share policy promises a new
+    // card budget that doesn't depend on mastery, so a 4-question quiz brings
+    // round(4 * 0.4) = 2 new every time.
     const notes = [
       ...makeNotes(Array.from({ length: 20 }, (_, i) => ({
         id: `s${i}`,
-        mastery: i === 0 ? 60 : 10, // exactly one ready card
+        mastery: 10,
         timesSeen: 3,
       }))),
       ...makeNotes(Array.from({ length: 5 }, (_, i) => ({ id: `new${i}` }))),
     ];
-    // Repeated rolls so we don't claim a property the algorithm only sometimes
-    // satisfies — the quota is deterministic, so it must hold every time.
     for (let seed = 1; seed <= 20; seed++) {
       const picked = selectQuizNotes(notes, 4, makeRng(seed));
       const newCount = picked.filter((p) => p.id.startsWith("new")).length;
-      expect(newCount).toBeGreaterThanOrEqual(1);
+      expect(newCount).toBe(2);
     }
   });
 
-  it("caps new cards at MAX_NEW_SHARE (30%) of the quiz even when every card is mastered", () => {
-    // 10 fully-mastered seen cards + 10 new ones. Without a cap the algorithm
-    // would lean almost entirely on new cards since seen ones have only the
-    // floor weight; the cap keeps reviews dominant.
+  it("caps new cards at NEW_SHARE (40%) of the quiz so reviews stay dominant", () => {
+    // 10 fully-mastered seen cards + 10 new ones. Even with mastered reviews,
+    // the share is fixed at 40% new — keeps the quiz feel review-led, not
+    // new-led, while still admitting fresh content faster than the old policy.
     const notes = [
       ...makeNotes(Array.from({ length: 10 }, (_, i) => ({
         id: `m${i}`,
@@ -213,8 +217,8 @@ describe("selectQuizNotes", () => {
     for (let seed = 1; seed <= 20; seed++) {
       const picked = selectQuizNotes(notes, 10, makeRng(seed));
       const newCount = picked.filter((p) => p.id.startsWith("new")).length;
-      // 10 * 0.3 * (10/20) = 1.5 → round to 2. Capped at the available new pool.
-      expect(newCount).toBeLessThanOrEqual(3);
+      // round(10 * 0.4) = 4 — deterministic since both pools have ≥ that many cards.
+      expect(newCount).toBe(4);
     }
   });
 
@@ -339,5 +343,149 @@ describe("buildClozeQuestions", () => {
     const [q] = buildClozeQuestions(note, 1, "Text", note, makeRng());
     expect(q.correct).toBe("Hydrogen · Helium");
     expect(q.question).toBe("[...] and [...] are gases.");
+  });
+});
+
+describe("buildMixedQuestions", () => {
+  function basicSpec(notes: QuizNote[], noteTypeId = "basic"): NoteTypeQuizSpec {
+    return {
+      kind: "basic",
+      noteTypeId,
+      questionFields: ["q"],
+      answerField: "a",
+      notes,
+    };
+  }
+
+  function clozeSpec(notes: QuizNote[], noteTypeId = "cloze"): NoteTypeQuizSpec {
+    return { kind: "cloze", noteTypeId, textField: "Text", notes };
+  }
+
+  const basicNotes: QuizNote[] = [
+    { id: "b1", fields: { q: "食べる", a: "to eat" } },
+    { id: "b2", fields: { q: "飲む", a: "to drink" } },
+    { id: "b3", fields: { q: "行く", a: "to go" } },
+    { id: "b4", fields: { q: "見る", a: "to see" } },
+    { id: "b5", fields: { q: "話す", a: "to speak" } },
+  ];
+
+  const clozeNotes: QuizNote[] = [
+    { id: "c1", fields: { Text: "Capital: {{c1::Tokyo}}, currency: {{c2::yen}}." } },
+    { id: "c2", fields: { Text: "Capital: {{c1::Paris}}, currency: {{c2::euro}}." } },
+    { id: "c3", fields: { Text: "Capital: {{c1::Rome}}, currency: {{c2::euro}}." } },
+  ];
+
+  it("draws from both note types and never produces more than `count` questions", () => {
+    // Combined pool: 5 basic + 6 cloze (3 notes × 2 indices) = 11 cards.
+    // Ask for 8; result must contain both kinds.
+    const questions = buildMixedQuestions(
+      [basicSpec(basicNotes), clozeSpec(clozeNotes)],
+      8,
+      makeRng(),
+    );
+    expect(questions).toHaveLength(8);
+
+    const basicIds = new Set(basicNotes.map((n) => n.id));
+    const clozeIds = new Set(clozeNotes.map((n) => n.id));
+    const fromBasic = questions.filter((q) => basicIds.has(q.noteId)).length;
+    const fromCloze = questions.filter((q) => clozeIds.has(q.noteId)).length;
+    expect(fromBasic + fromCloze).toBe(8);
+    expect(fromBasic).toBeGreaterThan(0);
+    expect(fromCloze).toBeGreaterThan(0);
+  });
+
+  it("keeps distractors within the same note type (no cross-type leakage)", () => {
+    const questions = buildMixedQuestions(
+      [basicSpec(basicNotes), clozeSpec(clozeNotes)],
+      11,
+      makeRng(),
+    );
+
+    const basicAnswers = new Set(basicNotes.map((n) => n.fields.a));
+    const clozeAnswers = new Set(["Tokyo", "yen", "Paris", "euro", "Rome"]);
+    const basicIds = new Set(basicNotes.map((n) => n.id));
+
+    for (const q of questions) {
+      const isBasic = basicIds.has(q.noteId);
+      for (const o of q.options) {
+        if (isBasic) {
+          expect(basicAnswers.has(o)).toBe(true);
+          expect(clozeAnswers.has(o)).toBe(false);
+        } else {
+          expect(clozeAnswers.has(o)).toBe(true);
+          expect(basicAnswers.has(o)).toBe(false);
+        }
+      }
+    }
+  });
+
+  it("returns parent note ids — never synthetic cloze ids", () => {
+    const questions = buildMixedQuestions(
+      [basicSpec(basicNotes), clozeSpec(clozeNotes)],
+      11,
+      makeRng(),
+    );
+    const realIds = new Set([...basicNotes, ...clozeNotes].map((n) => n.id));
+    for (const q of questions) {
+      expect(realIds.has(q.noteId)).toBe(true);
+      expect(q.noteId).not.toMatch(/-c\d+-/);
+    }
+  });
+
+  it("cloze content is rendered (no raw {{c<n>::...}} leaks into questions)", () => {
+    const questions = buildMixedQuestions(
+      [basicSpec(basicNotes), clozeSpec(clozeNotes)],
+      11,
+      makeRng(),
+    );
+    for (const q of questions) {
+      expect(q.question).not.toMatch(/\{\{c\d+::/);
+      for (const o of q.options) expect(o).not.toMatch(/\{\{c\d+::/);
+    }
+  });
+
+  it("the count is bounded by the combined pool size", () => {
+    // 5 basic + 6 cloze = 11. Ask for way more — fall through to shuffle-of-all.
+    const questions = buildMixedQuestions(
+      [basicSpec(basicNotes), clozeSpec(clozeNotes)],
+      50,
+      makeRng(),
+    );
+    expect(questions).toHaveLength(11);
+  });
+
+  it("pads distractors from the cross-type pool when same-type can't supply 3", () => {
+    // Sparse "3 basic + 3 cloze" deck — exactly the worst case the user
+    // worried about. Basic has 3 unique answers (one per note), so a basic
+    // question can supply only 2 same-type distractors. The padding pulls
+    // 1 cross-type distractor so the option count still lands at 4.
+    const tinyBasic: QuizNote[] = [
+      { id: "b1", fields: { q: "Qa", a: "X" } },
+      { id: "b2", fields: { q: "Qb", a: "Y" } },
+      { id: "b3", fields: { q: "Qc", a: "Z" } },
+    ];
+    const tinyCloze: QuizNote[] = [
+      { id: "c1", fields: { Text: "{{c1::P}} and {{c2::Q}}" } },
+      { id: "c2", fields: { Text: "{{c1::R}} and {{c2::S}}" } },
+    ];
+
+    const questions = buildMixedQuestions(
+      [basicSpec(tinyBasic), clozeSpec(tinyCloze)],
+      7,
+      makeRng(),
+    );
+
+    const basicIds = new Set(tinyBasic.map((n) => n.id));
+    const clozeAnswers = new Set(["P", "Q", "R", "S"]);
+
+    const basicQuestions = questions.filter((q) => basicIds.has(q.noteId));
+    expect(basicQuestions.length).toBeGreaterThan(0);
+    for (const q of basicQuestions) {
+      expect(q.options).toHaveLength(4);
+      // At least one cross-type filler appears since basic alone can only
+      // provide 2 same-type distractors.
+      const crossType = q.options.filter((o) => clozeAnswers.has(o));
+      expect(crossType.length).toBeGreaterThanOrEqual(1);
+    }
   });
 });

@@ -153,6 +153,7 @@ function DeckDetail() {
         <ApkgQuizSetup
           parsed={parsed}
           getStats={getStats}
+          deckId={deckId}
           showHeading={false}
           backLabel="Back to flashcards"
           onBack={goToFlashcards}

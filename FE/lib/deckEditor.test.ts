@@ -3,12 +3,15 @@ import {
   addBasicRow,
   basicRow,
   canSwapRow,
+  fieldLabel,
   fromContents,
   isBlankRow,
   move,
-  swapLayoutAll,
+  rowMatches,
+  swapAllValues,
   swapValuesForRow,
   toPayload,
+  type EditorRow,
   type EditorState,
 } from "@/lib/deckEditor";
 import type { DeckContentsNoteType, DeckContentsResponse } from "@/types/api";
@@ -94,22 +97,125 @@ describe("swapValuesForRow", () => {
     const swapped = swapValuesForRow(row);
     expect(swapped.fields).toEqual({ Front: "definition", Back: "term" });
   });
-  it("is a no-op for cloze rows", () => {
+  it("swaps cloze rows too when they have distinct front/back fields", () => {
     const row = { ...basicRow("x", "y"), cloze: true };
+    expect(swapValuesForRow(row).fields).toEqual({ Front: "y", Back: "x" });
+    expect(canSwapRow(row)).toBe(true);
+  });
+
+  it("is a no-op when there's no distinct back field", () => {
+    const row: EditorRow = {
+      ...basicRow("only", ""),
+      backFields: [],
+      fieldNames: ["Front"],
+      fields: { Front: "only" },
+    };
     expect(swapValuesForRow(row)).toBe(row);
     expect(canSwapRow(row)).toBe(false);
   });
 });
 
-describe("swapLayoutAll", () => {
-  it("flips front/back on every note type and row", () => {
+describe("swapAllValues", () => {
+  it("swaps term/definition values on every swappable row", () => {
     const state: EditorState = fromContents(basicDeck);
-    const swapped = swapLayoutAll(state);
-    expect(swapped.layoutByType.t1).toEqual({ frontFields: ["Back"], backFields: ["Front"] });
-    expect(swapped.rows[0].frontFields).toEqual(["Back"]);
-    expect(swapped.rows[0].backFields).toEqual(["Front"]);
-    // Values are untouched — only the layout flips.
-    expect(swapped.rows[0].fields).toEqual({ Front: "a", Back: "1" });
+    const swapped = swapAllValues(state);
+    expect(swapped.rows[0].fields).toEqual({ Front: "1", Back: "a" });
+    expect(swapped.rows[1].fields).toEqual({ Front: "2", Back: "b" });
+    // Layout is left as-is; it's the visible content that flips.
+    expect(swapped.layoutByType.t1).toEqual({ frontFields: ["Front"], backFields: ["Back"] });
+  });
+
+  it("swaps cloze rows too (full control), but skips single-field rows", () => {
+    const state: EditorState = {
+      name: "d",
+      rows: [
+        { ...basicRow("x", "y"), cloze: true },
+        { ...basicRow("only", ""), backFields: [], fieldNames: ["Front"], fields: { Front: "only" } },
+      ],
+      layoutByType: {},
+    };
+    const swapped = swapAllValues(state);
+    expect(swapped.rows[0].fields).toEqual({ Front: "y", Back: "x" });
+    expect(swapped.rows[1].fields).toEqual({ Front: "only" });
+  });
+});
+
+describe("rowMatches", () => {
+  it("matches on content with HTML stripped, case-insensitively", () => {
+    const row = { ...basicRow("<b>Mitochondria</b>", "powerhouse"), fields: { Front: "<b>Mitochondria</b>", Back: "the powerhouse" } };
+    expect(rowMatches(row, "mitochondria")).toBe(true);
+    expect(rowMatches(row, "powerhouse")).toBe(true);
+    expect(rowMatches(row, "nucleus")).toBe(false);
+    // The HTML tag itself isn't matchable content.
+    expect(rowMatches(row, "<b>")).toBe(false);
+  });
+});
+
+describe("fieldLabel", () => {
+  it("relabels Front/Back as Term/Definition, leaves others", () => {
+    expect(fieldLabel("Front")).toBe("Term");
+    expect(fieldLabel("back")).toBe("Definition");
+    expect(fieldLabel("Meaning")).toBe("Meaning");
+  });
+});
+
+describe("fromContents — cloze flattening", () => {
+  const clozeDeck = deck([
+    noteType({
+      id: "c1",
+      name: "Cloze",
+      cloze: true,
+      fieldNames: ["Text", "Meaning"],
+      frontFields: ["Text"],
+      backFields: ["Text"],
+      notes: [
+        {
+          id: "n1",
+          ankiNoteId: null,
+          fields: { Text: "今日は{{c1::曇り}}ですね。", Meaning: "cloudy" },
+          tags: [],
+        },
+      ],
+    }),
+  ]);
+
+  it("turns a cloze note into a Term/Definition row, keeping its id + progress", () => {
+    const state = fromContents(clozeDeck);
+    expect(state.rows).toHaveLength(1);
+    const row = state.rows[0];
+    expect(row.id).toBe("n1"); // first deletion keeps the note id → stats preserved
+    expect(row.noteTypeId).toBeNull(); // routes to Basic on save
+    expect(row.cloze).toBe(false);
+    expect(row.fields.Front).toBe("今日は[...]ですね。");
+    expect(row.fields.Back).toBe("今日は曇りですね。\ncloudy");
+  });
+
+  it("splits a multi-deletion note into one row per index (extras kept new)", () => {
+    const multi = deck([
+      noteType({
+        id: "c2",
+        name: "Cloze",
+        cloze: true,
+        fieldNames: ["Text"],
+        frontFields: ["Text"],
+        backFields: ["Text"],
+        notes: [
+          {
+            id: "n2",
+            ankiNoteId: null,
+            fields: { Text: "{{c1::A}} and {{c2::B}}" },
+            tags: [],
+          },
+        ],
+      }),
+    ]);
+    const rows = fromContents(multi).rows;
+    expect(rows).toHaveLength(2);
+    expect(rows[0].id).toBe("n2"); // first keeps id
+    expect(rows[1].id).toBeNull(); // extra deletion is a new card
+    expect(rows[0].fields.Front).toBe("[...] and B");
+    expect(rows[1].fields.Front).toBe("A and [...]");
+    expect(rows[0].fields.Back).toBe("A and B");
   });
 });
 

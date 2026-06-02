@@ -1,15 +1,17 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useState, type PointerEvent, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { Reorder, useDragControls } from "motion/react";
 import { useDeckContents, useReplaceDeckContents } from "@/hooks/useDecks";
 import {
   addBasicRow,
   canSwapRow,
+  fieldLabel,
   fromContents,
-  move,
-  swapLayoutAll,
+  rowMatches,
+  swapAllValues,
   swapValuesForRow,
   toPayload,
   type EditorRow,
@@ -76,17 +78,20 @@ function DeckEditor() {
     }));
   const deleteRow = (key: string) =>
     patch((d) => ({ ...d, rows: d.rows.filter((r) => r.key !== key) }));
-  const moveRow = (key: string, delta: number) =>
-    patch((d) => {
-      const i = d.rows.findIndex((r) => r.key === key);
-      return { ...d, rows: move(d.rows, i, i + delta) };
-    });
   const swapRow = (key: string) =>
     patch((d) => ({ ...d, rows: d.rows.map((r) => (r.key === key ? swapValuesForRow(r) : r)) }));
-  const swapAll = () => patch((d) => swapLayoutAll(d));
+  const swapAll = () => patch((d) => swapAllValues(d));
   const addRow = () => patch((d) => ({ ...d, rows: [...d.rows, addBasicRow()] }));
   const handleImport = (rows: EditorRow[], mode: ImportMode) =>
     patch((d) => ({ ...d, rows: mode === "replace" ? rows : [...d.rows, ...rows] }));
+
+  // Live reorder from the drag list: motion hands back the new key order, so we
+  // reshuffle the draft rows to match (row objects, with their edits, are kept).
+  const handleReorder = (keys: string[]) =>
+    patch((d) => {
+      const byKey = new Map(d.rows.map((r) => [r.key, r]));
+      return { ...d, rows: keys.map((k) => byKey.get(k)).filter((r): r is EditorRow => !!r) };
+    });
 
   function handleSave() {
     if (!draft) return;
@@ -99,13 +104,11 @@ function DeckEditor() {
   }
 
   const query = search.trim().toLowerCase();
+  // Filter to cards whose content contains the keyword (HTML stripped, so it
+  // matches the text the user actually sees). null = no active search.
   const visibleKeys = useMemo(() => {
     if (!draft || !query) return null;
-    return new Set(
-      draft.rows
-        .filter((r) => Object.values(r.fields).some((v) => v.toLowerCase().includes(query)))
-        .map((r) => r.key),
-    );
+    return new Set(draft.rows.filter((r) => rowMatches(r, query)).map((r) => r.key));
   }, [draft, query]);
 
   if (contentsQuery.isLoading || !draft) {
@@ -123,7 +126,8 @@ function DeckEditor() {
   }
 
   const rows = draft.rows;
-  const reorderable = !query; // hide move arrows while filtering — indices would lie
+  const reorderable = !query; // disable drag while filtering — order would be partial
+  const rowKeys = rows.map((r) => r.key);
   const saveDisabled = save.isPending || draft.name.trim().length === 0;
 
   return (
@@ -141,9 +145,11 @@ function DeckEditor() {
           <button
             type="button"
             onClick={swapAll}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+            aria-label="Swap term and definition for all cards"
+            title="Swap the term and definition of all cards"
+            className="rounded-md border border-neutral-300 px-2.5 py-1.5 text-base leading-none hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
           >
-            ⇅ Swap all front/back
+            ⇅
           </button>
           <button
             type="button"
@@ -192,50 +198,62 @@ function DeckEditor() {
           placeholder="Search cards…"
           className="w-full max-w-xs rounded-md border border-neutral-300 px-3 py-1.5 text-sm focus:border-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900"
         />
-        <span className="shrink-0 text-xs text-neutral-500">{rows.length} cards</span>
+        <span className="shrink-0 text-xs text-neutral-500">
+          {visibleKeys ? `${visibleKeys.size} of ${rows.length}` : rows.length} cards
+        </span>
       </div>
 
-      <ul className="space-y-3">
-        {rows.map((row, index) => {
-          if (visibleKeys && !visibleKeys.has(row.key)) return null;
-          return (
-            <li
+      {visibleKeys?.size === 0 && (
+        <p className="rounded-lg border border-dashed border-neutral-300 px-4 py-6 text-center text-sm text-neutral-500 dark:border-neutral-700">
+          No cards match “{search.trim()}”.
+        </p>
+      )}
+
+      {reorderable && rows.length > 1 && (
+        <p className="text-xs text-neutral-400">Drag a card to reorder it.</p>
+      )}
+
+      {/* While searching, indices are partial — show a plain, non-draggable list.
+          Otherwise the cards are a motion Reorder list: grab a card and the rest
+          animate out of the way. */}
+      {reorderable ? (
+        <Reorder.Group
+          axis="y"
+          values={rowKeys}
+          onReorder={handleReorder}
+          className="space-y-3"
+        >
+          {rows.map((row, index) => (
+            <DraggableCard
               key={row.key}
-              className="space-y-2 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800"
-            >
-              <div className="flex items-center gap-2 text-xs text-neutral-400">
-                <span>#{index + 1}</span>
-                {row.cloze && <span className="rounded bg-sky-100 px-1.5 text-sky-700 dark:bg-sky-950 dark:text-sky-300">cloze</span>}
-                <div className="ml-auto flex items-center gap-1">
-                  {reorderable && (
-                    <>
-                      <IconBtn label="Move up" disabled={index === 0} onClick={() => moveRow(row.key, -1)}>↑</IconBtn>
-                      <IconBtn label="Move down" disabled={index === rows.length - 1} onClick={() => moveRow(row.key, 1)}>↓</IconBtn>
-                    </>
-                  )}
-                  {canSwapRow(row) && (
-                    <IconBtn label="Swap front/back" onClick={() => swapRow(row.key)}>⇅</IconBtn>
-                  )}
-                  <IconBtn label="Delete card" danger onClick={() => deleteRow(row.key)}>✕</IconBtn>
-                </div>
-              </div>
-              <div className="space-y-2">
-                {row.fieldNames.map((field) => (
-                  <label key={field} className="block space-y-1">
-                    <span className="text-xs font-medium text-neutral-500">{field}</span>
-                    <textarea
-                      value={row.fields[field] ?? ""}
-                      onChange={(e) => setField(row.key, field, e.target.value)}
-                      rows={row.cloze ? 3 : 2}
-                      className="nice-scroll w-full resize-y rounded-md border border-neutral-300 px-3 py-1.5 text-sm focus:border-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900"
-                    />
-                  </label>
-                ))}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+              row={row}
+              index={index}
+              onField={setField}
+              onSwap={swapRow}
+              onDelete={deleteRow}
+            />
+          ))}
+        </Reorder.Group>
+      ) : (
+        <ul className="space-y-3">
+          {rows.map((row, index) =>
+            visibleKeys && !visibleKeys.has(row.key) ? null : (
+              <li
+                key={row.key}
+                className="space-y-2 rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950"
+              >
+                <CardBody
+                  row={row}
+                  index={index}
+                  onField={setField}
+                  onSwap={swapRow}
+                  onDelete={deleteRow}
+                />
+              </li>
+            ),
+          )}
+        </ul>
+      )}
 
       <button
         type="button"
@@ -249,6 +267,74 @@ function DeckEditor() {
         <ImportCardsModal onClose={() => setImportOpen(false)} onImport={handleImport} />
       )}
     </div>
+  );
+}
+
+interface CardProps {
+  row: EditorRow;
+  index: number;
+  onField: (key: string, field: string, value: string) => void;
+  onSwap: (key: string) => void;
+  onDelete: (key: string) => void;
+}
+
+// A draggable card. The whole card is the drag surface — press anywhere except
+// the editable fields / buttons and drag; motion animates the other cards out of
+// the way and springs everything into place when you let go. `dragListener` is
+// off so a press that lands on a textarea/button edits or clicks instead of
+// starting a drag.
+function DraggableCard({ row, index, onField, onSwap, onDelete }: CardProps) {
+  const controls = useDragControls();
+  function startDrag(e: PointerEvent<HTMLLIElement>) {
+    if ((e.target as HTMLElement).closest("textarea, input, button, select, a")) return;
+    // Stop the browser from starting a text selection that would highlight page
+    // content while you drag (we're not on an editable target here, so killing
+    // the default is safe).
+    e.preventDefault();
+    controls.start(e);
+  }
+  return (
+    <Reorder.Item
+      value={row.key}
+      dragListener={false}
+      dragControls={controls}
+      onPointerDown={startDrag}
+      whileDrag={{ scale: 1.02, boxShadow: "0 12px 28px rgba(0,0,0,0.18)" }}
+      className="cursor-grab space-y-2 select-none rounded-lg border border-neutral-200 bg-white p-4 active:cursor-grabbing dark:border-neutral-800 dark:bg-neutral-950"
+    >
+      <CardBody row={row} index={index} onField={onField} onSwap={onSwap} onDelete={onDelete} />
+    </Reorder.Item>
+  );
+}
+
+// The card's contents — shared by the draggable list and the (static) search
+// results list.
+function CardBody({ row, index, onField, onSwap, onDelete }: CardProps) {
+  return (
+    <>
+      <div className="flex items-center gap-2 text-xs text-neutral-400">
+        <span>#{index + 1}</span>
+        <div className="ml-auto flex items-center gap-1">
+          {canSwapRow(row) && (
+            <IconBtn label="Swap front/back" onClick={() => onSwap(row.key)}>⇅</IconBtn>
+          )}
+          <IconBtn label="Delete card" danger onClick={() => onDelete(row.key)}>✕</IconBtn>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {row.fieldNames.map((field) => (
+          <label key={field} className="block space-y-1">
+            <span className="text-xs font-medium text-neutral-500">{fieldLabel(field)}</span>
+            <textarea
+              value={row.fields[field] ?? ""}
+              onChange={(e) => onField(row.key, field, e.target.value)}
+              rows={row.cloze ? 3 : 2}
+              className="nice-scroll w-full cursor-text select-text resize-y rounded-md border border-neutral-300 px-3 py-1.5 text-sm focus:border-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900"
+            />
+          </label>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -272,7 +358,7 @@ function IconBtn({
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className={`rounded px-1.5 py-0.5 text-sm hover:bg-neutral-100 disabled:opacity-30 dark:hover:bg-neutral-800 ${
+      className={`cursor-pointer rounded px-1.5 py-0.5 text-sm hover:bg-neutral-100 disabled:cursor-default disabled:opacity-30 dark:hover:bg-neutral-800 ${
         danger ? "text-red-600 dark:text-red-400" : "text-neutral-600 dark:text-neutral-300"
       }`}
     >

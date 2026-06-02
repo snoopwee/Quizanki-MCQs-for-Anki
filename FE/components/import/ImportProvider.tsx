@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { Toast } from "@/components/shared/Toast";
 import { useImportDeck } from "@/hooks/useDecks";
 import { parsedToImportRequest } from "@/lib/parsedToImportRequest";
-import type { ApkgParseResponse } from "@/types/api";
+import type { ApkgParseResponse, ImportDeckRequest } from "@/types/api";
 
 // Owns the deck-import mutation + its status toast. Mounted in AppShell so the
 // mutation and its UI survive navigation between (app) pages — without this, the
@@ -12,6 +12,9 @@ import type { ApkgParseResponse } from "@/types/api";
 // clicks Dashboard, even though the POST is still in flight.
 interface ImportContextValue {
   startImport(parsed: ApkgParseResponse): void;
+  // Save an already-built request (e.g. from pasted plain text), bypassing the
+  // .apkg parse step.
+  startImportRequest(request: ImportDeckRequest): void;
   retryImport(): void;
   status: "idle" | "pending" | "success" | "error";
 }
@@ -29,9 +32,9 @@ export function useImportContext(): ImportContextValue {
 export function ImportProvider({ children }: { children: ReactNode }) {
   const importDeck = useImportDeck();
   const [dismissed, setDismissed] = useState(false);
-  // Held so the error-toast "Retry" can resubmit the same parse result without
-  // bouncing the user back to /import to re-upload the file.
-  const [lastParsed, setLastParsed] = useState<ApkgParseResponse | null>(null);
+  // Held so the error-toast "Retry" can resubmit the same request without
+  // bouncing the user back to /import to re-upload or re-paste.
+  const [lastRequest, setLastRequest] = useState<ImportDeckRequest | null>(null);
 
   // A new save kicks off → reset the dismiss latch so its outcome toast appears
   // even if the previous one was dismissed.
@@ -39,20 +42,26 @@ export function ImportProvider({ children }: { children: ReactNode }) {
     if (importDeck.status === "pending") setDismissed(false);
   }, [importDeck.status]);
 
-  function startImport(parsed: ApkgParseResponse) {
-    setLastParsed(parsed);
+  function startImportRequest(request: ImportDeckRequest) {
+    setLastRequest(request);
     setDismissed(false);
-    importDeck.mutate(parsedToImportRequest(parsed));
+    importDeck.mutate(request);
+  }
+
+  function startImport(parsed: ApkgParseResponse) {
+    startImportRequest(parsedToImportRequest(parsed));
   }
 
   function retryImport() {
-    if (!lastParsed) return;
+    if (!lastRequest) return;
     setDismissed(false);
-    importDeck.mutate(parsedToImportRequest(lastParsed));
+    importDeck.mutate(lastRequest);
   }
 
   return (
-    <ImportContext.Provider value={{ startImport, retryImport, status: importDeck.status }}>
+    <ImportContext.Provider
+      value={{ startImport, startImportRequest, retryImport, status: importDeck.status }}
+    >
       {children}
       {!dismissed && importDeck.status === "pending" && (
         <Toast

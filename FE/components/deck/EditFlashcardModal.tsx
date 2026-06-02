@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Modal } from "@/components/shared/Modal";
+import { fieldLabel } from "@/lib/deckEditor";
 import { useUpdateNote } from "@/hooks/useNotes";
 
 export interface EditableNote {
@@ -78,7 +79,7 @@ export function EditFlashcardModal({
 
         {note.fieldNames.map((field) => (
           <label key={field} className="block space-y-1">
-            <span className="text-sm font-medium">{field}</span>
+            <span className="text-sm font-medium">{fieldLabel(field)}</span>
             <textarea
               value={values[field]}
               onChange={(e) =>

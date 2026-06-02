@@ -124,7 +124,7 @@ class ApkgExportServiceTest {
                 .thenReturn(List.of(type(typeId, deckId, "Basic", false, "Front", "Back")));
         Map<String, String> f1 = new HashMap<>(Map.of("Front", "食べる", "Back", "to eat"));
         Map<String, String> f2 = new HashMap<>(Map.of("Front", "飲む", "Back", "to drink"));
-        when(noteRepository.findAllByDeckIdOrderById(deckId))
+        when(noteRepository.findAllByDeckIdOrderByPositionAscIdAsc(deckId))
                 .thenReturn(List.of(note(deckId, typeId, f1, "N4", "verb"), note(deckId, typeId, f2)));
 
         byte[] apkg = service().export(USER, deckId);
@@ -170,7 +170,7 @@ class ApkgExportServiceTest {
                 .thenReturn(List.of(type(typeId, deckId, "Cloze", true, "Text", "Extra")));
         Map<String, String> fields = new HashMap<>(
                 Map.of("Text", "{{c1::Paris}} is the capital of {{c2::France}}.", "Extra", ""));
-        when(noteRepository.findAllByDeckIdOrderById(deckId))
+        when(noteRepository.findAllByDeckIdOrderByPositionAscIdAsc(deckId))
                 .thenReturn(List.of(note(deckId, typeId, fields)));
 
         byte[] apkg = service().export(USER, deckId);

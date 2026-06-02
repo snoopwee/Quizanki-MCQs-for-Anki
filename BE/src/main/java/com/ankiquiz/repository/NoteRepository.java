@@ -18,6 +18,10 @@ public interface NoteRepository extends JpaRepository<Note, UUID> {
 
     List<Note> findAllByDeckIdOrderById(UUID deckId);
 
+    // Editor/study display order. position is set by import and the editor; id is a
+    // stable tiebreaker for any row whose position is null (pre-V4 leftovers).
+    List<Note> findAllByDeckIdOrderByPositionAscIdAsc(UUID deckId);
+
     Optional<Note> findByIdAndDeckId(UUID id, UUID deckId);
 
     long countByDeckId(UUID deckId);
@@ -33,7 +37,7 @@ public interface NoteRepository extends JpaRepository<Note, UUID> {
             WHERE n.deck_id = :deckId
               AND (:tagsCsv = '' OR n.tags @> string_to_array(:tagsCsv, ','))
               AND (:weakOnly = FALSE OR cs.note_id IS NULL OR cs.accuracy < 0.7)
-            ORDER BY n.id
+            ORDER BY n.note_position, n.id
             LIMIT :limit
             """, nativeQuery = true)
     List<Note> findFiltered(

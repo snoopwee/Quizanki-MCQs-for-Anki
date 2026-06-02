@@ -3,7 +3,9 @@ package com.ankiquiz.controller;
 import com.ankiquiz.dto.request.ImportDeckRequest;
 import com.ankiquiz.dto.request.NoteRequest;
 import com.ankiquiz.dto.request.NoteTypeRequest;
+import com.ankiquiz.dto.request.UpdateDeckContentsRequest;
 import com.ankiquiz.dto.request.UpdateDeckRequest;
+import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.DeckResponse;
 import com.ankiquiz.exception.GlobalExceptionHandler;
 import com.ankiquiz.exception.NotFoundException;
@@ -31,6 +33,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -131,6 +134,53 @@ class DeckControllerTest {
                         .content(objectMapper.writeValueAsString(new UpdateDeckRequest("  "))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.details.name").exists());
+    }
+
+    @Test
+    void replaceContents_returns200_withUpdatedContents() throws Exception {
+        UUID deckId = UUID.randomUUID();
+        DeckContentsResponse response = new DeckContentsResponse(
+                deckId, "Renamed", null, null, 1, OffsetDateTime.now(), 0.0, List.of());
+        when(deckService.replaceDeckContents(eq("user-123"), eq(deckId), any())).thenReturn(response);
+
+        UpdateDeckContentsRequest request = new UpdateDeckContentsRequest(
+                "Renamed", List.of(),
+                List.of(new UpdateDeckContentsRequest.NoteEntry(
+                        null, null, Map.of("Front", "q", "Back", "a"), List.of())));
+
+        mockMvc.perform(put("/api/v1/decks/{deckId}/contents", deckId)
+                        .with(jwt().jwt(j -> j.subject("user-123")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Renamed"));
+    }
+
+    @Test
+    void replaceContents_returns400_whenNameBlank() throws Exception {
+        UpdateDeckContentsRequest request = new UpdateDeckContentsRequest("  ", List.of(), List.of());
+
+        mockMvc.perform(put("/api/v1/decks/{deckId}/contents", UUID.randomUUID())
+                        .with(jwt().jwt(j -> j.subject("user-123")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.name").exists());
+    }
+
+    @Test
+    void replaceContents_returns404_whenDeckMissing() throws Exception {
+        UUID deckId = UUID.randomUUID();
+        when(deckService.replaceDeckContents(eq("user-123"), eq(deckId), any()))
+                .thenThrow(new NotFoundException("Deck not found: " + deckId));
+
+        UpdateDeckContentsRequest request = new UpdateDeckContentsRequest("Deck", List.of(), List.of());
+
+        mockMvc.perform(put("/api/v1/decks/{deckId}/contents", deckId)
+                        .with(jwt().jwt(j -> j.subject("user-123")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound());
     }
 
     @Test

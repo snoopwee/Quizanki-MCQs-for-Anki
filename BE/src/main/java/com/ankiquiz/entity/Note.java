@@ -37,6 +37,11 @@ public class Note {
     @Column(name = "tags", columnDefinition = "text[]")
     private String[] tags;
 
+    // Per-deck display order, set by import and the flashcard editor. Nullable for
+    // any legacy row the V4 backfill somehow missed; ordering falls back to id.
+    @Column(name = "note_position")
+    private Integer position;
+
     public UUID getId() {
         return id;
     }
@@ -83,5 +88,13 @@ public class Note {
 
     public void setTags(String[] tags) {
         this.tags = tags;
+    }
+
+    public Integer getPosition() {
+        return position;
+    }
+
+    public void setPosition(Integer position) {
+        this.position = position;
     }
 }

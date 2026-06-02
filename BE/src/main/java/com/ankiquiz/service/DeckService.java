@@ -3,6 +3,7 @@ package com.ankiquiz.service;
 import com.ankiquiz.dto.request.ImportDeckRequest;
 import com.ankiquiz.dto.request.NoteRequest;
 import com.ankiquiz.dto.request.NoteTypeRequest;
+import com.ankiquiz.dto.request.UpdateDeckContentsRequest;
 import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.DeckContentsResponse.NoteContents;
 import com.ankiquiz.dto.response.DeckContentsResponse.NoteTypeContents;
@@ -10,6 +11,7 @@ import com.ankiquiz.dto.response.DeckResponse;
 import com.ankiquiz.entity.Deck;
 import com.ankiquiz.entity.Note;
 import com.ankiquiz.entity.NoteType;
+import com.ankiquiz.exception.ApkgParseException;
 import com.ankiquiz.exception.NotFoundException;
 import com.ankiquiz.repository.DeckRepository;
 import com.ankiquiz.repository.NoteRepository;
@@ -21,8 +23,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -87,6 +92,7 @@ public class DeckService {
         deck.setImportedAt(OffsetDateTime.now());
         Deck savedDeck = deckRepository.save(deck);
 
+        int position = 0;
         for (NoteTypeRequest typeReq : request.noteTypes()) {
             NoteType noteType = new NoteType();
             noteType.setDeckId(savedDeck.getId());
@@ -98,12 +104,122 @@ public class DeckService {
             noteType.setBackFields(toArray(typeReq.backFields()));
             NoteType savedType = noteTypeRepository.save(noteType);
 
-            List<Note> notes = buildNotes(savedDeck.getId(), savedType.getId(), typeReq.notes());
+            // Deck-global positions so the editor can reorder across note types.
+            List<Note> notes = buildNotes(savedDeck.getId(), savedType.getId(), typeReq.notes(), position);
+            position += notes.size();
             noteRepository.saveAll(notes);
         }
 
         // A freshly-imported deck has no card_stats yet, so completion is 0.
         return DeckResponse.from(savedDeck, 0.0);
+    }
+
+    private static final int MAX_NOTES = 5_000;
+
+    /**
+     * Commit the flashcard editor's whole working set in one transaction
+     * (last-write-wins). Sets the name, applies front/back layout swaps to the
+     * deck's note types, then reconciles the note set: notes carrying a known id
+     * are updated, id-less entries are inserted, and any stored note absent from
+     * the payload is deleted (its card_stats cascade away). Each note's order is
+     * its index in the payload. New/unrouted cards go to a Basic (Front/Back) type.
+     */
+    @Transactional
+    public DeckContentsResponse replaceDeckContents(String userId, UUID deckId, UpdateDeckContentsRequest req) {
+        Deck deck = deckRepository.findByIdAndUserId(deckId, userId)
+                .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
+        if (req.notes().size() > MAX_NOTES) {
+            throw new ApkgParseException("Too many cards (max " + MAX_NOTES + ").");
+        }
+        deck.setName(req.name().trim());
+
+        Map<UUID, NoteType> typeById = noteTypeRepository.findAllByDeckId(deckId).stream()
+                .collect(Collectors.toMap(NoteType::getId, t -> t, (a, b) -> a, LinkedHashMap::new));
+
+        // Front/back layout swaps (bulk "swap all"). Unknown ids are ignored.
+        if (req.noteTypes() != null) {
+            for (UpdateDeckContentsRequest.NoteTypeLayout layout : req.noteTypes()) {
+                NoteType type = typeById.get(layout.id());
+                if (type == null) {
+                    continue;
+                }
+                if (layout.frontFields() != null) {
+                    type.setFrontFields(layout.frontFields().toArray(String[]::new));
+                }
+                if (layout.backFields() != null) {
+                    type.setBackFields(layout.backFields().toArray(String[]::new));
+                }
+                noteTypeRepository.save(type);
+            }
+        }
+
+        List<Note> existing = noteRepository.findAllByDeckIdOrderByPositionAscIdAsc(deckId);
+        Map<UUID, Note> existingById = existing.stream()
+                .collect(Collectors.toMap(Note::getId, n -> n));
+
+        Set<UUID> keptIds = new HashSet<>();
+        UUID[] basicTypeId = {null}; // resolved lazily, only if a new/unrouted card appears
+        List<Note> toSave = new ArrayList<>(req.notes().size());
+        int position = 0;
+        for (UpdateDeckContentsRequest.NoteEntry entry : req.notes()) {
+            Note note;
+            if (entry.id() != null && existingById.containsKey(entry.id())) {
+                note = existingById.get(entry.id());
+                keptIds.add(note.getId());
+            } else {
+                note = new Note();
+                note.setDeckId(deckId);
+            }
+
+            UUID typeId = entry.noteTypeId();
+            if (typeId == null || !typeById.containsKey(typeId)) {
+                if (basicTypeId[0] == null) {
+                    basicTypeId[0] = ensureBasicType(deckId, typeById);
+                }
+                typeId = basicTypeId[0];
+            }
+            note.setNoteTypeId(typeId);
+            note.setFields(new LinkedHashMap<>(entry.fields()));
+            note.setTags(entry.tags() == null ? new String[0] : entry.tags().toArray(String[]::new));
+            note.setPosition(position++);
+            toSave.add(note);
+        }
+        noteRepository.saveAll(toSave);
+
+        List<Note> toDelete = existing.stream()
+                .filter(n -> !keptIds.contains(n.getId()))
+                .toList();
+        if (!toDelete.isEmpty()) {
+            noteRepository.deleteAll(toDelete);
+        }
+
+        deck.setCardCount(req.notes().size());
+        deckRepository.save(deck);
+
+        return getDeckContents(userId, deckId);
+    }
+
+    // The note type new/imported Front-Back cards land in. Reuse a non-cloze type
+    // already shaped exactly as ["Front","Back"] (so the keys match); otherwise
+    // create one. Mutates typeById so a single Save reuses the one it creates.
+    private UUID ensureBasicType(UUID deckId, Map<UUID, NoteType> typeById) {
+        for (NoteType t : typeById.values()) {
+            String[] fields = t.getFieldNames();
+            if (!t.isCloze() && fields != null && fields.length == 2
+                    && "Front".equals(fields[0]) && "Back".equals(fields[1])) {
+                return t.getId();
+            }
+        }
+        NoteType basic = new NoteType();
+        basic.setDeckId(deckId);
+        basic.setName("Basic");
+        basic.setCloze(false);
+        basic.setFieldNames(new String[]{"Front", "Back"});
+        basic.setFrontFields(new String[]{"Front"});
+        basic.setBackFields(new String[]{"Back"});
+        NoteType saved = noteTypeRepository.save(basic);
+        typeById.put(saved.getId(), saved);
+        return saved.getId();
     }
 
     @Transactional(readOnly = true)
@@ -112,8 +228,8 @@ public class DeckService {
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
 
         List<NoteType> types = noteTypeRepository.findAllByDeckId(deckId);
-        Map<UUID, List<Note>> notesByType = noteRepository.findAllByDeckIdOrderById(deckId).stream()
-                .collect(Collectors.groupingBy(Note::getNoteTypeId));
+        Map<UUID, List<Note>> notesByType = noteRepository.findAllByDeckIdOrderByPositionAscIdAsc(deckId).stream()
+                .collect(Collectors.groupingBy(Note::getNoteTypeId, LinkedHashMap::new, Collectors.toList()));
 
         List<NoteTypeContents> typeContents = types.stream()
                 .map(type -> {
@@ -186,8 +302,10 @@ public class DeckService {
         return result;
     }
 
-    private static List<Note> buildNotes(UUID deckId, UUID noteTypeId, List<NoteRequest> incoming) {
+    private static List<Note> buildNotes(UUID deckId, UUID noteTypeId, List<NoteRequest> incoming,
+                                         int startPosition) {
         List<Note> result = new ArrayList<>(incoming.size());
+        int pos = startPosition;
         for (NoteRequest req : incoming) {
             Note note = new Note();
             note.setDeckId(deckId);
@@ -195,6 +313,7 @@ public class DeckService {
             note.setAnkiNoteId(req.ankiNoteId());
             note.setFields(req.fields());
             note.setTags(req.tags() == null ? new String[0] : req.tags().toArray(String[]::new));
+            note.setPosition(pos++);
             result.add(note);
         }
         return result;

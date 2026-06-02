@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/axios";
-import type { DeckContentsResponse, DeckResponse, ImportDeckRequest } from "@/types/api";
+import type {
+  DeckContentsResponse,
+  DeckResponse,
+  ImportDeckRequest,
+  UpdateDeckContentsRequest,
+} from "@/types/api";
 
 const DECKS_KEY = ["decks"] as const;
 
@@ -50,6 +55,26 @@ export function useRenameDeck() {
     onSuccess: (_data, { deckId }) => {
       queryClient.invalidateQueries({ queryKey: DECKS_KEY });
       queryClient.invalidateQueries({ queryKey: ["deck-contents", deckId] });
+    },
+  });
+}
+
+// Save the whole flashcard editor working set (rename + add/delete/reorder/swap/
+// edit) in one request. Invalidates everything that shows deck contents/order/name.
+export function useReplaceDeckContents(deckId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: UpdateDeckContentsRequest) => {
+      const { data } = await api.put<DeckContentsResponse>(
+        `/decks/${deckId}/contents`,
+        body,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["deck-contents", deckId] });
+      queryClient.invalidateQueries({ queryKey: ["notes", deckId] });
+      queryClient.invalidateQueries({ queryKey: DECKS_KEY });
     },
   });
 }

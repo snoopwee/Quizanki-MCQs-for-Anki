@@ -9,6 +9,8 @@ export interface EditableNote {
   noteType: string;
   cloze: boolean;
   fieldNames: string[];
+  frontFields: string[];
+  backFields: string[];
   fields: Record<string, string>;
 }
 
@@ -31,6 +33,20 @@ export function EditFlashcardModal({
 
   const dirty = note.fieldNames.some((f) => (note.fields[f] ?? "") !== values[f]);
 
+  const frontField = note.frontFields[0];
+  const backField = note.backFields[0];
+  const canSwap =
+    !note.cloze && Boolean(frontField) && Boolean(backField) && frontField !== backField;
+
+  function handleSwap() {
+    if (!canSwap) return;
+    setValues((v) => ({
+      ...v,
+      [frontField]: v[backField] ?? "",
+      [backField]: v[frontField] ?? "",
+    }));
+  }
+
   function handleSave() {
     updateNote.mutate(
       { noteId: note.noteId, fields: values },
@@ -48,6 +64,16 @@ export function EditFlashcardModal({
             This is a cloze card. Keep the <code>{"{{c1::answer}}"}</code> markers
             intact — each one becomes a separate question.
           </p>
+        )}
+
+        {canSwap && (
+          <button
+            type="button"
+            onClick={handleSwap}
+            className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+          >
+            ⇅ Swap front and back
+          </button>
         )}
 
         {note.fieldNames.map((field) => (

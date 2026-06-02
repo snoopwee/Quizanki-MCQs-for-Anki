@@ -74,7 +74,7 @@ public class ApkgExportService {
         Deck deck = deckRepository.findByIdAndUserId(deckId, userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
         List<NoteType> types = noteTypeRepository.findAllByDeckId(deckId);
-        List<Note> notes = noteRepository.findAllByDeckIdOrderById(deckId);
+        List<Note> notes = noteRepository.findAllByDeckIdOrderByPositionAscIdAsc(deckId);
 
         Path tmp = null;
         try {

@@ -12,7 +12,6 @@ import { useQuizStore } from "@/stores/quizStore";
 import { FlashcardViewer } from "@/components/deck/FlashcardViewer";
 import { ApkgQuizSetup, type NoteStatsLookup } from "@/components/deck/ApkgQuizSetup";
 import { KebabMenu } from "@/components/shared/KebabMenu";
-import { EditDeckModal } from "@/components/deck/EditDeckModal";
 import { ExportDeckModal } from "@/components/deck/ExportDeckModal";
 
 type Step = "flashcards" | "setup";
@@ -40,7 +39,6 @@ function DeckDetail() {
   const deleteDeck = useDeleteDeck();
 
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [renameOpen, setRenameOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
 
   const parsed = useMemo(
@@ -138,7 +136,7 @@ function DeckDetail() {
               <KebabMenu
                 label="Deck options"
                 items={[
-                  { label: "Rename deck", onClick: () => setRenameOpen(true) },
+                  { label: "Edit flashcards", onClick: () => router.push(`/decks/${deckId}/edit`) },
                   { label: "Export deck", onClick: () => setExportOpen(true) },
                   { label: "Delete deck", onClick: () => setDeleteOpen(true), danger: true },
                 ]}
@@ -168,14 +166,6 @@ function DeckDetail() {
           backLabel="Back to flashcards"
           onBack={goToFlashcards}
           onStart={startTest}
-        />
-      )}
-
-      {renameOpen && (
-        <EditDeckModal
-          deckId={deckId}
-          currentName={deckName}
-          onClose={() => setRenameOpen(false)}
         />
       )}
 

@@ -148,6 +148,27 @@ export interface DeckContentsNoteType {
   notes: DeckContentsNote[];
 }
 
+// PUT /api/v1/decks/{id}/contents — full desired state from the flashcard editor.
+export interface UpdateDeckContentsNoteType {
+  id: string;
+  frontFields: string[];
+  backFields: string[];
+}
+
+export interface UpdateDeckContentsNote {
+  // null id = new card; null noteTypeId routes to the deck's Basic (Front/Back) type.
+  id: string | null;
+  noteTypeId: string | null;
+  fields: Record<string, string>;
+  tags: string[];
+}
+
+export interface UpdateDeckContentsRequest {
+  name: string;
+  noteTypes: UpdateDeckContentsNoteType[];
+  notes: UpdateDeckContentsNote[];
+}
+
 export interface DeckContentsResponse {
   id: string;
   name: string;

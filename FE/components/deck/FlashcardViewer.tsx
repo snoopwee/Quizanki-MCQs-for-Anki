@@ -75,6 +75,8 @@ export function FlashcardViewer({
           noteType: nt.name,
           cloze: nt.cloze,
           fieldNames: nt.fieldNames,
+          frontFields: nt.frontFields,
+          backFields: nt.backFields,
           fields: note.fields,
         });
       }

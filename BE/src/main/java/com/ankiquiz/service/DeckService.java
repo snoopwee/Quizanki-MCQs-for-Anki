@@ -57,6 +57,15 @@ public class DeckService {
     }
 
     @Transactional
+    public DeckResponse renameDeck(String userId, UUID deckId, String name) {
+        Deck deck = deckRepository.findByIdAndUserId(deckId, userId)
+                .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
+        deck.setName(name.trim());
+        Deck saved = deckRepository.save(deck);
+        return DeckResponse.from(saved, completionForDeck(deckId));
+    }
+
+    @Transactional
     public void deleteDeck(String userId, UUID deckId) {
         Deck deck = deckRepository.findByIdAndUserId(deckId, userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -16,6 +17,8 @@ public interface NoteRepository extends JpaRepository<Note, UUID> {
     List<Note> findAllByDeckIdAndAnkiNoteIdIn(UUID deckId, Collection<String> ankiNoteIds);
 
     List<Note> findAllByDeckIdOrderById(UUID deckId);
+
+    Optional<Note> findByIdAndDeckId(UUID id, UUID deckId);
 
     long countByDeckId(UUID deckId);
 

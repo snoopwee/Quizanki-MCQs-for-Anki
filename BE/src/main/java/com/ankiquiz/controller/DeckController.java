@@ -1,6 +1,7 @@
 package com.ankiquiz.controller;
 
 import com.ankiquiz.dto.request.ImportDeckRequest;
+import com.ankiquiz.dto.request.UpdateDeckRequest;
 import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.DeckResponse;
 import com.ankiquiz.service.DeckService;
@@ -13,6 +14,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -59,6 +61,16 @@ public class DeckController {
             @PathVariable UUID deckId
     ) {
         return deckService.getDeckContents(jwt.getSubject(), deckId);
+    }
+
+    @PatchMapping("/{deckId}")
+    @Operation(summary = "Rename a deck")
+    public DeckResponse updateDeck(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId,
+            @Valid @RequestBody UpdateDeckRequest request
+    ) {
+        return deckService.renameDeck(jwt.getSubject(), deckId, request.name());
     }
 
     @DeleteMapping("/{deckId}")

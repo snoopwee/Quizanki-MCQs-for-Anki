@@ -1,6 +1,7 @@
 // Shared card-preview primitives used by both the flashcard study screen and the
 // quiz results "missed cards" list, so the two lists look identical.
 
+import type { ReactNode } from "react";
 import { classifyMastery, type StageInfo } from "@/lib/masteryStage";
 
 // Renders each field value on its own line, or a muted placeholder when empty.
@@ -44,19 +45,29 @@ export function StageBadge({ info }: { info: StageInfo }) {
 //
 // `stats`, when present, surfaces a colour-coded mastery badge above the row so
 // the learner sees per-card progress as they scan the deck.
+//
+// `action`, when present, is rendered top-right of the row — the deck detail page
+// passes the per-card "⋯" edit menu here.
 export function CardPreviewRow({
   front,
   back,
   stats,
+  action,
 }: {
   front: string[];
   back: string[];
   stats?: { mastery?: number; timesSeen?: number };
+  action?: ReactNode;
 }) {
   const info = stats ? classifyMastery(stats) : null;
   return (
     <li className="space-y-2 rounded-lg border border-neutral-200 p-4 text-sm dark:border-neutral-800">
-      {info && <StageBadge info={info} />}
+      {(info || action) && (
+        <div className="flex items-start justify-between gap-2">
+          {info ? <StageBadge info={info} /> : <span />}
+          {action}
+        </div>
+      )}
       <div className="grid grid-cols-[1fr_2fr] gap-4">
         <div className="space-y-0.5 font-medium">
           <Lines values={front} />

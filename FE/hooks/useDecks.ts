@@ -38,6 +38,22 @@ export function useImportDeck() {
   });
 }
 
+// Rename a deck. Invalidates both the deck list (dashboard) and this deck's
+// contents (its detail page header) so the new name shows everywhere at once.
+export function useRenameDeck() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ deckId, name }: { deckId: string; name: string }) => {
+      const { data } = await api.patch<DeckResponse>(`/decks/${deckId}`, { name });
+      return data;
+    },
+    onSuccess: (_data, { deckId }) => {
+      queryClient.invalidateQueries({ queryKey: DECKS_KEY });
+      queryClient.invalidateQueries({ queryKey: ["deck-contents", deckId] });
+    },
+  });
+}
+
 export function useDeleteDeck() {
   const queryClient = useQueryClient();
   return useMutation({

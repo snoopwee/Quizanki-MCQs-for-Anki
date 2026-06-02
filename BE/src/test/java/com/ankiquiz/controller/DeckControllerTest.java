@@ -3,8 +3,10 @@ package com.ankiquiz.controller;
 import com.ankiquiz.dto.request.ImportDeckRequest;
 import com.ankiquiz.dto.request.NoteRequest;
 import com.ankiquiz.dto.request.NoteTypeRequest;
+import com.ankiquiz.dto.request.UpdateDeckRequest;
 import com.ankiquiz.dto.response.DeckResponse;
 import com.ankiquiz.exception.GlobalExceptionHandler;
+import com.ankiquiz.exception.NotFoundException;
 import com.ankiquiz.service.DeckService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -25,6 +27,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -94,6 +97,47 @@ class DeckControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.details.name").exists());
+    }
+
+    @Test
+    void updateDeck_returns200_withRenamedDeck() throws Exception {
+        UUID deckId = UUID.randomUUID();
+        DeckResponse response = new DeckResponse(
+                deckId, "JLPT N3", "Japanese::N4", "n4.apkg", 1, OffsetDateTime.now(), 42.0
+        );
+        when(deckService.renameDeck(eq("user-123"), eq(deckId), eq("JLPT N3"))).thenReturn(response);
+
+        mockMvc.perform(patch("/api/v1/decks/{deckId}", deckId)
+                        .with(jwt().jwt(j -> j.subject("user-123")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new UpdateDeckRequest("JLPT N3"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("JLPT N3"))
+                .andExpect(jsonPath("$.completion").value(42.0));
+    }
+
+    @Test
+    void updateDeck_returns400_whenNameBlank() throws Exception {
+        mockMvc.perform(patch("/api/v1/decks/{deckId}", UUID.randomUUID())
+                        .with(jwt().jwt(j -> j.subject("user-123")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new UpdateDeckRequest("  "))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.name").exists());
+    }
+
+    @Test
+    void updateDeck_returns404_whenDeckMissingOrNotOwned() throws Exception {
+        UUID deckId = UUID.randomUUID();
+        when(deckService.renameDeck(eq("user-123"), eq(deckId), any()))
+                .thenThrow(new NotFoundException("Deck not found: " + deckId));
+
+        mockMvc.perform(patch("/api/v1/decks/{deckId}", deckId)
+                        .with(jwt().jwt(j -> j.subject("user-123")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new UpdateDeckRequest("New name"))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404));
     }
 
     @Test

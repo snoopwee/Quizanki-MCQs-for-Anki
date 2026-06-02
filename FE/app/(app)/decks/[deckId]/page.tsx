@@ -11,6 +11,8 @@ import { reshuffleQuestions, type Question } from "@/lib/buildQuestions";
 import { useQuizStore } from "@/stores/quizStore";
 import { FlashcardViewer } from "@/components/deck/FlashcardViewer";
 import { ApkgQuizSetup, type NoteStatsLookup } from "@/components/deck/ApkgQuizSetup";
+import { KebabMenu } from "@/components/shared/KebabMenu";
+import { EditDeckModal } from "@/components/deck/EditDeckModal";
 
 type Step = "flashcards" | "setup";
 
@@ -37,6 +39,7 @@ function DeckDetail() {
   const deleteDeck = useDeleteDeck();
 
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
 
   const parsed = useMemo(
     () => (contentsQuery.data ? deckContentsToParsed(contentsQuery.data) : null),
@@ -129,13 +132,15 @@ function DeckDetail() {
             >
               Set up a quiz →
             </button>
-            <button
-              type="button"
-              onClick={() => setDeleteOpen(true)}
-              className="ml-auto rounded-md border border-red-300 px-4 py-2 text-sm text-red-700 hover:bg-red-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-950/40"
-            >
-              Delete deck
-            </button>
+            <div className="ml-auto">
+              <KebabMenu
+                label="Deck options"
+                items={[
+                  { label: "Rename deck", onClick: () => setRenameOpen(true) },
+                  { label: "Delete deck", onClick: () => setDeleteOpen(true), danger: true },
+                ]}
+              />
+            </div>
           </div>
 
           <FlashcardViewer
@@ -143,6 +148,8 @@ function DeckDetail() {
             completion={contentsQuery.data.completion}
             getStats={getStats}
             hideActions
+            editable
+            deckId={deckId}
             onBack={() => router.push("/dashboard")}
             onStartTest={goToSetup}
           />
@@ -158,6 +165,14 @@ function DeckDetail() {
           backLabel="Back to flashcards"
           onBack={goToFlashcards}
           onStart={startTest}
+        />
+      )}
+
+      {renameOpen && (
+        <EditDeckModal
+          deckId={deckId}
+          currentName={deckName}
+          onClose={() => setRenameOpen(false)}
         />
       )}
 

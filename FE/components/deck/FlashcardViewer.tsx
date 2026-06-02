@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { buildFlashcards } from "@/lib/flashcards";
 import { classifyMastery } from "@/lib/masteryStage";
 import { CardPreviewRow, Lines, StageBadge } from "./CardPreview";
+import { KebabMenu } from "@/components/shared/KebabMenu";
+import { EditFlashcardModal, type EditableNote } from "./EditFlashcardModal";
 import type { ApkgParseResponse } from "@/types/api";
 
 // Same shape ApkgQuizSetup uses — callers can pass a single lookup that serves
@@ -27,6 +29,8 @@ export function FlashcardViewer({
   onSave,
   backLabel = "Import another",
   hideActions = false,
+  editable = false,
+  deckId,
 }: {
   parsed: ApkgParseResponse;
   // Mean mastery across the deck (0-100). Surfaced as a percent + progress bar
@@ -45,12 +49,41 @@ export function FlashcardViewer({
   // When true, suppress the bottom Back/Save/Start-quiz row — the surrounding
   // page chrome (breadcrumb + action bar) handles those actions instead.
   hideActions?: boolean;
+  // When true (and deckId is set), each card gets a "⋯" menu to edit its fields.
+  // Only enabled for saved decks; the guest/import flow leaves it off.
+  editable?: boolean;
+  deckId?: string;
 }) {
   const cards = useMemo(() => buildFlashcards(parsed.noteTypes), [parsed]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [visible, setVisible] = useState(INITIAL_VISIBLE);
   const [showTop, setShowTop] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Card front/back are flattened strings, so editing needs the original note:
+  // its full field map, the type's field order, and the cloze flag. Keyed by the
+  // persisted note UUID, which is also the flashcard id for saved decks. Cloze
+  // notes map many cards to one id — editing any of them edits the shared note.
+  const noteIndex = useMemo(() => {
+    const map = new Map<string, EditableNote>();
+    for (const nt of parsed.noteTypes) {
+      for (const note of nt.notes) {
+        if (!note.id) continue; // only persisted notes can be edited
+        map.set(note.id, {
+          noteId: note.id,
+          noteType: nt.name,
+          cloze: nt.cloze,
+          fieldNames: nt.fieldNames,
+          fields: note.fields,
+        });
+      }
+    }
+    return map;
+  }, [parsed]);
+
+  const canEdit = editable && Boolean(deckId);
+  const editingNote = editingId ? noteIndex.get(editingId) : null;
 
   useEffect(() => {
     const onScroll = () => setShowTop(window.scrollY > 600);
@@ -148,6 +181,16 @@ export function FlashcardViewer({
         )}
       </div>
 
+      {canEdit && noteIndex.has(card.id) && (
+        <div className="flex items-center justify-end gap-1 text-xs text-neutral-500">
+          <span>Edit this card</span>
+          <KebabMenu
+            label="Edit this card"
+            items={[{ label: "Edit fields", onClick: () => setEditingId(card.id) }]}
+          />
+        </div>
+      )}
+
       {/* Fixed height so front and back are the same size; long content scrolls. */}
       <button
         type="button"
@@ -244,6 +287,13 @@ export function FlashcardViewer({
               front={c.front}
               back={c.back}
               stats={getStats?.(c.id)}
+              action={
+                canEdit && noteIndex.has(c.id) ? (
+                  <KebabMenu
+                    items={[{ label: "Edit fields", onClick: () => setEditingId(c.id) }]}
+                  />
+                ) : undefined
+              }
             />
           ))}
         </ul>
@@ -276,6 +326,14 @@ export function FlashcardViewer({
         >
           ↑ Top
         </button>
+      )}
+
+      {canEdit && deckId && editingNote && (
+        <EditFlashcardModal
+          deckId={deckId}
+          note={editingNote}
+          onClose={() => setEditingId(null)}
+        />
       )}
     </div>
   );

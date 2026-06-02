@@ -7,6 +7,7 @@ import com.ankiquiz.dto.request.UpdateDeckRequest;
 import com.ankiquiz.dto.response.DeckResponse;
 import com.ankiquiz.exception.GlobalExceptionHandler;
 import com.ankiquiz.exception.NotFoundException;
+import com.ankiquiz.service.ApkgExportService;
 import com.ankiquiz.service.DeckService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -27,8 +28,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -44,6 +48,9 @@ class DeckControllerTest {
 
     @MockBean
     private DeckService deckService;
+
+    @MockBean
+    private ApkgExportService apkgExportService;
 
     @MockBean
     private JwtDecoder jwtDecoder;
@@ -124,6 +131,30 @@ class DeckControllerTest {
                         .content(objectMapper.writeValueAsString(new UpdateDeckRequest("  "))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.details.name").exists());
+    }
+
+    @Test
+    void exportApkg_returns200_withAttachmentHeader() throws Exception {
+        UUID deckId = UUID.randomUUID();
+        byte[] pkg = {'P', 'K', 3, 4};
+        when(apkgExportService.export(eq("user-123"), eq(deckId))).thenReturn(pkg);
+
+        mockMvc.perform(get("/api/v1/decks/{deckId}/export.apkg", deckId)
+                        .with(jwt().jwt(j -> j.subject("user-123"))))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"deck.apkg\""))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_OCTET_STREAM));
+    }
+
+    @Test
+    void exportApkg_returns404_whenDeckMissing() throws Exception {
+        UUID deckId = UUID.randomUUID();
+        when(apkgExportService.export(eq("user-123"), eq(deckId)))
+                .thenThrow(new NotFoundException("Deck not found: " + deckId));
+
+        mockMvc.perform(get("/api/v1/decks/{deckId}/export.apkg", deckId)
+                        .with(jwt().jwt(j -> j.subject("user-123"))))
+                .andExpect(status().isNotFound());
     }
 
     @Test

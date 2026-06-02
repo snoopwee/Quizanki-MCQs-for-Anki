@@ -13,6 +13,7 @@ import { FlashcardViewer } from "@/components/deck/FlashcardViewer";
 import { ApkgQuizSetup, type NoteStatsLookup } from "@/components/deck/ApkgQuizSetup";
 import { KebabMenu } from "@/components/shared/KebabMenu";
 import { EditDeckModal } from "@/components/deck/EditDeckModal";
+import { ExportDeckModal } from "@/components/deck/ExportDeckModal";
 
 type Step = "flashcards" | "setup";
 
@@ -40,6 +41,7 @@ function DeckDetail() {
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const parsed = useMemo(
     () => (contentsQuery.data ? deckContentsToParsed(contentsQuery.data) : null),
@@ -137,6 +139,7 @@ function DeckDetail() {
                 label="Deck options"
                 items={[
                   { label: "Rename deck", onClick: () => setRenameOpen(true) },
+                  { label: "Export deck", onClick: () => setExportOpen(true) },
                   { label: "Delete deck", onClick: () => setDeleteOpen(true), danger: true },
                 ]}
               />
@@ -173,6 +176,13 @@ function DeckDetail() {
           deckId={deckId}
           currentName={deckName}
           onClose={() => setRenameOpen(false)}
+        />
+      )}
+
+      {exportOpen && (
+        <ExportDeckModal
+          contents={contentsQuery.data}
+          onClose={() => setExportOpen(false)}
         />
       )}
 

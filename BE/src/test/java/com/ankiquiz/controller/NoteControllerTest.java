@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.dto.request.SetStarRequest;
 import com.ankiquiz.dto.request.UpdateNoteRequest;
 import com.ankiquiz.dto.response.CardStatsResponse;
 import com.ankiquiz.dto.response.NoteResponse;
@@ -28,6 +29,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -55,9 +57,9 @@ class NoteControllerTest {
                 noteId, deckId,
                 Map.of("Front", "食べる", "Back", "to eat"),
                 List.of("N4", "verb"),
-                new CardStatsResponse(3, 2, 0.66, 0, 40.0, OffsetDateTime.now())
+                new CardStatsResponse(3, 2, 0.66, 0, 40.0, true, OffsetDateTime.now())
         );
-        when(noteService.getNotes(eq("user-1"), eq(deckId), any(), anyBoolean(), any()))
+        when(noteService.getNotes(eq("user-1"), eq(deckId), any(), anyBoolean(), anyBoolean(), any()))
                 .thenReturn(List.of(note));
 
         mockMvc.perform(get("/api/v1/decks/{deckId}/notes", deckId)
@@ -65,13 +67,14 @@ class NoteControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(noteId.toString()))
                 .andExpect(jsonPath("$[0].cardStats.accuracy").value(0.66))
-                .andExpect(jsonPath("$[0].cardStats.mastery").value(40.0));
+                .andExpect(jsonPath("$[0].cardStats.mastery").value(40.0))
+                .andExpect(jsonPath("$[0].cardStats.starred").value(true));
     }
 
     @Test
     void getNotes_returns404_whenDeckMissing() throws Exception {
         UUID deckId = UUID.randomUUID();
-        when(noteService.getNotes(eq("user-1"), eq(deckId), any(), anyBoolean(), any()))
+        when(noteService.getNotes(eq("user-1"), eq(deckId), any(), anyBoolean(), anyBoolean(), any()))
                 .thenThrow(new NotFoundException("Deck not found: " + deckId));
 
         mockMvc.perform(get("/api/v1/decks/{deckId}/notes", deckId)
@@ -124,6 +127,53 @@ class NoteControllerTest {
                         .with(jwt().jwt(j -> j.subject("user-1")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new UpdateNoteRequest(Map.of("Front", "x")))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404));
+    }
+
+    @Test
+    void setStarred_returns200_withStarredStats() throws Exception {
+        UUID deckId = UUID.randomUUID();
+        UUID noteId = UUID.randomUUID();
+        NoteResponse starred = new NoteResponse(
+                noteId, deckId,
+                Map.of("Front", "食べる", "Back", "to eat"),
+                List.of(),
+                new CardStatsResponse(0, 0, 0.0, 0, 0.0, true, null)
+        );
+        when(noteService.setStarred(eq("user-1"), eq(deckId), eq(noteId), eq(true)))
+                .thenReturn(starred);
+
+        mockMvc.perform(put("/api/v1/decks/{deckId}/notes/{noteId}/star", deckId, noteId)
+                        .with(jwt().jwt(j -> j.subject("user-1")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new SetStarRequest(true))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(noteId.toString()))
+                .andExpect(jsonPath("$.cardStats.starred").value(true));
+    }
+
+    @Test
+    void setStarred_returns400_whenStarredMissing() throws Exception {
+        mockMvc.perform(put("/api/v1/decks/{deckId}/notes/{noteId}/star", UUID.randomUUID(), UUID.randomUUID())
+                        .with(jwt().jwt(j -> j.subject("user-1")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.starred").exists());
+    }
+
+    @Test
+    void setStarred_returns404_whenNoteMissing() throws Exception {
+        UUID deckId = UUID.randomUUID();
+        UUID noteId = UUID.randomUUID();
+        when(noteService.setStarred(eq("user-1"), eq(deckId), eq(noteId), anyBoolean()))
+                .thenThrow(new NotFoundException("Note not found: " + noteId));
+
+        mockMvc.perform(put("/api/v1/decks/{deckId}/notes/{noteId}/star", deckId, noteId)
+                        .with(jwt().jwt(j -> j.subject("user-1")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new SetStarRequest(false))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }

@@ -15,6 +15,7 @@ import { useImportDeck } from "@/hooks/useDecks";
 import { useSession } from "@/hooks/useSession";
 import { useQuizStore } from "@/stores/quizStore";
 import { useGuestMastery } from "@/stores/guestMasteryStore";
+import { useGuestStars } from "@/stores/guestStarStore";
 import type { ApkgParseResponse } from "@/types/api";
 
 // The landing page IS the product trial: a guest can upload a deck and study /
@@ -46,11 +47,17 @@ function Landing() {
   const [authOpen, setAuthOpen] = useState(Boolean(next));
   const startSession = useQuizStore((s) => s.startSession);
   const importDeck = useImportDeck();
-  // Trial mastery lives entirely client-side. Reading via getState() in the
-  // lookup callback keeps `selectQuizNotes` working from current data without
-  // forcing a re-render every time another card is answered.
-  const guestGetStats: NoteStatsLookup = (noteId) =>
-    useGuestMastery.getState().getStats(noteId);
+  // Trial stars DO subscribe (toggling one should re-render the ★ immediately),
+  // unlike mastery which is read via getState() so answering a question doesn't
+  // force a re-render every time.
+  const guestStars = useGuestStars();
+  const guestGetStats: NoteStatsLookup = (noteId) => ({
+    ...useGuestMastery.getState().getStats(noteId),
+    starred: guestStars.isStarred(noteId),
+  });
+  const guestGetStarred = (noteId: string) => guestStars.isStarred(noteId);
+  const guestToggleStar = (noteId: string, next: boolean) =>
+    guestStars.setStarred(noteId, next);
 
   // Trial quiz: empty sessionId so QuizSession never records answers.
   function startTrial(parsed: ApkgParseResponse, questions: Question[]) {
@@ -149,6 +156,8 @@ function Landing() {
             <FlashcardViewer
               parsed={step.parsed}
               getStats={guestGetStats}
+              getStarred={guestGetStarred}
+              onToggleStar={guestToggleStar}
               backLabel="Start over"
               onBack={() => setStep({ kind: "import" })}
               onStartTest={() => setStep({ kind: "setup", parsed: step.parsed })}
@@ -180,6 +189,8 @@ function Landing() {
                 onOpenSettings={() => setSettingsOpen(true)}
                 onFinish={() => !user && setSaveOpen(true)}
                 getStats={guestGetStats}
+                getStarred={guestGetStarred}
+                onToggleStar={guestToggleStar}
               />
               {settingsOpen && (
                 <Modal title="Quiz settings" onClose={() => setSettingsOpen(false)}>

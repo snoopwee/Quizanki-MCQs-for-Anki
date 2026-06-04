@@ -11,6 +11,7 @@ import { ProgressBar } from "./ProgressBar";
 import { QuestionCard } from "./QuestionCard";
 import { OptionButton } from "./OptionButton";
 import { ResultsSummary } from "./ResultsSummary";
+import { StarButton } from "@/components/shared/StarButton";
 
 // Same shape used by the rest of the deck screens; QuizSession needs it so the
 // results screen can show each card's post-answer mastery.
@@ -25,6 +26,8 @@ export function QuizSession({
   onOpenSettings,
   onFinish,
   getStats,
+  getStarred,
+  onToggleStar,
 }: {
   onRetry: () => void;
   // Mid-quiz "← End quiz" — bails out before reaching the results screen.
@@ -42,6 +45,10 @@ export function QuizSession({
   // the results screen. Optional so callers without a lookup (e.g. mid-rebuild)
   // still get a working quiz — answers default to mastery 0.
   getStats?: StatsLookup;
+  // Star (focus) support for the current question. When both are provided, a ★
+  // toggle appears in the quiz header so the learner can flag a card mid-test.
+  getStarred?: (noteId: string) => boolean;
+  onToggleStar?: (noteId: string, next: boolean) => void;
 }) {
   const questions = useQuizStore((s) => s.questions);
   const currentIndex = useQuizStore((s) => s.currentIndex);
@@ -138,15 +145,24 @@ export function QuizSession({
         >
           ← End quiz
         </button>
-        {onOpenSettings && (
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
-          >
-            ⚙ Settings
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {getStarred && onToggleStar && (
+            <StarButton
+              starred={getStarred(question.noteId)}
+              size="sm"
+              onToggle={(next) => onToggleStar(question.noteId, next)}
+            />
+          )}
+          {onOpenSettings && (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+            >
+              ⚙ Settings
+            </button>
+          )}
+        </div>
       </div>
       <ProgressBar current={currentIndex} total={questions.length} />
 

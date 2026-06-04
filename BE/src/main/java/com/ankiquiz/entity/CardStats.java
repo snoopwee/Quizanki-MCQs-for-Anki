@@ -31,6 +31,9 @@ public class CardStats {
     @Column(name = "mastery")
     private Double mastery;
 
+    @Column(name = "starred")
+    private Boolean starred;
+
     @Column(name = "last_seen_at")
     private OffsetDateTime lastSeenAt;
 
@@ -80,6 +83,14 @@ public class CardStats {
 
     public void setMastery(Double mastery) {
         this.mastery = mastery;
+    }
+
+    public Boolean getStarred() {
+        return starred;
+    }
+
+    public void setStarred(Boolean starred) {
+        this.starred = starred;
     }
 
     public OffsetDateTime getLastSeenAt() {

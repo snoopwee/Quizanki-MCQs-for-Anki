@@ -5,6 +5,7 @@ import { buildFlashcards } from "@/lib/flashcards";
 import { classifyMastery } from "@/lib/masteryStage";
 import { CardPreviewRow, Lines, StageBadge } from "./CardPreview";
 import { KebabMenu } from "@/components/shared/KebabMenu";
+import { StarButton } from "@/components/shared/StarButton";
 import { EditFlashcardModal, type EditableNote } from "./EditFlashcardModal";
 import type { ApkgParseResponse } from "@/types/api";
 
@@ -31,6 +32,8 @@ export function FlashcardViewer({
   hideActions = false,
   editable = false,
   deckId,
+  getStarred,
+  onToggleStar,
 }: {
   parsed: ApkgParseResponse;
   // Mean mastery across the deck (0-100). Surfaced as a percent + progress bar
@@ -53,6 +56,11 @@ export function FlashcardViewer({
   // Only enabled for saved decks; the guest/import flow leaves it off.
   editable?: boolean;
   deckId?: string;
+  // Star (focus) support. When both are provided, a ★ toggle appears on the
+  // current card and every preview row. Keyed by the flashcard id (the note id),
+  // so all clozes of one note share a star.
+  getStarred?: (id: string) => boolean;
+  onToggleStar?: (id: string, next: boolean) => void;
 }) {
   const cards = useMemo(() => buildFlashcards(parsed.noteTypes), [parsed]);
   const [index, setIndex] = useState(0);
@@ -86,6 +94,18 @@ export function FlashcardViewer({
 
   const canEdit = editable && Boolean(deckId);
   const editingNote = editingId ? noteIndex.get(editingId) : null;
+
+  const canStar = Boolean(getStarred && onToggleStar);
+  function starFor(id: string, size: "sm" | "md") {
+    if (!canStar) return null;
+    return (
+      <StarButton
+        starred={getStarred!(id)}
+        size={size}
+        onToggle={(next) => onToggleStar!(id, next)}
+      />
+    );
+  }
 
   useEffect(() => {
     const onScroll = () => setShowTop(window.scrollY > 600);
@@ -183,13 +203,27 @@ export function FlashcardViewer({
         )}
       </div>
 
-      {canEdit && noteIndex.has(card.id) && (
-        <div className="flex items-center justify-end gap-1 text-xs text-neutral-500">
-          <span>Edit this card</span>
-          <KebabMenu
-            label="Edit this card"
-            items={[{ label: "Edit fields", onClick: () => setEditingId(card.id) }]}
-          />
+      {(canStar || (canEdit && noteIndex.has(card.id))) && (
+        <div className="flex items-center justify-between gap-2 text-xs text-neutral-500">
+          {canStar ? (
+            <div className="flex items-center gap-1.5">
+              {starFor(card.id, "md")}
+              <span>{getStarred!(card.id) ? "Starred" : "Star this card"}</span>
+            </div>
+          ) : (
+            <span />
+          )}
+          {canEdit && noteIndex.has(card.id) ? (
+            <div className="flex items-center gap-1">
+              <span>Edit this card</span>
+              <KebabMenu
+                label="Edit this card"
+                items={[{ label: "Edit fields", onClick: () => setEditingId(card.id) }]}
+              />
+            </div>
+          ) : (
+            <span />
+          )}
         </div>
       )}
 
@@ -290,10 +324,15 @@ export function FlashcardViewer({
               back={c.back}
               stats={getStats?.(c.id)}
               action={
-                canEdit && noteIndex.has(c.id) ? (
-                  <KebabMenu
-                    items={[{ label: "Edit fields", onClick: () => setEditingId(c.id) }]}
-                  />
+                canStar || (canEdit && noteIndex.has(c.id)) ? (
+                  <div className="flex items-center gap-1">
+                    {starFor(c.id, "sm")}
+                    {canEdit && noteIndex.has(c.id) && (
+                      <KebabMenu
+                        items={[{ label: "Edit fields", onClick: () => setEditingId(c.id) }]}
+                      />
+                    )}
+                  </div>
                 ) : undefined
               }
             />

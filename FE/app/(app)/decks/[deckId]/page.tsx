@@ -4,7 +4,7 @@ import { Suspense, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useDeckContents, useDeleteDeck } from "@/hooks/useDecks";
-import { useNotes } from "@/hooks/useNotes";
+import { useNotes, useToggleStar } from "@/hooks/useNotes";
 import { useStartSession } from "@/hooks/useQuizSession";
 import { deckContentsToParsed } from "@/lib/deckContents";
 import { reshuffleQuestions, type Question } from "@/lib/buildQuestions";
@@ -37,6 +37,7 @@ function DeckDetail() {
   const startSession = useStartSession();
   const startQuiz = useQuizStore((s) => s.startSession);
   const deleteDeck = useDeleteDeck();
+  const toggleStar = useToggleStar(deckId);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -50,16 +51,21 @@ function DeckDetail() {
   // weight by mastery and (per the Anki-like rule) hold new cards back until
   // some seen cards reach the ready threshold.
   const getStats: NoteStatsLookup = useMemo(() => {
-    const map = new Map<string, { mastery: number; timesSeen: number }>();
+    const map = new Map<string, { mastery: number; timesSeen: number; starred: boolean }>();
     for (const n of notesQuery.data ?? []) {
       const s = n.cardStats;
       map.set(n.id, {
         mastery: s?.mastery ?? 0,
         timesSeen: s?.timesSeen ?? 0,
+        starred: s?.starred ?? false,
       });
     }
     return (noteId) => map.get(noteId);
   }, [notesQuery.data]);
+
+  const getStarred = (id: string) => getStats(id)?.starred ?? false;
+  const onToggleStar = (id: string, next: boolean) =>
+    toggleStar.mutate({ noteId: id, starred: next });
 
   function goToSetup() {
     router.push(`/decks/${deckId}?step=setup`);
@@ -148,6 +154,8 @@ function DeckDetail() {
             parsed={parsed}
             completion={contentsQuery.data.completion}
             getStats={getStats}
+            getStarred={getStarred}
+            onToggleStar={onToggleStar}
             hideActions
             editable
             deckId={deckId}

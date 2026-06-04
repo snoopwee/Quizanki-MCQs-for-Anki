@@ -30,6 +30,8 @@ public interface NoteRepository extends JpaRepository<Note, UUID> {
      * Filtered note fetch for a deck.
      * - tagsCsv empty → no tag filter; otherwise AND-containment via array @>.
      * - weakOnly true → notes with no card_stats row OR accuracy < 0.7.
+     * - starredOnly true → notes whose card_stats row has starred = true (a
+     *   missing row means unstarred, so the LEFT JOIN null is correctly excluded).
      */
     @Query(value = """
             SELECT n.* FROM notes n
@@ -37,6 +39,7 @@ public interface NoteRepository extends JpaRepository<Note, UUID> {
             WHERE n.deck_id = :deckId
               AND (:tagsCsv = '' OR n.tags @> string_to_array(:tagsCsv, ','))
               AND (:weakOnly = FALSE OR cs.note_id IS NULL OR cs.accuracy < 0.7)
+              AND (:starredOnly = FALSE OR cs.starred = TRUE)
             ORDER BY n.note_position, n.id
             LIMIT :limit
             """, nativeQuery = true)
@@ -44,6 +47,7 @@ public interface NoteRepository extends JpaRepository<Note, UUID> {
             @Param("deckId") UUID deckId,
             @Param("tagsCsv") String tagsCsv,
             @Param("weakOnly") boolean weakOnly,
+            @Param("starredOnly") boolean starredOnly,
             @Param("limit") int limit
     );
 }

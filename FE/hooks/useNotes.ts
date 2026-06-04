@@ -5,6 +5,7 @@ import type { NoteResponse } from "@/types/api";
 export interface NotesParams {
   tags?: string[];
   weakOnly?: boolean;
+  starredOnly?: boolean;
   limit?: number;
 }
 
@@ -46,4 +47,65 @@ export function useUpdateNote(deckId: string) {
       queryClient.invalidateQueries({ queryKey: ["notes", deckId] });
     },
   });
+}
+
+// Star / unstar a single flashcard. Optimistically patches every cached notes
+// list for this deck so the star fills instantly (mid-quiz the getStats lookup
+// reads from this cache), rolling back on error. Settles by invalidating notes
+// and deck-contents so the server value wins.
+export function useToggleStar(deckId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ noteId, starred }: { noteId: string; starred: boolean }) => {
+      const { data } = await api.put<NoteResponse>(
+        `/decks/${deckId}/notes/${noteId}/star`,
+        { starred },
+      );
+      return data;
+    },
+    onMutate: async ({ noteId, starred }) => {
+      await queryClient.cancelQueries({ queryKey: ["notes", deckId] });
+      const previous = queryClient.getQueriesData<NoteResponse[]>({
+        queryKey: ["notes", deckId],
+      });
+      for (const [key, notes] of previous) {
+        if (!notes) continue;
+        queryClient.setQueryData<NoteResponse[]>(
+          key,
+          notes.map((n) =>
+            n.id === noteId ? { ...n, cardStats: patchStarred(n.cardStats, starred) } : n,
+          ),
+        );
+      }
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      for (const [key, notes] of context?.previous ?? []) {
+        queryClient.setQueryData(key, notes);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["notes", deckId] });
+      queryClient.invalidateQueries({ queryKey: ["deck-contents", deckId] });
+    },
+  });
+}
+
+// Flip `starred` on a note's stats, synthesizing a zeroed stats object for a
+// card that has never been answered (so the optimistic update has somewhere to
+// write). Mirrors the BE, which creates a default card_stats row on first star.
+function patchStarred(
+  stats: NoteResponse["cardStats"],
+  starred: boolean,
+): NoteResponse["cardStats"] {
+  if (stats) return { ...stats, starred };
+  return {
+    timesSeen: 0,
+    timesCorrect: 0,
+    accuracy: 0,
+    streak: 0,
+    mastery: 0,
+    starred,
+    lastSeenAt: null,
+  };
 }

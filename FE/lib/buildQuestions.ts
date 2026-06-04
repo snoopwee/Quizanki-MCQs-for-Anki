@@ -282,11 +282,17 @@ export type NoteTypeQuizSpec =
  * {@link selectQuizNotes} runs across the union, then each pick is rendered
  * with its own type's builder. Distractors stay within the originating note
  * type so a cloze answer never leaks into a basic question and vice versa.
+ *
+ * {@code eligibleNoteIds}, when given, restricts which notes can be *asked*
+ * (e.g. a starred-only quiz) — but distractor pools are still built from every
+ * note, so a small starred subset doesn't collapse to a 2-option MCQ. This
+ * keeps the long-standing "distractors from the full pool" rule.
  */
 export function buildMixedQuestions(
   specs: NoteTypeQuizSpec[],
   count: number,
   rng: () => number = Math.random,
+  eligibleNoteIds?: Set<string>,
 ): Question[] {
   type Synth = QuizNote & {
     parentId: string;
@@ -366,7 +372,12 @@ export function buildMixedQuestions(
     }
   }
 
-  const selected = selectQuizNotes(pool, Math.max(0, count), rng);
+  // Restrict the *askable* pool to the eligible subset (if given), keeping the
+  // answer pools above intact so distractors still come from the whole deck.
+  const askable = eligibleNoteIds
+    ? pool.filter((s) => eligibleNoteIds.has(s.parentId))
+    : pool;
+  const selected = selectQuizNotes(askable, Math.max(0, count), rng);
   const globalPool = Array.from(globalAnswerPool);
 
   return selected.map((s) => {

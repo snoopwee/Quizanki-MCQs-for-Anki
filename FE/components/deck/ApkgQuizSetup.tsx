@@ -34,7 +34,7 @@ function isQuizable(t: ApkgNoteType): boolean {
 // returned by /decks/{id}/notes; the guest trial reads from localStorage.
 // Returning undefined / a zero record both mean "treat as a new card."
 export type NoteStatsLookup = (noteId: string) =>
-  | { mastery: number; timesSeen: number }
+  | { mastery: number; timesSeen: number; starred?: boolean }
   | undefined;
 
 export function ApkgQuizSetup({
@@ -94,10 +94,22 @@ export function ApkgQuizSetup({
   }, [basicTypes, savedPrefs]);
 
   const totalCards = useMemo(() => totalCardsAcrossTypes(quizable), [quizable]);
+
+  // Starred-only quiz: the set of starred note keys (same id scheme the pool
+  // uses) and how many cards that subset yields. Empty when no stats lookup or
+  // nothing is starred, which disables the toggle.
+  const [starredOnly, setStarredOnly] = useState(false);
+  const starredIds = useMemo(() => collectStarredIds(quizable, getStats), [quizable, getStats]);
+  const starredCardCount = useMemo(
+    () => countStarredCards(quizable, starredIds),
+    [quizable, starredIds],
+  );
+  const availableTotal = starredOnly ? starredCardCount : totalCards;
+
   const [countText, setCountText] = useState(() =>
     String(clampCount(savedPrefs?.count ?? 20, totalCards || 1)),
   );
-  const count = clampCount(Number(countText) || 1, Math.max(totalCards, 1));
+  const count = clampCount(Number(countText) || 1, Math.max(availableTotal, 1));
 
   if (quizable.length === 0) {
     return (
@@ -125,12 +137,15 @@ export function ApkgQuizSetup({
   const usableBasic = basicTypes.filter(
     (nt) => (perTypePrefs[String(nt.id)]?.questionFields.length ?? 0) > 0,
   );
-  const canStart = usableBasic.length + clozeTypes.length > 0 && totalCards > 0;
+  const canStart = usableBasic.length + clozeTypes.length > 0 && availableTotal > 0;
 
   function handleStart() {
     const specs = buildAllCardsSpecs(quizable, perTypePrefs, getStats);
     if (specs.length === 0) return;
-    const questions = buildMixedQuestions(specs, count);
+    // Pass the starred subset as the askable set; distractors still come from
+    // every note (the full-pool rule lives inside buildMixedQuestions).
+    const eligible = starredOnly ? starredIds : undefined;
+    const questions = buildMixedQuestions(specs, count, undefined, eligible);
     if (deckId) {
       saveQuizPreferences(deckId, { count, fieldPrefs: perTypePrefs });
     }
@@ -149,8 +164,8 @@ export function ApkgQuizSetup({
       {showHeading && <h1 className="text-2xl font-semibold">Set up a quiz</h1>}
 
       <p className="text-sm text-neutral-500">
-        Drawing from {quizable.length} note type{quizable.length === 1 ? "" : "s"} · {totalCards}{" "}
-        card{totalCards === 1 ? "" : "s"} available
+        Drawing from {quizable.length} note type{quizable.length === 1 ? "" : "s"} ·{" "}
+        {availableTotal} {starredOnly ? "starred " : ""}card{availableTotal === 1 ? "" : "s"} available
       </p>
 
       {basicTypes.map((nt) => (
@@ -182,11 +197,18 @@ export function ApkgQuizSetup({
         </div>
       )}
 
+      <StarredOnlyToggle
+        checked={starredOnly}
+        starredCount={starredCardCount}
+        enabled={starredIds.size > 0}
+        onChange={setStarredOnly}
+      />
+
       <CountInput
         countText={countText}
         setCountText={setCountText}
         rolledCount={count}
-        max={totalCards}
+        max={availableTotal}
       />
 
       {!canStart && (
@@ -350,6 +372,47 @@ function CountInput({
   );
 }
 
+function StarredOnlyToggle({
+  checked,
+  starredCount,
+  enabled,
+  onChange,
+}: {
+  checked: boolean;
+  starredCount: number;
+  enabled: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
+      <label className={`flex items-center gap-2 text-sm ${enabled ? "" : "opacity-60"}`}>
+        <input
+          type="checkbox"
+          checked={checked && enabled}
+          disabled={!enabled}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <span className="font-medium">
+          <span className="text-amber-500" aria-hidden>
+            ★
+          </span>{" "}
+          Starred cards only
+        </span>
+        {enabled && (
+          <span className="text-xs text-neutral-500">
+            {starredCount} card{starredCount === 1 ? "" : "s"}
+          </span>
+        )}
+      </label>
+      {!enabled && (
+        <p className="mt-1 pl-6 text-xs text-neutral-500">
+          Star cards on the flashcard list or during a quiz to use this.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function SetupActions({
   onBack,
   backLabel,
@@ -410,12 +473,19 @@ function totalCardsAcrossTypes(types: ApkgNoteType[]): number {
   return types.reduce((acc, t) => acc + cardsInType(t), 0);
 }
 
+// The id a note is tracked by, matching buildFlashcards / the quiz pool: the
+// persisted UUID for saved decks, else the Anki note id, else a synthetic key.
+// One lookup then serves the flashcard list, the quiz, and starred selection.
+function noteKey(noteType: ApkgNoteType, note: ApkgNoteType["notes"][number], i: number): string {
+  return note.id ?? note.ankiNoteId ?? `${noteType.id}-${i}`;
+}
+
 function buildPool(
   noteType: ApkgNoteType,
   getStats: NoteStatsLookup | undefined,
 ): QuizNote[] {
   return noteType.notes.map((n, i) => {
-    const id = n.id ?? n.ankiNoteId ?? `${noteType.id}-${i}`;
+    const id = noteKey(noteType, n, i);
     const stats = getStats?.(id);
     return {
       id,
@@ -424,6 +494,36 @@ function buildPool(
       timesSeen: stats?.timesSeen ?? 0,
     };
   });
+}
+
+// Note keys the user has starred, across every quizable type. Empty when there's
+// no stats lookup (guest with no stars yet, or a caller that doesn't track them).
+function collectStarredIds(
+  types: ApkgNoteType[],
+  getStats: NoteStatsLookup | undefined,
+): Set<string> {
+  const ids = new Set<string>();
+  if (!getStats) return ids;
+  for (const nt of types) {
+    nt.notes.forEach((n, i) => {
+      if (getStats(noteKey(nt, n, i))?.starred) ids.add(noteKey(nt, n, i));
+    });
+  }
+  return ids;
+}
+
+// How many quiz cards the starred subset yields — a starred cloze note still
+// contributes one card per deletion, mirroring cardsInType.
+function countStarredCards(types: ApkgNoteType[], starredIds: Set<string>): number {
+  let total = 0;
+  for (const nt of types) {
+    const clozeField = nt.cloze ? detectClozeField(nt.fieldNames, nt.notes) : null;
+    nt.notes.forEach((n, i) => {
+      if (!starredIds.has(noteKey(nt, n, i))) return;
+      total += clozeField ? uniqueClozeIndices(n.fields[clozeField] ?? "").length : 1;
+    });
+  }
+  return total;
 }
 
 function initialPrefsForType(

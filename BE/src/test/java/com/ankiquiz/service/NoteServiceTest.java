@@ -1,6 +1,7 @@
 package com.ankiquiz.service;
 
 import com.ankiquiz.dto.response.NoteResponse;
+import com.ankiquiz.entity.CardStats;
 import com.ankiquiz.entity.Deck;
 import com.ankiquiz.entity.Note;
 import com.ankiquiz.entity.NoteType;
@@ -119,6 +120,60 @@ class NoteServiceTest {
         when(noteRepository.findByIdAndDeckId(noteId, deckId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.updateNote(USER, deckId, noteId, Map.of("Front", "x")))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void setStarred_createsDefaultStatsRow_whenNoneExists() {
+        Note note = existingNote(Map.of("Front", "a", "Back", "b"));
+        when(deckRepository.findByIdAndUserId(deckId, USER)).thenReturn(Optional.of(new Deck()));
+        when(noteRepository.findByIdAndDeckId(noteId, deckId)).thenReturn(Optional.of(note));
+        when(cardStatsRepository.findById(noteId)).thenReturn(Optional.empty());
+        when(cardStatsRepository.save(any(CardStats.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        NoteResponse res = service.setStarred(USER, deckId, noteId, true);
+
+        assertThat(res.cardStats()).isNotNull();
+        assertThat(res.cardStats().starred()).isTrue();
+        // A never-answered card starts at zeroed counters, not nulls.
+        assertThat(res.cardStats().timesSeen()).isZero();
+        assertThat(res.cardStats().mastery()).isZero();
+    }
+
+    @Test
+    void setStarred_updatesExistingRow_andKeepsOtherStats() {
+        Note note = existingNote(Map.of("Front", "a", "Back", "b"));
+        CardStats existing = new CardStats();
+        existing.setNoteId(noteId);
+        existing.setTimesSeen(4);
+        existing.setMastery(50.0);
+        existing.setStarred(false);
+        when(deckRepository.findByIdAndUserId(deckId, USER)).thenReturn(Optional.of(new Deck()));
+        when(noteRepository.findByIdAndDeckId(noteId, deckId)).thenReturn(Optional.of(note));
+        when(cardStatsRepository.findById(noteId)).thenReturn(Optional.of(existing));
+        when(cardStatsRepository.save(any(CardStats.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        NoteResponse res = service.setStarred(USER, deckId, noteId, true);
+
+        assertThat(res.cardStats().starred()).isTrue();
+        assertThat(res.cardStats().mastery()).isEqualTo(50.0);
+        assertThat(res.cardStats().timesSeen()).isEqualTo(4);
+    }
+
+    @Test
+    void setStarred_throwsNotFound_whenDeckNotOwned() {
+        when(deckRepository.findByIdAndUserId(deckId, USER)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.setStarred(USER, deckId, noteId, true))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void setStarred_throwsNotFound_whenNoteNotInDeck() {
+        when(deckRepository.findByIdAndUserId(deckId, USER)).thenReturn(Optional.of(new Deck()));
+        when(noteRepository.findByIdAndDeckId(noteId, deckId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.setStarred(USER, deckId, noteId, true))
                 .isInstanceOf(NotFoundException.class);
     }
 }

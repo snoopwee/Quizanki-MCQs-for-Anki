@@ -488,4 +488,38 @@ describe("buildMixedQuestions", () => {
       expect(crossType.length).toBeGreaterThanOrEqual(1);
     }
   });
+
+  it("eligibleNoteIds restricts which notes are asked (starred-only quiz)", () => {
+    // Only b1 and b3 are "starred". Every question must come from that subset,
+    // even though we asked for more questions than the subset has.
+    const eligible = new Set(["b1", "b3"]);
+    const questions = buildMixedQuestions(
+      [basicSpec(basicNotes)],
+      5,
+      makeRng(),
+      eligible,
+    );
+    expect(questions.length).toBe(2);
+    for (const q of questions) expect(eligible.has(q.noteId)).toBe(true);
+  });
+
+  it("starred-only quiz still draws distractors from the full deck", () => {
+    // Ask only b1, but its distractors should be able to include other notes'
+    // answers (the full-pool rule) — not collapse to a 1-option question.
+    const eligible = new Set(["b1"]);
+    const questions = buildMixedQuestions(
+      [basicSpec(basicNotes)],
+      1,
+      makeRng(),
+      eligible,
+    );
+    expect(questions).toHaveLength(1);
+    const q = questions[0];
+    expect(q.noteId).toBe("b1");
+    expect(q.options).toHaveLength(4);
+    expect(q.options).toContain("to eat"); // correct
+    // At least one distractor is some other note's answer.
+    const others = new Set(["to drink", "to go", "to see", "to speak"]);
+    expect(q.options.some((o) => others.has(o))).toBe(true);
+  });
 });

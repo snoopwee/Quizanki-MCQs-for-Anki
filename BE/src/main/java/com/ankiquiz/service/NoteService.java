@@ -46,14 +46,14 @@ public class NoteService {
 
     @Transactional(readOnly = true)
     public List<NoteResponse> getNotes(String userId, UUID deckId, List<String> tags,
-                                       boolean weakOnly, Integer limit) {
+                                       boolean weakOnly, boolean starredOnly, Integer limit) {
         deckRepository.findByIdAndUserId(deckId, userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
 
         String tagsCsv = (tags == null || tags.isEmpty()) ? "" : String.join(",", tags);
         int effectiveLimit = clampLimit(limit);
 
-        List<Note> notes = noteRepository.findFiltered(deckId, tagsCsv, weakOnly, effectiveLimit);
+        List<Note> notes = noteRepository.findFiltered(deckId, tagsCsv, weakOnly, starredOnly, effectiveLimit);
         if (notes.isEmpty()) {
             return List.of();
         }
@@ -97,6 +97,43 @@ public class NoteService {
 
         CardStats stats = cardStatsRepository.findById(saved.getId()).orElse(null);
         return NoteResponse.from(saved, stats == null ? null : CardStatsResponse.from(stats));
+    }
+
+    /**
+     * Star / unstar a flashcard (a user focus flag). Scoped by deck ownership,
+     * then note→deck. The star lives on card_stats, which may not have a row yet
+     * for a card the user has never answered — in that case we insert a fresh row
+     * with default counters and only `starred` set, mirroring the column defaults
+     * (record_answer takes over the counters on the first answer).
+     */
+    @Transactional
+    public NoteResponse setStarred(String userId, UUID deckId, UUID noteId, boolean starred) {
+        deckRepository.findByIdAndUserId(deckId, userId)
+                .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
+        Note note = noteRepository.findByIdAndDeckId(noteId, deckId)
+                .orElseThrow(() -> new NotFoundException("Note not found: " + noteId));
+
+        CardStats stats = cardStatsRepository.findById(note.getId())
+                .orElseGet(() -> newStatsRow(note.getId()));
+        stats.setStarred(starred);
+        CardStats saved = cardStatsRepository.save(stats);
+
+        return NoteResponse.from(note, CardStatsResponse.from(saved));
+    }
+
+    // A fresh card_stats row for a never-answered note. JPA includes every column
+    // in the INSERT, so DB-level defaults wouldn't apply — set them explicitly to
+    // match the V1/V3/V5 column defaults.
+    private static CardStats newStatsRow(UUID noteId) {
+        CardStats stats = new CardStats();
+        stats.setNoteId(noteId);
+        stats.setTimesSeen(0);
+        stats.setTimesCorrect(0);
+        stats.setAccuracy(0.0);
+        stats.setStreak(0);
+        stats.setMastery(0.0);
+        stats.setStarred(false);
+        return stats;
     }
 
     // Keys the edit form may write: the note type's declared field names when we

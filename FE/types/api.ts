@@ -10,6 +10,8 @@ export interface CardStatsResponse {
   streak: number;
   // 0-100. The signal that drives quiz card selection. Distinct from accuracy.
   mastery: number;
+  // User-set focus flag. Lets the learner mark cards and run a starred-only quiz.
+  starred: boolean;
   lastSeenAt: string | null;
 }
 

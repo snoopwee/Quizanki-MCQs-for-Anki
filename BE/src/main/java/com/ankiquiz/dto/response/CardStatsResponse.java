@@ -10,6 +10,7 @@ public record CardStatsResponse(
         Double accuracy,
         Integer streak,
         Double mastery,
+        boolean starred,
         OffsetDateTime lastSeenAt
 ) {
     public static CardStatsResponse from(CardStats stats) {
@@ -19,6 +20,7 @@ public record CardStatsResponse(
                 stats.getAccuracy(),
                 stats.getStreak(),
                 stats.getMastery(),
+                Boolean.TRUE.equals(stats.getStarred()),
                 stats.getLastSeenAt()
         );
     }

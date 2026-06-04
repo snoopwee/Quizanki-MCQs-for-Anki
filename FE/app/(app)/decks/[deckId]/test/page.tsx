@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useDeckContents } from "@/hooks/useDecks";
-import { useNotes } from "@/hooks/useNotes";
+import { useNotes, useToggleStar } from "@/hooks/useNotes";
 import { deckContentsToParsed } from "@/lib/deckContents";
 import { useQuizStore } from "@/stores/quizStore";
 import { ApkgQuizSetup, type NoteStatsLookup } from "@/components/deck/ApkgQuizSetup";
@@ -25,6 +25,7 @@ export default function DeckTestPage() {
 
   const contentsQuery = useDeckContents(deckId);
   const notesQuery = useNotes(deckId);
+  const toggleStar = useToggleStar(deckId);
 
   const parsed = useMemo(
     () => (contentsQuery.data ? deckContentsToParsed(contentsQuery.data) : null),
@@ -32,16 +33,21 @@ export default function DeckTestPage() {
   );
 
   const getStats: NoteStatsLookup = useMemo(() => {
-    const map = new Map<string, { mastery: number; timesSeen: number }>();
+    const map = new Map<string, { mastery: number; timesSeen: number; starred: boolean }>();
     for (const n of notesQuery.data ?? []) {
       const s = n.cardStats;
       map.set(n.id, {
         mastery: s?.mastery ?? 0,
         timesSeen: s?.timesSeen ?? 0,
+        starred: s?.starred ?? false,
       });
     }
     return (noteId) => map.get(noteId);
   }, [notesQuery.data]);
+
+  const getStarred = (id: string) => getStats(id)?.starred ?? false;
+  const onToggleStar = (id: string, next: boolean) =>
+    toggleStar.mutate({ noteId: id, starred: next });
 
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -96,6 +102,8 @@ export default function DeckTestPage() {
         onEndTest={endTest}
         onOpenSettings={() => setSettingsOpen(true)}
         getStats={getStats}
+        getStarred={getStarred}
+        onToggleStar={onToggleStar}
       />
       {settingsOpen && parsed && (
         <Modal title="Quiz settings" onClose={() => setSettingsOpen(false)}>

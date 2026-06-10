@@ -178,9 +178,10 @@ export function FlashcardViewer({
 
   const card = cards[index];
   const cardStage = getStats ? classifyMastery(getStats(card.id)) : null;
-  // TTS reads the term (front) face only — the thing you're trying to learn to
-  // say — never the answer/translation on the back.
-  const termText = card.front.join(". ");
+  // TTS reads the whole card — the term (front) face, then the answer/translation
+  // on the back — so a click speaks everything in order. Language is auto-detected
+  // per segment, so a foreign term + native answer each read in their own voice.
+  const cardText = [...card.front, ...card.back].join(". ");
 
   function go(delta: number) {
     cancelSpeech(); // don't keep reading the old card after navigating away
@@ -217,9 +218,9 @@ export function FlashcardViewer({
         <div className="flex items-center justify-between gap-2 text-xs text-neutral-500">
           <div className="flex items-center gap-4">
             {speechOn && (
-              // Dedicated "Listen" button — always reads the term (front) face,
+              // Dedicated "Listen" button — reads the whole card (front then back),
               // whichever side is currently showing.
-              <SpeakButton id="term" text={termText} label="Listen" size="sm" />
+              <SpeakButton id="card" text={cardText} label="Listen" size="sm" />
             )}
             {canStar && (
               <div className="flex items-center gap-1.5">
@@ -342,8 +343,13 @@ export function FlashcardViewer({
                 speechOn || canStar || (canEdit && noteIndex.has(c.id)) ? (
                   <div className="flex items-center gap-1">
                     {speechOn && (
-                      // Reads this row's term (front), language auto-detected.
-                      <SpeakButton id={`preview-${i}`} text={c.front.join(". ")} size="sm" />
+                      // Reads this row's whole card (front then back), language
+                      // auto-detected per segment.
+                      <SpeakButton
+                        id={`preview-${i}`}
+                        text={[...c.front, ...c.back].join(". ")}
+                        size="sm"
+                      />
                     )}
                     {starFor(c.id, "sm")}
                     {canEdit && noteIndex.has(c.id) && (

@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useQuizStore } from "@/stores/quizStore";
 import { useGuestMastery } from "@/stores/guestMasteryStore";
 import { useRecordAnswer } from "@/hooks/useQuizSession";
+import { cancelSpeech } from "@/lib/tts";
 import { reshuffleQuestions } from "@/lib/buildQuestions";
 import { applyAnswer } from "@/lib/mastery";
 import { ProgressBar } from "./ProgressBar";
@@ -65,6 +66,12 @@ export function QuizSession({
   const recordGuestAnswer = useGuestMastery((s) => s.recordAnswer);
 
   const finished = currentIndex >= questions.length;
+
+  // Stop any in-progress narration when the question changes or the quiz unmounts,
+  // so audio never bleeds from one card (or screen) into the next.
+  useEffect(() => {
+    return () => cancelSpeech();
+  }, [currentIndex]);
 
   // Fire onFinish once per completion (reset when a new/retake quiz starts).
   const finishFiredRef = useRef(false);

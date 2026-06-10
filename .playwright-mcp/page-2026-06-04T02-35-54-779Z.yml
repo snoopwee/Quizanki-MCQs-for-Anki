@@ -1,0 +1,27 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - button "Quizanki." [ref=e5]
+  - main [ref=e7]:
+    - generic [ref=e8]:
+      - paragraph [ref=e9]: Anki decks → multiple choice
+      - heading "Study your Anki decks as quizzes." [level=1] [ref=e11]
+      - paragraph [ref=e12]:
+        - text: Upload a
+        - code [ref=e13]: .apkg
+        - text: file and start a multiple-choice quiz in seconds. No account needed — sign up later to save your decks and track progress.
+      - list [ref=e14]:
+        - listitem [ref=e15]:
+          - generic [ref=e16]: ✓
+          - text: Auto-detects fields
+        - listitem [ref=e17]:
+          - generic [ref=e18]: ✓
+          - text: Flashcard study mode
+        - listitem [ref=e19]:
+          - generic [ref=e20]: ✓
+          - text: Distractors from your own deck
+      - generic [ref=e21]:
+        - button "Drop your .apkg here, or click to browse Anki deck export · up to 50 MB" [ref=e24]:
+          - img [ref=e26]
+          - generic [ref=e28]: Drop your .apkg here, or click to browse
+          - generic [ref=e29]: Anki deck export · up to 50 MB
+        - paragraph [ref=e30]: We read the cards only — images and audio stay on your device.

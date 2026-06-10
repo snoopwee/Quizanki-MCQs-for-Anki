@@ -55,6 +55,20 @@ supabase:
   # Override per-environment via the SUPABASE_URL env var.
   url: ${SUPABASE_URL:https://replace-me.supabase.co}
 
+tts:
+  # Cloud text-to-speech fallback (Google Cloud TTS) for languages a visitor's
+  # device has no voice for. ALL secrets default empty so the feature is dormant
+  # until configured — with no api-key the endpoint returns 503 and the FE stays
+  # on free device voices. See ROADMAP / the TTS setup notes.
+  google:
+    api-key: ${GOOGLE_TTS_API_KEY:}
+  supabase:
+    # Service-role key used only to write/read the audio cache bucket. Without it,
+    # synthesized audio is returned inline (data URL) instead of being cached.
+    service-key: ${SUPABASE_SERVICE_KEY:}
+  cache:
+    bucket: ${TTS_CACHE_BUCKET:tts-cache}
+
 app:
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000}

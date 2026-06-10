@@ -49,6 +49,18 @@ public class GlobalExceptionHandler {
                 .body(error(HttpStatus.PAYLOAD_TOO_LARGE, "Uploaded file exceeds the size limit.", null));
     }
 
+    @ExceptionHandler(TtsUnavailableException.class)
+    public ResponseEntity<Map<String, Object>> handleTtsUnavailable(TtsUnavailableException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(error(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), null));
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleRateLimited(RateLimitExceededException ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(error(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), null));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleAll(Exception ex) {
         log.error("Unhandled exception", ex);

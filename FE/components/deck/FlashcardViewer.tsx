@@ -6,6 +6,9 @@ import { classifyMastery } from "@/lib/masteryStage";
 import { CardPreviewRow, Lines, StageBadge } from "./CardPreview";
 import { KebabMenu } from "@/components/shared/KebabMenu";
 import { StarButton } from "@/components/shared/StarButton";
+import { SpeakButton } from "@/components/shared/SpeakButton";
+import { useSpeechSupported } from "@/hooks/useSpeech";
+import { cancelSpeech } from "@/lib/tts";
 import { EditFlashcardModal, type EditableNote } from "./EditFlashcardModal";
 import type { ApkgParseResponse } from "@/types/api";
 
@@ -63,6 +66,9 @@ export function FlashcardViewer({
   onToggleStar?: (id: string, next: boolean) => void;
 }) {
   const cards = useMemo(() => buildFlashcards(parsed.noteTypes), [parsed]);
+  // Text-to-speech: a mount-aware support gate (the language is auto-detected per
+  // card, so there's no per-deck setting to thread through).
+  const speechOn = useSpeechSupported();
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [visible, setVisible] = useState(INITIAL_VISIBLE);
@@ -172,8 +178,12 @@ export function FlashcardViewer({
 
   const card = cards[index];
   const cardStage = getStats ? classifyMastery(getStats(card.id)) : null;
+  // TTS reads the term (front) face only — the thing you're trying to learn to
+  // say — never the answer/translation on the back.
+  const termText = card.front.join(". ");
 
   function go(delta: number) {
+    cancelSpeech(); // don't keep reading the old card after navigating away
     setFlipped(false);
     setIndex((i) => Math.min(cards.length - 1, Math.max(0, i + delta)));
   }
@@ -203,16 +213,21 @@ export function FlashcardViewer({
         )}
       </div>
 
-      {(canStar || (canEdit && noteIndex.has(card.id))) && (
+      {(speechOn || canStar || (canEdit && noteIndex.has(card.id))) && (
         <div className="flex items-center justify-between gap-2 text-xs text-neutral-500">
-          {canStar ? (
-            <div className="flex items-center gap-1.5">
-              {starFor(card.id, "md")}
-              <span>{getStarred!(card.id) ? "Starred" : "Star this card"}</span>
-            </div>
-          ) : (
-            <span />
-          )}
+          <div className="flex items-center gap-4">
+            {speechOn && (
+              // Dedicated "Listen" button — always reads the term (front) face,
+              // whichever side is currently showing.
+              <SpeakButton id="term" text={termText} label="Listen" size="sm" />
+            )}
+            {canStar && (
+              <div className="flex items-center gap-1.5">
+                {starFor(card.id, "md")}
+                <span>{getStarred!(card.id) ? "Starred" : "Star this card"}</span>
+              </div>
+            )}
+          </div>
           {canEdit && noteIndex.has(card.id) ? (
             <div className="flex items-center gap-1">
               <span>Edit this card</span>
@@ -324,8 +339,12 @@ export function FlashcardViewer({
               back={c.back}
               stats={getStats?.(c.id)}
               action={
-                canStar || (canEdit && noteIndex.has(c.id)) ? (
+                speechOn || canStar || (canEdit && noteIndex.has(c.id)) ? (
                   <div className="flex items-center gap-1">
+                    {speechOn && (
+                      // Reads this row's term (front), language auto-detected.
+                      <SpeakButton id={`preview-${i}`} text={c.front.join(". ")} size="sm" />
+                    )}
                     {starFor(c.id, "sm")}
                     {canEdit && noteIndex.has(c.id) && (
                       <KebabMenu

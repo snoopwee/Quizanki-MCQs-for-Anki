@@ -10,12 +10,9 @@ import { useEffect, useState } from "react";
 type ToastKind = "pending" | "success" | "error";
 
 const KIND_STYLES: Record<ToastKind, string> = {
-  pending:
-    "border-neutral-200 bg-white text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200",
-  success:
-    "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/60 dark:text-emerald-200",
-  error:
-    "border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/60 dark:text-red-200",
+  pending: "border-line bg-surface text-ink",
+  success: "border-success/30 bg-success/10 text-success",
+  error: "border-danger/30 bg-danger/10 text-danger",
 };
 
 const SUCCESS_AUTO_DISMISS_MS = 3000;
@@ -58,7 +55,7 @@ export function Toast({
       {kind === "pending" && (
         <span
           aria-hidden
-          className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-neutral-400 border-t-transparent"
+          className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent opacity-60"
         />
       )}
       {kind === "success" && <span aria-hidden>✓</span>}
@@ -73,7 +70,7 @@ export function Toast({
         type="button"
         aria-label="Dismiss"
         onClick={onDismiss}
-        className="ml-1 rounded px-1 text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10"
+        className="ml-1 rounded px-1 opacity-70 transition hover:bg-ink/10 hover:opacity-100"
       >
         ✕
       </button>

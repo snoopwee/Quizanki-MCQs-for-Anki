@@ -7,7 +7,7 @@ import { classifyMastery, type StageInfo } from "@/lib/masteryStage";
 // Renders each field value on its own line, or a muted placeholder when empty.
 export function Lines({ values, className = "" }: { values: string[]; className?: string }) {
   if (values.length === 0) {
-    return <span className="text-neutral-400">(empty)</span>;
+    return <span className="text-faint">(empty)</span>;
   }
   return (
     <>
@@ -61,7 +61,7 @@ export function CardPreviewRow({
 }) {
   const info = stats ? classifyMastery(stats) : null;
   return (
-    <li className="space-y-2 rounded-lg border border-neutral-200 p-4 text-sm dark:border-neutral-800">
+    <li className="space-y-2 rounded-input border border-line bg-surface p-4 text-sm">
       {(info || action) && (
         <div className="flex items-start justify-between gap-2">
           {info ? <StageBadge info={info} /> : <span />}
@@ -69,11 +69,11 @@ export function CardPreviewRow({
         </div>
       )}
       <div className="grid grid-cols-[1fr_2fr] gap-4">
-        <div className="space-y-0.5 font-medium">
+        <div className="space-y-0.5 font-medium text-ink">
           <Lines values={front} />
         </div>
-        <div className="relative border-l border-neutral-200 dark:border-neutral-700">
-          <div className="nice-scroll absolute inset-0 space-y-0.5 overflow-y-auto pl-4 text-neutral-600 dark:text-neutral-300">
+        <div className="relative border-l border-line">
+          <div className="nice-scroll absolute inset-0 space-y-0.5 overflow-y-auto pl-4 text-muted">
             <Lines values={back} />
           </div>
         </div>

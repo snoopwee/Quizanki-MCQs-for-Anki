@@ -52,7 +52,7 @@ export function KebabMenu({
         aria-controls={open ? menuId : undefined}
         aria-label={label}
         onClick={() => setOpen((o) => !o)}
-        className="rounded-md px-2 py-1 text-lg leading-none text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+        className="rounded-input px-2 py-1 text-lg leading-none text-muted transition hover:bg-surface-2 hover:text-ink"
       >
         ⋯
       </button>
@@ -60,7 +60,7 @@ export function KebabMenu({
         <div
           id={menuId}
           role="menu"
-          className={`absolute z-20 mt-1 min-w-36 overflow-hidden rounded-lg border border-neutral-200 bg-white py-1 shadow-lg dark:border-neutral-800 dark:bg-neutral-950 ${
+          className={`absolute z-20 mt-1 min-w-36 overflow-hidden rounded-input border border-line bg-surface py-1 shadow-card ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >
@@ -73,10 +73,8 @@ export function KebabMenu({
                 setOpen(false);
                 item.onClick();
               }}
-              className={`block w-full px-3 py-1.5 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
-                item.danger
-                  ? "text-red-600 dark:text-red-400"
-                  : "text-neutral-700 dark:text-neutral-200"
+              className={`block w-full px-3 py-1.5 text-left text-sm transition hover:bg-surface-2 ${
+                item.danger ? "text-danger" : "text-ink"
               }`}
             >
               {item.label}

@@ -35,13 +35,9 @@ export function StarButton({
         e.preventDefault();
         onToggle(!starred);
       }}
-      className={`inline-flex shrink-0 items-center justify-center rounded-full leading-none transition-colors disabled:opacity-50 ${
+      className={`focus-ring inline-flex shrink-0 items-center justify-center rounded-full leading-none transition-colors disabled:opacity-50 ${
         SIZE[size]
-      } ${
-        starred
-          ? "text-amber-500 hover:text-amber-600"
-          : "text-neutral-300 hover:text-amber-500 dark:text-neutral-600 dark:hover:text-amber-400"
-      }`}
+      } ${starred ? "text-warning hover:opacity-80" : "text-faint hover:text-warning"}`}
     >
       <span aria-hidden>{starred ? "★" : "☆"}</span>
     </button>

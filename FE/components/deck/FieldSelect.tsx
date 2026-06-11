@@ -18,23 +18,19 @@ export function FieldSelect({
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-sm font-medium">{label}</label>
+      <label className="text-sm font-medium text-ink">{label}</label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-neutral-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-900 dark:border-neutral-700 dark:focus:border-neutral-200"
+        className="focus-ring w-full rounded-input border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink outline-none"
       >
         {fields.map((f) => (
-          <option
-            key={f}
-            value={f}
-            className="bg-white text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
-          >
+          <option key={f} value={f} className="bg-surface text-ink">
             {f}
           </option>
         ))}
       </select>
-      <p className="truncate text-xs text-neutral-500" title={sample}>
+      <p className="truncate text-xs text-faint" title={sample}>
         e.g. {sample}
       </p>
     </div>

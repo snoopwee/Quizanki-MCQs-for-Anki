@@ -21,7 +21,7 @@ import { ImportCardsModal, type ImportMode } from "@/components/deck/ImportCards
 
 export default function DeckEditPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-neutral-500">Loading editor…</p>}>
+    <Suspense fallback={<p className="text-sm text-muted">Loading editor…</p>}>
       <DeckEditor />
     </Suspense>
   );
@@ -112,13 +112,13 @@ function DeckEditor() {
   }, [draft, query]);
 
   if (contentsQuery.isLoading || !draft) {
-    return <p className="text-sm text-neutral-500">Loading editor…</p>;
+    return <p className="text-sm text-muted">Loading editor…</p>;
   }
   if (contentsQuery.isError || !contentsQuery.data) {
     return (
       <div className="mx-auto max-w-3xl space-y-3">
-        <p className="text-sm text-neutral-500">Deck not found.</p>
-        <Link href="/dashboard" className="text-sm font-medium underline">
+        <p className="text-sm text-muted">Deck not found.</p>
+        <Link href="/dashboard" className="text-sm font-medium text-accent hover:underline">
           Back to decks
         </Link>
       </div>
@@ -136,25 +136,25 @@ function DeckEditor() {
         <button
           type="button"
           onClick={handleCancel}
-          className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+          className="rounded-input border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent"
         >
           ← Cancel
         </button>
-        <h1 className="text-lg font-semibold">Edit flashcards</h1>
+        <h1 className="font-display text-lg font-semibold tracking-tight">Edit flashcards</h1>
         <div className="ml-auto flex gap-2">
           <button
             type="button"
             onClick={swapAll}
             aria-label="Swap term and definition for all cards"
             title="Swap the term and definition of all cards"
-            className="rounded-md border border-neutral-300 px-2.5 py-1.5 text-base leading-none hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+            className="rounded-input border border-line-strong bg-surface px-2.5 py-1.5 text-base leading-none transition hover:border-accent hover:text-accent"
           >
             ⇅
           </button>
           <button
             type="button"
             onClick={() => setImportOpen(true)}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+            className="rounded-input border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent"
           >
             Import cards
           </button>
@@ -162,7 +162,7 @@ function DeckEditor() {
             type="button"
             onClick={handleSave}
             disabled={saveDisabled}
-            className="rounded-md bg-black px-4 py-1.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+            className="focus-ring rounded-input bg-accent px-4 py-1.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-50"
           >
             {save.isPending ? "Saving…" : "Save"}
           </button>
@@ -170,12 +170,12 @@ function DeckEditor() {
       </div>
 
       {otherTab && (
-        <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+        <p className="rounded-input border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
           This deck is open in another tab. Whichever tab you save last wins.
         </p>
       )}
       {save.isError && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
+        <p className="rounded-input border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
           Couldn&apos;t save the deck. Please try again.
         </p>
       )}
@@ -186,7 +186,7 @@ function DeckEditor() {
           type="text"
           value={draft.name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900"
+          className="focus-ring w-full rounded-input border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink outline-none"
         />
       </label>
 
@@ -196,21 +196,21 @@ function DeckEditor() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search cards…"
-          className="w-full max-w-xs rounded-md border border-neutral-300 px-3 py-1.5 text-sm focus:border-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900"
+          className="focus-ring w-full max-w-xs rounded-input border border-line-strong bg-surface-2 px-3 py-1.5 text-sm text-ink outline-none placeholder:text-faint"
         />
-        <span className="shrink-0 text-xs text-neutral-500">
+        <span className="shrink-0 font-mono text-xs text-muted">
           {visibleKeys ? `${visibleKeys.size} of ${rows.length}` : rows.length} cards
         </span>
       </div>
 
       {visibleKeys?.size === 0 && (
-        <p className="rounded-lg border border-dashed border-neutral-300 px-4 py-6 text-center text-sm text-neutral-500 dark:border-neutral-700">
+        <p className="rounded-card border border-dashed border-line-strong px-4 py-6 text-center text-sm text-muted">
           No cards match “{search.trim()}”.
         </p>
       )}
 
       {reorderable && rows.length > 1 && (
-        <p className="text-xs text-neutral-400">Drag a card to reorder it.</p>
+        <p className="text-xs text-faint">Drag a card to reorder it.</p>
       )}
 
       {/* While searching, indices are partial — show a plain, non-draggable list.
@@ -240,7 +240,7 @@ function DeckEditor() {
             visibleKeys && !visibleKeys.has(row.key) ? null : (
               <li
                 key={row.key}
-                className="space-y-2 rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-950"
+                className="space-y-2 rounded-card border border-line bg-surface p-4"
               >
                 <CardBody
                   row={row}
@@ -258,7 +258,7 @@ function DeckEditor() {
       <button
         type="button"
         onClick={addRow}
-        className="w-full rounded-lg border border-dashed border-neutral-300 px-4 py-3 text-sm text-neutral-600 hover:border-neutral-400 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-900"
+        className="w-full rounded-card border border-dashed border-line-strong px-4 py-3 text-sm text-muted transition hover:border-accent hover:bg-accent-soft/40 hover:text-accent"
       >
         + Add a card
       </button>
@@ -300,7 +300,7 @@ function DraggableCard({ row, index, onField, onSwap, onDelete }: CardProps) {
       dragControls={controls}
       onPointerDown={startDrag}
       whileDrag={{ scale: 1.02, boxShadow: "0 12px 28px rgba(0,0,0,0.18)" }}
-      className="cursor-grab space-y-2 select-none rounded-lg border border-neutral-200 bg-white p-4 active:cursor-grabbing dark:border-neutral-800 dark:bg-neutral-950"
+      className="cursor-grab space-y-2 select-none rounded-card border border-line bg-surface p-4 active:cursor-grabbing"
     >
       <CardBody row={row} index={index} onField={onField} onSwap={onSwap} onDelete={onDelete} />
     </Reorder.Item>
@@ -312,7 +312,7 @@ function DraggableCard({ row, index, onField, onSwap, onDelete }: CardProps) {
 function CardBody({ row, index, onField, onSwap, onDelete }: CardProps) {
   return (
     <>
-      <div className="flex items-center gap-2 text-xs text-neutral-400">
+      <div className="flex items-center gap-2 font-mono text-xs text-faint">
         <span>#{index + 1}</span>
         <div className="ml-auto flex items-center gap-1">
           {canSwapRow(row) && (
@@ -324,12 +324,12 @@ function CardBody({ row, index, onField, onSwap, onDelete }: CardProps) {
       <div className="space-y-2">
         {row.fieldNames.map((field) => (
           <label key={field} className="block space-y-1">
-            <span className="text-xs font-medium text-neutral-500">{fieldLabel(field)}</span>
+            <span className="font-mono text-xs font-medium text-muted">{fieldLabel(field)}</span>
             <textarea
               value={row.fields[field] ?? ""}
               onChange={(e) => onField(row.key, field, e.target.value)}
               rows={row.cloze ? 3 : 2}
-              className="nice-scroll w-full cursor-text select-text resize-y rounded-md border border-neutral-300 px-3 py-1.5 text-sm focus:border-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900"
+              className="nice-scroll focus-ring w-full cursor-text select-text resize-y rounded-input border border-line-strong bg-surface-2 px-3 py-1.5 text-sm text-ink outline-none"
             />
           </label>
         ))}
@@ -358,8 +358,8 @@ function IconBtn({
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className={`cursor-pointer rounded px-1.5 py-0.5 text-sm hover:bg-neutral-100 disabled:cursor-default disabled:opacity-30 dark:hover:bg-neutral-800 ${
-        danger ? "text-red-600 dark:text-red-400" : "text-neutral-600 dark:text-neutral-300"
+      className={`cursor-pointer rounded px-1.5 py-0.5 text-sm transition hover:bg-surface-2 disabled:cursor-default disabled:opacity-30 ${
+        danger ? "text-danger" : "text-muted"
       }`}
     >
       {children}

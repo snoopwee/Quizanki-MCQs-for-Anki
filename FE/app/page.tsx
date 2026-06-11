@@ -72,7 +72,7 @@ function Landing() {
   ) : user ? (
     <Link
       href="/dashboard"
-      className="rounded-full bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+      className="rounded-full bg-ink px-4 py-1.5 text-sm font-semibold text-canvas transition hover:opacity-90"
     >
       Dashboard →
     </Link>
@@ -80,7 +80,7 @@ function Landing() {
     <button
       type="button"
       onClick={() => setAuthOpen(true)}
-      className="rounded-full border border-neutral-300 px-4 py-1.5 text-sm font-medium hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+      className="rounded-full border border-line-strong bg-surface px-4 py-1.5 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent"
     >
       Log in
     </button>
@@ -97,10 +97,10 @@ function Landing() {
       {step.kind === "import" && (
         <section className="mx-auto max-w-2xl px-6 py-16 text-center lg:py-24">
           <p
-            className="rise flex items-center justify-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-neutral-500"
+            className="rise inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted shadow-sm"
             style={{ animationDelay: "0ms" }}
           >
-            <span className="inline-block h-2 w-2 rounded-[2px] bg-neutral-900 dark:bg-neutral-100" />
+            <span className="inline-block h-2 w-2 rounded-[2px] bg-accent" />
             Anki decks → multiple choice
           </p>
           <h1
@@ -108,24 +108,24 @@ function Landing() {
             style={{ animationDelay: "70ms" }}
           >
             Study your Anki decks{" "}
-            <span className="italic text-neutral-500 dark:text-neutral-400">as quizzes.</span>
+            <span className="italic text-accent">as quizzes.</span>
           </h1>
           <p
-            className="rise mx-auto mt-6 max-w-md text-base leading-relaxed text-neutral-600 dark:text-neutral-400"
+            className="rise mx-auto mt-6 max-w-md text-base leading-relaxed text-muted"
             style={{ animationDelay: "140ms" }}
           >
-            Upload a <code className="rounded bg-neutral-100 px-1.5 py-0.5 text-sm dark:bg-neutral-800">.apkg</code> file
+            Upload a <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-sm text-ink">.apkg</code> file
             and start a multiple-choice quiz in seconds. No account needed — sign up later to save
             your decks and track progress.
           </p>
           <ul
-            className="rise mt-6 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-neutral-500"
+            className="rise mt-6 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-muted"
             style={{ animationDelay: "190ms" }}
           >
             {["Auto-detects fields", "Flashcard study mode", "Distractors from your own deck"].map(
               (f) => (
                 <li key={f} className="flex items-center gap-1.5">
-                  <span aria-hidden className="text-neutral-400">
+                  <span aria-hidden className="text-success">
                     ✓
                   </span>
                   {f}
@@ -135,13 +135,13 @@ function Landing() {
           </ul>
 
           <div className="rise mx-auto mt-10 max-w-lg text-left" style={{ animationDelay: "220ms" }}>
-            <div className="rounded-3xl border border-neutral-200 bg-white/70 p-5 shadow-xl shadow-neutral-900/5 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/70">
+            <div className="rounded-card border border-line bg-surface/80 p-5 shadow-card backdrop-blur">
               <ApkgUploader
                 hideHeading
                 onContinue={(parsed) => setStep({ kind: "flashcards", parsed })}
               />
             </div>
-            <p className="mt-3 text-center text-xs text-neutral-400">
+            <p className="mt-3 text-center text-xs text-faint">
               We read the cards only — images and audio stay on your device.
             </p>
           </div>
@@ -250,27 +250,31 @@ function Shell({
   // navigating (clicking a same-route <Link> wouldn't reset the step state).
   onHome?: () => void;
 }) {
-  const wordmarkClass = "font-display text-lg font-semibold tracking-tight";
   const wordmark = (
-    <>
-      Quizanki
-      <span className="text-neutral-300 dark:text-neutral-600">.</span>
-    </>
+    <span className="flex items-center gap-2">
+      <span
+        className="font-display grid h-7 w-7 place-items-center rounded-[9px] bg-linear-to-br from-accent to-accent-2 text-sm font-bold text-white shadow-[0_2px_10px_-2px_var(--accent-glow)]"
+        aria-hidden
+      >
+        Q
+      </span>
+      <span className="font-display text-lg font-semibold tracking-tight">
+        Quizanki<span className="text-accent">.</span>
+      </span>
+    </span>
   );
 
   return (
     <div className="relative min-h-screen">
       <div aria-hidden className="landing-grid pointer-events-none absolute inset-0 -z-10" />
-      <header className="sticky top-0 z-40 border-b border-neutral-200/70 bg-white/80 backdrop-blur dark:border-neutral-800/70 dark:bg-neutral-950/80">
+      <header className="sticky top-0 z-40 border-b border-line bg-canvas/80 backdrop-blur">
         <div className="flex items-center justify-between px-6 py-4 sm:px-8">
           {onHome ? (
-            <button type="button" onClick={onHome} className={wordmarkClass}>
+            <button type="button" onClick={onHome}>
               {wordmark}
             </button>
           ) : (
-            <Link href="/" className={wordmarkClass}>
-              {wordmark}
-            </Link>
+            <Link href="/">{wordmark}</Link>
           )}
           {cta}
         </div>

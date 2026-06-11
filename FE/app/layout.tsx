@@ -1,14 +1,30 @@
 import type { Metadata } from "next";
-import { Fraunces } from "next/font/google";
+import { Space_Grotesk, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
-// Distinctive editorial serif for the wordmark and display headings; the body
-// stays on the system sans. Exposed as a CSS var and used via the .font-display
-// utility (see globals.css).
-const fraunces = Fraunces({
+// Warm "study desk" type system (see FE/DESIGN_SYSTEM.md):
+//   Space Grotesk — display / headings (tight, academic)
+//   Geist         — body / UI
+//   Geist Mono    — tags, stat captions, kbd hints
+// Each is exposed as a CSS var and mapped onto a Tailwind token in globals.css
+// (--font-display / --font-sans / --font-mono → font-display / font-sans / font-mono).
+const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
-  variable: "--font-fraunces",
+  weight: ["500", "600", "700"],
+  variable: "--font-space-grotesk",
+  display: "swap",
+});
+
+const geist = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist",
+  display: "swap",
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
   display: "swap",
 });
 
@@ -21,7 +37,11 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={fraunces.variable}>
+    <html
+      lang="en"
+      data-theme="light"
+      className={`${spaceGrotesk.variable} ${geist.variable} ${geistMono.variable}`}
+    >
       <body className="min-h-screen antialiased" suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>

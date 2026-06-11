@@ -53,7 +53,7 @@ export function ImportCardsModal({
             <Radio name="mode" label="Replace the entire set" checked={mode === "replace"} onChange={() => setMode("replace")} />
           </div>
           {mode === "replace" && (
-            <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+            <p className="rounded-input border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
               Replacing removes every current card (and its study progress) when you
               Save.
             </p>
@@ -76,7 +76,7 @@ export function ImportCardsModal({
                 <select
                   value={termDelimiter}
                   onChange={(e) => setTermDelimiter(e.target.value)}
-                  className="rounded-md border border-neutral-300 px-1 py-0.5 dark:border-neutral-700 dark:bg-neutral-900"
+                  className="rounded-input border border-line-strong bg-surface-2 px-1 py-0.5 text-ink"
                 >
                   <option value="\t">Tab</option>
                   <option value=",">Comma</option>
@@ -87,7 +87,7 @@ export function ImportCardsModal({
                 <select
                   value={rowDelimiter}
                   onChange={(e) => setRowDelimiter(e.target.value)}
-                  className="rounded-md border border-neutral-300 px-1 py-0.5 dark:border-neutral-700 dark:bg-neutral-900"
+                  className="rounded-input border border-line-strong bg-surface-2 px-1 py-0.5 text-ink"
                 >
                   <option value="\n">New line</option>
                   <option value=";">Semicolon</option>
@@ -99,17 +99,17 @@ export function ImportCardsModal({
               onChange={(e) => setText(e.target.value)}
               rows={8}
               placeholder={"term\tdefinition\nterm\tdefinition"}
-              className="nice-scroll w-full resize-y rounded-md border border-neutral-300 px-3 py-2 font-mono text-sm dark:border-neutral-700 dark:bg-neutral-900"
+              className="nice-scroll focus-ring w-full resize-y rounded-input border border-line-strong bg-surface-2 px-3 py-2 font-mono text-sm text-ink outline-none placeholder:text-faint"
             />
             <div className="flex items-center justify-between">
-              <span className="text-xs text-neutral-500">
+              <span className="text-xs text-muted">
                 {textRows.length} card{textRows.length === 1 ? "" : "s"} detected
               </span>
               <button
                 type="button"
                 disabled={textRows.length === 0}
                 onClick={() => commit(textRows.map((p) => basicRow(p.front, p.back)))}
-                className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+                className="focus-ring rounded-input bg-accent px-3 py-1.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-50"
               >
                 {mode === "append" ? "Add cards" : "Replace cards"}
               </button>
@@ -119,7 +119,7 @@ export function ImportCardsModal({
 
         {source === "file" && (
           <div className="space-y-2">
-            <p className="text-xs text-neutral-500">
+            <p className="text-xs text-muted">
               Cards from the file are added as Basic (front/back) cards.
             </p>
             <ApkgUploader onContinue={(parsed) => commit(rowsFromParsed(parsed))} />

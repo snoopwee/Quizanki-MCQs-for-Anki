@@ -85,10 +85,10 @@ export function SpeakButton({
     return (
       <button
         {...common}
-        className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-40 ${
+        className={`focus-ring inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-40 ${
           busy
-            ? "border-sky-400 text-sky-600 dark:border-sky-500 dark:text-sky-400"
-            : "border-neutral-300 text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-900"
+            ? "border-accent bg-accent-soft text-accent-ink"
+            : "border-line-strong text-ink hover:border-accent hover:text-accent"
         }`}
       >
         {iconNode}
@@ -101,13 +101,9 @@ export function SpeakButton({
   return (
     <button
       {...common}
-      className={`inline-flex shrink-0 items-center justify-center rounded-full leading-none transition-colors disabled:opacity-40 ${
+      className={`focus-ring inline-flex shrink-0 items-center justify-center rounded-full leading-none transition-colors disabled:opacity-40 ${
         ICON_SIZE[size]
-      } ${
-        busy
-          ? "text-sky-500 hover:text-sky-600"
-          : "text-neutral-400 hover:text-sky-500 dark:text-neutral-500 dark:hover:text-sky-400"
-      }`}
+      } ${busy ? "text-accent hover:opacity-80" : "text-faint hover:text-accent"}`}
     >
       {iconNode}
     </button>

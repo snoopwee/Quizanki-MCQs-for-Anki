@@ -58,10 +58,10 @@ export function EditFlashcardModal({
   return (
     <Modal title="Edit flashcard" onClose={onClose}>
       <div className="space-y-4">
-        <p className="text-xs text-neutral-500">{note.noteType}</p>
+        <p className="font-mono text-xs text-muted">{note.noteType}</p>
 
         {note.cloze && (
-          <p className="rounded-md bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:bg-sky-950/50 dark:text-sky-200">
+          <p className="rounded-input border border-info/30 bg-info/10 px-3 py-2 text-xs text-info">
             This is a cloze card. Keep the <code>{"{{c1::answer}}"}</code> markers
             intact — each one becomes a separate question.
           </p>
@@ -71,7 +71,7 @@ export function EditFlashcardModal({
           <button
             type="button"
             onClick={handleSwap}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+            className="rounded-input border border-line-strong bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-accent hover:text-accent"
           >
             ⇅ Swap front and back
           </button>
@@ -86,23 +86,23 @@ export function EditFlashcardModal({
                 setValues((v) => ({ ...v, [field]: e.target.value }))
               }
               rows={field.toLowerCase().includes("back") || note.cloze ? 4 : 2}
-              className="nice-scroll w-full resize-y rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900"
+              className="nice-scroll focus-ring w-full resize-y rounded-input border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink outline-none"
             />
           </label>
         ))}
 
         {updateNote.isError && (
-          <p className="text-sm text-red-600 dark:text-red-400">
+          <p className="text-sm text-danger">
             Couldn&apos;t save your changes. Please try again.
           </p>
         )}
 
-        <div className="flex justify-end gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+        <div className="flex justify-end gap-2 border-t border-line pt-4">
           <button
             type="button"
             onClick={onClose}
             disabled={updateNote.isPending}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
+            className="rounded-input border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent disabled:opacity-50"
           >
             Cancel
           </button>
@@ -110,7 +110,7 @@ export function EditFlashcardModal({
             type="button"
             onClick={handleSave}
             disabled={updateNote.isPending || !dirty}
-            className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+            className="focus-ring rounded-input bg-accent px-3 py-1.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-60"
           >
             {updateNote.isPending ? "Saving…" : "Save changes"}
           </button>

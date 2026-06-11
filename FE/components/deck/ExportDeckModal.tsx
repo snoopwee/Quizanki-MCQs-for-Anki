@@ -116,10 +116,10 @@ export function ExportDeckModal({
             {FORMATS.map((f) => (
               <label
                 key={f.value}
-                className={`cursor-pointer rounded-lg border p-3 text-sm ${
+                className={`cursor-pointer rounded-input border p-3 text-sm transition ${
                   format === f.value
-                    ? "border-neutral-900 bg-neutral-50 dark:border-neutral-100 dark:bg-neutral-900"
-                    : "border-neutral-200 dark:border-neutral-800"
+                    ? "border-accent bg-accent-soft"
+                    : "border-line hover:border-line-strong"
                 }`}
               >
                 <input
@@ -130,14 +130,14 @@ export function ExportDeckModal({
                   onChange={() => setFormat(f.value)}
                 />
                 <span className="block font-medium">{f.label}</span>
-                <span className="mt-0.5 block text-xs text-neutral-500">{f.hint}</span>
+                <span className="mt-0.5 block text-xs text-muted">{f.hint}</span>
               </label>
             ))}
           </div>
         </fieldset>
 
         {format === "delimited" && (
-          <div className="space-y-3 rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
+          <div className="space-y-3 rounded-card border border-line bg-surface p-3">
             <RadioRow
               label="Separator"
               options={[
@@ -156,7 +156,7 @@ export function ExportDeckModal({
               Include a Tags column
             </label>
             {contents.noteTypes.length > 1 && (
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs text-muted">
                 This deck has multiple note types — each is exported as its own
                 block, prefixed with a <code># name</code> line.
               </p>
@@ -165,7 +165,7 @@ export function ExportDeckModal({
         )}
 
         {format === "text" && (
-          <div className="space-y-3 rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
+          <div className="space-y-3 rounded-card border border-line bg-surface p-3">
             <RadioRow
               label="Between term and definition"
               options={[
@@ -182,7 +182,7 @@ export function ExportDeckModal({
                 value={termCustom}
                 onChange={(e) => setTermCustom(e.target.value)}
                 placeholder="e.g. -"
-                className="w-full rounded-md border border-neutral-300 px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+                className="focus-ring w-full rounded-input border border-line-strong bg-surface-2 px-2 py-1 text-sm text-ink outline-none"
               />
             )}
             <RadioRow
@@ -201,14 +201,14 @@ export function ExportDeckModal({
                 value={rowCustom}
                 onChange={(e) => setRowCustom(e.target.value)}
                 placeholder="e.g. \n\n"
-                className="w-full rounded-md border border-neutral-300 px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+                className="focus-ring w-full rounded-input border border-line-strong bg-surface-2 px-2 py-1 text-sm text-ink outline-none"
               />
             )}
           </div>
         )}
 
         {format === "apkg" && (
-          <p className="rounded-md bg-neutral-50 px-3 py-2 text-xs text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300">
+          <p className="rounded-input bg-surface-2 px-3 py-2 text-xs text-muted">
             Builds an Anki package on the server and downloads it. Card progress
             isn&apos;t included — just the notes and their fields.
           </p>
@@ -216,24 +216,24 @@ export function ExportDeckModal({
 
         {preview && (
           <div className="space-y-1">
-            <span className="text-xs font-medium text-neutral-500">Preview</span>
-            <pre className="nice-scroll max-h-32 overflow-auto rounded-md bg-neutral-50 p-2 text-xs text-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+            <span className="font-mono text-xs font-medium text-faint">Preview</span>
+            <pre className="nice-scroll max-h-32 overflow-auto rounded-input bg-surface-2 p-2 text-xs text-ink">
               {preview}
             </pre>
           </div>
         )}
 
         {exportApkg.isError && (
-          <p className="text-sm text-red-600 dark:text-red-400">
+          <p className="text-sm text-danger">
             Couldn&apos;t build the .apkg. Please try again.
           </p>
         )}
 
-        <div className="flex justify-end gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+        <div className="flex justify-end gap-2 border-t border-line pt-4">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+            className="rounded-input border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent"
           >
             Close
           </button>
@@ -241,7 +241,7 @@ export function ExportDeckModal({
             <button
               type="button"
               onClick={handleCopy}
-              className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+              className="rounded-input border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent"
             >
               {copied ? "Copied ✓" : "Copy to clipboard"}
             </button>
@@ -250,7 +250,7 @@ export function ExportDeckModal({
             type="button"
             onClick={handleDownload}
             disabled={exportApkg.isPending}
-            className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+            className="focus-ring rounded-input bg-accent px-3 py-1.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-60"
           >
             {format === "apkg"
               ? exportApkg.isPending

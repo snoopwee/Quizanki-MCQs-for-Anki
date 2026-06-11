@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { detectFields, selectableFields } from "@/lib/detectFields";
 import {
   buildMixedQuestions,
@@ -18,6 +18,10 @@ import {
 } from "@/lib/quizPreferences";
 import { ConfidenceBadge } from "@/components/shared/ConfidenceBadge";
 import { FieldSelect } from "@/components/deck/FieldSelect";
+import { Card } from "@/components/ui/Card";
+import { Icon, type IconName } from "@/components/ui/icons";
+import { buttonClasses } from "@/components/ui/Button";
+import { Segmented, Toggle, Slider, SoonTag } from "@/components/ui/controls";
 import type { ApkgNoteType, ApkgParseResponse } from "@/types/api";
 
 // A note type can power a multiple-choice quiz when:
@@ -36,6 +40,9 @@ function isQuizable(t: ApkgNoteType): boolean {
 export type NoteStatsLookup = (noteId: string) =>
   | { mastery: number; timesSeen: number; starred?: boolean }
   | undefined;
+
+// Which slice of the deck the quiz draws its questions from.
+type QuizSource = "all" | "starred" | "weak";
 
 export function ApkgQuizSetup({
   parsed,
@@ -95,27 +102,30 @@ export function ApkgQuizSetup({
 
   const totalCards = useMemo(() => totalCardsAcrossTypes(quizable), [quizable]);
 
-  // Starred-only quiz: the set of starred note keys (same id scheme the pool
-  // uses) and how many cards that subset yields. Empty when no stats lookup or
-  // nothing is starred, which disables the toggle.
-  const [starredOnly, setStarredOnly] = useState(false);
+  // "Pull cards from" source. Starred = cards the learner flagged; weak = cards
+  // seen but not yet mastered (mastery < 80). Each subset (and its card count)
+  // is precomputed so we can show the size and disable a source that's empty.
+  const [source, setSource] = useState<QuizSource>("all");
   const starredIds = useMemo(() => collectStarredIds(quizable, getStats), [quizable, getStats]);
-  const starredCardCount = useMemo(
-    () => countStarredCards(quizable, starredIds),
-    [quizable, starredIds],
-  );
-  const availableTotal = starredOnly ? starredCardCount : totalCards;
+  const weakIds = useMemo(() => collectWeakIds(quizable, getStats), [quizable, getStats]);
+  const starredCardCount = useMemo(() => countCardsIn(quizable, starredIds), [quizable, starredIds]);
+  const weakCardCount = useMemo(() => countCardsIn(quizable, weakIds), [quizable, weakIds]);
 
-  const [countText, setCountText] = useState(() =>
-    String(clampCount(savedPrefs?.count ?? 20, totalCards || 1)),
-  );
-  const count = clampCount(Number(countText) || 1, Math.max(availableTotal, 1));
+  const eligibleIds = source === "starred" ? starredIds : source === "weak" ? weakIds : null;
+  const availableTotal =
+    source === "starred" ? starredCardCount : source === "weak" ? weakCardCount : totalCards;
+  const sliderMax = Math.max(availableTotal, 1);
+
+  // Raw user pick; the effective count is clamped to whatever the current source
+  // can actually supply (switching to a smaller subset pulls the number down).
+  const [count, setCount] = useState(() => clampCount(savedPrefs?.count ?? 20, totalCards || 1));
+  const effCount = clampCount(count, sliderMax);
 
   if (quizable.length === 0) {
     return (
       <div className="space-y-5">
-        {showHeading && <h1 className="text-2xl font-semibold">Set up a quiz</h1>}
-        <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+        {showHeading && <h1 className="font-display text-2xl font-semibold tracking-tight">Set up a quiz</h1>}
+        <p className="rounded-input border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
           None of the note types in <span className="font-medium">{parsed.filename}</span> have
           enough quizzable content. Decks with only single-field or image-only note types
           aren&apos;t supported.
@@ -123,7 +133,7 @@ export function ApkgQuizSetup({
         <button
           type="button"
           onClick={onBack}
-          className="rounded-md border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+          className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
         >
           {backLabel}
         </button>
@@ -142,12 +152,11 @@ export function ApkgQuizSetup({
   function handleStart() {
     const specs = buildAllCardsSpecs(quizable, perTypePrefs, getStats);
     if (specs.length === 0) return;
-    // Pass the starred subset as the askable set; distractors still come from
+    // Pass the chosen subset as the askable set; distractors still come from
     // every note (the full-pool rule lives inside buildMixedQuestions).
-    const eligible = starredOnly ? starredIds : undefined;
-    const questions = buildMixedQuestions(specs, count, undefined, eligible);
+    const questions = buildMixedQuestions(specs, effCount, undefined, eligibleIds ?? undefined);
     if (deckId) {
-      saveQuizPreferences(deckId, { count, fieldPrefs: perTypePrefs });
+      saveQuizPreferences(deckId, { count: effCount, fieldPrefs: perTypePrefs });
     }
     onStart(questions);
   }
@@ -159,15 +168,70 @@ export function ApkgQuizSetup({
     }));
   }
 
+  const sourceNoun = source === "starred" ? "starred " : source === "weak" ? "still-learning " : "";
+
   return (
-    <div className="space-y-5">
-      {showHeading && <h1 className="text-2xl font-semibold">Set up a quiz</h1>}
+    <div className="space-y-4">
+      {showHeading && (
+        <div className="space-y-1">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Set up your quiz</h1>
+          <p className="text-sm text-muted">
+            Build a multiple-choice test from{" "}
+            <span className="font-medium text-ink">{parsed.filename}</span>.
+          </p>
+        </div>
+      )}
 
-      <p className="text-sm text-neutral-500">
-        Drawing from {quizable.length} note type{quizable.length === 1 ? "" : "s"} ·{" "}
-        {availableTotal} {starredOnly ? "starred " : ""}card{availableTotal === 1 ? "" : "s"} available
-      </p>
+      {/* how many questions */}
+      <SettingCard
+        title="How many questions?"
+        desc={`${availableTotal} ${sourceNoun}card${availableTotal === 1 ? "" : "s"} available — pick anywhere from 1 to ${sliderMax}.`}
+      >
+        <Slider value={effCount} min={1} max={sliderMax} onChange={setCount} />
+      </SettingCard>
 
+      {/* question types — only multiple choice is real today */}
+      <SettingCard title="Question types">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+          <QTypeChip icon="clipboard" label="Multiple choice" on />
+          <QTypeChip icon="check" label="True / false" soon />
+          <QTypeChip icon="pencil" label="Written" soon />
+        </div>
+      </SettingCard>
+
+      {/* pull cards from */}
+      <SettingCard title="Pull cards from">
+        <Segmented
+          value={source}
+          onChange={setSource}
+          options={[
+            { value: "all", label: "All cards" },
+            { value: "starred", label: "Starred", disabled: starredIds.size === 0 },
+            { value: "weak", label: "Still learning", disabled: weakIds.size === 0 },
+          ]}
+        />
+        <p className="mt-2 text-xs text-muted">
+          {availableTotal} card{availableTotal === 1 ? "" : "s"} in this set
+          {(starredIds.size === 0 || weakIds.size === 0) &&
+            " · star cards or answer a few to unlock the focused sets"}
+          .
+        </p>
+      </SettingCard>
+
+      {/* timer — future feature */}
+      <SettingCard title="Timer" soon>
+        <Segmented
+          value="none"
+          onChange={() => {}}
+          options={[
+            { value: "none", label: "No timer" },
+            { value: "20", label: "20s / question", disabled: true },
+            { value: "10", label: "10s / question", disabled: true },
+          ]}
+        />
+      </SettingCard>
+
+      {/* card fields — the real, deck-specific pickers */}
       {basicTypes.map((nt) => (
         <BasicTypeSection
           key={nt.id}
@@ -179,51 +243,69 @@ export function ApkgQuizSetup({
       ))}
 
       {clozeTypes.length > 0 && (
-        <div className="space-y-2 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
+        <div className="space-y-2 rounded-card border border-line bg-surface p-4">
           <h3 className="text-sm font-medium">
             {clozeTypes.length === 1 ? clozeTypes[0].name : "Cloze note types"}
           </h3>
-          <ul className="space-y-1 text-xs text-neutral-500">
+          <ul className="space-y-1 text-xs text-muted">
             {clozeTypes.map((nt) => (
               <li key={nt.id}>
                 {nt.name} · {cardsInType(nt)} cloze card{cardsInType(nt) === 1 ? "" : "s"}
               </li>
             ))}
           </ul>
-          <p className="text-xs text-neutral-500">
+          <p className="text-xs text-muted">
             Each <code>{`{{c1::...}}`}</code> deletion becomes one quiz card. No field picker
             needed — the cloze text is the prompt.
           </p>
         </div>
       )}
 
-      <StarredOnlyToggle
-        checked={starredOnly}
-        starredCount={starredCardCount}
-        enabled={starredIds.size > 0}
-        onChange={setStarredOnly}
-      />
-
-      <CountInput
-        countText={countText}
-        setCountText={setCountText}
-        rolledCount={count}
-        max={availableTotal}
-      />
+      {/* behaviour toggles — locked on for now */}
+      <Card className="divide-y divide-line p-0">
+        <ToggleRow
+          title="Instant feedback"
+          desc="Show the correct answer right after each question"
+          on
+          disabled
+          soon
+        />
+        <ToggleRow
+          title="Shuffle questions"
+          desc="Randomise the order each attempt"
+          on
+          disabled
+          soon
+        />
+      </Card>
 
       {!canStart && (
-        <p className="text-sm text-red-600 dark:text-red-400">
+        <p className="text-sm text-danger">
           Pick at least one question field for each note type you want to include.
         </p>
       )}
 
-      <SetupActions
-        onBack={onBack}
-        backLabel={backLabel}
-        startLabel={startLabel}
-        canStart={canStart}
-        onStart={handleStart}
-      />
+      {/* start bar */}
+      <div className="mt-2 flex items-center gap-3 rounded-card border border-line-strong bg-surface p-4 shadow-card">
+        <div className="min-w-0">
+          <div className="font-mono text-[11px] uppercase tracking-wide text-faint">Ready</div>
+          <div className="mt-0.5 truncate text-sm font-bold text-ink">
+            {effCount} question{effCount === 1 ? "" : "s"} · untimed
+          </div>
+        </div>
+        <div className="flex-1" />
+        <button type="button" onClick={onBack} className={buttonClasses({ variant: "ghost" })}>
+          {backLabel}
+        </button>
+        <button
+          type="button"
+          disabled={!canStart}
+          onClick={handleStart}
+          className={buttonClasses({ variant: "primary", size: "lg" })}
+        >
+          <Icon name="play" size={16} /> {startLabel}
+        </button>
+      </div>
     </div>
   );
 }
@@ -279,7 +361,7 @@ function BasicTypeSection({
   }
 
   return (
-    <div className="space-y-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
+    <div className="space-y-4 rounded-card border border-line bg-surface p-4">
       {showName && (
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium">{noteType.name}</h3>
@@ -293,12 +375,12 @@ function BasicTypeSection({
       )}
 
       {hasTemplate ? (
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-muted">
           Pre-filled from the deck&apos;s card layout — adjust if needed.
         </p>
       ) : (
         detection.confidence < 0.7 && (
-          <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+          <p className="rounded-input border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
             Detection is unsure — please check the question and answer fields.
           </p>
         )
@@ -306,14 +388,14 @@ function BasicTypeSection({
 
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">Question — shown on the card</legend>
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-muted">
           Tick one or more fields to bundle into each prompt.
         </p>
         <div className="space-y-1.5">
           {questionOptions.map((f) => (
             <label
               key={f}
-              className="flex items-center gap-2 rounded-md border border-neutral-200 p-2 text-sm dark:border-neutral-800"
+              className="flex items-center gap-2 rounded-input border border-line bg-surface p-2 text-sm"
             >
               <input
                 type="checkbox"
@@ -339,110 +421,95 @@ function BasicTypeSection({
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-function CountInput({
-  countText,
-  setCountText,
-  rolledCount,
-  max,
+// A titled settings panel (reference exam-setup layout). `soon` tags the whole
+// card as a not-yet-built control.
+function SettingCard({
+  title,
+  desc,
+  soon = false,
+  children,
 }: {
-  countText: string;
-  setCountText: (s: string) => void;
-  rolledCount: number;
-  max: number;
+  title: string;
+  desc?: string;
+  soon?: boolean;
+  children: ReactNode;
 }) {
   return (
-    <div className="space-y-1.5">
-      <label htmlFor="quiz-count" className="text-sm font-medium">
-        Questions
-      </label>
-      <input
-        id="quiz-count"
-        type="text"
-        inputMode="numeric"
-        autoComplete="off"
-        autoCorrect="off"
-        spellCheck={false}
-        value={countText}
-        onChange={(e) => setCountText(e.target.value.replace(/\D/g, ""))}
-        onBlur={() => setCountText(String(rolledCount))}
-        className="w-full rounded-md border border-neutral-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-900 dark:border-neutral-700 dark:focus:border-neutral-200"
-      />
-      <p className="text-xs text-neutral-500">How many questions to take — 1 to {max}.</p>
-    </div>
+    <Card className="p-5">
+      <div className="mb-3.5 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[15px] font-bold text-ink">{title}</div>
+          {desc && <div className="mt-0.5 text-xs text-muted">{desc}</div>}
+        </div>
+        {soon && <SoonTag className="mt-0.5 shrink-0" />}
+      </div>
+      {children}
+    </Card>
   );
 }
 
-function StarredOnlyToggle({
-  checked,
-  starredCount,
-  enabled,
-  onChange,
+// A question-type pill. `on` = enabled-and-selected (accent), `soon` = a future
+// question format (greyed, Soon-tagged). Presentational — selection isn't wired
+// until those formats exist.
+function QTypeChip({
+  icon,
+  label,
+  on = false,
+  soon = false,
 }: {
-  checked: boolean;
-  starredCount: number;
-  enabled: boolean;
-  onChange: (next: boolean) => void;
+  icon: IconName;
+  label: string;
+  on?: boolean;
+  soon?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
-      <label className={`flex items-center gap-2 text-sm ${enabled ? "" : "opacity-60"}`}>
-        <input
-          type="checkbox"
-          checked={checked && enabled}
-          disabled={!enabled}
-          onChange={(e) => onChange(e.target.checked)}
-        />
-        <span className="font-medium">
-          <span className="text-amber-500" aria-hidden>
-            ★
-          </span>{" "}
-          Starred cards only
-        </span>
-        {enabled && (
-          <span className="text-xs text-neutral-500">
-            {starredCount} card{starredCount === 1 ? "" : "s"}
+    <div
+      className={`flex items-center gap-2.5 rounded-card border px-3.5 py-3 ${
+        on ? "border-accent bg-accent-soft" : "border-line bg-surface-2"
+      } ${soon ? "opacity-70" : ""}`}
+    >
+      <span className={on ? "text-accent-ink" : "text-faint"}>
+        <Icon name={icon} size={18} />
+      </span>
+      <span className={`text-sm font-semibold ${on ? "text-ink" : "text-muted"}`}>{label}</span>
+      <span className="ml-auto">
+        {soon ? (
+          <SoonTag />
+        ) : on ? (
+          <span className="grid h-[18px] w-[18px] place-items-center rounded-[6px] bg-accent text-white">
+            <Icon name="check" size={12} />
           </span>
-        )}
-      </label>
-      {!enabled && (
-        <p className="mt-1 pl-6 text-xs text-neutral-500">
-          Star cards on the flashcard list or during a quiz to use this.
-        </p>
-      )}
+        ) : null}
+      </span>
     </div>
   );
 }
 
-function SetupActions({
-  onBack,
-  backLabel,
-  startLabel,
-  canStart,
-  onStart,
+// One row in the behaviour-toggles card. The switch is locked for now (the
+// behaviour is always on); `soon` flags that the control is coming.
+function ToggleRow({
+  title,
+  desc,
+  on,
+  disabled = false,
+  soon = false,
 }: {
-  onBack: () => void;
-  backLabel: string;
-  startLabel: string;
-  canStart: boolean;
-  onStart: () => void;
+  title: string;
+  desc: string;
+  on: boolean;
+  disabled?: boolean;
+  soon?: boolean;
 }) {
   return (
-    <div className="flex gap-3">
-      <button
-        type="button"
-        onClick={onBack}
-        className="rounded-md border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
-      >
-        {backLabel}
-      </button>
-      <button
-        type="button"
-        disabled={!canStart}
-        onClick={onStart}
-        className="flex-1 rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
-      >
-        {startLabel}
-      </button>
+    <div className="flex items-center gap-4 p-4">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold text-ink">{title}</span>
+          {soon && <SoonTag />}
+        </div>
+        <div className="mt-0.5 text-xs text-muted">{desc}</div>
+      </div>
+      <Toggle on={on} disabled={disabled} onChange={() => {}} />
     </div>
   );
 }
@@ -512,14 +579,33 @@ function collectStarredIds(
   return ids;
 }
 
-// How many quiz cards the starred subset yields — a starred cloze note still
-// contributes one card per deletion, mirroring cardsInType.
-function countStarredCards(types: ApkgNoteType[], starredIds: Set<string>): number {
+// Note keys the learner has seen but not yet mastered (mastery < 80). The
+// "Still learning" source draws from these. Empty without a stats lookup, or
+// for a learner who hasn't answered anything yet.
+function collectWeakIds(
+  types: ApkgNoteType[],
+  getStats: NoteStatsLookup | undefined,
+): Set<string> {
+  const ids = new Set<string>();
+  if (!getStats) return ids;
+  for (const nt of types) {
+    nt.notes.forEach((n, i) => {
+      const key = noteKey(nt, n, i);
+      const stats = getStats(key);
+      if (stats && stats.timesSeen > 0 && stats.mastery < 80) ids.add(key);
+    });
+  }
+  return ids;
+}
+
+// How many quiz cards a given id subset yields — a cloze note still contributes
+// one card per deletion, mirroring cardsInType.
+function countCardsIn(types: ApkgNoteType[], idSet: Set<string>): number {
   let total = 0;
   for (const nt of types) {
     const clozeField = nt.cloze ? detectClozeField(nt.fieldNames, nt.notes) : null;
     nt.notes.forEach((n, i) => {
-      if (!starredIds.has(noteKey(nt, n, i))) return;
+      if (!idSet.has(noteKey(nt, n, i))) return;
       total += clozeField ? uniqueClozeIndices(n.fields[clozeField] ?? "").length : 1;
     });
   }

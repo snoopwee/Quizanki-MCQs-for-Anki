@@ -89,7 +89,7 @@ export default function DeckTestPage() {
   if (questions.length === 0) {
     return (
       <div className="mx-auto max-w-2xl p-6">
-        <p className="text-sm text-neutral-500">Loading test…</p>
+        <p className="text-sm text-muted">Loading test…</p>
       </div>
     );
   }

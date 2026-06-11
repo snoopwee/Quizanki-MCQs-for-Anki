@@ -37,21 +37,20 @@ const STAGE_LABEL: Record<MasteryStage, string> = {
   mastered: "Mastered",
 };
 
+// Warm design-system tokens (see FE/DESIGN_SYSTEM.md): learning→danger,
+// practicing→warning (ochre), mastered→success (moss), new→neutral.
 const STAGE_PILL: Record<MasteryStage, string> = {
-  new: "bg-neutral-100 text-neutral-600 ring-1 ring-inset ring-neutral-300 dark:bg-neutral-800/60 dark:text-neutral-300 dark:ring-neutral-700",
-  learning:
-    "bg-red-100 text-red-700 ring-1 ring-inset ring-red-300 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/60",
-  practicing:
-    "bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-300 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900/60",
-  mastered:
-    "bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/60",
+  new: "bg-surface-2 text-muted ring-1 ring-inset ring-line-strong",
+  learning: "bg-danger/12 text-danger ring-1 ring-inset ring-danger/30",
+  practicing: "bg-warning/12 text-warning ring-1 ring-inset ring-warning/30",
+  mastered: "bg-success/12 text-success ring-1 ring-inset ring-success/30",
 };
 
 const STAGE_BAR: Record<MasteryStage, string> = {
-  new: "bg-neutral-300 dark:bg-neutral-700",
-  learning: "bg-red-500 dark:bg-red-400",
-  practicing: "bg-amber-500 dark:bg-amber-400",
-  mastered: "bg-emerald-500 dark:bg-emerald-400",
+  new: "bg-line-strong",
+  learning: "bg-danger",
+  practicing: "bg-warning",
+  mastered: "bg-success",
 };
 
 export function classifyMastery(

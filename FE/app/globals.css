@@ -1,40 +1,184 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #0a0a0a;
+/* ─────────────────────────────────────────────────────────────────────────
+   Quizanki — warm "study desk" design system.
+   Aged-paper neutrals (warm, low-chroma — NOT cold gray), a terracotta/clay
+   primary accent, and a scholarly stationery support palette. The whole look
+   collapses into generic SaaS the moment the neutrals go cold-gray, so every
+   neutral below carries a little warm chroma. See FE/DESIGN_SYSTEM.md.
+
+   Theming: raw values live in :root (light) and [data-theme="dark"]; the
+   @theme inline block maps them onto Tailwind tokens so utilities like
+   bg-surface / text-ink / border-line / bg-accent resolve to the live vars and
+   re-colour instantly on theme switch. The accent is a single source of truth
+   (--accent) — swap it and every button/link/focus-glow/index-tab follows.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* dark: variants follow the explicit data-theme attribute, not the OS, so a
+   half-converted screen never shows a broken auto dark mode. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  /* neutrals */
+  --color-canvas: var(--canvas);
+  --color-canvas-2: var(--canvas-2);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  /* accent (primary) */
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+
+  /* academic stationery support set (status + subject coding) */
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-flame: var(--flame);
+  --color-info: var(--info);
+  --color-plum: var(--plum);
+
+  /* type */
+  --font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
+  --font-jp: var(--font-noto-jp, "Hiragino Sans", "Yu Gothic"), var(--font-geist), sans-serif;
+
+  /* radii */
+  --radius-input: 10px;
+  --radius-tag: 8px;
+  --radius-card: 16px;
+
+  /* themed elevation */
+  --shadow-card: var(--card-shadow);
+  --shadow-btn: 0 8px 20px -8px var(--accent-glow);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #fafafa;
+:root {
+  /* aged-paper neutrals */
+  --canvas: #f3ecdc; /* app background — warm cream notebook paper */
+  --canvas-2: #fbfaf7; /* near-white landing surface */
+  --surface: #fffdf6; /* warm ivory card */
+  --surface-2: #ece3d0; /* sunk panel / input bg */
+  --ink: #2a2114; /* warm brown-black text */
+  --muted: #6f6452; /* secondary text */
+  --faint: #9c907a; /* tertiary text / placeholders */
+  --line: #e6dcc6; /* hairline borders */
+  --line-strong: #d4c7ab; /* stronger borders / dividers */
+  --dot: rgba(70, 52, 20, 0.05); /* study-paper dot grid */
+
+  /* terracotta / clay accent — single source of truth */
+  --accent: #d97757;
+  --accent-2: #e8916f; /* lighter step for gradients */
+  --accent-soft: color-mix(in oklab, var(--accent) 18%, transparent); /* tints, pill bg */
+  --accent-glow: color-mix(in oklab, var(--accent) 55%, transparent); /* focus halo */
+  --accent-ink: color-mix(in oklab, var(--accent) 70%, var(--ink)); /* text on soft bg */
+
+  /* support colors — light variants (vivid, kept distinct from the accent) */
+  --success: #2f9462; /* moss — correct / mastered */
+  --danger: #c2502f; /* brick red — incorrect */
+  --warning: #b07c17; /* ochre gold — learning */
+  --flame: #cf6a26; /* terracotta — streaks */
+  --info: #3a64bd; /* fountain-pen ink blue */
+  --plum: #93539f;
+
+  --card-shadow: 0 22px 44px -24px rgba(40, 60, 45, 0.4), 0 2px 4px rgba(40, 60, 45, 0.06);
+  --focus-ring: 0 0 0 3px color-mix(in oklab, var(--accent) 18%, transparent);
+
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  /* library-at-night neutrals — oklch keeps chroma near-zero (warm, NOT yellow).
+     Bumping the chroma yellow-casts the whole UI; don't. */
+  --canvas: oklch(0.165 0.007 80);
+  --canvas-2: oklch(0.165 0.007 80);
+  --surface: oklch(0.205 0.008 80);
+  --surface-2: oklch(0.245 0.01 80);
+  --ink: oklch(0.945 0.006 85);
+  --muted: oklch(0.715 0.01 80);
+  --faint: oklch(0.515 0.01 80);
+  --line: oklch(0.275 0.008 80);
+  --line-strong: oklch(0.365 0.01 80);
+  --dot: rgba(236, 230, 218, 0.035);
+
+  --accent-ink: var(--accent-2);
+
+  /* support colors — dark variants */
+  --success: #7cc193;
+  --danger: #e8896c;
+  --warning: #e7b552;
+  --flame: #ef9a54;
+  --info: #7ba2de;
+  --plum: #c48cc0;
+
+  --card-shadow: 0 22px 50px -22px rgba(0, 0, 0, 0.75);
+
+  color-scheme: dark;
+}
+
+@layer base {
+  body {
+    background-color: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Headings lean on the display face with tight tracking by default; opt back
+     out with font-sans where a heading should read as UI. */
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.025em;
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+    color: var(--accent-ink);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    Roboto, "Helvetica Neue", Arial, sans-serif;
+/* ── Helper utilities ──────────────────────────────────────────────────── */
+
+/* Faint study-paper dot grid. Use as a full-bleed background layer. */
+.dot-grid {
+  background-image: radial-gradient(var(--dot) 1.2px, transparent 1.3px);
+  background-size: 24px 24px;
 }
 
-/* Editorial serif display face for the wordmark and hero headings. */
-.font-display {
-  font-family: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
-  font-optical-sizing: auto;
-}
-
-/* Landing atmosphere: a faint index-card dot grid that blends with both themes. */
+/* Landing atmosphere: same dot grid, masked to fade under the hero. */
 .landing-grid {
-  background-image: radial-gradient(
-    circle at 1px 1px,
-    color-mix(in srgb, var(--foreground) 8%, transparent) 1px,
-    transparent 0
-  );
-  background-size: 22px 22px;
+  background-image: radial-gradient(circle at 1px 1px, var(--dot) 1px, transparent 0);
+  background-size: 24px 24px;
   -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
   mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
+}
+
+/* Accent focus ring for interactive controls (border + halo). */
+.focus-ring:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+
+/* Real-highlighter band behind notebook headings. */
+.highlight {
+  background: linear-gradient(
+    180deg,
+    transparent 38%,
+    color-mix(in oklab, var(--accent) 32%, transparent) 38% 92%,
+    transparent 92%
+  );
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 
 /* Staggered page-load reveal for hero elements (set animation-delay inline). */
@@ -58,9 +202,7 @@ body {
   }
 }
 
-/* Subtle scrollbar that blends with both light and dark backgrounds. Applied to
-   in-card / in-row scroll areas (.nice-scroll) so the native bar doesn't clash
-   with the panel colors behind it. */
+/* Subtle scrollbar for in-card / in-row scroll areas, blends with both themes. */
 .nice-scroll {
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, currentColor 25%, transparent) transparent;

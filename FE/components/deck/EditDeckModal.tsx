@@ -38,22 +38,22 @@ export function EditDeckModal({
             onKeyDown={(e) => {
               if (e.key === "Enter" && canSave) handleSave();
             }}
-            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-900"
+            className="focus-ring w-full rounded-input border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink outline-none"
           />
         </label>
 
         {renameDeck.isError && (
-          <p className="text-sm text-red-600 dark:text-red-400">
+          <p className="text-sm text-danger">
             Couldn&apos;t rename the deck. Please try again.
           </p>
         )}
 
-        <div className="flex justify-end gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+        <div className="flex justify-end gap-2 border-t border-line pt-4">
           <button
             type="button"
             onClick={onClose}
             disabled={renameDeck.isPending}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
+            className="rounded-input border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent disabled:opacity-50"
           >
             Cancel
           </button>
@@ -61,7 +61,7 @@ export function EditDeckModal({
             type="button"
             onClick={handleSave}
             disabled={renameDeck.isPending || !canSave}
-            className="rounded-md bg-black px-3 py-1.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+            className="focus-ring rounded-input bg-accent px-3 py-1.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-60"
           >
             {renameDeck.isPending ? "Saving…" : "Save"}
           </button>

@@ -7,11 +7,12 @@ spring:
   servlet:
     multipart:
       # We only read the small collection.anki* db, but the upload includes media
-      # we discard, so the cap must fit the whole .apkg. 100MB covers most real
-      # decks while bounding this public endpoint; per-IP rate limiting (later
-      # chunk) is the real abuse backstop, not this cap alone.
-      max-file-size: 100MB
-      max-request-size: 110MB
+      # we discard, so the cap must fit the whole .apkg. 50MB covers ~95% of real
+      # decks (typical JLPT / vocab / chapter exports) while keeping the free-tier
+      # memory + egress bill bounded. Media-heavy multi-GB decks (full AnKing) are
+      # intentionally out of scope; per-IP rate limiting is the real abuse backstop.
+      max-file-size: 50MB
+      max-request-size: 55MB
 
   datasource:
     # JDBC URL for the Supabase Postgres instance.
@@ -53,6 +54,20 @@ supabase:
   # The JWKS endpoint and JWT issuer are derived from this.
   # Override per-environment via the SUPABASE_URL env var.
   url: ${SUPABASE_URL:https://replace-me.supabase.co}
+
+tts:
+  # Cloud text-to-speech fallback (Google Cloud TTS) for languages a visitor's
+  # device has no voice for. ALL secrets default empty so the feature is dormant
+  # until configured — with no api-key the endpoint returns 503 and the FE stays
+  # on free device voices. See ROADMAP / the TTS setup notes.
+  google:
+    api-key: ${GOOGLE_TTS_API_KEY:}
+  supabase:
+    # Service-role key used only to write/read the audio cache bucket. Without it,
+    # synthesized audio is returned inline (data URL) instead of being cached.
+    service-key: ${SUPABASE_SERVICE_KEY:}
+  cache:
+    bucket: ${TTS_CACHE_BUCKET:tts-cache}
 
 app:
   cors:

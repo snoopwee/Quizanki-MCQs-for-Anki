@@ -1,22 +1,55 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { detectFields, selectableFields } from "@/lib/detectFields";
-import { buildQuestions, type Question, type QuizNote } from "@/lib/buildQuestions";
+import {
+  buildMixedQuestions,
+  detectClozeField,
+  type NoteTypeQuizSpec,
+  type Question,
+  type QuizNote,
+} from "@/lib/buildQuestions";
+import { uniqueClozeIndices } from "@/lib/cloze";
+import {
+  loadQuizPreferences,
+  saveQuizPreferences,
+  type NoteTypeFieldPrefs,
+  type QuizPreferences,
+} from "@/lib/quizPreferences";
 import { ConfidenceBadge } from "@/components/shared/ConfidenceBadge";
 import { FieldSelect } from "@/components/deck/FieldSelect";
+import { Card } from "@/components/ui/Card";
+import { Icon, type IconName } from "@/components/ui/icons";
+import { buttonClasses } from "@/components/ui/Button";
+import { Segmented, Toggle, Slider, SoonTag } from "@/components/ui/controls";
 import type { ApkgNoteType, ApkgParseResponse } from "@/types/api";
 
-// A note type can power a multiple-choice quiz only if it has at least two
-// fields (a prompt and an answer) and at least one note.
+// A note type can power a multiple-choice quiz when:
+//   - it's a cloze type with at least one cloze deletion in any note, OR
+//   - it has at least two text fields (prompt + answer) and at least one note.
 function isQuizable(t: ApkgNoteType): boolean {
-  return t.fieldNames.length >= 2 && t.noteCount > 0;
+  if (t.noteCount === 0) return false;
+  if (t.cloze) return detectClozeField(t.fieldNames, t.notes) !== null;
+  return t.fieldNames.length >= 2;
 }
+
+// Stats lookup used by the mastery-weighted card selection. The caller is
+// responsible for sourcing the data — authed callers build it from card_stats
+// returned by /decks/{id}/notes; the guest trial reads from localStorage.
+// Returning undefined / a zero record both mean "treat as a new card."
+export type NoteStatsLookup = (noteId: string) =>
+  | { mastery: number; timesSeen: number; starred?: boolean }
+  | undefined;
+
+// Which slice of the deck the quiz draws its questions from.
+type QuizSource = "all" | "starred" | "weak";
 
 export function ApkgQuizSetup({
   parsed,
   onStart,
   onBack,
+  getStats,
+  deckId,
   showHeading = true,
   backLabel = "Back",
   startLabel = "Start quiz",
@@ -24,29 +57,83 @@ export function ApkgQuizSetup({
   parsed: ApkgParseResponse;
   onStart: (questions: Question[]) => void;
   onBack: () => void;
-  // When rendered inside a modal the surrounding chrome supplies the heading and
-  // the buttons read as Cancel/Apply instead of Back/Start quiz.
+  getStats?: NoteStatsLookup;
+  // When provided, the form's selections (per-type field picks + count) are
+  // persisted to localStorage per deck and rehydrated on next visit.
+  deckId?: string;
   showHeading?: boolean;
   backLabel?: string;
   startLabel?: string;
 }) {
   const quizable = useMemo(() => parsed.noteTypes.filter(isQuizable), [parsed]);
-  const [noteTypeId, setNoteTypeId] = useState<number | null>(quizable[0]?.id ?? null);
-  const selected = quizable.find((t) => t.id === noteTypeId) ?? null;
+  const basicTypes = useMemo(() => quizable.filter((t) => !t.cloze), [quizable]);
+  const clozeTypes = useMemo(() => quizable.filter((t) => t.cloze), [quizable]);
+
+  // Load saved prefs once on mount so the initial form matches what the user
+  // last started with. Stale references (a field renamed after a re-import)
+  // get dropped by the validation step below.
+  const savedPrefs = useMemo<QuizPreferences | null>(
+    () => (deckId ? loadQuizPreferences(deckId) : null),
+    [deckId],
+  );
+
+  // Per-basic-type field state. Each type is independent — customizing one
+  // doesn't ripple into the others.
+  const [perTypePrefs, setPerTypePrefs] = useState<Record<string, NoteTypeFieldPrefs>>(
+    () => initialPrefsByType(basicTypes, savedPrefs),
+  );
+
+  // If basicTypes change (rare — e.g. quizable set changes after a re-import),
+  // re-seed prefs for any missing keys. Don't blow away user choices already in state.
+  useEffect(() => {
+    setPerTypePrefs((prev) => {
+      let mutated = false;
+      const next = { ...prev };
+      for (const nt of basicTypes) {
+        const k = String(nt.id);
+        if (!next[k]) {
+          next[k] = initialPrefsForType(nt, savedPrefs);
+          mutated = true;
+        }
+      }
+      return mutated ? next : prev;
+    });
+  }, [basicTypes, savedPrefs]);
+
+  const totalCards = useMemo(() => totalCardsAcrossTypes(quizable), [quizable]);
+
+  // "Pull cards from" source. Starred = cards the learner flagged; weak = cards
+  // seen but not yet mastered (mastery < 80). Each subset (and its card count)
+  // is precomputed so we can show the size and disable a source that's empty.
+  const [source, setSource] = useState<QuizSource>("all");
+  const starredIds = useMemo(() => collectStarredIds(quizable, getStats), [quizable, getStats]);
+  const weakIds = useMemo(() => collectWeakIds(quizable, getStats), [quizable, getStats]);
+  const starredCardCount = useMemo(() => countCardsIn(quizable, starredIds), [quizable, starredIds]);
+  const weakCardCount = useMemo(() => countCardsIn(quizable, weakIds), [quizable, weakIds]);
+
+  const eligibleIds = source === "starred" ? starredIds : source === "weak" ? weakIds : null;
+  const availableTotal =
+    source === "starred" ? starredCardCount : source === "weak" ? weakCardCount : totalCards;
+  const sliderMax = Math.max(availableTotal, 1);
+
+  // Raw user pick; the effective count is clamped to whatever the current source
+  // can actually supply (switching to a smaller subset pulls the number down).
+  const [count, setCount] = useState(() => clampCount(savedPrefs?.count ?? 20, totalCards || 1));
+  const effCount = clampCount(count, sliderMax);
 
   if (quizable.length === 0) {
     return (
       <div className="space-y-5">
-        {showHeading && <h1 className="text-2xl font-semibold">Set up a quiz</h1>}
-        <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+        {showHeading && <h1 className="font-display text-2xl font-semibold tracking-tight">Set up a quiz</h1>}
+        <p className="rounded-input border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
           None of the note types in <span className="font-medium">{parsed.filename}</span> have
-          enough text fields to build a quiz. Cloze and single-field (e.g. image-only) note types
-          aren&apos;t supported yet.
+          enough quizzable content. Decks with only single-field or image-only note types
+          aren&apos;t supported.
         </p>
         <button
           type="button"
           onClick={onBack}
-          className="rounded-md border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+          className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
         >
           {backLabel}
         </button>
@@ -54,78 +141,194 @@ export function ApkgQuizSetup({
     );
   }
 
-  return (
-    <div className="space-y-5">
-      {showHeading && <h1 className="text-2xl font-semibold">Set up a quiz</h1>}
+  // A basic note type only contributes questions when at least one question
+  // field is ticked. A cloze type always contributes. The Start button is
+  // enabled when the union produces at least one contributing type.
+  const usableBasic = basicTypes.filter(
+    (nt) => (perTypePrefs[String(nt.id)]?.questionFields.length ?? 0) > 0,
+  );
+  const canStart = usableBasic.length + clozeTypes.length > 0 && availableTotal > 0;
 
-      {quizable.length > 1 && (
-        <div className="space-y-1.5">
-          <label htmlFor="note-type" className="text-sm font-medium">
-            Note type
-          </label>
-          <select
-            id="note-type"
-            value={noteTypeId ?? ""}
-            onChange={(e) => setNoteTypeId(Number(e.target.value))}
-            className="w-full rounded-md border border-neutral-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-900 dark:border-neutral-700 dark:focus:border-neutral-200"
-          >
-            {quizable.map((t) => (
-              <option
-                key={t.id}
-                value={t.id}
-                className="bg-white text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
-              >
-                {t.name} ({t.noteCount} notes)
-              </option>
-            ))}
-          </select>
+  function handleStart() {
+    const specs = buildAllCardsSpecs(quizable, perTypePrefs, getStats);
+    if (specs.length === 0) return;
+    // Pass the chosen subset as the askable set; distractors still come from
+    // every note (the full-pool rule lives inside buildMixedQuestions).
+    const questions = buildMixedQuestions(specs, effCount, undefined, eligibleIds ?? undefined);
+    if (deckId) {
+      saveQuizPreferences(deckId, { count: effCount, fieldPrefs: perTypePrefs });
+    }
+    onStart(questions);
+  }
+
+  function updateTypePrefs(typeId: string, patch: Partial<NoteTypeFieldPrefs>) {
+    setPerTypePrefs((prev) => ({
+      ...prev,
+      [typeId]: { ...prev[typeId], ...patch },
+    }));
+  }
+
+  const sourceNoun = source === "starred" ? "starred " : source === "weak" ? "still-learning " : "";
+
+  return (
+    <div className="space-y-4">
+      {showHeading && (
+        <div className="space-y-1">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Set up your quiz</h1>
+          <p className="text-sm text-muted">
+            Build a multiple-choice test from{" "}
+            <span className="font-medium text-ink">{parsed.filename}</span>.
+          </p>
         </div>
       )}
 
-      {/* Remount per note type so detection-derived field defaults reset cleanly. */}
-      {selected && (
-        <NoteTypeQuiz
-          key={selected.id}
-          noteType={selected}
-          onStart={onStart}
-          onBack={onBack}
-          backLabel={backLabel}
-          startLabel={startLabel}
+      {/* how many questions */}
+      <SettingCard
+        title="How many questions?"
+        desc={`${availableTotal} ${sourceNoun}card${availableTotal === 1 ? "" : "s"} available — pick anywhere from 1 to ${sliderMax}.`}
+      >
+        <Slider value={effCount} min={1} max={sliderMax} onChange={setCount} />
+      </SettingCard>
+
+      {/* question types — only multiple choice is real today */}
+      <SettingCard title="Question types">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+          <QTypeChip icon="clipboard" label="Multiple choice" on />
+          <QTypeChip icon="check" label="True / false" soon />
+          <QTypeChip icon="pencil" label="Written" soon />
+        </div>
+      </SettingCard>
+
+      {/* pull cards from */}
+      <SettingCard title="Pull cards from">
+        <Segmented
+          value={source}
+          onChange={setSource}
+          options={[
+            { value: "all", label: "All cards" },
+            { value: "starred", label: "Starred", disabled: starredIds.size === 0 },
+            { value: "weak", label: "Still learning", disabled: weakIds.size === 0 },
+          ]}
         />
+        <p className="mt-2 text-xs text-muted">
+          {availableTotal} card{availableTotal === 1 ? "" : "s"} in this set
+          {(starredIds.size === 0 || weakIds.size === 0) &&
+            " · star cards or answer a few to unlock the focused sets"}
+          .
+        </p>
+      </SettingCard>
+
+      {/* timer — future feature */}
+      <SettingCard title="Timer" soon>
+        <Segmented
+          value="none"
+          onChange={() => {}}
+          options={[
+            { value: "none", label: "No timer" },
+            { value: "20", label: "20s / question", disabled: true },
+            { value: "10", label: "10s / question", disabled: true },
+          ]}
+        />
+      </SettingCard>
+
+      {/* card fields — the real, deck-specific pickers */}
+      {basicTypes.map((nt) => (
+        <BasicTypeSection
+          key={nt.id}
+          noteType={nt}
+          prefs={perTypePrefs[String(nt.id)]}
+          onPatch={(patch) => updateTypePrefs(String(nt.id), patch)}
+          showName={quizable.length > 1}
+        />
+      ))}
+
+      {clozeTypes.length > 0 && (
+        <div className="space-y-2 rounded-card border border-line bg-surface p-4">
+          <h3 className="text-sm font-medium">
+            {clozeTypes.length === 1 ? clozeTypes[0].name : "Cloze note types"}
+          </h3>
+          <ul className="space-y-1 text-xs text-muted">
+            {clozeTypes.map((nt) => (
+              <li key={nt.id}>
+                {nt.name} · {cardsInType(nt)} cloze card{cardsInType(nt) === 1 ? "" : "s"}
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-muted">
+            Each <code>{`{{c1::...}}`}</code> deletion becomes one quiz card. No field picker
+            needed — the cloze text is the prompt.
+          </p>
+        </div>
       )}
+
+      {/* behaviour toggles — locked on for now */}
+      <Card className="divide-y divide-line p-0">
+        <ToggleRow
+          title="Instant feedback"
+          desc="Show the correct answer right after each question"
+          on
+          disabled
+          soon
+        />
+        <ToggleRow
+          title="Shuffle questions"
+          desc="Randomise the order each attempt"
+          on
+          disabled
+          soon
+        />
+      </Card>
+
+      {!canStart && (
+        <p className="text-sm text-danger">
+          Pick at least one question field for each note type you want to include.
+        </p>
+      )}
+
+      {/* start bar */}
+      <div className="mt-2 flex items-center gap-3 rounded-card border border-line-strong bg-surface p-4 shadow-card">
+        <div className="min-w-0">
+          <div className="font-mono text-[11px] uppercase tracking-wide text-faint">Ready</div>
+          <div className="mt-0.5 truncate text-sm font-bold text-ink">
+            {effCount} question{effCount === 1 ? "" : "s"} · untimed
+          </div>
+        </div>
+        <div className="flex-1" />
+        <button type="button" onClick={onBack} className={buttonClasses({ variant: "ghost" })}>
+          {backLabel}
+        </button>
+        <button
+          type="button"
+          disabled={!canStart}
+          onClick={handleStart}
+          className={buttonClasses({ variant: "primary", size: "lg" })}
+        >
+          <Icon name="play" size={16} /> {startLabel}
+        </button>
+      </div>
     </div>
   );
 }
 
-function sampleValue(notes: ApkgNoteType["notes"], field: string): string {
-  const found = notes.find((n) => (n.fields[field] ?? "").length > 0);
-  return found ? found.fields[field] : "(empty)";
-}
-
-function NoteTypeQuiz({
+function BasicTypeSection({
   noteType,
-  onStart,
-  onBack,
-  backLabel,
-  startLabel,
+  prefs,
+  onPatch,
+  showName,
 }: {
   noteType: ApkgNoteType;
-  onStart: (questions: Question[]) => void;
-  onBack: () => void;
-  backLabel: string;
-  startLabel: string;
+  prefs: NoteTypeFieldPrefs | undefined;
+  onPatch: (patch: Partial<NoteTypeFieldPrefs>) => void;
+  // Hide the note-type name header when the deck has only one quizable type —
+  // the section is the whole screen, no need for a chip restating "Basic".
+  showName: boolean;
 }) {
   const detection = useMemo(
     () => detectFields(noteType.notes, noteType.fieldNames),
     [noteType],
   );
-
-  // The deck author's card layout, when the backend could read it (legacy decks).
   const hasTemplate = noteType.frontFields.length > 0 || noteType.backFields.length > 0;
 
-  // Offer only fields that make sense as quiz content, but always keep the
-  // template fields and the detected fields; fall back to all fields if filtering
-  // would leave too few.
   const fieldChoices = useMemo(() => {
     const allowed = selectableFields(noteType.notes, noteType.fieldNames);
     const keep = new Set([
@@ -139,83 +342,65 @@ function NoteTypeQuiz({
     return choices.length >= 2 ? choices : noteType.fieldNames;
   }, [noteType, detection]);
 
-  // Defaults: prefer the deck's own front/back layout, else the detection heuristic.
-  const [answerField, setAnswerField] = useState(
-    () => noteType.backFields[0] ?? detection.answerField,
-  );
-  const [questionFields, setQuestionFields] = useState<string[]>(() =>
-    hasTemplate
-      ? noteType.frontFields
-      : detection.questionField
-        ? [detection.questionField]
-        : [],
-  );
-  // Held as text so the field can be cleared/retyped; non-digits are stripped on
-  // input. The clamped number below is what the quiz actually uses.
-  const [countText, setCountText] = useState(() => String(Math.min(20, noteType.noteCount)));
-  const count = Math.min(noteType.noteCount, Math.max(1, Number(countText) || 1));
-
-  // The answer field can't also be a question field; keep prompt order = field order.
+  const safePrefs = prefs ?? { questionFields: [], answerField: fieldChoices[0] ?? "" };
+  const answerField = safePrefs.answerField;
   const questionOptions = fieldChoices.filter((f) => f !== answerField);
-  const selectedQuestionFields = questionOptions.filter((f) => questionFields.includes(f));
-  const canStart = selectedQuestionFields.length > 0;
 
-  function toggleQuestionField(field: string) {
-    setQuestionFields((prev) =>
-      prev.includes(field) ? prev.filter((f) => f !== field) : [...prev, field],
-    );
+  function toggle(field: string) {
+    const next = safePrefs.questionFields.includes(field)
+      ? safePrefs.questionFields.filter((f) => f !== field)
+      : [...safePrefs.questionFields, field];
+    onPatch({ questionFields: next });
   }
 
-  function handleStart() {
-    const pool: QuizNote[] = noteType.notes.map((n, i) => ({
-      // Prefer the persisted note UUID (saved decks) so answers record against the
-      // real note; fall back to the Anki id / a synthetic id for fresh parses.
-      id: n.id ?? n.ankiNoteId ?? `${noteType.id}-${i}`,
-      fields: n.fields,
-    }));
-    const questions = buildQuestions(
-      pool,
-      count,
-      { questionFields: selectedQuestionFields, answerField },
-      pool,
-    );
-    onStart(questions);
+  function setAnswerField(next: string) {
+    // Drop the new answer field from the question selection so the same field
+    // isn't both the prompt and the answer.
+    const cleanedQuestions = safePrefs.questionFields.filter((f) => f !== next);
+    onPatch({ answerField: next, questionFields: cleanedQuestions });
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-neutral-500">{noteType.noteCount} notes available</span>
-        {!hasTemplate && <ConfidenceBadge confidence={detection.confidence} />}
-      </div>
+    <div className="space-y-4 rounded-card border border-line bg-surface p-4">
+      {showName && (
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium">{noteType.name}</h3>
+          {!hasTemplate && <ConfidenceBadge confidence={detection.confidence} />}
+        </div>
+      )}
+      {!showName && !hasTemplate && (
+        <div className="flex justify-end">
+          <ConfidenceBadge confidence={detection.confidence} />
+        </div>
+      )}
 
       {hasTemplate ? (
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-muted">
           Pre-filled from the deck&apos;s card layout — adjust if needed.
         </p>
       ) : (
         detection.confidence < 0.7 && (
-          <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-            Detection is unsure about this note type — please check the question and answer fields.
+          <p className="rounded-input border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+            Detection is unsure — please check the question and answer fields.
           </p>
         )
       )}
 
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">Question — shown on the card</legend>
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-muted">
           Tick one or more fields to bundle into each prompt.
         </p>
         <div className="space-y-1.5">
           {questionOptions.map((f) => (
             <label
               key={f}
-              className="flex items-center gap-2 rounded-md border border-neutral-200 p-2 text-sm dark:border-neutral-800"
+              className="flex items-center gap-2 rounded-input border border-line bg-surface p-2 text-sm"
             >
               <input
                 type="checkbox"
-                checked={questionFields.includes(f)}
-                onChange={() => toggleQuestionField(f)}
+                checked={safePrefs.questionFields.includes(f)}
+                onChange={() => toggle(f)}
               />
               <span className="font-medium">{f}</span>
             </label>
@@ -230,48 +415,271 @@ function NoteTypeQuiz({
         sample={sampleValue(noteType.notes, answerField)}
         onChange={setAnswerField}
       />
-
-      {!canStart && (
-        <p className="text-sm text-red-600 dark:text-red-400">
-          Pick at least one field for the question.
-        </p>
-      )}
-
-      <div className="space-y-1.5">
-        <label htmlFor="quiz-count" className="text-sm font-medium">
-          Questions
-        </label>
-        <input
-          id="quiz-count"
-          type="text"
-          inputMode="numeric"
-          value={countText}
-          onChange={(e) => setCountText(e.target.value.replace(/\D/g, ""))}
-          onBlur={() => setCountText(String(count))}
-          className="w-full rounded-md border border-neutral-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-neutral-900 dark:border-neutral-700 dark:focus:border-neutral-200"
-        />
-        <p className="text-xs text-neutral-500">
-          How many questions to take — 1 to {noteType.noteCount}.
-        </p>
-      </div>
-
-      <div className="flex gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="rounded-md border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
-        >
-          {backLabel}
-        </button>
-        <button
-          type="button"
-          disabled={!canStart}
-          onClick={handleStart}
-          className="flex-1 rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
-        >
-          {startLabel}
-        </button>
-      </div>
     </div>
   );
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+// A titled settings panel (reference exam-setup layout). `soon` tags the whole
+// card as a not-yet-built control.
+function SettingCard({
+  title,
+  desc,
+  soon = false,
+  children,
+}: {
+  title: string;
+  desc?: string;
+  soon?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <Card className="p-5">
+      <div className="mb-3.5 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[15px] font-bold text-ink">{title}</div>
+          {desc && <div className="mt-0.5 text-xs text-muted">{desc}</div>}
+        </div>
+        {soon && <SoonTag className="mt-0.5 shrink-0" />}
+      </div>
+      {children}
+    </Card>
+  );
+}
+
+// A question-type pill. `on` = enabled-and-selected (accent), `soon` = a future
+// question format (greyed, Soon-tagged). Presentational — selection isn't wired
+// until those formats exist.
+function QTypeChip({
+  icon,
+  label,
+  on = false,
+  soon = false,
+}: {
+  icon: IconName;
+  label: string;
+  on?: boolean;
+  soon?: boolean;
+}) {
+  return (
+    <div
+      className={`flex items-center gap-2.5 rounded-card border px-3.5 py-3 ${
+        on ? "border-accent bg-accent-soft" : "border-line bg-surface-2"
+      } ${soon ? "opacity-70" : ""}`}
+    >
+      <span className={on ? "text-accent-ink" : "text-faint"}>
+        <Icon name={icon} size={18} />
+      </span>
+      <span className={`text-sm font-semibold ${on ? "text-ink" : "text-muted"}`}>{label}</span>
+      <span className="ml-auto">
+        {soon ? (
+          <SoonTag />
+        ) : on ? (
+          <span className="grid h-[18px] w-[18px] place-items-center rounded-[6px] bg-accent text-white">
+            <Icon name="check" size={12} />
+          </span>
+        ) : null}
+      </span>
+    </div>
+  );
+}
+
+// One row in the behaviour-toggles card. The switch is locked for now (the
+// behaviour is always on); `soon` flags that the control is coming.
+function ToggleRow({
+  title,
+  desc,
+  on,
+  disabled = false,
+  soon = false,
+}: {
+  title: string;
+  desc: string;
+  on: boolean;
+  disabled?: boolean;
+  soon?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-4 p-4">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold text-ink">{title}</span>
+          {soon && <SoonTag />}
+        </div>
+        <div className="mt-0.5 text-xs text-muted">{desc}</div>
+      </div>
+      <Toggle on={on} disabled={disabled} onChange={() => {}} />
+    </div>
+  );
+}
+
+function clampCount(n: number, max: number): number {
+  if (!Number.isFinite(n) || n < 1) return 1;
+  if (max <= 0) return 1;
+  return Math.min(max, Math.max(1, Math.round(n)));
+}
+
+function sampleValue(notes: ApkgNoteType["notes"], field: string): string {
+  const found = notes.find((n) => (n.fields[field] ?? "").length > 0);
+  return found ? found.fields[field] : "(empty)";
+}
+
+function cardsInType(t: ApkgNoteType): number {
+  if (!t.cloze) return t.noteCount;
+  const field = detectClozeField(t.fieldNames, t.notes);
+  if (!field) return 0;
+  let total = 0;
+  for (const n of t.notes) {
+    total += uniqueClozeIndices(n.fields[field] ?? "").length;
+  }
+  return total;
+}
+
+function totalCardsAcrossTypes(types: ApkgNoteType[]): number {
+  return types.reduce((acc, t) => acc + cardsInType(t), 0);
+}
+
+// The id a note is tracked by, matching buildFlashcards / the quiz pool: the
+// persisted UUID for saved decks, else the Anki note id, else a synthetic key.
+// One lookup then serves the flashcard list, the quiz, and starred selection.
+function noteKey(noteType: ApkgNoteType, note: ApkgNoteType["notes"][number], i: number): string {
+  return note.id ?? note.ankiNoteId ?? `${noteType.id}-${i}`;
+}
+
+function buildPool(
+  noteType: ApkgNoteType,
+  getStats: NoteStatsLookup | undefined,
+): QuizNote[] {
+  return noteType.notes.map((n, i) => {
+    const id = noteKey(noteType, n, i);
+    const stats = getStats?.(id);
+    return {
+      id,
+      fields: n.fields,
+      mastery: stats?.mastery ?? 0,
+      timesSeen: stats?.timesSeen ?? 0,
+    };
+  });
+}
+
+// Note keys the user has starred, across every quizable type. Empty when there's
+// no stats lookup (guest with no stars yet, or a caller that doesn't track them).
+function collectStarredIds(
+  types: ApkgNoteType[],
+  getStats: NoteStatsLookup | undefined,
+): Set<string> {
+  const ids = new Set<string>();
+  if (!getStats) return ids;
+  for (const nt of types) {
+    nt.notes.forEach((n, i) => {
+      if (getStats(noteKey(nt, n, i))?.starred) ids.add(noteKey(nt, n, i));
+    });
+  }
+  return ids;
+}
+
+// Note keys the learner has seen but not yet mastered (mastery < 80). The
+// "Still learning" source draws from these. Empty without a stats lookup, or
+// for a learner who hasn't answered anything yet.
+function collectWeakIds(
+  types: ApkgNoteType[],
+  getStats: NoteStatsLookup | undefined,
+): Set<string> {
+  const ids = new Set<string>();
+  if (!getStats) return ids;
+  for (const nt of types) {
+    nt.notes.forEach((n, i) => {
+      const key = noteKey(nt, n, i);
+      const stats = getStats(key);
+      if (stats && stats.timesSeen > 0 && stats.mastery < 80) ids.add(key);
+    });
+  }
+  return ids;
+}
+
+// How many quiz cards a given id subset yields — a cloze note still contributes
+// one card per deletion, mirroring cardsInType.
+function countCardsIn(types: ApkgNoteType[], idSet: Set<string>): number {
+  let total = 0;
+  for (const nt of types) {
+    const clozeField = nt.cloze ? detectClozeField(nt.fieldNames, nt.notes) : null;
+    nt.notes.forEach((n, i) => {
+      if (!idSet.has(noteKey(nt, n, i))) return;
+      total += clozeField ? uniqueClozeIndices(n.fields[clozeField] ?? "").length : 1;
+    });
+  }
+  return total;
+}
+
+function initialPrefsForType(
+  nt: ApkgNoteType,
+  saved: QuizPreferences | null,
+): NoteTypeFieldPrefs {
+  const restored = restoreFieldPrefs(saved?.fieldPrefs[String(nt.id)], nt.fieldNames);
+  if (restored) return restored;
+  const detection = detectFields(nt.notes, nt.fieldNames);
+  const answerField = nt.backFields[0] ?? detection.answerField ?? nt.fieldNames[1] ?? "";
+  const questionFields =
+    nt.frontFields.length > 0
+      ? nt.frontFields
+      : detection.questionField
+        ? [detection.questionField]
+        : [];
+  return {
+    questionFields: questionFields.filter((f) => f !== answerField),
+    answerField,
+  };
+}
+
+function initialPrefsByType(
+  basicTypes: ApkgNoteType[],
+  saved: QuizPreferences | null,
+): Record<string, NoteTypeFieldPrefs> {
+  const out: Record<string, NoteTypeFieldPrefs> = {};
+  for (const nt of basicTypes) {
+    out[String(nt.id)] = initialPrefsForType(nt, saved);
+  }
+  return out;
+}
+
+function restoreFieldPrefs(
+  saved: NoteTypeFieldPrefs | undefined,
+  liveFields: string[],
+): NoteTypeFieldPrefs | null {
+  if (!saved) return null;
+  const live = new Set(liveFields);
+  if (!live.has(saved.answerField)) return null;
+  const questionFields = saved.questionFields.filter(
+    (f) => live.has(f) && f !== saved.answerField,
+  );
+  if (questionFields.length === 0) return null;
+  return { questionFields, answerField: saved.answerField };
+}
+
+function buildAllCardsSpecs(
+  quizable: ApkgNoteType[],
+  perTypePrefs: Record<string, NoteTypeFieldPrefs>,
+  getStats: NoteStatsLookup | undefined,
+): NoteTypeQuizSpec[] {
+  const specs: NoteTypeQuizSpec[] = [];
+  for (const nt of quizable) {
+    const pool = buildPool(nt, getStats);
+    if (nt.cloze) {
+      const textField = detectClozeField(nt.fieldNames, nt.notes);
+      if (!textField) continue;
+      specs.push({ kind: "cloze", noteTypeId: String(nt.id), textField, notes: pool });
+      continue;
+    }
+    const prefs = perTypePrefs[String(nt.id)];
+    if (!prefs || prefs.questionFields.length === 0 || !prefs.answerField) continue;
+    specs.push({
+      kind: "basic",
+      noteTypeId: String(nt.id),
+      questionFields: prefs.questionFields,
+      answerField: prefs.answerField,
+      notes: pool,
+    });
+  }
+  return specs;
 }

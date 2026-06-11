@@ -35,6 +35,7 @@ import java.util.Locale;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -80,6 +81,20 @@ public class ApkgParserService {
     private static final Pattern TEMPLATE_FIELD = Pattern.compile("\\{\\{(.+?)}}");
 
     /**
+     * The Image-Occlusion-Enhanced add-on stores its rectangles inside a cloze
+     * marker, e.g. {@code {{c1::image-occlusion:rect:left=.027:top=.0842:...}}}.
+     * Such fields have no quizzable text — only mask coordinates — so the note is
+     * excluded. Matches the opening of the cloze + IO keyword (case-insensitive);
+     * intentionally narrower than just "image-occlusion" to avoid false hits on
+     * normal text that mentions the term.
+     */
+    private static final Pattern IMAGE_OCCLUSION_CLOZE = Pattern.compile(
+            "\\{\\{c\\d+::[^}]*image-occlusion", Pattern.CASE_INSENSITIVE);
+
+    /** Note-type names that Anki's official IO add-on uses (case-insensitive). */
+    private static final String IMAGE_OCCLUSION_TYPE_KEYWORD = "image occlusion";
+
+    /**
      * Coarse guard against pathological archives. Media-heavy decks legitimately
      * have many entries, so this is generous; the real zip-bomb defense is
      * {@link #MAX_COLLECTION_BYTES}, enforced on the bytes we actually read.
@@ -88,6 +103,21 @@ public class ApkgParserService {
 
     /** Hard cap on the decompressed collection db — aborts zip/zstd bombs. */
     static final long MAX_COLLECTION_BYTES = 200L * 1024 * 1024; // 200 MB
+
+    /**
+     * Hard cap on notes returned in a single response. Each parsed note is ~1–3 KB
+     * of JSON; 5,000 keeps the response object well within the free-tier JVM heap
+     * (~30 MB worst case) and covers the vast majority of real chapter-sized decks.
+     * Decks above this need to be split by tag or sub-deck before upload.
+     */
+    static final int MAX_NOTES = 5_000;
+
+    /**
+     * Wall-clock budget for {@link #parseNotes}. Bounds CPU spend on a single
+     * untrusted request. Cooperative — checked at the hot loops (note read +
+     * extraction) since SQLite JDBC doesn't honour thread interrupts.
+     */
+    static final long PARSE_TIMEOUT_SECONDS = 20L;
 
     private final ObjectMapper objectMapper;
 
@@ -115,28 +145,53 @@ public class ApkgParserService {
 
     /** Extracts the collection and returns its notes grouped by note type. */
     public ApkgNotesResponse parseNotes(MultipartFile file) {
+        long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(PARSE_TIMEOUT_SECONDS);
         ExtractedCollection col = extractCollection(file);
         try (Connection conn = openReadOnly(col.dbFile())) {
+            checkDeadline(deadlineNanos);
             boolean modern = tableExists(conn, "notetypes") && tableExists(conn, "fields");
             Map<Long, NoteTypeInfo> types = modern ? readModernNoteTypes(conn) : readLegacyNoteTypes(conn);
 
             Map<Long, List<ParsedNote>> notesByType = new LinkedHashMap<>();
             int total = 0;
             int skipped = 0;
+            int imageOnly = 0;
             try (Statement st = conn.createStatement();
                  ResultSet rs = st.executeQuery("SELECT id, mid, tags, flds FROM notes")) {
                 while (rs.next()) {
+                    // Deadline check every 256 rows — cheap, but enough to bound
+                    // a deck with millions of notes that would otherwise just
+                    // burn CPU until the request times out at the proxy.
+                    if (((total + skipped + imageOnly) & 0xFF) == 0) {
+                        checkDeadline(deadlineNanos);
+                    }
                     NoteTypeInfo type = types.get(rs.getLong("mid"));
                     if (type == null) {
                         skipped++; // note references a model we couldn't resolve
                         continue;
                     }
+                    Map<String, String> fields = mapFields(type.fieldNames(), rs.getString("flds"));
+                    // Image-occlusion notes can't be quizzed as MCQ, so exclude + count:
+                    //   1. Note-type name says "Image Occlusion" (Anki's official IO
+                    //      add-on; its text fields are just internal IDs/SVGs)
+                    //   2. Any field contains the IO Enhanced cloze marker
+                    //      {{c1::image-occlusion:rect:...}}
+                    //   3. Every field is empty after cleaning (naive <img>-only cards)
+                    if (isImageOcclusion(type, fields) || isAllEmpty(fields)) {
+                        imageOnly++;
+                        continue;
+                    }
                     ParsedNote note = new ParsedNote(
                             String.valueOf(rs.getLong("id")),
-                            mapFields(type.fieldNames(), rs.getString("flds")),
+                            fields,
                             parseTags(rs.getString("tags")));
                     notesByType.computeIfAbsent(type.id(), k -> new ArrayList<>()).add(note);
                     total++;
+                    if (total > MAX_NOTES) {
+                        throw new ApkgParseException(
+                                "This deck is too large (limit: " + MAX_NOTES
+                                        + " cards). Try uploading a sub-deck or filtering by tag first.");
+                    }
                 }
             }
 
@@ -150,11 +205,49 @@ public class ApkgParserService {
             }
             return new ApkgNotesResponse(
                     file.getOriginalFilename(), col.name(), modern ? "modern" : "legacy",
-                    total, skipped, out);
+                    total, skipped, imageOnly, out);
         } catch (SQLException e) {
             throw new ApkgParseException("Could not read notes from the collection.", e);
         } finally {
             deleteQuietly(col.dbFile());
+        }
+    }
+
+    /** True when every field value in the map is empty after cleaning. */
+    private static boolean isAllEmpty(Map<String, String> fields) {
+        for (String v : fields.values()) {
+            if (v != null && !v.isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * True for notes that come from an image-occlusion add-on / note type. Catches
+     * both Anki's official IO note type (by name) and IO Enhanced (by the cloze
+     * marker its rectangles use). These notes have no quizzable text content
+     * even when some text fields are non-empty (e.g. internal IDs, headers).
+     */
+    private static boolean isImageOcclusion(NoteTypeInfo type, Map<String, String> fields) {
+        if (type.name() != null
+                && type.name().toLowerCase(Locale.ROOT).contains(IMAGE_OCCLUSION_TYPE_KEYWORD)) {
+            return true;
+        }
+        for (String v : fields.values()) {
+            if (v != null && IMAGE_OCCLUSION_CLOZE.matcher(v).find()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Aborts when the wall-clock budget for the request is exhausted. */
+    private static void checkDeadline(long deadlineNanos) {
+        if (System.nanoTime() > deadlineNanos) {
+            throw new ApkgParseException(
+                    "Parsing this deck took too long (limit: " + PARSE_TIMEOUT_SECONDS
+                            + " s). Try a smaller deck or split it by tag.");
         }
     }
 
@@ -171,14 +264,20 @@ public class ApkgParserService {
         return fields;
     }
 
-    /** Strips media tags + HTML and decodes the common HTML entities. */
+    /**
+     * Strips media tags + HTML and decodes the common HTML entities. {@code <img>}
+     * tags are dropped here (no separate pass) — they match {@link #HTML_TAG} and
+     * leave no marker behind, so an image-only field collapses to {@code ""}.
+     * The {@link #isAllEmpty(Map)} check downstream then excludes such notes
+     * (image-occlusion and other media-only cards) since they have no text to quiz.
+     */
     private static String cleanField(String raw) {
         if (raw == null || raw.isEmpty()) {
             return "";
         }
         String s = SOUND_TAG.matcher(raw).replaceAll("");
         s = BLOCK_TAG.matcher(s).replaceAll(" ");   // keep word/line boundaries
-        s = HTML_TAG.matcher(s).replaceAll("");     // drop remaining inline tags
+        s = HTML_TAG.matcher(s).replaceAll("");     // drops <img>, <b>, ... no marker
         s = decodeEntities(s);
         return WHITESPACE.matcher(s).replaceAll(" ").strip();
     }

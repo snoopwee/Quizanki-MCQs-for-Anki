@@ -37,7 +37,7 @@ class StatsControllerTest {
     void getStats_returns200_withCounts() throws Exception {
         UUID deckId = UUID.randomUUID();
         when(statsService.getDeckStats(eq("user-1"), eq(deckId)))
-                .thenReturn(new DeckStatsResponse(250, 142, 0.74, 31, 58));
+                .thenReturn(new DeckStatsResponse(250, 142, 0.74, 31, 58, 42.5));
 
         mockMvc.perform(get("/api/v1/decks/{deckId}/stats", deckId)
                         .with(jwt().jwt(j -> j.subject("user-1"))))
@@ -46,6 +46,7 @@ class StatsControllerTest {
                 .andExpect(jsonPath("$.seenCards").value(142))
                 .andExpect(jsonPath("$.averageAccuracy").value(0.74))
                 .andExpect(jsonPath("$.weakCards").value(31))
-                .andExpect(jsonPath("$.masteredCards").value(58));
+                .andExpect(jsonPath("$.masteredCards").value(58))
+                .andExpect(jsonPath("$.averageMastery").value(42.5));
     }
 }

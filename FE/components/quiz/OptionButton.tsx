@@ -1,35 +1,55 @@
+import { Icon } from "@/components/ui/icons";
+
+// One MCQ answer: a lettered A–D badge + the option text (reference exam layout).
+// After answering, the badge flips to a check (correct) / cross (your wrong pick),
+// the correct option goes moss-green and a wrong pick goes brick-red.
 export function OptionButton({
   option,
+  index,
   answered,
   isCorrect,
   isSelected,
   onSelect,
 }: {
   option: string;
+  index: number;
   answered: boolean;
   isCorrect: boolean;
   isSelected: boolean;
   onSelect: () => void;
 }) {
-  let className =
-    "nice-scroll flex h-full min-h-0 w-full items-center justify-center overflow-y-auto rounded-md border px-4 py-4 text-center text-sm transition-colors break-words ";
+  const showCorrect = answered && isCorrect;
+  const showWrong = answered && isSelected && !isCorrect;
 
-  if (!answered) {
-    className +=
-      "border-neutral-300 hover:border-neutral-900 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:border-neutral-200 dark:hover:bg-neutral-900";
-  } else if (isCorrect) {
-    className +=
-      "border-green-500 bg-green-50 text-green-800 dark:border-green-600 dark:bg-green-900/30 dark:text-green-300";
-  } else if (isSelected) {
-    className +=
-      "border-red-500 bg-red-50 text-red-800 dark:border-red-600 dark:bg-red-900/30 dark:text-red-300";
+  let card = "focus-ring flex w-full items-start gap-3 rounded-card border px-4 py-4 text-left text-[15px] font-medium transition ";
+  let badge = "grid h-7 w-7 shrink-0 place-items-center rounded-[8px] border font-mono text-sm font-bold ";
+
+  if (showCorrect) {
+    card += "border-success bg-success/10 text-ink";
+    badge += "border-success bg-success text-white";
+  } else if (showWrong) {
+    card += "border-danger bg-danger/10 text-ink";
+    badge += "border-danger bg-danger text-white";
+  } else if (answered) {
+    card += "border-line text-faint";
+    badge += "border-line text-faint";
   } else {
-    className += "border-neutral-200 text-neutral-400 dark:border-neutral-800 dark:text-neutral-600";
+    card += "border-line-strong bg-surface text-ink hover:border-accent hover:bg-accent-soft";
+    badge += "border-line-strong text-muted";
   }
 
   return (
-    <button type="button" disabled={answered} onClick={onSelect} className={className}>
-      {option}
+    <button type="button" disabled={answered} onClick={onSelect} className={card}>
+      <span className={badge}>
+        {showCorrect ? (
+          <Icon name="check" size={15} />
+        ) : showWrong ? (
+          <Icon name="x" size={15} />
+        ) : (
+          String.fromCharCode(65 + index)
+        )}
+      </span>
+      <span className="nice-scroll max-h-28 min-w-0 overflow-y-auto break-words">{option}</span>
     </button>
   );
 }

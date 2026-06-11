@@ -56,6 +56,6 @@ public class SessionService {
 
         CardStats stats = cardStatsRepository.findById(request.noteId())
                 .orElseThrow(() -> new NotFoundException("Card stats not found after recording answer"));
-        return new RecordAnswerResponse(stats.getAccuracy(), stats.getStreak());
+        return new RecordAnswerResponse(stats.getAccuracy(), stats.getStreak(), stats.getMastery());
     }
 }

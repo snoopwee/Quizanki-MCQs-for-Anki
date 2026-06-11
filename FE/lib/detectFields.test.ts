@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { detectFields, selectableFields } from "@/lib/detectFields";
-import type { ParsedNote } from "@/lib/parseDeck";
+import type { ParsedNote } from "@/lib/detectFields";
 
 function notesFrom(rows: Array<[string, string]>): ParsedNote[] {
   return rows.map(([a, b]) => ({ fields: { "Field 1": a, "Field 2": b }, tags: [] }));

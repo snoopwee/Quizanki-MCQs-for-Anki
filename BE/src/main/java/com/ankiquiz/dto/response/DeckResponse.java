@@ -11,16 +11,23 @@ public record DeckResponse(
         String subdeckPath,
         String sourceFilename,
         Integer cardCount,
-        OffsetDateTime importedAt
+        OffsetDateTime importedAt,
+        Double completion
 ) {
+    // For freshly-imported decks (no card_stats yet) completion is 0.
     public static DeckResponse from(Deck deck) {
+        return from(deck, 0.0);
+    }
+
+    public static DeckResponse from(Deck deck, double completion) {
         return new DeckResponse(
                 deck.getId(),
                 deck.getName(),
                 deck.getSubdeckPath(),
                 deck.getSourceFilename(),
                 deck.getCardCount(),
-                deck.getImportedAt()
+                deck.getImportedAt(),
+                completion
         );
     }
 }

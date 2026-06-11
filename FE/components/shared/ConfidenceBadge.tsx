@@ -8,8 +8,8 @@ export function ConfidenceBadge({ confidence }: { confidence: number }) {
     <span
       className={
         high
-          ? "inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/40 dark:text-green-300"
-          : "inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+          ? "inline-flex items-center rounded-full bg-success/15 px-2.5 py-0.5 font-mono text-xs font-medium text-success"
+          : "inline-flex items-center rounded-full bg-warning/15 px-2.5 py-0.5 font-mono text-xs font-medium text-warning"
       }
     >
       {high ? "High confidence" : "Low confidence"} · {pct}%

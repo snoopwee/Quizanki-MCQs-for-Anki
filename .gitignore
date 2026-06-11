@@ -30,6 +30,11 @@ replay_pid*
 *.log
 
 # ─────────────────────────────────────────────
+# Playwright MCP scratch (snapshots / screenshots / console logs)
+# ─────────────────────────────────────────────
+.playwright-mcp/
+
+# ─────────────────────────────────────────────
 # Living planning documents (kept locally, not versioned)
 # ─────────────────────────────────────────────
 BACKEND_PLAN.md
@@ -109,3 +114,4 @@ ROADMAP.md
 BE/CLAUDE.md
 FE/CLAUDE.md
 CLAUDE.md
+FE/DESIGN_SYSTEM.md

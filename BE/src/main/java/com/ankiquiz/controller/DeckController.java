@@ -1,20 +1,27 @@
 package com.ankiquiz.controller;
 
 import com.ankiquiz.dto.request.ImportDeckRequest;
+import com.ankiquiz.dto.request.UpdateDeckContentsRequest;
+import com.ankiquiz.dto.request.UpdateDeckRequest;
 import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.DeckResponse;
+import com.ankiquiz.service.ApkgExportService;
 import com.ankiquiz.service.DeckService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,9 +35,11 @@ import java.util.UUID;
 public class DeckController {
 
     private final DeckService deckService;
+    private final ApkgExportService apkgExportService;
 
-    public DeckController(DeckService deckService) {
+    public DeckController(DeckService deckService, ApkgExportService apkgExportService) {
         this.deckService = deckService;
+        this.apkgExportService = apkgExportService;
     }
 
     @GetMapping
@@ -59,6 +68,42 @@ public class DeckController {
             @PathVariable UUID deckId
     ) {
         return deckService.getDeckContents(jwt.getSubject(), deckId);
+    }
+
+    @GetMapping(value = "/{deckId}/export.apkg", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    @Operation(summary = "Export a deck as an Anki .apkg package",
+            description = "Builds a schema-11 Anki collection (notes + fields only; no scheduling or media).")
+    public ResponseEntity<byte[]> exportApkg(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId
+    ) {
+        byte[] body = apkgExportService.export(jwt.getSubject(), deckId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"deck.apkg\"")
+                .body(body);
+    }
+
+    @PutMapping("/{deckId}/contents")
+    @Operation(summary = "Replace a deck's name + full card set (flashcard editor save)",
+            description = "Reconciles the supplied cards against stored notes (update/insert/delete), "
+                    + "reorders by index, and applies front/back layout swaps. Last-write-wins.")
+    public DeckContentsResponse replaceContents(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId,
+            @Valid @RequestBody UpdateDeckContentsRequest request
+    ) {
+        return deckService.replaceDeckContents(jwt.getSubject(), deckId, request);
+    }
+
+    @PatchMapping("/{deckId}")
+    @Operation(summary = "Rename a deck")
+    public DeckResponse updateDeck(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId,
+            @Valid @RequestBody UpdateDeckRequest request
+    ) {
+        return deckService.renameDeck(jwt.getSubject(), deckId, request.name());
     }
 
     @DeleteMapping("/{deckId}")

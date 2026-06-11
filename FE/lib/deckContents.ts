@@ -12,6 +12,8 @@ export function deckContentsToParsed(contents: DeckContentsResponse): ApkgParseR
     schema: "",
     totalNotes: contents.cardCount ?? 0,
     skippedNotes: 0,
+    // Saved decks were already filtered at import — no image-only notes persist.
+    imageOnlyNotes: 0,
     noteTypes: contents.noteTypes.map((nt, ti) => ({
       id: nt.ankiModelId ?? ti,
       name: nt.name,

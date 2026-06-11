@@ -23,20 +23,20 @@ export function Modal({
 
   return (
     <div
-      className="nice-scroll fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:p-8"
+      className="nice-scroll fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/40 p-4 backdrop-blur-sm sm:p-8"
       onClick={onClose}
     >
       <div
-        className="my-4 w-full max-w-2xl rounded-xl border border-neutral-200 bg-white p-6 shadow-xl dark:border-neutral-800 dark:bg-neutral-950"
+        className="my-4 w-full max-w-2xl rounded-card border border-line bg-surface p-6 shadow-card"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          {title && <h2 className="text-lg font-semibold">{title}</h2>}
+          {title && <h2 className="font-display text-lg font-semibold tracking-tight">{title}</h2>}
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="ml-auto rounded-md px-2 py-1 text-sm text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            className="ml-auto grid h-8 w-8 place-items-center rounded-input text-muted transition hover:bg-surface-2 hover:text-ink"
           >
             ✕
           </button>

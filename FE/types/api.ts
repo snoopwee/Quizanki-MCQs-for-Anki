@@ -8,6 +8,10 @@ export interface CardStatsResponse {
   timesCorrect: number;
   accuracy: number;
   streak: number;
+  // 0-100. The signal that drives quiz card selection. Distinct from accuracy.
+  mastery: number;
+  // User-set focus flag. Lets the learner mark cards and run a starred-only quiz.
+  starred: boolean;
   lastSeenAt: string | null;
 }
 
@@ -18,6 +22,9 @@ export interface DeckResponse {
   sourceFilename: string | null;
   cardCount: number | null;
   importedAt: string | null;
+  // 0-100. Mean mastery across every note in the deck, with unseen notes
+  // counted as 0 (so a fresh deck is 0%, not undefined).
+  completion: number;
 }
 
 export interface NoteResponse {
@@ -34,6 +41,7 @@ export interface DeckStatsResponse {
   averageAccuracy: number;
   weakCards: number;
   masteredCards: number;
+  averageMastery: number;
 }
 
 export interface NoteRequest {
@@ -80,6 +88,9 @@ export interface RecordAnswerRequest {
 export interface RecordAnswerResponse {
   accuracy: number;
   streak: number;
+  // The note's updated mastery after this answer, so the client can re-weight
+  // selection without refetching the whole notes list.
+  mastery: number;
 }
 
 // .apkg parse endpoint (POST /api/v1/public/parse-apkg) — public, stateless.
@@ -113,6 +124,9 @@ export interface ApkgParseResponse {
   schema: string;
   totalNotes: number;
   skippedNotes: number;
+  // Notes excluded because every field was empty after cleaning — image-occlusion
+  // and other media-only cards that can't be quizzed as multiple choice.
+  imageOnlyNotes: number;
   noteTypes: ApkgNoteType[];
 }
 
@@ -136,6 +150,27 @@ export interface DeckContentsNoteType {
   notes: DeckContentsNote[];
 }
 
+// PUT /api/v1/decks/{id}/contents — full desired state from the flashcard editor.
+export interface UpdateDeckContentsNoteType {
+  id: string;
+  frontFields: string[];
+  backFields: string[];
+}
+
+export interface UpdateDeckContentsNote {
+  // null id = new card; null noteTypeId routes to the deck's Basic (Front/Back) type.
+  id: string | null;
+  noteTypeId: string | null;
+  fields: Record<string, string>;
+  tags: string[];
+}
+
+export interface UpdateDeckContentsRequest {
+  name: string;
+  noteTypes: UpdateDeckContentsNoteType[];
+  notes: UpdateDeckContentsNote[];
+}
+
 export interface DeckContentsResponse {
   id: string;
   name: string;
@@ -143,5 +178,6 @@ export interface DeckContentsResponse {
   sourceFilename: string | null;
   cardCount: number | null;
   importedAt: string | null;
+  completion: number;
   noteTypes: DeckContentsNoteType[];
 }

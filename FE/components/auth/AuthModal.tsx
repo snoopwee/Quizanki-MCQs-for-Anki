@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { BrandMark } from "@/components/ui/BrandMark";
 
 type Mode = "signup" | "login";
 
@@ -75,7 +76,7 @@ export function AuthModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-ink/50 p-4 backdrop-blur-sm"
       onClick={() => !busy && onClose()}
     >
       <div
@@ -83,28 +84,26 @@ export function AuthModal({
         aria-modal="true"
         aria-label={heading}
         onClick={(e) => e.stopPropagation()}
-        className="rise relative my-8 w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-7 shadow-2xl dark:border-neutral-800 dark:bg-neutral-950"
+        className="rise relative my-8 w-full max-w-[408px] rounded-[18px] border border-line bg-surface p-7 shadow-card"
       >
         <button
           type="button"
           onClick={onClose}
           disabled={busy}
           aria-label="Close"
-          className="absolute right-4 top-4 rounded-md px-2 py-1 text-sm text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 disabled:opacity-40 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+          className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-input text-faint transition hover:bg-surface-2 hover:text-ink disabled:opacity-40"
         >
           ✕
         </button>
 
-        <p className="font-display text-sm tracking-tight text-neutral-400 dark:text-neutral-500">
-          Quizanki
-        </p>
-        <h2 className="font-display mt-1 text-2xl font-semibold tracking-tight">{heading}</h2>
+        <BrandMark />
+        <h2 className="font-display mt-4 text-2xl font-semibold tracking-tight">{heading}</h2>
         {description && (
-          <p className="mt-2 text-sm leading-relaxed text-neutral-500">{description}</p>
+          <p className="mt-2 text-sm leading-relaxed text-muted">{description}</p>
         )}
 
         {/* Segmented mode toggle */}
-        <div className="mt-5 grid grid-cols-2 gap-1 rounded-full bg-neutral-100 p-1 text-sm dark:bg-neutral-900">
+        <div className="mt-5 grid grid-cols-2 gap-1 rounded-full bg-surface-2 p-1 text-sm">
           {(["login", "signup"] as const).map((m) => (
             <button
               key={m}
@@ -116,8 +115,8 @@ export function AuthModal({
               }}
               className={`rounded-full px-4 py-1.5 font-medium transition-colors disabled:opacity-50 ${
                 mode === m
-                  ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white"
-                  : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                  ? "bg-surface text-ink shadow-sm"
+                  : "text-muted hover:text-ink"
               }`}
             >
               {m === "login" ? "Log in" : "Sign up"}
@@ -139,7 +138,7 @@ export function AuthModal({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="w-full rounded-lg border border-neutral-300 bg-transparent px-3 py-2.5 text-sm outline-none transition-colors placeholder:text-neutral-400 focus:border-neutral-900 focus:ring-4 focus:ring-neutral-900/5 dark:border-neutral-700 dark:focus:border-neutral-200 dark:focus:ring-neutral-100/10"
+              className="focus-ring w-full rounded-input border border-line-strong bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-faint"
             />
           </div>
 
@@ -155,12 +154,12 @@ export function AuthModal({
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full rounded-lg border border-neutral-300 bg-transparent px-3 py-2.5 text-sm outline-none transition-colors placeholder:text-neutral-400 focus:border-neutral-900 focus:ring-4 focus:ring-neutral-900/5 dark:border-neutral-700 dark:focus:border-neutral-200 dark:focus:ring-neutral-100/10"
+              className="focus-ring w-full rounded-input border border-line-strong bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-faint"
             />
           </div>
 
           {error && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-300">
+            <p className="rounded-input border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
               {error}
             </p>
           )}
@@ -168,13 +167,13 @@ export function AuthModal({
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-lg bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+            className="focus-ring w-full rounded-input bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-50"
           >
             {busy ? "Working…" : mode === "login" ? loginLabel : signupLabel}
           </button>
         </form>
 
-        <p className="mt-4 text-center text-xs leading-relaxed text-neutral-400">
+        <p className="mt-4 text-center text-xs leading-relaxed text-faint">
           By continuing you agree to keep your decks tidy. No spam, ever.
         </p>
       </div>

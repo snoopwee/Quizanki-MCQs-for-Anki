@@ -170,6 +170,77 @@ class ApkgParserServiceTest {
 
         assertEquals(1, resp.totalNotes());
         assertEquals(1, resp.skippedNotes());
+        assertEquals(0, resp.imageOnlyNotes());
+    }
+
+    @Test
+    void excludesImageOnlyNotes_andCountsThem() throws Exception {
+        // Three notes: one normal, one image-only (both fields are just <img>),
+        // and one with text + image (the image strips out, the text survives).
+        byte[] bytes = buildApkg("collection.anki2", BASIC_MODEL, List.of(
+                new NoteRow(1607392319L, "", flds("hello", "world")),
+                new NoteRow(1607392319L, "", flds("<img src=\"a.jpg\">", "<img src=\"b.jpg\">")),
+                new NoteRow(1607392319L, "", flds("Look:", "answer <img src=\"c.jpg\">"))));
+
+        ApkgNotesResponse resp = service.parseNotes(apkg("deck.apkg", bytes));
+
+        assertEquals(2, resp.totalNotes());
+        assertEquals(1, resp.imageOnlyNotes());
+        assertEquals(0, resp.skippedNotes());
+        // Mixed-content note: <img> dropped, surrounding text kept.
+        var kept = resp.noteTypes().get(0).notes();
+        assertEquals("Look:", kept.get(1).fields().get("Front"));
+        assertEquals("answer", kept.get(1).fields().get("Back"));
+    }
+
+    @Test
+    void excludesImageOcclusionEnhancedNotes_byClozeMarker() throws Exception {
+        // IO Enhanced add-on stores rect coordinates inside a cloze marker that
+        // would otherwise slip through as gibberish quiz text. Detected by the
+        // {{c\d+::image-occlusion ...}} pattern regardless of note-type name.
+        String ioField = "{{c1::image-occlusion:rect:left=.027:top=.0842:width=.9462:height=.9158:oi=1}}";
+        byte[] bytes = buildApkg("collection.anki2", BASIC_MODEL, List.of(
+                new NoteRow(1607392319L, "", flds("hello", "world")),
+                new NoteRow(1607392319L, "", flds(ioField, "extra notes about anatomy"))));
+
+        ApkgNotesResponse resp = service.parseNotes(apkg("deck.apkg", bytes));
+
+        assertEquals(1, resp.totalNotes(), "only the non-IO note is included");
+        assertEquals(1, resp.imageOnlyNotes(), "IO Enhanced note is excluded + counted");
+        assertEquals("hello", resp.noteTypes().get(0).notes().get(0).fields().get("Front"));
+    }
+
+    @Test
+    void excludesAllNotes_whenNoteTypeNameSaysImageOcclusion() throws Exception {
+        // Anki's official IO note type. Even if some text fields are populated
+        // (e.g. "Header" / internal ID), the note has no usable Q/A pair.
+        String ioModel = """
+                {"42":{"id":42,"name":"Image Occlusion Enhanced","type":1,
+                  "flds":[{"name":"Header","ord":0},{"name":"Image","ord":1},
+                          {"name":"Original Mask","ord":2},{"name":"ID","ord":3}]}}
+                """;
+        byte[] bytes = buildApkg("collection.anki2", ioModel, List.of(
+                new NoteRow(42L, "", flds("Heart anatomy", "<img src=heart.jpg>", "<img src=mask.svg>", "1604247200000"))));
+
+        ApkgNotesResponse resp = service.parseNotes(apkg("deck.apkg", bytes));
+
+        assertEquals(0, resp.totalNotes(), "IO note types contribute no quizzable notes");
+        assertEquals(1, resp.imageOnlyNotes());
+    }
+
+    @Test
+    void rejectsDeckExceedingMaxNotes() throws Exception {
+        // Generate MAX_NOTES + 1 valid notes — should trip the cap and abort.
+        List<NoteRow> rows = new java.util.ArrayList<>(ApkgParserService.MAX_NOTES + 1);
+        for (int i = 0; i <= ApkgParserService.MAX_NOTES; i++) {
+            rows.add(new NoteRow(1607392319L, "", flds("q" + i, "a" + i)));
+        }
+        byte[] bytes = buildApkg("collection.anki2", BASIC_MODEL, rows);
+
+        ApkgParseException ex = assertThrows(ApkgParseException.class,
+                () -> service.parseNotes(apkg("deck.apkg", bytes)));
+        assertTrue(ex.getMessage().toLowerCase().contains("too large"),
+                "expected too-large message, got: " + ex.getMessage());
     }
 
     @Test

@@ -9,6 +9,7 @@ import { StarButton } from "@/components/shared/StarButton";
 import { SpeakButton } from "@/components/shared/SpeakButton";
 import { useSpeechSupported } from "@/hooks/useSpeech";
 import { cancelSpeech } from "@/lib/tts";
+import { stripLatex } from "@/lib/displayText";
 import { EditFlashcardModal, type EditableNote } from "./EditFlashcardModal";
 import { FlashcardsOptionsModal } from "./FlashcardsOptionsModal";
 import { Icon } from "@/components/ui/icons";
@@ -276,7 +277,7 @@ export function FlashcardViewer({
   const cardStage = card && getStats ? classifyMastery(getStats(card.id)) : null;
   // The in-card speaker reads only the CURRENT face (front or back, whichever is
   // showing) — not the whole card.
-  const faceText = card ? (flipped ? card.back : card.front).join(". ") : "";
+  const faceText = card ? stripLatex((flipped ? card.back : card.front).join(". ")) : "";
 
   const sorting = prefs.cardSorting;
   const markedCount = known.size + learn.size;
@@ -621,7 +622,7 @@ export function FlashcardViewer({
                         // auto-detected per segment.
                         <SpeakButton
                           id={`preview-${c.key}`}
-                          text={[...c.front, ...c.back].join(". ")}
+                          text={stripLatex([...c.front, ...c.back].join(". "))}
                           size="sm"
                         />
                       )}

@@ -4,6 +4,7 @@ import { Ring } from "@/components/ui/Ring";
 import { Icon } from "@/components/ui/icons";
 import { SoonTag } from "@/components/ui/controls";
 import { buttonClasses } from "@/components/ui/Button";
+import { textDirection, stripLatex } from "@/lib/displayText";
 
 export function ResultsSummary({
   answers,
@@ -93,11 +94,17 @@ export function ResultsSummary({
               >
                 <Icon name={a.wasCorrect ? "check" : "x"} size={14} />
               </span>
-              <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
-                {a.prompt.map((seg) => seg.value).join(" · ")}
+              <span
+                dir={textDirection(a.prompt.map((seg) => seg.value).join(" "))}
+                className="min-w-0 flex-1 truncate text-sm font-medium text-ink"
+              >
+                {a.prompt.map((seg) => stripLatex(seg.value)).join(" · ")}
               </span>
-              <span className="hidden max-w-[40%] shrink-0 truncate text-sm text-muted sm:block">
-                {a.correct}
+              <span
+                dir={textDirection(a.correct)}
+                className="hidden max-w-[40%] shrink-0 truncate text-sm text-muted sm:block"
+              >
+                {stripLatex(a.correct)}
               </span>
             </div>
           ))}

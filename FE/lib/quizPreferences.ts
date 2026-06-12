@@ -23,6 +23,10 @@ export interface QuizPreferences {
   /** Keyed by note-type id (stringified). Empty when the user hasn't
    * customized any basic type's field picks. */
   fieldPrefs: Record<string, NoteTypeFieldPrefs>;
+  /** Tag filter the user last applied. Empty = no tag constraint. Validated
+   * against the live deck tags on load (a re-import can drop tags). Added after
+   * v2 shipped, so it's read defensively — old saves simply have no tags. */
+  tags: string[];
 }
 
 function key(deckId: string): string {
@@ -76,5 +80,8 @@ function sanitize(value: unknown): QuizPreferences | null {
       fieldPrefs[k] = { questionFields, answerField };
     }
   }
-  return { count, fieldPrefs };
+  const tags = Array.isArray(v.tags)
+    ? v.tags.filter((t): t is string => typeof t === "string")
+    : [];
+  return { count, fieldPrefs, tags };
 }

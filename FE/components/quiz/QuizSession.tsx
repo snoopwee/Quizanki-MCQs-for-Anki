@@ -6,6 +6,7 @@ import { useQuizStore } from "@/stores/quizStore";
 import { useGuestMastery } from "@/stores/guestMasteryStore";
 import { useRecordAnswer } from "@/hooks/useQuizSession";
 import { cancelSpeech } from "@/lib/tts";
+import { textDirection, stripLatex } from "@/lib/displayText";
 import { reshuffleQuestions } from "@/lib/buildQuestions";
 import { applyAnswer } from "@/lib/mastery";
 import { QuestionCard } from "./QuestionCard";
@@ -227,7 +228,10 @@ export function QuizSession({
                 "Correct!"
               ) : (
                 <>
-                  Answer: <span className="text-success">{question.correct}</span>
+                  Answer:{" "}
+                  <span dir={textDirection(question.correct)} className="text-success">
+                    {stripLatex(question.correct)}
+                  </span>
                 </>
               )}
             </span>

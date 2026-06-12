@@ -10,6 +10,7 @@ import {
   type QuizNote,
 } from "@/lib/buildQuestions";
 import { uniqueClozeIndices } from "@/lib/cloze";
+import { collectTags, idsWithAnyTag, intersectIds } from "@/lib/quizTags";
 import {
   loadQuizPreferences,
   saveQuizPreferences,
@@ -108,12 +109,35 @@ export function ApkgQuizSetup({
   const [source, setSource] = useState<QuizSource>("all");
   const starredIds = useMemo(() => collectStarredIds(quizable, getStats), [quizable, getStats]);
   const weakIds = useMemo(() => collectWeakIds(quizable, getStats), [quizable, getStats]);
-  const starredCardCount = useMemo(() => countCardsIn(quizable, starredIds), [quizable, starredIds]);
-  const weakCardCount = useMemo(() => countCardsIn(quizable, weakIds), [quizable, weakIds]);
 
-  const eligibleIds = source === "starred" ? starredIds : source === "weak" ? weakIds : null;
-  const availableTotal =
-    source === "starred" ? starredCardCount : source === "weak" ? weakCardCount : totalCards;
+  // Optional tag filter. Selecting tags scopes the askable pool to cards carrying
+  // any of them, intersected with the source slice above. Restored from saved
+  // prefs with stale tags dropped, and pruned if a re-import changes the tag set.
+  const allTags = useMemo(() => collectTags(quizable), [quizable]);
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(
+    () => restoreTags(savedPrefs?.tags, allTags),
+  );
+  useEffect(() => {
+    setSelectedTags((prev) => {
+      if (prev.size === 0) return prev;
+      const live = new Set(allTags);
+      const next = new Set([...prev].filter((t) => live.has(t)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [allTags]);
+
+  // Compose the source slice (all / starred / weak) with the tag filter. null at
+  // either layer means "no constraint there"; two constraints intersect.
+  const eligibleIds = useMemo(() => {
+    const sourceIds = source === "starred" ? starredIds : source === "weak" ? weakIds : null;
+    const tagIds = selectedTags.size > 0 ? idsWithAnyTag(quizable, selectedTags, noteKey) : null;
+    return intersectIds(sourceIds, tagIds);
+  }, [source, starredIds, weakIds, quizable, selectedTags]);
+
+  const availableTotal = useMemo(
+    () => (eligibleIds ? countCardsIn(quizable, eligibleIds) : totalCards),
+    [eligibleIds, quizable, totalCards],
+  );
   const sliderMax = Math.max(availableTotal, 1);
 
   // Raw user pick; the effective count is clamped to whatever the current source
@@ -156,7 +180,11 @@ export function ApkgQuizSetup({
     // every note (the full-pool rule lives inside buildMixedQuestions).
     const questions = buildMixedQuestions(specs, effCount, undefined, eligibleIds ?? undefined);
     if (deckId) {
-      saveQuizPreferences(deckId, { count: effCount, fieldPrefs: perTypePrefs });
+      saveQuizPreferences(deckId, {
+        count: effCount,
+        fieldPrefs: perTypePrefs,
+        tags: [...selectedTags],
+      });
     }
     onStart(questions);
   }
@@ -166,6 +194,15 @@ export function ApkgQuizSetup({
       ...prev,
       [typeId]: { ...prev[typeId], ...patch },
     }));
+  }
+
+  function toggleTag(tag: string) {
+    setSelectedTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(tag)) next.delete(tag);
+      else next.add(tag);
+      return next;
+    });
   }
 
   const sourceNoun = source === "starred" ? "starred " : source === "weak" ? "still-learning " : "";
@@ -217,6 +254,50 @@ export function ApkgQuizSetup({
           .
         </p>
       </SettingCard>
+
+      {/* filter by tag — only when the deck actually carries tags */}
+      {allTags.length > 0 && (
+        <SettingCard
+          title="Filter by tag"
+          desc={
+            selectedTags.size === 0
+              ? "Optional — limit the quiz to cards carrying any of the tags you pick."
+              : `${availableTotal} card${availableTotal === 1 ? "" : "s"} match the selected tag${
+                  selectedTags.size === 1 ? "" : "s"
+                }${source === "all" ? "" : ` in the ${sourceNoun.trim()} set`}.`
+          }
+        >
+          <div className="flex flex-wrap gap-2">
+            {allTags.map((tag) => {
+              const on = selectedTags.has(tag);
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => toggleTag(tag)}
+                  aria-pressed={on}
+                  className={`focus-ring rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                    on
+                      ? "border-accent bg-accent text-white"
+                      : "border-line-strong bg-surface-2 text-muted hover:border-accent hover:text-accent"
+                  }`}
+                >
+                  {tag}
+                </button>
+              );
+            })}
+          </div>
+          {selectedTags.size > 0 && (
+            <button
+              type="button"
+              onClick={() => setSelectedTags(new Set())}
+              className="focus-ring mt-3 text-xs font-medium text-muted underline-offset-2 transition hover:text-ink hover:underline"
+            >
+              Clear tags
+            </button>
+          )}
+        </SettingCard>
+      )}
 
       {/* timer — future feature */}
       <SettingCard title="Timer" soon>
@@ -641,6 +722,15 @@ function initialPrefsByType(
     out[String(nt.id)] = initialPrefsForType(nt, saved);
   }
   return out;
+}
+
+// Restore the saved tag filter, keeping only tags that still exist on the deck
+// (a re-import can drop tags). Empty/absent saves and a fully-stale selection
+// both collapse to "no tag filter".
+function restoreTags(saved: string[] | undefined, liveTags: string[]): Set<string> {
+  if (!saved || saved.length === 0) return new Set();
+  const live = new Set(liveTags);
+  return new Set(saved.filter((t) => live.has(t)));
 }
 
 function restoreFieldPrefs(

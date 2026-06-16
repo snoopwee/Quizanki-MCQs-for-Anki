@@ -1,0 +1,20 @@
+# Production profile — activated by SPRING_PROFILES_ACTIVE=prod (set in render.yaml).
+# Inherits everything from application.yml; only prod-hardening overrides live here.
+# All connection strings and keys still come from environment variables.
+
+spring:
+  jpa:
+    show-sql: false
+
+server:
+  # Behind the host's proxy (Render/Cloud Run): trust X-Forwarded-* so the app sees https + the real
+  # client IP (request.getScheme() / RemoteAddr) instead of the proxy's. Needed
+  # for correct absolute URLs and the future per-IP rate limiter.
+  forward-headers-strategy: framework
+
+management:
+  endpoint:
+    health:
+      # Base config uses "always" (handy in dev). In prod don't expose which
+      # component/DB is DOWN to anonymous callers — just UP/DOWN.
+      show-details: never

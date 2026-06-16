@@ -44,7 +44,7 @@ public class TtsController {
         return ttsService.synthesizeToUrl(request.text(), request.lang());
     }
 
-    // Behind Fly.io / Cloudflare the socket address is the proxy; the real client
+    // Behind Render / Cloudflare the socket address is the proxy; the real client
     // IP is the first hop in X-Forwarded-For.
     private static String clientIp(HttpServletRequest http) {
         String forwarded = http.getHeader("X-Forwarded-For");

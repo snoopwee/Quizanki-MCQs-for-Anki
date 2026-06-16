@@ -1,0 +1,37 @@
+# Render Blueprint for the AnkiQuiz Spring Boot backend (free tier).
+# In the Render dashboard: New → Blueprint → pick this repo. The `sync: false`
+# secrets are entered once in the dashboard prompt and never committed.
+# Full runbook + keep-alive + monitoring notes: see DEPLOY.md.
+services:
+  - type: web
+    name: quizki-be
+    runtime: docker
+    plan: free
+    # Nearest free region to the Supabase DB (aws ap-southeast-1). Free regions:
+    # oregon | ohio | virginia | frankfurt | singapore.
+    region: singapore
+    # Production deploys from main. Change to Dev/Test if you deploy that branch.
+    branch: main
+    # Docker build: context is BE/, paths are relative to the repo root.
+    dockerfilePath: ./BE/Dockerfile
+    dockerContext: ./BE
+    rootDir: ./BE                 # only BE/** changes trigger a rebuild
+    healthCheckPath: /actuator/health
+    # Render injects its own $PORT and the app binds it (server.port=${PORT:8080}).
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      # Secrets — entered in the dashboard at blueprint creation, never in git.
+      - key: DATABASE_URL          # jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres
+        sync: false
+      - key: DATABASE_USERNAME     # postgres.<project-ref>
+        sync: false
+      - key: DATABASE_PASSWORD
+        sync: false
+      - key: SUPABASE_URL          # https://<project-ref>.supabase.co
+        sync: false
+      - key: APP_CORS_ALLOWED_ORIGINS  # https://<your-app>.vercel.app  (comma-separated for several)
+        sync: false
+      # Optional — only if/when Redis-backed features are enabled.
+      - key: UPSTASH_REDIS_URL
+        sync: false

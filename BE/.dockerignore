@@ -1,5 +1,5 @@
+# Built inside the image now (multi-stage Dockerfile) — never ship the local jar.
 target/
-!target/*.jar
 *.md
 .mvn/wrapper/maven-wrapper.jar
 mvnw.cmd

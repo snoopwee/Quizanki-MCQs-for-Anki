@@ -81,7 +81,9 @@ springdoc:
   # config already allows via /swagger-ui/**.
 
 server:
-  port: 8080
+  # Most free hosts (Render, Cloud Run) inject the port to bind via $PORT; fall
+  # back to 8080 for local dev.
+  port: ${PORT:8080}
 
 management:
   endpoints:

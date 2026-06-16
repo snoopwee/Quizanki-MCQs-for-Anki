@@ -1,8 +1,9 @@
 name: Keep-alive
 
 # Prevents the Supabase free-tier project from auto-pausing due to inactivity.
-# Pings the Fly.io health endpoint, which exercises the DB connection and
-# registers activity on Supabase.
+# Pings the Render health endpoint, which exercises the DB connection and
+# registers activity on Supabase. (Redundant once an UptimeRobot monitor is set
+# up — see DEPLOY.md — but kept as a cheap backup that also re-arms the schedule.)
 #
 # NOTE: GitHub disables scheduled workflows on a repo after 60 days with no
 # repo activity (commits, etc.). For a portfolio project that may sit idle,
@@ -23,10 +24,10 @@ jobs:
       - name: Ping backend health endpoint
         run: |
           set -euo pipefail
-          URL="https://quizki-be.fly.dev/actuator/health"
+          URL="https://quizki-be.onrender.com/actuator/health"
           echo "Pinging $URL"
           # --fail makes curl exit non-zero on HTTP >= 400.
-          # Retry a few times in case Fly.io is cold-starting the machine.
+          # Retry a few times in case Render is cold-starting the service.
           for attempt in 1 2 3 4 5; do
             if curl --fail --silent --show-error --max-time 30 "$URL"; then
               echo ""

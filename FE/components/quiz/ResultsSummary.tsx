@@ -4,6 +4,7 @@ import { Ring } from "@/components/ui/Ring";
 import { Icon } from "@/components/ui/icons";
 import { SoonTag } from "@/components/ui/controls";
 import { buttonClasses } from "@/components/ui/Button";
+import { CardPreviewRow } from "@/components/deck/CardPreview";
 
 export function ResultsSummary({
   answers,
@@ -77,34 +78,8 @@ export function ResultsSummary({
         ))}
       </div>
 
-      {/* review list */}
-      <div className="space-y-2">
-        <h3 className="font-mono text-xs font-medium uppercase tracking-wide text-faint">Review answers</h3>
-        <Card className="overflow-hidden p-0">
-          {answers.map((a, i) => (
-            <div
-              key={`${a.noteId}-${i}`}
-              className="flex items-center gap-3.5 border-b border-line px-4 py-3 last:border-b-0"
-            >
-              <span
-                className={`grid h-6 w-6 shrink-0 place-items-center rounded-[7px] ${
-                  a.wasCorrect ? "bg-success/15 text-success" : "bg-danger/15 text-danger"
-                }`}
-              >
-                <Icon name={a.wasCorrect ? "check" : "x"} size={14} />
-              </span>
-              <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
-                {a.prompt.map((seg) => seg.value).join(" · ")}
-              </span>
-              <span className="hidden max-w-[40%] shrink-0 truncate text-sm text-muted sm:block">
-                {a.correct}
-              </span>
-            </div>
-          ))}
-        </Card>
-      </div>
-
-      {/* actions */}
+      {/* actions — kept above the review list so they're reachable without
+          scrolling past every card */}
       <div className="flex flex-wrap gap-2">
         <button onClick={onEndTest} className={buttonClasses({ variant: "ghost", className: "grow basis-32" })}>
           End
@@ -122,6 +97,32 @@ export function ResultsSummary({
         <button onClick={onRetakeNew} className={buttonClasses({ variant: "primary", className: "grow basis-32" })}>
           New quiz
         </button>
+      </div>
+
+      {/* review list — each answered card shown front/back like the flashcard
+          list, with a correct/missed pill in place of the per-row actions */}
+      <div className="space-y-2">
+        <h3 className="font-mono text-xs font-medium uppercase tracking-wide text-faint">Review answers</h3>
+        <ul className="space-y-2">
+          {answers.map((a, i) => (
+            <CardPreviewRow
+              key={`${a.noteId}-${i}`}
+              front={a.prompt.map((seg) => seg.value)}
+              back={[a.correct]}
+              stats={{ mastery: a.newMastery, timesSeen: 1 }}
+              action={
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                    a.wasCorrect ? "bg-success/15 text-success" : "bg-danger/15 text-danger"
+                  }`}
+                >
+                  <Icon name={a.wasCorrect ? "check" : "x"} size={13} />
+                  {a.wasCorrect ? "Correct" : "Missed"}
+                </span>
+              }
+            />
+          ))}
+        </ul>
       </div>
     </div>
   );

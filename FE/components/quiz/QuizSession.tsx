@@ -6,6 +6,7 @@ import { useQuizStore } from "@/stores/quizStore";
 import { useGuestMastery } from "@/stores/guestMasteryStore";
 import { useRecordAnswer } from "@/hooks/useQuizSession";
 import { cancelSpeech } from "@/lib/tts";
+import { textDirection, stripLatex } from "@/lib/displayText";
 import { reshuffleQuestions } from "@/lib/buildQuestions";
 import { applyAnswer } from "@/lib/mastery";
 import { QuestionCard } from "./QuestionCard";
@@ -145,9 +146,9 @@ export function QuizSession({
   const answeredCorrect = answered && selectedAnswer === question.correct;
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-9rem)] w-full max-w-3xl flex-col">
+    <div className="mx-auto flex h-[calc(100dvh-10rem)] w-full max-w-3xl flex-col">
       {/* top bar: exit · progress · star/settings */}
-      <div className="flex items-center gap-3 border-b border-line pb-4">
+      <div className="flex shrink-0 items-center gap-3 border-b border-line pb-4">
         <button
           type="button"
           onClick={onExit}
@@ -191,28 +192,32 @@ export function QuizSession({
         )}
       </div>
 
-      {/* question, centered */}
-      <div className="flex flex-1 items-center justify-center py-8">
-        <QuestionCard prompt={question.prompt} />
-      </div>
+      {/* question + options share one scrollable region: centered when they
+          fit, scrolling internally when they don't — so the page itself never
+          grows a scrollbar mid-quiz (topbar/footer stay pinned). */}
+      <div className="nice-scroll min-h-0 flex-1 overflow-y-auto">
+        <div className="flex min-h-full flex-col justify-center gap-6 py-6">
+          <QuestionCard prompt={question.prompt} />
 
-      {/* options (lettered A–D) */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {question.options.map((option, idx) => (
-          <OptionButton
-            key={option}
-            option={option}
-            index={idx}
-            answered={answered}
-            isCorrect={option === question.correct}
-            isSelected={option === selectedAnswer}
-            onSelect={() => handleSelect(option)}
-          />
-        ))}
+          {/* options (lettered A–D) */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {question.options.map((option, idx) => (
+              <OptionButton
+                key={option}
+                option={option}
+                index={idx}
+                answered={answered}
+                isCorrect={option === question.correct}
+                isSelected={option === selectedAnswer}
+                onSelect={() => handleSelect(option)}
+              />
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* footer: instant feedback + next */}
-      <div className="mt-5 flex min-h-[52px] items-center gap-4 border-t border-line pt-4">
+      <div className="mt-5 flex min-h-[52px] shrink-0 items-center gap-4 border-t border-line pt-4">
         {answered ? (
           <div className="flex min-w-0 items-center gap-2.5">
             <span
@@ -227,7 +232,10 @@ export function QuizSession({
                 "Correct!"
               ) : (
                 <>
-                  Answer: <span className="text-success">{question.correct}</span>
+                  Answer:{" "}
+                  <span dir={textDirection(question.correct)} className="text-success">
+                    {stripLatex(question.correct)}
+                  </span>
                 </>
               )}
             </span>

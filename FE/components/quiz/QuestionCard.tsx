@@ -3,6 +3,7 @@
 import type { PromptSegment } from "@/lib/buildQuestions";
 import { SpeakButton } from "@/components/shared/SpeakButton";
 import { useSpeechSupported } from "@/hooks/useSpeech";
+import { textDirection, stripLatex } from "@/lib/displayText";
 
 // The exam prompt, centered big (reference exam layout). A bundled prompt
 // (term, reading, example, …) renders the lines stacked; when speech is
@@ -11,7 +12,7 @@ import { useSpeechSupported } from "@/hooks/useSpeech";
 // when the question changes.
 export function QuestionCard({ prompt }: { prompt: PromptSegment[] }) {
   const speechOn = useSpeechSupported();
-  const text = prompt.map((seg) => seg.value).join(". ");
+  const text = stripLatex(prompt.map((seg) => seg.value).join(". "));
   const multi = prompt.length > 1;
 
   return (
@@ -30,8 +31,11 @@ export function QuestionCard({ prompt }: { prompt: PromptSegment[] }) {
                 {seg.label}
               </dt>
             )}
-            <dd className="font-display text-3xl font-semibold leading-tight break-words text-ink sm:text-4xl">
-              {seg.value}
+            <dd
+              dir={textDirection(seg.value)}
+              className="font-display text-3xl font-semibold leading-tight break-words text-ink sm:text-4xl"
+            >
+              {stripLatex(seg.value)}
             </dd>
           </div>
         ))}

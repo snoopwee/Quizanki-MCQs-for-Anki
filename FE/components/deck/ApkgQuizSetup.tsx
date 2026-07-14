@@ -21,7 +21,7 @@ import { FieldSelect } from "@/components/deck/FieldSelect";
 import { Card } from "@/components/ui/Card";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { buttonClasses } from "@/components/ui/Button";
-import { Segmented, Toggle, Slider, SoonTag } from "@/components/ui/controls";
+import { Segmented, SoonTag } from "@/components/ui/controls";
 import type { ApkgNoteType, ApkgParseResponse } from "@/types/api";
 
 // A note type can power a multiple-choice quiz when:
@@ -114,12 +114,13 @@ export function ApkgQuizSetup({
   const eligibleIds = source === "starred" ? starredIds : source === "weak" ? weakIds : null;
   const availableTotal =
     source === "starred" ? starredCardCount : source === "weak" ? weakCardCount : totalCards;
-  const sliderMax = Math.max(availableTotal, 1);
 
-  // Raw user pick; the effective count is clamped to whatever the current source
-  // can actually supply (switching to a smaller subset pulls the number down).
-  const [count, setCount] = useState(() => clampCount(savedPrefs?.count ?? 20, totalCards || 1));
-  const effCount = clampCount(count, sliderMax);
+  // Free-form question count — the learner types how many questions they want.
+  // `count` holds the raw input (NaN while the field is being cleared); the
+  // effective build count is clamped to what the source can actually supply
+  // (you can't ask more unique cards than exist).
+  const [count, setCount] = useState<number>(() => clampCount(savedPrefs?.count ?? 20, totalCards || 1));
+  const effCount = clampCount(count, availableTotal);
 
   if (quizable.length === 0) {
     return (
@@ -182,12 +183,22 @@ export function ApkgQuizSetup({
         </div>
       )}
 
-      {/* how many questions */}
+      {/* how many questions — free numeric entry */}
       <SettingCard
         title="How many questions?"
-        desc={`${availableTotal} ${sourceNoun}card${availableTotal === 1 ? "" : "s"} available — pick anywhere from 1 to ${sliderMax}.`}
+        desc={`${availableTotal} ${sourceNoun}card${availableTotal === 1 ? "" : "s"} in this set — enter how many questions you want.`}
       >
-        <Slider value={effCount} min={1} max={sliderMax} onChange={setCount} />
+        <input
+          type="number"
+          min={1}
+          inputMode="numeric"
+          value={Number.isFinite(count) ? count : ""}
+          onChange={(e) =>
+            setCount(e.target.value === "" ? NaN : Math.max(1, Math.floor(Number(e.target.value))))
+          }
+          aria-label="Number of questions"
+          className="focus-ring w-28 rounded-input border border-line-strong bg-surface px-3 py-2 text-sm font-semibold text-ink"
+        />
       </SettingCard>
 
       {/* question types — only multiple choice is real today */}
@@ -216,19 +227,6 @@ export function ApkgQuizSetup({
             " · star cards or answer a few to unlock the focused sets"}
           .
         </p>
-      </SettingCard>
-
-      {/* timer — future feature */}
-      <SettingCard title="Timer" soon>
-        <Segmented
-          value="none"
-          onChange={() => {}}
-          options={[
-            { value: "none", label: "No timer" },
-            { value: "20", label: "20s / question", disabled: true },
-            { value: "10", label: "10s / question", disabled: true },
-          ]}
-        />
       </SettingCard>
 
       {/* card fields — the real, deck-specific pickers */}
@@ -260,24 +258,6 @@ export function ApkgQuizSetup({
           </p>
         </div>
       )}
-
-      {/* behaviour toggles — locked on for now */}
-      <Card className="divide-y divide-line p-0">
-        <ToggleRow
-          title="Instant feedback"
-          desc="Show the correct answer right after each question"
-          on
-          disabled
-          soon
-        />
-        <ToggleRow
-          title="Shuffle questions"
-          desc="Randomise the order each attempt"
-          on
-          disabled
-          soon
-        />
-      </Card>
 
       {!canStart && (
         <p className="text-sm text-danger">
@@ -395,12 +375,13 @@ function BasicTypeSection({
           {questionOptions.map((f) => (
             <label
               key={f}
-              className="flex items-center gap-2 rounded-input border border-line bg-surface p-2 text-sm"
+              className="flex cursor-pointer items-center gap-2 rounded-input border border-line bg-surface p-2 text-sm transition hover:border-line-strong"
             >
               <input
                 type="checkbox"
                 checked={safePrefs.questionFields.includes(f)}
                 onChange={() => toggle(f)}
+                className="h-4 w-4 accent-[var(--accent)]"
               />
               <span className="font-medium">{f}</span>
             </label>
@@ -481,35 +462,6 @@ function QTypeChip({
           </span>
         ) : null}
       </span>
-    </div>
-  );
-}
-
-// One row in the behaviour-toggles card. The switch is locked for now (the
-// behaviour is always on); `soon` flags that the control is coming.
-function ToggleRow({
-  title,
-  desc,
-  on,
-  disabled = false,
-  soon = false,
-}: {
-  title: string;
-  desc: string;
-  on: boolean;
-  disabled?: boolean;
-  soon?: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-4 p-4">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-ink">{title}</span>
-          {soon && <SoonTag />}
-        </div>
-        <div className="mt-0.5 text-xs text-muted">{desc}</div>
-      </div>
-      <Toggle on={on} disabled={disabled} onChange={() => {}} />
     </div>
   );
 }

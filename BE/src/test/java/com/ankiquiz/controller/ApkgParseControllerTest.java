@@ -4,6 +4,7 @@ import com.ankiquiz.config.SecurityConfig;
 import com.ankiquiz.dto.response.ApkgNotesResponse;
 import com.ankiquiz.exception.ApkgParseException;
 import com.ankiquiz.exception.GlobalExceptionHandler;
+import com.ankiquiz.service.ApkgParseRateLimiter;
 import com.ankiquiz.service.ApkgParserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,8 +42,12 @@ class ApkgParseControllerTest {
     @MockBean
     private ApkgParserService parserService;
 
+    @MockBean
+    private ApkgParseRateLimiter rateLimiter;
+
     @Test
     void parseApkg_isReachableWithoutAuth_andReturnsParsedResponse() throws Exception {
+        when(rateLimiter.tryAcquire(any())).thenReturn(true);
         when(parserService.parseNotes(any())).thenReturn(
                 new ApkgNotesResponse("deck.apkg", "collection.anki2", "legacy", 0, 0, 0, List.of()));
 
@@ -58,6 +63,7 @@ class ApkgParseControllerTest {
 
     @Test
     void parseApkg_returns400_whenServiceRejectsTheFile() throws Exception {
+        when(rateLimiter.tryAcquire(any())).thenReturn(true);
         when(parserService.parseNotes(any()))
                 .thenThrow(new ApkgParseException("Only .apkg files are accepted."));
 
@@ -67,5 +73,16 @@ class ApkgParseControllerTest {
         mockMvc.perform(multipart("/api/v1/public/parse-apkg").file(file))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Only .apkg files are accepted."));
+    }
+
+    @Test
+    void parseApkg_returns429_whenRateLimited() throws Exception {
+        when(rateLimiter.tryAcquire(any())).thenReturn(false);
+
+        MockMultipartFile file =
+                new MockMultipartFile("file", "deck.apkg", "application/octet-stream", new byte[]{1, 2, 3});
+
+        mockMvc.perform(multipart("/api/v1/public/parse-apkg").file(file))
+                .andExpect(status().isTooManyRequests());
     }
 }

@@ -3,8 +3,11 @@
 
 import type { ReactNode } from "react";
 import { classifyMastery, type StageInfo } from "@/lib/masteryStage";
+import { textDirection, stripLatex } from "@/lib/displayText";
 
 // Renders each field value on its own line, or a muted placeholder when empty.
+// Per line we set `dir` so Arabic/Hebrew fields lay out RTL, and placeholder any
+// LaTeX so math markup doesn't leak as raw source.
 export function Lines({ values, className = "" }: { values: string[]; className?: string }) {
   if (values.length === 0) {
     return <span className="text-faint">(empty)</span>;
@@ -12,8 +15,8 @@ export function Lines({ values, className = "" }: { values: string[]; className?
   return (
     <>
       {values.map((v, i) => (
-        <span key={i} className={`block break-words ${className}`}>
-          {v}
+        <span key={i} dir={textDirection(v)} className={`block break-words ${className}`}>
+          {stripLatex(v)}
         </span>
       ))}
     </>

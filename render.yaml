@@ -12,10 +12,12 @@ services:
     region: singapore
     # Production deploys from main. Change to Dev/Test if you deploy that branch.
     branch: main
-    # Docker build: context is BE/, paths are relative to the repo root.
-    dockerfilePath: ./BE/Dockerfile
-    dockerContext: ./BE
+    # rootDir moves the build into BE/, and dockerfilePath/dockerContext are then
+    # resolved *relative to rootDir* — not the repo root. Prefixing them with ./BE
+    # again makes Render look for BE/BE/Dockerfile and the build dies at clone.
     rootDir: ./BE                 # only BE/** changes trigger a rebuild
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     healthCheckPath: /actuator/health
     # Render injects its own $PORT and the app binds it (server.port=${PORT:8080}).
     envVars:

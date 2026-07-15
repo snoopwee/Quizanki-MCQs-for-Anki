@@ -8,6 +8,13 @@
 // run is further classified by its diacritics. Vietnamese is the most distinctive
 // (Latin Extended Additional tone marks + đ ơ ư ă), which is the case the user hit
 // — without this, Vietnamese was read with an English voice.
+//
+// Script alone can't disambiguate CJK: bare kanji are Han characters, so a
+// kana-less Japanese card reads as Chinese. To fix that, callers pass a per-face
+// primary-language `hint` (from the deck/card language setting). The hint only
+// overrides runs in its OWN script family (Han → ja instead of zh, or Latin →
+// the chosen language), so a translation riding along in another script keeps
+// its own voice.
 
 export interface Segment {
   text: string;
@@ -62,7 +69,51 @@ export function detectLatinLang(text: string): string {
   return "";
 }
 
-function langForBucket(bucket: string | null, text: string): string {
+// The script family a language belongs to — matches the buckets `charScript`
+// produces, so a hint can be checked against a run's bucket. Anything we don't
+// recognise as a specific non-Latin script is treated as Latin (en, vi, es, …).
+export function scriptFamily(lang: string): string {
+  const primary = lang.toLowerCase().split("-")[0];
+  switch (primary) {
+    case "":
+      return "";
+    case "ja":
+    case "zh":
+    case "yue":
+      return "cjk";
+    case "ko":
+      return "ko";
+    case "ru":
+    case "uk":
+    case "be":
+    case "bg":
+    case "sr":
+      return "cyr";
+    case "ar":
+    case "fa":
+    case "ur":
+      return "ar";
+    case "he":
+      return "he";
+    case "el":
+      return "el";
+    case "th":
+      return "th";
+    case "hi":
+    case "mr":
+    case "ne":
+      return "hi";
+    default:
+      return "latin";
+  }
+}
+
+function langForBucket(bucket: string | null, text: string, hint: string): string {
+  // A same-script hint wins: it settles the ambiguous cases (Han → ja vs zh,
+  // Latin → which language) without mislabelling a run in a different script.
+  if (hint && bucket === scriptFamily(hint)) {
+    return hint;
+  }
   switch (bucket) {
     // Kana present → Japanese; otherwise a pure-Han run is taken as Chinese.
     case "cjk":
@@ -92,8 +143,10 @@ function langForBucket(bucket: string | null, text: string): string {
 // (spaces, punctuation, digits) ride along with the surrounding run; adjacent
 // runs that resolve to the same language are merged so we don't start a new
 // utterance per word. Segments with no letters or numbers are dropped.
-export function segmentByLang(text: string): Segment[] {
+export function segmentByLang(text: string, hint = ""): Segment[] {
   if (!text) return [];
+  // Normalise the hint to a lowercase primary subtag once (e.g. "zh-CN" → "zh").
+  const h = hint ? hint.toLowerCase().split("-")[0] : "";
 
   type Run = { bucket: string | null; chars: string[] };
   const runs: Run[] = [];
@@ -121,7 +174,7 @@ export function segmentByLang(text: string): Segment[] {
       if (prev) prev.text += t;
       continue;
     }
-    const lang = langForBucket(run.bucket, t);
+    const lang = langForBucket(run.bucket, t, h);
     if (prev && prev.lang === lang) prev.text += t;
     else segments.push({ text: t, lang });
   }

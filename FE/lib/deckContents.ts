@@ -14,6 +14,10 @@ export function deckContentsToParsed(contents: DeckContentsResponse): ApkgParseR
     skippedNotes: 0,
     // Saved decks were already filtered at import — no image-only notes persist.
     imageOnlyNotes: 0,
+    // Deck-level primary TTS language per face, so the viewer can resolve the
+    // per-face hint (card override → deck default → auto-detect).
+    frontLang: contents.frontLang,
+    backLang: contents.backLang,
     noteTypes: contents.noteTypes.map((nt, ti) => ({
       id: nt.ankiModelId ?? ti,
       name: nt.name,
@@ -27,6 +31,8 @@ export function deckContentsToParsed(contents: DeckContentsResponse): ApkgParseR
         ankiNoteId: n.ankiNoteId,
         fields: n.fields,
         tags: n.tags,
+        frontLang: n.frontLang,
+        backLang: n.backLang,
       })),
     })),
   };

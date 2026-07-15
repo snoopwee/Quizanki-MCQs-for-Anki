@@ -3,6 +3,7 @@ package com.ankiquiz.controller;
 import com.ankiquiz.dto.request.ImportDeckRequest;
 import com.ankiquiz.dto.request.NoteRequest;
 import com.ankiquiz.dto.request.NoteTypeRequest;
+import com.ankiquiz.dto.request.SetDeckLanguagesRequest;
 import com.ankiquiz.dto.request.UpdateDeckContentsRequest;
 import com.ankiquiz.dto.request.UpdateDeckRequest;
 import com.ankiquiz.dto.response.DeckContentsResponse;
@@ -70,12 +71,12 @@ class DeckControllerTest {
     void importDeck_returns201_withDeckResponse() throws Exception {
         UUID deckId = UUID.randomUUID();
         DeckResponse response = new DeckResponse(
-                deckId, "JLPT N4", "Japanese::N4", "n4.apkg", 1, OffsetDateTime.now(), 0.0
+                deckId, "JLPT N4", "Japanese::N4", "n4.apkg", 1, OffsetDateTime.now(), 0.0, "ja", "en"
         );
         when(deckService.importDeck(eq("user-123"), any())).thenReturn(response);
 
         ImportDeckRequest request = new ImportDeckRequest(
-                "JLPT N4", "Japanese::N4", "n4.apkg",
+                "JLPT N4", "Japanese::N4", "n4.apkg", "ja", "en",
                 List.of(noteType("Basic", new NoteRequest(
                         "1234567890",
                         Map.of("Front", "食べる", "Back", "to eat"),
@@ -97,7 +98,7 @@ class DeckControllerTest {
     @Test
     void importDeck_returns400_whenNameBlank() throws Exception {
         ImportDeckRequest request = new ImportDeckRequest(
-                "", null, "n4.apkg",
+                "", null, "n4.apkg", null, null,
                 List.of(noteType("Basic", new NoteRequest("1", Map.of("Front", "a", "Back", "b"), List.of())))
         );
 
@@ -113,7 +114,7 @@ class DeckControllerTest {
     void updateDeck_returns200_withRenamedDeck() throws Exception {
         UUID deckId = UUID.randomUUID();
         DeckResponse response = new DeckResponse(
-                deckId, "JLPT N3", "Japanese::N4", "n4.apkg", 1, OffsetDateTime.now(), 42.0
+                deckId, "JLPT N3", "Japanese::N4", "n4.apkg", 1, OffsetDateTime.now(), 42.0, null, null
         );
         when(deckService.renameDeck(eq("user-123"), eq(deckId), eq("JLPT N3"))).thenReturn(response);
 
@@ -140,13 +141,13 @@ class DeckControllerTest {
     void replaceContents_returns200_withUpdatedContents() throws Exception {
         UUID deckId = UUID.randomUUID();
         DeckContentsResponse response = new DeckContentsResponse(
-                deckId, "Renamed", null, null, 1, OffsetDateTime.now(), 0.0, List.of());
+                deckId, "Renamed", null, null, 1, OffsetDateTime.now(), 0.0, null, null, List.of());
         when(deckService.replaceDeckContents(eq("user-123"), eq(deckId), any())).thenReturn(response);
 
         UpdateDeckContentsRequest request = new UpdateDeckContentsRequest(
                 "Renamed", List.of(),
                 List.of(new UpdateDeckContentsRequest.NoteEntry(
-                        null, null, Map.of("Front", "q", "Back", "a"), List.of())));
+                        null, null, Map.of("Front", "q", "Back", "a"), List.of(), null, null)));
 
         mockMvc.perform(put("/api/v1/decks/{deckId}/contents", deckId)
                         .with(jwt().jwt(j -> j.subject("user-123")))
@@ -222,9 +223,26 @@ class DeckControllerTest {
     }
 
     @Test
+    void setDeckLanguages_returns200_withUpdatedContents() throws Exception {
+        UUID deckId = UUID.randomUUID();
+        DeckContentsResponse response = new DeckContentsResponse(
+                deckId, "JLPT N4", null, null, 1, OffsetDateTime.now(), 0.0, "ja", "en", List.of());
+        when(deckService.setDeckLanguages(eq("user-123"), eq(deckId), eq("ja"), eq("en")))
+                .thenReturn(response);
+
+        mockMvc.perform(put("/api/v1/decks/{deckId}/languages", deckId)
+                        .with(jwt().jwt(j -> j.subject("user-123")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new SetDeckLanguagesRequest("ja", "en"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.frontLang").value("ja"))
+                .andExpect(jsonPath("$.backLang").value("en"));
+    }
+
+    @Test
     void importDeck_returns400_whenNoteTypesEmpty() throws Exception {
         ImportDeckRequest request = new ImportDeckRequest(
-                "deck", null, "n4.apkg", List.of()
+                "deck", null, "n4.apkg", null, null, List.of()
         );
 
         mockMvc.perform(post("/api/v1/decks")

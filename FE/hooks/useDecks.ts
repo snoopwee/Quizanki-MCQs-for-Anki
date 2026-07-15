@@ -59,6 +59,25 @@ export function useRenameDeck() {
   });
 }
 
+// Set the deck's primary TTS language per face (Flashcards Options modal). The
+// server returns the refreshed contents, which we drop straight into the cache
+// so the viewer picks up the new default immediately.
+export function useSetDeckLanguages(deckId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ frontLang, backLang }: { frontLang: string; backLang: string }) => {
+      const { data } = await api.put<DeckContentsResponse>(
+        `/decks/${deckId}/languages`,
+        { frontLang, backLang },
+      );
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["deck-contents", deckId], data);
+    },
+  });
+}
+
 // Save the whole flashcard editor working set (rename + add/delete/reorder/swap/
 // edit) in one request. Invalidates everything that shows deck contents/order/name.
 export function useReplaceDeckContents(deckId: string) {

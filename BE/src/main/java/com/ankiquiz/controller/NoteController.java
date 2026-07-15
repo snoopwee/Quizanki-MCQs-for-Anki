@@ -50,14 +50,16 @@ public class NoteController {
     @PatchMapping("/{noteId}")
     @Operation(summary = "Edit a flashcard's field values",
             description = "Merges the supplied fields over the note's existing ones; "
-                    + "keys outside the note type are ignored.")
+                    + "keys outside the note type are ignored. Optionally sets the "
+                    + "per-face TTS language override (blank clears it).")
     public NoteResponse updateNote(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID deckId,
             @PathVariable UUID noteId,
             @Valid @RequestBody UpdateNoteRequest request
     ) {
-        return noteService.updateNote(jwt.getSubject(), deckId, noteId, request.fields());
+        return noteService.updateNote(jwt.getSubject(), deckId, noteId,
+                request.fields(), request.frontLang(), request.backLang());
     }
 
     @PutMapping("/{noteId}/star")

@@ -18,6 +18,7 @@ import {
   type EditorState,
 } from "@/lib/deckEditor";
 import { ImportCardsModal, type ImportMode } from "@/components/deck/ImportCardsModal";
+import { TTS_LANGUAGE_OPTIONS } from "@/lib/ttsLanguages";
 
 export default function DeckEditPage() {
   return (
@@ -74,6 +75,15 @@ function DeckEditor() {
       ...d,
       rows: d.rows.map((r) =>
         r.key === key ? { ...r, fields: { ...r.fields, [field]: value } } : r,
+      ),
+    }));
+  const setLang = (key: string, face: "front" | "back", code: string) =>
+    patch((d) => ({
+      ...d,
+      rows: d.rows.map((r) =>
+        r.key === key
+          ? { ...r, [face === "front" ? "frontLang" : "backLang"]: code }
+          : r,
       ),
     }));
   const deleteRow = (key: string) =>
@@ -231,6 +241,7 @@ function DeckEditor() {
               onField={setField}
               onSwap={swapRow}
               onDelete={deleteRow}
+              onLang={setLang}
             />
           ))}
         </Reorder.Group>
@@ -248,6 +259,7 @@ function DeckEditor() {
                   onField={setField}
                   onSwap={swapRow}
                   onDelete={deleteRow}
+                  onLang={setLang}
                 />
               </li>
             ),
@@ -276,6 +288,7 @@ interface CardProps {
   onField: (key: string, field: string, value: string) => void;
   onSwap: (key: string) => void;
   onDelete: (key: string) => void;
+  onLang: (key: string, face: "front" | "back", code: string) => void;
 }
 
 // A draggable card. The whole card is the drag surface — press anywhere except
@@ -283,7 +296,7 @@ interface CardProps {
 // the way and springs everything into place when you let go. `dragListener` is
 // off so a press that lands on a textarea/button edits or clicks instead of
 // starting a drag.
-function DraggableCard({ row, index, onField, onSwap, onDelete }: CardProps) {
+function DraggableCard({ row, index, onField, onSwap, onDelete, onLang }: CardProps) {
   const controls = useDragControls();
   function startDrag(e: PointerEvent<HTMLLIElement>) {
     if ((e.target as HTMLElement).closest("textarea, input, button, select, a")) return;
@@ -302,14 +315,27 @@ function DraggableCard({ row, index, onField, onSwap, onDelete }: CardProps) {
       whileDrag={{ scale: 1.02, boxShadow: "0 12px 28px rgba(0,0,0,0.18)" }}
       className="cursor-grab space-y-2 select-none rounded-card border border-line bg-surface p-4 active:cursor-grabbing"
     >
-      <CardBody row={row} index={index} onField={onField} onSwap={onSwap} onDelete={onDelete} />
+      <CardBody
+        row={row}
+        index={index}
+        onField={onField}
+        onSwap={onSwap}
+        onDelete={onDelete}
+        onLang={onLang}
+      />
     </Reorder.Item>
   );
 }
 
 // The card's contents — shared by the draggable list and the (static) search
-// results list.
-function CardBody({ row, index, onField, onSwap, onDelete }: CardProps) {
+// results list. Focusing a field reveals a "voice" (TTS language) menu for that
+// side; an already-set override stays visible so it's discoverable at a glance.
+function CardBody({ row, index, onField, onSwap, onDelete, onLang }: CardProps) {
+  const [activeField, setActiveField] = useState<string | null>(null);
+  // The field rows that carry the term (front) and definition (back) language.
+  const termField = row.frontFields[0] ?? row.fieldNames[0];
+  const defField = row.backFields[0] ?? row.fieldNames.find((f) => f !== termField) ?? termField;
+
   return (
     <>
       <div className="flex items-center gap-2 font-mono text-xs text-faint">
@@ -321,20 +347,88 @@ function CardBody({ row, index, onField, onSwap, onDelete }: CardProps) {
           <IconBtn label="Delete card" danger onClick={() => onDelete(row.key)}>✕</IconBtn>
         </div>
       </div>
-      <div className="space-y-2">
-        {row.fieldNames.map((field) => (
-          <label key={field} className="block space-y-1">
-            <span className="font-mono text-xs font-medium text-muted">{fieldLabel(field)}</span>
-            <textarea
-              value={row.fields[field] ?? ""}
-              onChange={(e) => onField(row.key, field, e.target.value)}
-              rows={row.cloze ? 3 : 2}
-              className="nice-scroll focus-ring w-full cursor-text select-text resize-y rounded-input border border-line-strong bg-surface-2 px-3 py-1.5 text-sm text-ink outline-none"
-            />
-          </label>
-        ))}
+      {/* Clearing activeField only when focus leaves the whole card keeps the menu
+          open while you're picking a language from its <select>. */}
+      <div
+        className="space-y-2"
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setActiveField(null);
+        }}
+      >
+        {row.fieldNames.map((field) => {
+          const showTerm = field === termField;
+          const showDef = field === defField;
+          // Reveal the menu when this field is focused, or when its side already
+          // carries an override (so the setting stays visible when unfocused).
+          const showMenu =
+            activeField === field ||
+            (showTerm && row.frontLang !== "") ||
+            (showDef && row.backLang !== "");
+          return (
+            <div key={field} className="space-y-1">
+              <div className="flex min-h-[1.5rem] items-center justify-between gap-2">
+                <span className="font-mono text-xs font-medium text-muted">{fieldLabel(field)}</span>
+                {showMenu && (
+                  <div className="flex items-center gap-1.5">
+                    {showTerm && (
+                      <LangSelect
+                        label="Term voice"
+                        value={row.frontLang}
+                        onChange={(code) => onLang(row.key, "front", code)}
+                      />
+                    )}
+                    {showDef && (
+                      <LangSelect
+                        label="Definition voice"
+                        value={row.backLang}
+                        onChange={(code) => onLang(row.key, "back", code)}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+              <textarea
+                value={row.fields[field] ?? ""}
+                onFocus={() => setActiveField(field)}
+                onChange={(e) => onField(row.key, field, e.target.value)}
+                rows={row.cloze ? 3 : 2}
+                className="nice-scroll focus-ring w-full cursor-text select-text resize-y rounded-input border border-line-strong bg-surface-2 px-3 py-1.5 text-sm text-ink outline-none"
+              />
+            </div>
+          );
+        })}
       </div>
     </>
+  );
+}
+
+// Compact per-face TTS-language picker shown on a field's label row. "" is
+// Auto-detect (inherit the deck default); any other value overrides this card.
+function LangSelect({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (code: string) => void;
+}) {
+  return (
+    <label className="flex items-center gap-1 text-xs text-muted">
+      <span className="hidden sm:inline">{label}</span>
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="focus-ring rounded border border-line-strong bg-surface px-1.5 py-0.5 text-xs text-ink outline-none"
+      >
+        {TTS_LANGUAGE_OPTIONS.map((o) => (
+          <option key={o.code || "auto"} value={o.code}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

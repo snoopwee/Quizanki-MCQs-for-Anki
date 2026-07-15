@@ -89,6 +89,9 @@ public class DeckService {
         deck.setSubdeckPath(request.subdeckPath());
         deck.setSourceFilename(request.sourceFilename());
         deck.setCardCount(totalNotes);
+        // Persist the client-detected majority language per face (null = auto).
+        deck.setFrontLang(normalizeLang(request.frontLang()));
+        deck.setBackLang(normalizeLang(request.backLang()));
         deck.setImportedAt(OffsetDateTime.now());
         Deck savedDeck = deckRepository.save(deck);
 
@@ -181,6 +184,9 @@ public class DeckService {
             note.setNoteTypeId(typeId);
             note.setFields(new LinkedHashMap<>(entry.fields()));
             note.setTags(entry.tags() == null ? new String[0] : entry.tags().toArray(String[]::new));
+            // Per-face TTS language override travels with the card (blank = inherit).
+            note.setFrontLang(normalizeLang(entry.frontLang()));
+            note.setBackLang(normalizeLang(entry.backLang()));
             note.setPosition(position++);
             toSave.add(note);
         }
@@ -259,6 +265,8 @@ public class DeckService {
                 deck.getCardCount(),
                 deck.getImportedAt(),
                 completionForDeck(deckId),
+                deck.getFrontLang(),
+                deck.getBackLang(),
                 typeContents
         );
     }
@@ -324,8 +332,35 @@ public class DeckService {
                 note.getId(),
                 note.getAnkiNoteId(),
                 note.getFields(),
-                toList(note.getTags())
+                toList(note.getTags()),
+                note.getFrontLang(),
+                note.getBackLang()
         );
+    }
+
+    /**
+     * Set the deck-level primary TTS language for each face (Flashcards Options
+     * modal). A blank value clears that face back to auto-detect. Scoped by deck
+     * ownership; returns the refreshed contents so the client can update in place.
+     */
+    @Transactional
+    public DeckContentsResponse setDeckLanguages(String userId, UUID deckId, String frontLang, String backLang) {
+        Deck deck = deckRepository.findByIdAndUserId(deckId, userId)
+                .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
+        deck.setFrontLang(normalizeLang(frontLang));
+        deck.setBackLang(normalizeLang(backLang));
+        deckRepository.save(deck);
+        return getDeckContents(userId, deckId);
+    }
+
+    // A blank / whitespace-only language code means "auto-detect" — store it as
+    // NULL so the column has a single canonical empty value. Trimmed otherwise.
+    private static String normalizeLang(String lang) {
+        if (lang == null) {
+            return null;
+        }
+        String trimmed = lang.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private static String[] toArray(List<String> values) {

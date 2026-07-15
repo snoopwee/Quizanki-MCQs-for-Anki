@@ -4,6 +4,19 @@ import type { ReactNode } from "react";
 import { Modal } from "@/components/shared/Modal";
 import { Toggle } from "@/components/ui/controls";
 import type { FlashcardPreferences } from "@/lib/flashcardPreferences";
+import { TTS_LANGUAGE_OPTIONS, languageLabel } from "@/lib/ttsLanguages";
+
+// Deck-level TTS language controls, shown only for saved decks. `term`/`def` are
+// the current stored overrides ("" = auto-detect); `autoTerm`/`autoDef` are the
+// detected majority languages, surfaced in the Auto-detect option label.
+export interface DeckLanguageControls {
+  term: string;
+  def: string;
+  autoTerm: string;
+  autoDef: string;
+  saving?: boolean;
+  onChange: (face: "front" | "back", code: string) => void;
+}
 
 // The Knowt-style "Flashcards Options" modal for the flashcard study screen.
 // Question Format picks which side shows first; Learning Options toggle the
@@ -13,6 +26,7 @@ export function FlashcardsOptionsModal({
   prefs,
   onChange,
   starredAvailable,
+  language,
   onSave,
   onRestart,
   onClose,
@@ -21,6 +35,8 @@ export function FlashcardsOptionsModal({
   onChange: (patch: Partial<FlashcardPreferences>) => void;
   // False when the deck has no starred cards yet — disables "Study starred only".
   starredAvailable: boolean;
+  // Deck-level TTS language controls; absent for the guest/unsaved flow.
+  language?: DeckLanguageControls;
   onSave: () => void;
   onRestart: () => void;
   onClose: () => void;
@@ -71,6 +87,34 @@ export function FlashcardsOptionsModal({
             onChange={(v) => onChange({ shuffle: v })}
           />
         </Section>
+
+        {language && (
+          <>
+            <div className="h-px bg-line" />
+            <Section label="Pronunciation">
+              <p className="-mt-1 text-xs text-muted">
+                The voice used for Listen (text-to-speech). Auto-detect guesses from the text —
+                override it if a language is read wrong (e.g. kanji read as Chinese).
+              </p>
+              <LanguageRow
+                title="Term language"
+                help="The front side of each card."
+                value={language.term}
+                autoDetected={language.autoTerm}
+                disabled={language.saving}
+                onChange={(code) => language.onChange("front", code)}
+              />
+              <LanguageRow
+                title="Definition language"
+                help="The back side of each card."
+                value={language.def}
+                autoDetected={language.autoDef}
+                disabled={language.saving}
+                onChange={(code) => language.onChange("back", code)}
+              />
+            </Section>
+          </>
+        )}
 
         <div className="h-px bg-line" />
 
@@ -124,6 +168,48 @@ function Row({
         {help && <div className="mt-0.5 text-xs text-muted">{help}</div>}
       </div>
       <Toggle on={on} disabled={disabled} onChange={onChange} />
+    </div>
+  );
+}
+
+// A per-face language <select>. The Auto-detect option surfaces the detected
+// language (e.g. "Auto-detect (Japanese)") so the learner can see the current
+// guess before deciding to override it.
+function LanguageRow({
+  title,
+  help,
+  value,
+  autoDetected,
+  disabled = false,
+  onChange,
+}: {
+  title: string;
+  help?: string;
+  value: string;
+  autoDetected: string;
+  disabled?: boolean;
+  onChange: (code: string) => void;
+}) {
+  return (
+    <div className={`flex items-center gap-4 ${disabled ? "opacity-50" : ""}`}>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-medium text-ink">{title}</div>
+        {help && <div className="mt-0.5 text-xs text-muted">{help}</div>}
+      </div>
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        className="focus-ring shrink-0 rounded-input border border-line-strong bg-surface-2 px-2 py-1.5 text-sm text-ink outline-none disabled:opacity-50"
+      >
+        {TTS_LANGUAGE_OPTIONS.map((o) => (
+          <option key={o.code || "auto"} value={o.code}>
+            {o.code === "" && autoDetected
+              ? `Auto-detect (${languageLabel(autoDetected)})`
+              : o.label}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

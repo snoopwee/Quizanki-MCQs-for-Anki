@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectLatinLang, segmentByLang } from "@/lib/ttsLang";
+import { detectLatinLang, scriptFamily, segmentByLang } from "@/lib/ttsLang";
 
 describe("detectLatinLang", () => {
   it("detects Vietnamese from its diacritics", () => {
@@ -50,5 +50,46 @@ describe("segmentByLang", () => {
   it("returns [] for empty / non-letter input", () => {
     expect(segmentByLang("")).toEqual([]);
     expect(segmentByLang("   ")).toEqual([]);
+  });
+});
+
+describe("scriptFamily", () => {
+  it("groups CJK languages together and Latin languages together", () => {
+    expect(scriptFamily("ja")).toBe("cjk");
+    expect(scriptFamily("zh")).toBe("cjk");
+    expect(scriptFamily("zh-CN")).toBe("cjk"); // region tag is stripped
+    expect(scriptFamily("en")).toBe("latin");
+    expect(scriptFamily("vi")).toBe("latin");
+    expect(scriptFamily("ru")).toBe("cyr");
+    expect(scriptFamily("")).toBe("");
+  });
+});
+
+describe("segmentByLang with a language hint", () => {
+  it("reads bare kanji as the hinted Japanese instead of Chinese", () => {
+    // The reported bug: 水 (Han, no kana) auto-detects as zh.
+    expect(segmentByLang("水")).toEqual([{ text: "水", lang: "zh" }]);
+    expect(segmentByLang("水", "ja")).toEqual([{ text: "水", lang: "ja" }]);
+  });
+
+  it("still lets a Chinese hint keep pure-Han as zh", () => {
+    expect(segmentByLang("水", "zh")).toEqual([{ text: "水", lang: "zh" }]);
+  });
+
+  it("only overrides same-script runs — a Latin translation keeps its own voice", () => {
+    // Front kanji hinted ja, but the English gloss must not be read with a JP voice.
+    const segs = segmentByLang("水 water", "ja");
+    expect(segs.map((s) => s.lang)).toEqual(["ja", ""]);
+    expect(segs[0].text).toContain("水");
+    expect(segs[1].text.trim()).toBe("water");
+  });
+
+  it("forces a Latin run to the hinted language", () => {
+    expect(segmentByLang("hello", "vi")).toEqual([{ text: "hello", lang: "vi" }]);
+  });
+
+  it("ignores a hint whose script doesn't match the text", () => {
+    // A ja hint on Latin text doesn't apply (different script family).
+    expect(segmentByLang("hola", "ja")).toEqual([{ text: "hola", lang: "" }]);
   });
 });

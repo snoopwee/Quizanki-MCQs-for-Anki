@@ -25,6 +25,10 @@ export interface DeckResponse {
   // 0-100. Mean mastery across every note in the deck, with unseen notes
   // counted as 0 (so a fresh deck is 0%, not undefined).
   completion: number;
+  // Deck-level primary TTS language per face (BCP-47 primary subtag), or null to
+  // auto-detect. term = front, definition = back.
+  frontLang: string | null;
+  backLang: string | null;
 }
 
 export interface NoteResponse {
@@ -67,6 +71,10 @@ export interface ImportDeckRequest {
   name: string;
   subdeckPath?: string | null;
   sourceFilename?: string | null;
+  // Deck-level primary TTS language per face, computed at save from the majority
+  // language of each face. Null / omitted = auto-detect.
+  frontLang?: string | null;
+  backLang?: string | null;
   noteTypes: NoteTypeRequest[];
 }
 
@@ -102,6 +110,10 @@ export interface ApkgParsedNote {
   ankiNoteId: string | null;
   fields: Record<string, string>;
   tags: string[];
+  // Per-card TTS language override per face (BCP-47 primary subtag), or null to
+  // fall back to the deck default. Only present for saved decks.
+  frontLang?: string | null;
+  backLang?: string | null;
 }
 
 export interface ApkgNoteType {
@@ -127,6 +139,11 @@ export interface ApkgParseResponse {
   // Notes excluded because every field was empty after cleaning — image-occlusion
   // and other media-only cards that can't be quizzed as multiple choice.
   imageOnlyNotes: number;
+  // Deck-level primary TTS language per face. Undefined for a fresh .apkg parse
+  // (no deck yet); populated when a saved deck's contents are adapted into this
+  // shape. term = front, definition = back.
+  frontLang?: string | null;
+  backLang?: string | null;
   noteTypes: ApkgNoteType[];
 }
 
@@ -136,6 +153,9 @@ export interface DeckContentsNote {
   ankiNoteId: string | null;
   fields: Record<string, string>;
   tags: string[];
+  // Per-card TTS language override per face, or null to inherit the deck default.
+  frontLang: string | null;
+  backLang: string | null;
 }
 
 export interface DeckContentsNoteType {
@@ -163,6 +183,10 @@ export interface UpdateDeckContentsNote {
   noteTypeId: string | null;
   fields: Record<string, string>;
   tags: string[];
+  // Per-face TTS language override (BCP-47 primary subtag); "" / null = inherit
+  // the deck default. Travels with the card through the bulk editor save.
+  frontLang?: string | null;
+  backLang?: string | null;
 }
 
 export interface UpdateDeckContentsRequest {
@@ -179,5 +203,8 @@ export interface DeckContentsResponse {
   cardCount: number | null;
   importedAt: string | null;
   completion: number;
+  // Deck-level primary TTS language per face, or null to auto-detect.
+  frontLang: string | null;
+  backLang: string | null;
   noteTypes: DeckContentsNoteType[];
 }

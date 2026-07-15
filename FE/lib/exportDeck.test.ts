@@ -5,11 +5,15 @@ import {
   exportFilename,
 } from "@/lib/exportDeck";
 import type { Flashcard } from "@/lib/flashcards";
-import type { DeckContentsNoteType, DeckContentsResponse } from "@/types/api";
+import type { DeckContentsNote, DeckContentsNoteType, DeckContentsResponse } from "@/types/api";
+
+// Test notes may omit the per-face language fields; they default to null (auto).
+type TestNote = Omit<DeckContentsNote, "frontLang" | "backLang"> &
+  Partial<Pick<DeckContentsNote, "frontLang" | "backLang">>;
 
 function noteType(
-  over: Partial<DeckContentsNoteType> &
-    Pick<DeckContentsNoteType, "name" | "fieldNames" | "notes">,
+  over: Omit<Partial<DeckContentsNoteType>, "notes"> &
+    Pick<DeckContentsNoteType, "name" | "fieldNames"> & { notes: TestNote[] },
 ): DeckContentsNoteType {
   return {
     id: over.name,
@@ -19,6 +23,7 @@ function noteType(
     backFields: [],
     noteCount: over.notes.length,
     ...over,
+    notes: over.notes.map((n) => ({ frontLang: null, backLang: null, ...n })),
   };
 }
 
@@ -31,6 +36,8 @@ function deck(noteTypes: DeckContentsNoteType[]): DeckContentsResponse {
     cardCount: null,
     importedAt: null,
     completion: 0,
+    frontLang: null,
+    backLang: null,
     noteTypes,
   };
 }

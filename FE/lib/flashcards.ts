@@ -20,6 +20,11 @@ export interface Flashcard {
   front: string[];
   back: string[];
   noteType: string;
+  // Per-card TTS language override per face (BCP-47 primary subtag), or null to
+  // inherit the deck default. Only set for saved decks; a fresh parse leaves both
+  // null. Cloze cards from one note share the note's languages.
+  frontLang?: string | null;
+  backLang?: string | null;
 }
 
 function bundle(fields: Record<string, string>, names: string[]): string[] {
@@ -46,7 +51,14 @@ function buildClozeCards(nt: ApkgNoteType): Flashcard[] {
       const front = text.length > 0 ? [text] : [];
       const back = bundle(note.fields, extraFields);
       if (front.length === 0 && back.length === 0) return;
-      out.push({ id, front, back, noteType: nt.name });
+      out.push({
+        id,
+        front,
+        back,
+        noteType: nt.name,
+        frontLang: note.frontLang ?? null,
+        backLang: note.backLang ?? null,
+      });
       return;
     }
 
@@ -59,6 +71,8 @@ function buildClozeCards(nt: ApkgNoteType): Flashcard[] {
         // Full sentence with every cloze revealed, then any extra fields below.
         back: [revealed, ...extras],
         noteType: nt.name,
+        frontLang: note.frontLang ?? null,
+        backLang: note.backLang ?? null,
       });
     }
   });
@@ -104,6 +118,8 @@ export function buildFlashcards(noteTypes: ApkgNoteType[]): Flashcard[] {
         front,
         back,
         noteType: nt.name,
+        frontLang: note.frontLang ?? null,
+        backLang: note.backLang ?? null,
       });
     });
   }

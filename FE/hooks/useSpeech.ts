@@ -32,9 +32,11 @@ export function useSpeech() {
   const activeStatus = useSyncExternalStore(subscribe, getActiveStatus, () => null);
   const voices = useSyncExternalStore(subscribe, getVoices, () => EMPTY_VOICES);
 
-  const toggle = useCallback((key: string, text: string) => {
+  // `lang` is the optional per-face primary-language hint (BCP-47 primary subtag)
+  // passed through to the speech layer to disambiguate same-script detection.
+  const toggle = useCallback((key: string, text: string, lang = "") => {
     if (getActiveKey() === key) cancelSpeech();
-    else speak(key, text);
+    else speak(key, text, lang);
   }, []);
 
   return { supported, activeKey, activeStatus, voices, toggle, cancel: cancelSpeech };

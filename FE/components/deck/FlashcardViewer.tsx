@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { buildFlashcards, type Flashcard } from "@/lib/flashcards";
 import { classifyMastery } from "@/lib/masteryStage";
 import { CardPreviewRow, Lines, StageBadge } from "./CardPreview";
@@ -20,6 +20,13 @@ import {
   saveFlashcardPreferences,
   type FlashcardPreferences,
 } from "@/lib/flashcardPreferences";
+import {
+  clearFlashcardProgress,
+  loadFlashcardProgress,
+  saveFlashcardProgress,
+} from "@/lib/flashcardProgress";
+import { majorityFaceLang } from "@/lib/faceLanguage";
+import { useSetDeckLanguages } from "@/hooks/useDecks";
 import type { ApkgParseResponse } from "@/types/api";
 
 // Same shape ApkgQuizSetup uses — callers can pass a single lookup that serves
@@ -100,6 +107,21 @@ export function FlashcardViewer({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [focus, setFocus] = useState(false);
+  // The outgoing card during an advance. It stays mounted as an overlay and
+  // animates away (lift + glide aside) to reveal the next card underneath — like
+  // lifting a card off a stack. Plain nav flies a *blank* card (text dropped at
+  // once, undistracting); card-sorting flies a coloured Know / Still-learning
+  // label instead (`mark`). Cleared when the exit animation ends. `dir` picks the
+  // fly-off side (1 = right, -1 = left) — sorting sends Know right, Learning left.
+  const [leaving, setLeaving] = useState<
+    { card: StudyCard; dir: 1 | -1; mark?: "know" | "learn" } | null
+  >(null);
+  // Holds the latest `go` so the keydown listener can call it without
+  // re-subscribing every render.
+  const goRef = useRef<(delta: number) => void>(() => {});
+  // Guards the one-shot "resume where you left off" jump so it fires once per
+  // mount (after piles are restored) and never fights normal paging afterwards.
+  const resumedRef = useRef(false);
   // Reshuffle nonce — bumped whenever a fresh order is wanted.
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1e9));
   // The active study subset (starred-only, or a re-study of the still-learning
@@ -117,17 +139,41 @@ export function FlashcardViewer({
     [allCards, canStar, getStarred],
   );
 
+  // Deck-level TTS language per face. The stored deck override wins; otherwise
+  // fall back to the majority language detected across the cards (so a kanji deck
+  // defaults to Japanese, not Chinese). A per-card override beats both at speak
+  // time. Editing the deck default persists via PUT /decks/{id}/languages.
+  const setDeckLanguages = useSetDeckLanguages(deckId ?? "");
+  const autoTermLang = useMemo(() => majorityFaceLang(allCards.map((c) => c.front)), [allCards]);
+  const autoDefLang = useMemo(() => majorityFaceLang(allCards.map((c) => c.back)), [allCards]);
+  const deckTermLang = parsed.frontLang ?? "";
+  const deckDefLang = parsed.backLang ?? "";
+  const effectiveTermLang = deckTermLang || autoTermLang;
+  const effectiveDefLang = deckDefLang || autoDefLang;
+
   const studyCards = useMemo(() => {
     const base = restrictKeys ? allCards.filter((c) => restrictKeys.has(c.key)) : allCards;
     return prefs.shuffle ? seededShuffle(base, seed) : base;
   }, [allCards, restrictKeys, prefs.shuffle, seed]);
 
-  // Load saved prefs once per deck; seed the starting face from them.
+  // Load saved prefs once per deck; seed the starting face from them. Also restore
+  // any in-progress card-sorting piles so navigating away and back resumes the
+  // round instead of wiping it. Keys are order-independent, so this survives
+  // shuffle / subset views; the resume-position effect below jumps to the first
+  // still-unsorted card. Stale keys (deck shrank since the save) are filtered out
+  // so markedCount can't overshoot the deck size.
   useEffect(() => {
     if (!deckId) return;
     const loaded = loadFlashcardPreferences(deckId);
     setPrefs(loaded);
     setFlipped(loaded.startSide === "back");
+    const validKeys = new Set(allCards.map((c) => c.key));
+    const prog = loadFlashcardProgress(deckId);
+    setKnown(new Set(prog.known.filter((k) => validKeys.has(k))));
+    setLearn(new Set(prog.learn.filter((k) => validKeys.has(k))));
+    // allCards is only used to prune stale keys on this one-shot restore; we don't
+    // want a later deck-content change to re-run (and clobber) the restore.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deckId]);
 
   // Derive the "starred only" subset from the pref. Snapshot the stars when it's
@@ -145,12 +191,26 @@ export function FlashcardViewer({
   }, [prefs.starredOnly, hasStarred, allCards]);
 
   // Whenever the study set changes (subset / shuffle / reseed), jump to the first
-  // card and clear the sorting piles (their keys belonged to the old set).
+  // card. The sorting piles are NOT cleared here — they're keyed by card, so they
+  // stay valid across reorderings, and the new-round actions (shuffle, starred,
+  // subset, restart) reset them explicitly. Clearing here would also wipe the
+  // piles we restore on mount before the resume effect can use them.
   useEffect(() => {
     setIndex(0);
-    setKnown(new Set());
-    setLearn(new Set());
+    setLeaving(null);
   }, [studyCards]);
+
+  // Resume: after piles are restored on mount, jump to the first card that isn't
+  // sorted yet (in the current order) rather than card 1. One-shot per mount (the
+  // ref guard) so it can't fight normal paging once marking resumes.
+  useEffect(() => {
+    if (resumedRef.current || !prefs.cardSorting) return;
+    if (known.size === 0 && learn.size === 0) return;
+    resumedRef.current = true;
+    const sorted = new Set<number>([...known, ...learn]);
+    const next = studyCards.findIndex((c) => !sorted.has(c.key));
+    setIndex(next === -1 ? 0 : next);
+  }, [prefs.cardSorting, known, learn, studyCards]);
 
   // Landing on a new card shows the configured starting face.
   useEffect(() => {
@@ -174,6 +234,8 @@ export function FlashcardViewer({
           frontFields: nt.frontFields,
           backFields: nt.backFields,
           fields: note.fields,
+          frontLang: note.frontLang ?? null,
+          backLang: note.backLang ?? null,
         });
       }
     }
@@ -194,12 +256,24 @@ export function FlashcardViewer({
     );
   }
 
+  // Drop the card-sorting piles + their persisted copy — used by every action
+  // that starts a fresh round (new order, new subset, or an explicit restart).
+  function resetSortProgress() {
+    setKnown(new Set());
+    setLearn(new Set());
+    if (deckId) clearFlashcardProgress(deckId);
+  }
+
   function updatePrefs(patch: Partial<FlashcardPreferences>) {
-    setPrefs((prev) => {
-      const next = { ...prev, ...patch };
-      if (deckId) saveFlashcardPreferences(deckId, next);
-      return next;
-    });
+    const next = { ...prefs, ...patch };
+    setPrefs(next);
+    if (deckId) saveFlashcardPreferences(deckId, next);
+    // Changing which cards / what order you study starts a fresh sorting round,
+    // so the old Know / Still-learning piles no longer apply. (Toggling sorting
+    // itself, or the starting side, keeps the piles.)
+    if (next.shuffle !== prefs.shuffle || next.starredOnly !== prefs.starredOnly) {
+      resetSortProgress();
+    }
   }
 
   useEffect(() => {
@@ -211,7 +285,6 @@ export function FlashcardViewer({
   // Keyboard nav: ←/A prev, →/D next, Space flip, F fullscreen, Esc leaves
   // fullscreen. Skipped when focus is in a form control or a modal is open.
   useEffect(() => {
-    const lastIndex = studyCards.length - 1;
     function onKey(e: KeyboardEvent) {
       if (e.repeat || e.defaultPrevented) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -233,12 +306,10 @@ export function FlashcardViewer({
       const isNext = e.key === "ArrowRight" || e.key === "d" || e.key === "D";
       if (isPrev) {
         e.preventDefault();
-        cancelSpeech();
-        setIndex((i) => Math.max(0, i - 1));
+        goRef.current(-1);
       } else if (isNext) {
         e.preventDefault();
-        cancelSpeech();
-        setIndex((i) => Math.min(lastIndex, i + 1));
+        goRef.current(1);
       } else if (e.key === " ") {
         e.preventDefault();
         cancelSpeech();
@@ -250,7 +321,7 @@ export function FlashcardViewer({
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [studyCards.length, focus, settingsOpen, editingId]);
+  }, [focus, settingsOpen, editingId]);
 
   if (allCards.length === 0) {
     return (
@@ -277,17 +348,33 @@ export function FlashcardViewer({
   const cardStage = card && getStats ? classifyMastery(getStats(card.id)) : null;
   // The in-card speaker reads only the CURRENT face (front or back, whichever is
   // showing) — not the whole card.
-  const faceText = card ? stripLatex((flipped ? card.back : card.front).join(". ")) : "";
+  // Per-face TTS text + language (per-card override → deck default → auto ""), so
+  // each face carries its own speaker reading that side in the right voice.
+  const frontText = card ? stripLatex(card.front.join(". ")) : "";
+  const backText = card ? stripLatex(card.back.join(". ")) : "";
+  const frontFaceLang = card ? card.frontLang || effectiveTermLang : "";
+  const backFaceLang = card ? card.backLang || effectiveDefLang : "";
 
   const sorting = prefs.cardSorting;
   const markedCount = known.size + learn.size;
   const sortingDone = sorting && total > 0 && markedCount >= total;
 
+  const canPrev = safeIndex > 0;
+  const canNext = safeIndex < total - 1;
+
   function go(delta: number) {
-    if (total === 0) return;
+    if (total === 0 || !card) return;
+    // Nothing to reveal past the ends — don't fling the card into empty space.
+    if (delta > 0 ? !canNext : !canPrev) return;
     cancelSpeech();
+    // Fly the outgoing card away as a blank surface — its text vanishes at once,
+    // so only the reveal of the next card (already rendered beneath) draws the eye.
+    setLeaving({ card, dir: delta >= 0 ? 1 : -1 });
+    // Reset the flip synchronously so the revealed next card shows its start face.
+    setFlipped(prefs.startSide === "back");
     setIndex((i) => Math.min(total - 1, Math.max(0, i + delta)));
   }
+  goRef.current = go;
 
   function flip() {
     cancelSpeech();
@@ -297,42 +384,59 @@ export function FlashcardViewer({
   function mark(knows: boolean) {
     if (!card) return;
     const k = card.key;
-    setKnown((prev) => {
-      const n = new Set(prev);
-      if (knows) n.add(k);
-      else n.delete(k);
-      return n;
-    });
-    setLearn((prev) => {
-      const n = new Set(prev);
-      if (knows) n.delete(k);
-      else n.add(k);
-      return n;
-    });
+    // Whether this fills the last unsorted slot — if so the breakdown replaces
+    // the card, so skip the fly-away (its overlay wouldn't mount to clear itself).
+    const already = known.has(k) || learn.has(k);
+    const willComplete = (already ? markedCount : markedCount + 1) >= total;
+    const nextKnown = new Set(known);
+    const nextLearn = new Set(learn);
+    if (knows) {
+      nextKnown.add(k);
+      nextLearn.delete(k);
+    } else {
+      nextLearn.add(k);
+      nextKnown.delete(k);
+    }
+    setKnown(nextKnown);
+    setLearn(nextLearn);
+    // Persist after every mark so leaving the page mid-round resumes it later.
+    if (deckId) {
+      saveFlashcardProgress(deckId, { known: [...nextKnown], learn: [...nextLearn] });
+    }
     cancelSpeech();
+    // Fly the card off toward its pile (Know → right, Still-learning → left)
+    // carrying a coloured verdict label, instead of the blank plain-nav card.
+    if (!willComplete) {
+      setLeaving({ card, dir: knows ? 1 : -1, mark: knows ? "know" : "learn" });
+    }
+    setFlipped(prefs.startSide === "back");
     setIndex((i) => Math.min(total - 1, i + 1));
   }
 
   function studySubset(keys: Set<number>, label: string) {
+    // Snapshot the keys before resetSortProgress clears the piles they came from.
+    const subset = new Set(keys);
     // A subset overrides the starred filter; clear the pref so its effect doesn't
     // re-derive a "Starred" restriction over this one.
     if (prefs.starredOnly) updatePrefs({ starredOnly: false });
-    setRestrictKeys(new Set(keys));
+    setRestrictKeys(subset);
     setSubsetLabel(label);
-    // index + piles reset by the studyCards-change effect.
+    // A subset is a fresh round over a filtered set — start its piles empty.
+    resetSortProgress();
   }
 
   function showAll() {
     if (prefs.starredOnly) updatePrefs({ starredOnly: false });
     setRestrictKeys(null);
     setSubsetLabel(null);
+    resetSortProgress();
   }
 
   function restart() {
     cancelSpeech();
     setIndex(0);
-    setKnown(new Set());
-    setLearn(new Set());
+    setLeaving(null);
+    resetSortProgress();
     setFlipped(prefs.startSide === "back");
   }
 
@@ -340,19 +444,36 @@ export function FlashcardViewer({
     "grid h-9 w-9 place-items-center rounded-full border border-line-strong bg-surface text-ink transition hover:border-accent hover:text-accent disabled:opacity-40 disabled:hover:border-line-strong disabled:hover:text-ink";
   const iconBtn =
     "grid h-9 w-9 place-items-center rounded-full text-muted transition hover:bg-surface-2 hover:text-ink disabled:cursor-not-allowed";
+  // Card-sorting verdict buttons — same footprint as navBtn, coloured by pile.
+  const learnBtn =
+    "focus-ring grid h-9 w-9 place-items-center rounded-full border border-danger/40 bg-danger/5 text-danger transition hover:bg-danger/10";
+  const knowBtn =
+    "focus-ring grid h-9 w-9 place-items-center rounded-full border border-success/40 bg-success/5 text-success transition hover:bg-success/10";
 
   const cardHeight = focus ? "h-[58vh]" : "h-[26rem]";
 
-  const cardBlock = card && (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={flip}
-        className={`flex w-full flex-col rounded-card border border-line bg-surface p-6 text-center transition hover:border-accent ${cardHeight}`}
+  // A single card face. Both faces are always rendered and stacked; the flip
+  // rotation reveals whichever isn't showing its (hidden) backside. The action
+  // cluster (speaker · edit · star) lives ON the face, so it rotates *with* the
+  // card during a flip and is readable on whichever side is up. Only the visible
+  // face's cluster is interactive/announced (the hidden face is aria-hidden with
+  // backface-visibility off).
+  const cardFace = (side: "front" | "back") => {
+    const isBack = side === "back";
+    // The face currently rotated out of view. `inert` (not just aria-hidden) so its
+    // cluster buttons leave the tab order and AT while the face is flipped away —
+    // otherwise there'd be a focusable control inside a hidden subtree.
+    const hidden = isBack ? !flipped : flipped;
+    return (
+      <div
+        inert={hidden}
+        className={`flip-face flex flex-col rounded-card border border-line bg-surface p-6 text-center transition-colors group-hover:border-accent ${
+          isBack ? "flip-face-back" : ""
+        }`}
       >
-        <div className="flex shrink-0 items-center gap-3 pr-24">
+        <div className="flex shrink-0 items-center gap-3 pr-32">
           <span className="text-xs font-medium uppercase tracking-wide text-faint">
-            {flipped ? "Back" : "Front"}
+            {isBack ? "Back" : "Front"}
           </span>
           {cardStage && <StageBadge info={cardStage} />}
         </div>
@@ -360,32 +481,109 @@ export function FlashcardViewer({
           {/* my-auto centers content when it fits, but collapses so the top stays
               scrollable when content overflows (justify-center would clip it). */}
           <div className="my-auto w-full space-y-2">
-            <Lines values={flipped ? card.back : card.front} className="text-4xl font-medium" />
+            <Lines
+              values={isBack ? card!.back : card!.front}
+              className="text-4xl font-medium"
+            />
           </div>
         </div>
         <span className="shrink-0 text-xs text-faint">Click to flip</span>
-      </button>
 
-      {/* in-card action cluster (Quizlet/Knowt): speaker · edit · star */}
-      <div className="absolute right-3 top-3 z-10 flex items-center gap-0.5">
-        {speechOn && <SpeakButton id="card-face" text={faceText} size="sm" />}
-        {canEdit && noteIndex.has(card.id) && (
-          <button
-            type="button"
-            title="Edit card"
-            aria-label="Edit card"
-            onClick={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              setEditingId(card.id);
-            }}
-            className="focus-ring grid h-7 w-7 place-items-center rounded-full text-faint transition hover:text-accent"
-          >
-            <Icon name="pencil" size={15} />
-          </button>
-        )}
-        {starFor(card.id, "sm")}
+        {/* in-card action cluster (Quizlet/Knowt): speaker · edit · star. A tap on
+            the cluster must not flip the card, so it stops propagation. */}
+        <div
+          className="absolute right-3 top-3 z-10 flex items-center gap-0.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {speechOn && (
+            <SpeakButton
+              id={`card-face-${side}`}
+              text={isBack ? backText : frontText}
+              size="md"
+              lang={isBack ? backFaceLang : frontFaceLang}
+            />
+          )}
+          {canEdit && noteIndex.has(card!.id) && (
+            <button
+              type="button"
+              title="Edit card"
+              aria-label="Edit card"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingId(card!.id);
+              }}
+              className="focus-ring grid h-9 w-9 place-items-center rounded-full text-faint transition hover:text-accent"
+            >
+              <Icon name="pencil" size={17} />
+            </button>
+          )}
+          {starFor(card!.id, "md")}
+        </div>
       </div>
+    );
+  };
+
+  // The scene is stable; the flip surface is keyed by card so it remounts (clean
+  // flip reset) and the next card is present the instant we advance. The exiting
+  // card is a separate overlay layered on top (see below), so this card sits
+  // revealed beneath it. The flip surface is a role="button" div — not a real
+  // <button> — because the action cluster lives inside it (on each face, so it
+  // rotates with the card) and interactive buttons can't nest in a <button>.
+  const cardBlock = card && (
+    <div className={`flip-scene relative w-full ${cardHeight}`}>
+      <div
+        key={card.key}
+        role="button"
+        tabIndex={0}
+        onClick={flip}
+        onKeyDown={(e) => {
+          // Space is handled by the global key listener; add Enter for this div
+          // (it has no native button activation).
+          if (e.key === "Enter") {
+            e.preventDefault();
+            flip();
+          }
+        }}
+        aria-label="Flip card"
+        className={`group flip-card focus-ring block h-full w-full rounded-card ${
+          flipped ? "is-flipped" : ""
+        }`}
+      >
+        {cardFace("front")}
+        {cardFace("back")}
+      </div>
+
+      {/* Outgoing card: lifts off and glides away to reveal the card beneath.
+          Purely decorative and non-interactive; removed when its animation ends. */}
+      {leaving && (
+        <div
+          key={`leave-${leaving.card.key}`}
+          aria-hidden
+          onAnimationEnd={() => setLeaving(null)}
+          className={`pointer-events-none absolute inset-0 z-30 ${
+            leaving.dir >= 0 ? "fc-leave-next" : "fc-leave-prev"
+          }`}
+        >
+          {leaving.mark ? (
+            // Card-sorting: fly a coloured Know / Still-learning verdict away.
+            <div
+              className={`flex h-full w-full flex-col items-center justify-center gap-3 rounded-card border bg-surface shadow-card ${
+                leaving.mark === "know"
+                  ? "border-success/50 text-success"
+                  : "border-danger/50 text-danger"
+              }`}
+            >
+              <Icon name={leaving.mark === "know" ? "check" : "x"} size={40} />
+              <span className="font-display text-2xl font-bold tracking-tight">
+                {leaving.mark === "know" ? "Know" : "Still learning"}
+              </span>
+            </div>
+          ) : (
+            // Plain nav: a blank surface — text dropped at once, undistracting.
+            <div className="h-full w-full rounded-card border border-line bg-surface shadow-card" />
+          )}
+        </div>
+      )}
     </div>
   );
 
@@ -433,8 +631,8 @@ export function FlashcardViewer({
     </div>
   );
 
-  // The player = subset chip + (card | breakdown) + sorting buttons + control bar.
-  // Rendered inline normally, or inside the focus overlay.
+  // The player = subset chip + (card | breakdown) + control bar (which carries
+  // the sort verdicts when sorting is on). Rendered inline, or in the focus overlay.
   const player = (
     <div className="space-y-4">
       {subsetLabel && (
@@ -451,27 +649,8 @@ export function FlashcardViewer({
 
       {sortingDone ? sortingBreakdown : cardBlock}
 
-      {sorting && !sortingDone && (
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => mark(false)}
-            className="focus-ring flex items-center justify-center gap-2 rounded-input border border-danger/40 bg-danger/5 py-2.5 text-sm font-semibold text-danger transition hover:bg-danger/10"
-          >
-            <Icon name="x" size={16} /> Still learning
-          </button>
-          <button
-            type="button"
-            onClick={() => mark(true)}
-            className="focus-ring flex items-center justify-center gap-2 rounded-input border border-success/40 bg-success/5 py-2.5 text-sm font-semibold text-success transition hover:bg-success/10"
-          >
-            <Icon name="check" size={16} /> Got it
-          </button>
-        </div>
-      )}
-
-      {/* bottom control bar: sorting toggle · prev/counter/next · tools.
-          Wraps on phones — the nav takes its own centered row above the rest. */}
+      {/* bottom control bar: sorting toggle · nav OR sort verdicts (✗/✓) · tools.
+          Wraps on phones — the center takes its own centered row above the rest. */}
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-3 border-t border-line pt-4 sm:justify-between">
         <label className="order-2 flex items-center gap-2 sm:order-1">
           <Toggle on={sorting} onChange={(v) => updatePrefs({ cardSorting: v })} />
@@ -479,21 +658,49 @@ export function FlashcardViewer({
         </label>
 
         <div className="order-1 flex w-full items-center justify-center gap-3 sm:order-2 sm:w-auto">
-          <button type="button" onClick={() => go(-1)} disabled={safeIndex === 0} className={navBtn} aria-label="Previous card">
-            <Icon name="chevronLeft" size={18} />
-          </button>
-          <span className="min-w-[3.25rem] text-center font-mono text-sm font-bold text-ink">
-            {total === 0 ? 0 : safeIndex + 1} / {total}
-          </span>
-          <button
-            type="button"
-            onClick={() => go(1)}
-            disabled={safeIndex >= total - 1}
-            className={navBtn}
-            aria-label="Next card"
-          >
-            <Icon name="chevronRight" size={18} />
-          </button>
+          {sorting && !sortingDone ? (
+            <>
+              <button
+                type="button"
+                onClick={() => mark(false)}
+                className={learnBtn}
+                aria-label="Still learning"
+                title="Still learning"
+              >
+                <Icon name="x" size={18} />
+              </button>
+              <span className="min-w-[3.25rem] text-center font-mono text-sm font-bold text-ink">
+                {total === 0 ? 0 : safeIndex + 1} / {total}
+              </span>
+              <button
+                type="button"
+                onClick={() => mark(true)}
+                className={knowBtn}
+                aria-label="Got it"
+                title="Got it"
+              >
+                <Icon name="check" size={18} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={() => go(-1)} disabled={safeIndex === 0} className={navBtn} aria-label="Previous card">
+                <Icon name="chevronLeft" size={18} />
+              </button>
+              <span className="min-w-[3.25rem] text-center font-mono text-sm font-bold text-ink">
+                {total === 0 ? 0 : safeIndex + 1} / {total}
+              </span>
+              <button
+                type="button"
+                onClick={() => go(1)}
+                disabled={safeIndex >= total - 1}
+                className={navBtn}
+                aria-label="Next card"
+              >
+                <Icon name="chevronRight" size={18} />
+              </button>
+            </>
+          )}
         </div>
 
         <div className="order-3 flex items-center gap-0.5">
@@ -624,6 +831,9 @@ export function FlashcardViewer({
                           id={`preview-${c.key}`}
                           text={stripLatex([...c.front, ...c.back].join(". "))}
                           size="sm"
+                          // Whole card (front then back); hint on the term side —
+                          // usually the foreign/ambiguous script — disambiguates it.
+                          lang={c.frontLang || effectiveTermLang}
                         />
                       )}
                       {starFor(c.id, "sm")}
@@ -698,6 +908,24 @@ export function FlashcardViewer({
           prefs={prefs}
           onChange={updatePrefs}
           starredAvailable={hasStarred}
+          language={
+            deckId
+              ? {
+                  term: deckTermLang,
+                  def: deckDefLang,
+                  autoTerm: autoTermLang,
+                  autoDef: autoDefLang,
+                  saving: setDeckLanguages.isPending,
+                  // The endpoint sets both faces at once, so send the other face's
+                  // current stored value alongside the one being changed.
+                  onChange: (face, code) =>
+                    setDeckLanguages.mutate({
+                      frontLang: face === "front" ? code : deckTermLang,
+                      backLang: face === "back" ? code : deckDefLang,
+                    }),
+                }
+              : undefined
+          }
           onSave={() => setSettingsOpen(false)}
           onRestart={() => {
             restart();

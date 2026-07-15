@@ -14,11 +14,15 @@ import {
   type EditorRow,
   type EditorState,
 } from "@/lib/deckEditor";
-import type { DeckContentsNoteType, DeckContentsResponse } from "@/types/api";
+import type { DeckContentsNote, DeckContentsNoteType, DeckContentsResponse } from "@/types/api";
+
+// Test notes may omit the per-face language fields; they default to null (auto).
+type TestNote = Omit<DeckContentsNote, "frontLang" | "backLang"> &
+  Partial<Pick<DeckContentsNote, "frontLang" | "backLang">>;
 
 function noteType(
-  over: Partial<DeckContentsNoteType> &
-    Pick<DeckContentsNoteType, "id" | "name" | "fieldNames" | "notes">,
+  over: Omit<Partial<DeckContentsNoteType>, "notes"> &
+    Pick<DeckContentsNoteType, "id" | "name" | "fieldNames"> & { notes: TestNote[] },
 ): DeckContentsNoteType {
   return {
     ankiModelId: null,
@@ -27,6 +31,7 @@ function noteType(
     backFields: ["Back"],
     noteCount: over.notes.length,
     ...over,
+    notes: over.notes.map((n) => ({ frontLang: null, backLang: null, ...n })),
   };
 }
 
@@ -39,6 +44,8 @@ function deck(noteTypes: DeckContentsNoteType[]): DeckContentsResponse {
     cardCount: null,
     importedAt: null,
     completion: 0,
+    frontLang: null,
+    backLang: null,
     noteTypes,
   };
 }
@@ -224,5 +231,44 @@ describe("isBlankRow", () => {
     expect(isBlankRow(addBasicRow())).toBe(true);
     expect(isBlankRow(basicRow("", "  "))).toBe(true);
     expect(isBlankRow(basicRow("a", ""))).toBe(false);
+  });
+});
+
+describe("per-face TTS language", () => {
+  const langDeck = deck([
+    noteType({
+      id: "t1",
+      name: "Basic",
+      fieldNames: ["Front", "Back"],
+      frontFields: ["Front"],
+      backFields: ["Back"],
+      notes: [
+        { id: "n1", ankiNoteId: null, fields: { Front: "水", Back: "water" }, tags: [], frontLang: "ja", backLang: "en" },
+      ],
+    }),
+  ]);
+
+  it("carries note languages into rows and back out via toPayload", () => {
+    const state = fromContents(langDeck);
+    expect(state.rows[0].frontLang).toBe("ja");
+    expect(state.rows[0].backLang).toBe("en");
+
+    const payload = toPayload(state);
+    expect(payload.notes[0].frontLang).toBe("ja");
+    expect(payload.notes[0].backLang).toBe("en");
+  });
+
+  it("defaults a note with no languages to '' (auto-detect)", () => {
+    const state = fromContents(basicDeck);
+    expect(state.rows[0].frontLang).toBe("");
+    expect(state.rows[0].backLang).toBe("");
+  });
+
+  it("swaps the languages along with the term/definition values", () => {
+    const swapped = swapValuesForRow(fromContents(langDeck).rows[0]);
+    expect(swapped.fields.Front).toBe("water");
+    expect(swapped.fields.Back).toBe("水");
+    expect(swapped.frontLang).toBe("en");
+    expect(swapped.backLang).toBe("ja");
   });
 });

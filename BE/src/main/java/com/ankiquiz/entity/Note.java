@@ -42,6 +42,14 @@ public class Note {
     @Column(name = "note_position")
     private Integer position;
 
+    // Per-card TTS language override per face (BCP-47 primary subtag). Null = fall
+    // back to the deck-level default, then auto-detect. Set in the card editor.
+    @Column(name = "front_lang")
+    private String frontLang;
+
+    @Column(name = "back_lang")
+    private String backLang;
+
     public UUID getId() {
         return id;
     }
@@ -96,5 +104,21 @@ public class Note {
 
     public void setPosition(Integer position) {
         this.position = position;
+    }
+
+    public String getFrontLang() {
+        return frontLang;
+    }
+
+    public void setFrontLang(String frontLang) {
+        this.frontLang = frontLang;
+    }
+
+    public String getBackLang() {
+        return backLang;
+    }
+
+    public void setBackLang(String backLang) {
+        this.backLang = backLang;
     }
 }

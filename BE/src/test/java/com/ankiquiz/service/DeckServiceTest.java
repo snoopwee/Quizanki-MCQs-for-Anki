@@ -122,8 +122,8 @@ class DeckServiceTest {
                 "New name",
                 List.of(),
                 List.of(
-                        new NoteEntry(keepId, typeId, Map.of("Front", "kept", "Back", "b"), List.of()),
-                        new NoteEntry(null, typeId, Map.of("Front", "new", "Back", "b2"), List.of("tag"))
+                        new NoteEntry(keepId, typeId, Map.of("Front", "kept", "Back", "b"), List.of(), null, null),
+                        new NoteEntry(null, typeId, Map.of("Front", "new", "Back", "b2"), List.of("tag"), null, null)
                 ));
 
         service.replaceDeckContents(USER, deckId, req);
@@ -140,6 +140,26 @@ class DeckServiceTest {
         ArgumentCaptor<List<Note>> delCaptor = ArgumentCaptor.forClass(List.class);
         verify(noteRepository).deleteAll(delCaptor.capture());
         assertThat(delCaptor.getValue()).extracting(Note::getId).containsExactly(dropId);
+    }
+
+    @Test
+    void replace_persistsPerCardLanguageOverride() {
+        when(deckRepository.findByIdAndUserId(deckId, USER)).thenReturn(Optional.of(deck()));
+        when(noteTypeRepository.findAllByDeckId(deckId)).thenReturn(List.of(basicType()));
+        when(noteRepository.findAllByDeckIdOrderByPositionAscIdAsc(deckId)).thenReturn(new ArrayList<>());
+
+        UpdateDeckContentsRequest req = new UpdateDeckContentsRequest(
+                "Deck",
+                List.of(),
+                // Front override "ja"; a blank back normalises to null (auto).
+                List.of(new NoteEntry(null, typeId, Map.of("Front", "水", "Back", "water"),
+                        List.of(), "ja", "  ")));
+
+        service.replaceDeckContents(USER, deckId, req);
+
+        Note saved = captureSaveAll().get(0);
+        assertThat(saved.getFrontLang()).isEqualTo("ja");
+        assertThat(saved.getBackLang()).isNull();
     }
 
     @Test
@@ -161,7 +181,7 @@ class DeckServiceTest {
         UpdateDeckContentsRequest req = new UpdateDeckContentsRequest(
                 "Deck",
                 List.of(),
-                List.of(new NoteEntry(null, null, Map.of("Front", "q", "Back", "a"), List.of())));
+                List.of(new NoteEntry(null, null, Map.of("Front", "q", "Back", "a"), List.of(), null, null)));
 
         service.replaceDeckContents(USER, deckId, req);
 

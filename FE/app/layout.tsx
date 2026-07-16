@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Space_Grotesk, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 // Warm "study desk" type system (see FE/DESIGN_SYSTEM.md):
 //   Space Grotesk — display / headings (tight, academic)
@@ -41,8 +42,13 @@ export default function RootLayout({
       lang="en"
       data-theme="light"
       className={`${spaceGrotesk.variable} ${geist.variable} ${geistMono.variable}`}
+      suppressHydrationWarning
     >
       <body className="min-h-screen antialiased" suppressHydrationWarning>
+        {/* Resolve the saved theme onto <html> before first paint (no light flash
+            on a dark-mode reload). Runs synchronously ahead of hydration; the
+            `light` default above is overwritten here when the pref differs. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -15,6 +15,29 @@ export function displayNameOf(user: User | null): string {
   return metaString(user, "display_name") || metaString(user, "full_name");
 }
 
+// We store an uploaded avatar under our OWN key, separate from `avatar_url` —
+// because Google OAuth populates `avatar_url`/`picture` itself, and we must not
+// clobber that (it's the default) or mistake it for a user upload.
+export const CUSTOM_AVATAR_KEY = "custom_avatar_url";
+
+/**
+ * The user's avatar image URL, or "" when they have none. Order of preference:
+ * their uploaded photo → the OAuth photo (Google sets `avatar_url`/`picture`, so
+ * social sign-ins get one for free) → "" (the caller shows initials).
+ */
+export function avatarUrlOf(user: User | null): string {
+  return (
+    metaString(user, CUSTOM_AVATAR_KEY) ||
+    metaString(user, "avatar_url") ||
+    metaString(user, "picture")
+  );
+}
+
+/** True only when the user has uploaded their own photo (vs. an OAuth default). */
+export function hasCustomAvatar(user: User | null): boolean {
+  return Boolean(metaString(user, CUSTOM_AVATAR_KEY));
+}
+
 /** 1–2 letter avatar initials from a name (preferred) or the email as fallback. */
 export function initialsFrom(name: string, email: string): string {
   const src = name.trim() || email.trim();

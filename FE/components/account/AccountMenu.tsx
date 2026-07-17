@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { useSession } from "@/hooks/useSession";
 import { createClient } from "@/lib/supabase/client";
 import { Icon, type IconName } from "@/components/ui/icons";
-import { displayNameOf, initialsFrom } from "@/lib/userDisplay";
+import { Avatar } from "@/components/ui/Avatar";
+import { avatarUrlOf, displayNameOf, initialsFrom } from "@/lib/userDisplay";
 
 // The sidebar's bottom account control: an avatar + name row that opens an upward
 // popover combining Profile, Settings, and Sign out (more items to come). Closes
@@ -37,6 +38,7 @@ export function AccountMenu({
 
   const name = displayNameOf(user) || email || "Account";
   const avatar = initialsFrom(displayNameOf(user), email);
+  const avatarUrl = avatarUrlOf(user);
 
   useEffect(() => {
     onOpenChange?.(open);
@@ -88,12 +90,7 @@ export function AccountMenu({
         {/* Avatar sits in the same 40px column as the nav icons so it centres in
             the slim rail and never shifts on expand. */}
         <span className="grid h-10 w-10 shrink-0 place-items-center">
-          <span
-            aria-hidden
-            className="grid h-8 w-8 place-items-center rounded-full bg-accent-soft font-display text-xs font-bold text-accent-ink"
-          >
-            {avatar}
-          </span>
+          <Avatar url={avatarUrl} initials={avatar} className="h-8 w-8 text-xs" />
         </span>
         {/* Name/email grow out with the rail (max-width + opacity) so nothing pops. */}
         <span

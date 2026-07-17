@@ -55,6 +55,12 @@ public class GlobalExceptionHandler {
                 .body(error(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), null));
     }
 
+    @ExceptionHandler(AvatarException.class)
+    public ResponseEntity<Map<String, Object>> handleAvatar(AvatarException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(error(ex.getStatus(), ex.getMessage(), null));
+    }
+
     @ExceptionHandler(RateLimitExceededException.class)
     public ResponseEntity<Map<String, Object>> handleRateLimited(RateLimitExceededException ex) {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)

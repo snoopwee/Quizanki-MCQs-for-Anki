@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useSession } from "@/hooks/useSession";
 import { useDecks } from "@/hooks/useDecks";
 import { createClient } from "@/lib/supabase/client";
-import { displayNameOf, initialsFrom } from "@/lib/userDisplay";
+import { avatarUrlOf, displayNameOf, hasCustomAvatar, initialsFrom } from "@/lib/userDisplay";
 import { AccountSection, accountInputClasses } from "@/components/account/AccountSection";
+import { AvatarUploadModal } from "@/components/account/AvatarUploadModal";
+import { Avatar } from "@/components/ui/Avatar";
 import { Toast } from "@/components/shared/Toast";
 import { buttonClasses } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/icons";
@@ -23,9 +25,13 @@ export default function ProfilePage() {
 
   const storedName = displayNameOf(user);
   const email = user?.email ?? "";
+  const avatarUrl = avatarUrlOf(user);
+  // Only our uploaded avatar is removable (the OAuth default isn't ours to clear).
+  const hasUploadedAvatar = hasCustomAvatar(user);
 
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
   const [toast, setToast] = useState<{ kind: "success" | "error"; message: string } | null>(null);
 
   // Seed the field once the session resolves. Keyed on the stored value so an
@@ -68,12 +74,19 @@ export default function ProfilePage() {
 
       {/* identity summary */}
       <div className="flex items-center gap-4 rounded-card border border-line bg-surface p-5">
-        <span
-          aria-hidden
-          className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-accent-soft font-display text-xl font-bold text-accent-ink"
-        >
-          {avatar}
-        </span>
+        <div className="relative shrink-0">
+          <Avatar url={avatarUrl} initials={avatar} className="h-16 w-16 text-xl" />
+          {/* Edit badge sits on the avatar's border and opens the picker modal. */}
+          <button
+            type="button"
+            onClick={() => setPhotoOpen(true)}
+            aria-label="Change profile picture"
+            title="Change profile picture"
+            className="focus-ring absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full border-2 border-surface bg-accent text-white shadow-btn transition hover:opacity-90"
+          >
+            <Icon name="pencil" size={13} />
+          </button>
+        </div>
         <div className="min-w-0">
           <p className="truncate font-display text-lg font-semibold text-ink">
             {storedName || "Unnamed learner"}
@@ -141,6 +154,16 @@ export default function ProfilePage() {
           </span>
         </div>
       </AccountSection>
+
+      {photoOpen && user && (
+        <AvatarUploadModal
+          currentUrl={avatarUrl}
+          initials={avatar}
+          canRemove={hasUploadedAvatar}
+          onClose={() => setPhotoOpen(false)}
+          onResult={(kind, message) => setToast({ kind, message })}
+        />
+      )}
 
       {toast && (
         <Toast kind={toast.kind} message={toast.message} onDismiss={() => setToast(null)} />

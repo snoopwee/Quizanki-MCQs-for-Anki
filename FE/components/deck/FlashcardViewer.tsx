@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { buildFlashcards, type Flashcard } from "@/lib/flashcards";
-import { classifyMastery } from "@/lib/masteryStage";
+import { classifyMastery, type MasteryStage } from "@/lib/masteryStage";
+import { cardMatchesQuery, nextAutoplayStep } from "@/lib/flashcardStudy";
 import { CardPreviewRow, Lines, StageBadge } from "./CardPreview";
 import { KebabMenu } from "@/components/shared/KebabMenu";
 import { StarButton } from "@/components/shared/StarButton";
@@ -44,6 +45,15 @@ type StudyCard = Flashcard & { key: number };
 const INITIAL_VISIBLE = 20;
 const SHOW_MORE_STEP = 50;
 
+// Mastery-stage options for the "Cards in this deck" filter (mirrors masteryStage).
+const MASTERY_FILTERS: Array<{ value: MasteryStage | "all"; label: string }> = [
+  { value: "all", label: "All mastery" },
+  { value: "new", label: "New" },
+  { value: "learning", label: "Learning" },
+  { value: "practicing", label: "Practicing" },
+  { value: "mastered", label: "Mastered" },
+];
+
 // The study screen: a Quizlet/Knowt-style flashcard player (in-card speaker /
 // edit / star, a bottom control bar, focus mode, shuffle + card-sorting) with a
 // full preview list below. Save lives here too (via the optional onSave prop).
@@ -62,6 +72,7 @@ export function FlashcardViewer({
   getStarred,
   onToggleStar,
   previewSlot,
+  hiddenSide = null,
 }: {
   parsed: ApkgParseResponse;
   // Mean mastery across the deck (0-100). Surfaced as a percent + progress bar
@@ -96,6 +107,9 @@ export function FlashcardViewer({
   // of rendering inline under the player — lets the deck page place the player and
   // the card list in separate sections while they keep sharing all viewer state.
   previewSlot?: HTMLElement | null;
+  // When "front"/"back", the matching column of every list row is blanked (tap to
+  // reveal) for self-testing. Driven by the deck page's floating study rail.
+  hiddenSide?: "front" | "back" | null;
 }) {
   const allCards: StudyCard[] = useMemo(
     () => buildFlashcards(parsed.noteTypes).map((c, i) => ({ ...c, key: i })),
@@ -137,6 +151,14 @@ export function FlashcardViewer({
   // Card-sorting piles, tracked by card key.
   const [known, setKnown] = useState<Set<number>>(() => new Set());
   const [learn, setLearn] = useState<Set<number>>(() => new Set());
+  // "Cards in this deck" list filters (list-local; the player ignores them).
+  const [search, setSearch] = useState("");
+  const [masteryFilter, setMasteryFilter] = useState<MasteryStage | "all">("all");
+  // Autoplay: flip → hold → advance, paced by prefs.autoplaySeconds.
+  const [autoplaying, setAutoplaying] = useState(false);
+  // Latest `canNext`, read by the autoplay timer — which is wired up above the
+  // early-return, before canNext itself is in scope.
+  const canNextRef = useRef(false);
 
   const canStar = Boolean(getStarred && onToggleStar);
   const hasStarred = useMemo(
@@ -161,6 +183,21 @@ export function FlashcardViewer({
     const base = restrictKeys ? allCards.filter((c) => restrictKeys.has(c.key)) : allCards;
     return prefs.shuffle ? seededShuffle(base, seed) : base;
   }, [allCards, restrictKeys, prefs.shuffle, seed]);
+
+  // The "Cards in this deck" list applies a text search + a mastery-stage filter on
+  // top of the study set (the player itself always pages the full studyCards). The
+  // mastery filter is only offered when per-card stats are available (saved decks).
+  const canFilterMastery = Boolean(getStats);
+  const filteredCards = useMemo(() => {
+    return studyCards.filter((c) => {
+      if (!cardMatchesQuery(c.front, c.back, search)) return false;
+      if (masteryFilter !== "all") {
+        return classifyMastery(getStats?.(c.id)).stage === masteryFilter;
+      }
+      return true;
+    });
+  }, [studyCards, search, masteryFilter, getStats]);
+  const listFiltering = search.trim() !== "" || masteryFilter !== "all";
 
   // Load saved prefs once per deck; seed the starting face from them. Also restore
   // any in-progress card-sorting piles so navigating away and back resumes the
@@ -274,6 +311,9 @@ export function FlashcardViewer({
     const next = { ...prefs, ...patch };
     setPrefs(next);
     if (deckId) saveFlashcardPreferences(deckId, next);
+    // Card sorting swaps the nav controls for Know / Still-learning verdicts, which
+    // autoplay can't drive — so turn autoplay off when sorting turns on.
+    if (next.cardSorting && !prefs.cardSorting) setAutoplaying(false);
     // Changing which cards / what order you study starts a fresh sorting round,
     // so the old Know / Still-learning piles no longer apply. (Toggling sorting
     // itself, or the starting side, keeps the piles.)
@@ -312,12 +352,15 @@ export function FlashcardViewer({
       const isNext = e.key === "ArrowRight" || e.key === "d" || e.key === "D";
       if (isPrev) {
         e.preventDefault();
+        setAutoplaying(false);
         goRef.current(-1);
       } else if (isNext) {
         e.preventDefault();
+        setAutoplaying(false);
         goRef.current(1);
       } else if (e.key === " ") {
         e.preventDefault();
+        setAutoplaying(false);
         cancelSpeech();
         setFlipped((f) => !f);
       } else if (e.key === "f" || e.key === "F") {
@@ -328,6 +371,34 @@ export function FlashcardViewer({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [focus, settingsOpen, editingId]);
+
+  // Narrowing the list starts it from the top again rather than deep in a
+  // "show more" page.
+  useEffect(() => {
+    setVisible(INITIAL_VISIBLE);
+  }, [search, masteryFilter]);
+
+  // Autoplay driver: schedule one tick after the configured delay. On the start
+  // face it flips to reveal the other side; once shown, it advances (or stops at
+  // the last card). `flipped` flips on every tick, so re-running on it keeps the
+  // timer chained; a manual flip or nav clears `autoplaying`, ending the loop.
+  useEffect(() => {
+    if (!autoplaying) return;
+    const delay = Math.max(1, prefs.autoplaySeconds) * 1000;
+    const t = setTimeout(() => {
+      const onStartSide = flipped === (prefs.startSide === "back");
+      const step = nextAutoplayStep(onStartSide, canNextRef.current);
+      if (step === "flip") {
+        cancelSpeech();
+        setFlipped((f) => !f);
+      } else if (step === "advance") {
+        goRef.current(1);
+      } else {
+        setAutoplaying(false);
+      }
+    }, delay);
+    return () => clearTimeout(t);
+  }, [autoplaying, flipped, prefs.autoplaySeconds, prefs.startSide]);
 
   if (allCards.length === 0) {
     return (
@@ -383,9 +454,14 @@ export function FlashcardViewer({
   goRef.current = go;
 
   function flip() {
+    // A manual flip takes over — stop autoplay so the two don't fight.
+    setAutoplaying(false);
     cancelSpeech();
     setFlipped((f) => !f);
   }
+
+  // Keep the autoplay timer's view of "is there a next card" current.
+  canNextRef.current = canNext;
 
   function mark(knows: boolean) {
     if (!card) return;
@@ -690,7 +766,16 @@ export function FlashcardViewer({
             </>
           ) : (
             <>
-              <button type="button" onClick={() => go(-1)} disabled={safeIndex === 0} className={navBtn} aria-label="Previous card">
+              <button
+                type="button"
+                onClick={() => {
+                  setAutoplaying(false);
+                  go(-1);
+                }}
+                disabled={safeIndex === 0}
+                className={navBtn}
+                aria-label="Previous card"
+              >
                 <Icon name="chevronLeft" size={18} />
               </button>
               <span className="min-w-[3.25rem] text-center font-mono text-sm font-bold text-ink">
@@ -698,7 +783,10 @@ export function FlashcardViewer({
               </span>
               <button
                 type="button"
-                onClick={() => go(1)}
+                onClick={() => {
+                  setAutoplaying(false);
+                  go(1);
+                }}
                 disabled={safeIndex >= total - 1}
                 className={navBtn}
                 aria-label="Next card"
@@ -710,8 +798,20 @@ export function FlashcardViewer({
         </div>
 
         <div className="order-3 flex items-center gap-0.5">
-          <button type="button" disabled title="Autoplay — coming soon" className={`${iconBtn} opacity-40`} aria-label="Autoplay (coming soon)">
-            <Icon name="play" size={15} />
+          <button
+            type="button"
+            onClick={() => setAutoplaying((p) => !p)}
+            disabled={sorting || total <= 1}
+            title={autoplaying ? "Pause autoplay" : "Autoplay"}
+            aria-label={autoplaying ? "Pause autoplay" : "Autoplay"}
+            aria-pressed={autoplaying}
+            className={
+              autoplaying
+                ? "grid h-9 w-9 place-items-center rounded-full bg-accent-soft text-accent-ink"
+                : iconBtn
+            }
+          >
+            <Icon name={autoplaying ? "pause" : "play"} size={15} />
           </button>
           <button
             type="button"
@@ -747,64 +847,118 @@ export function FlashcardViewer({
   );
 
   // Full preview list (Quizlet-style), rendered incrementally for big decks. Kept
-  // as its own node so it can render inline OR be portaled into `previewSlot`.
+  // as its own node so it can render inline OR be portaled into `previewSlot`. Above
+  // the rows: a text search plus (when per-card stats exist) a mastery-stage filter.
   const previewList = (
     <div className="space-y-3">
       <h2 className="font-mono text-xs font-medium uppercase tracking-wide text-faint">
-        Cards in this deck ({total})
+        Cards in this deck ({filteredCards.length}
+        {listFiltering ? ` of ${total}` : ""})
       </h2>
-      <ul className="space-y-2">
-        {studyCards.slice(0, visible).map((c) => (
-          <CardPreviewRow
-            key={c.key}
-            front={c.front}
-            back={c.back}
-            stats={getStats?.(c.id)}
-            action={
-              speechOn || canStar || (canEdit && noteIndex.has(c.id)) ? (
-                <div className="flex items-center gap-1">
-                  {speechOn && (
-                    // Reads this row's whole card (front then back), language
-                    // auto-detected per segment.
-                    <SpeakButton
-                      id={`preview-${c.key}`}
-                      text={stripLatex([...c.front, ...c.back].join(". "))}
-                      size="sm"
-                      // Whole card (front then back); hint on the term side —
-                      // usually the foreign/ambiguous script — disambiguates it.
-                      lang={c.frontLang || effectiveTermLang}
-                    />
-                  )}
-                  {starFor(c.id, "sm")}
-                  {canEdit && noteIndex.has(c.id) && (
-                    <KebabMenu
-                      items={[{ label: "Edit fields", onClick: () => setEditingId(c.id) }]}
-                    />
-                  )}
-                </div>
-              ) : undefined
-            }
-          />
-        ))}
-      </ul>
 
-      {visible < total && (
-        <div className="flex justify-center gap-3">
-          <button
-            type="button"
-            onClick={() => setVisible((v) => Math.min(total, v + SHOW_MORE_STEP))}
-            className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
-          >
-            Show more
-          </button>
-          <button
-            type="button"
-            onClick={() => setVisible(total)}
-            className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
-          >
-            Show all ({total})
-          </button>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint">
+            <Icon name="search" size={16} />
+          </span>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search term or definition…"
+            aria-label="Search cards"
+            className="focus-ring w-full rounded-input border border-line-strong bg-surface-2 py-2 pl-9 pr-9 text-sm text-ink outline-none placeholder:text-faint"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              aria-label="Clear search"
+              className="focus-ring absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full text-faint transition hover:text-ink"
+            >
+              <Icon name="x" size={14} />
+            </button>
+          )}
         </div>
+        {canFilterMastery && (
+          <select
+            value={masteryFilter}
+            onChange={(e) => setMasteryFilter(e.target.value as MasteryStage | "all")}
+            aria-label="Filter by mastery"
+            className="focus-ring shrink-0 rounded-input border border-line-strong bg-surface-2 px-2 py-2 text-sm text-ink outline-none"
+          >
+            {MASTERY_FILTERS.map((f) => (
+              <option key={f.value} value={f.value}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {filteredCards.length === 0 ? (
+        <p className="rounded-input border border-line bg-surface px-4 py-8 text-center text-sm text-muted">
+          No cards match {search.trim() ? `“${search.trim()}”` : "this filter"}.
+        </p>
+      ) : (
+        <>
+          <ul className="space-y-2">
+            {filteredCards.slice(0, visible).map((c) => (
+              <CardPreviewRow
+                key={c.key}
+                front={c.front}
+                back={c.back}
+                stats={getStats?.(c.id)}
+                hiddenSide={hiddenSide}
+                action={
+                  speechOn || canStar || (canEdit && noteIndex.has(c.id)) ? (
+                    <div className="flex items-center gap-1">
+                      {speechOn && (
+                        // Reads this row's whole card (front then back), language
+                        // auto-detected per segment.
+                        <SpeakButton
+                          id={`preview-${c.key}`}
+                          text={stripLatex([...c.front, ...c.back].join(". "))}
+                          size="sm"
+                          // Whole card (front then back); hint on the term side —
+                          // usually the foreign/ambiguous script — disambiguates it.
+                          lang={c.frontLang || effectiveTermLang}
+                        />
+                      )}
+                      {starFor(c.id, "sm")}
+                      {canEdit && noteIndex.has(c.id) && (
+                        <KebabMenu
+                          items={[{ label: "Edit fields", onClick: () => setEditingId(c.id) }]}
+                        />
+                      )}
+                    </div>
+                  ) : undefined
+                }
+              />
+            ))}
+          </ul>
+
+          {visible < filteredCards.length && (
+            <div className="flex justify-center gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  setVisible((v) => Math.min(filteredCards.length, v + SHOW_MORE_STEP))
+                }
+                className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
+              >
+                Show more
+              </button>
+              <button
+                type="button"
+                onClick={() => setVisible(filteredCards.length)}
+                className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
+              >
+                Show all ({filteredCards.length})
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

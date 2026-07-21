@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { Modal } from "@/components/shared/Modal";
 import { Toggle } from "@/components/ui/controls";
-import type { FlashcardPreferences } from "@/lib/flashcardPreferences";
+import { AUTOPLAY_SPEEDS, type FlashcardPreferences } from "@/lib/flashcardPreferences";
 import { TTS_LANGUAGE_OPTIONS, languageLabel } from "@/lib/ttsLanguages";
 
 // Deck-level TTS language controls, shown only for saved decks. `term`/`def` are
@@ -86,6 +86,30 @@ export function FlashcardsOptionsModal({
             on={prefs.shuffle}
             onChange={(v) => onChange({ shuffle: v })}
           />
+        </Section>
+
+        <div className="h-px bg-line" />
+
+        <Section label="Playback">
+          <div className="flex items-center gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-ink">Autoplay speed</div>
+              <div className="mt-0.5 text-xs text-muted">
+                How long each side is held before autoplay flips / advances.
+              </div>
+            </div>
+            <select
+              value={prefs.autoplaySeconds}
+              onChange={(e) => onChange({ autoplaySeconds: Number(e.target.value) })}
+              className="focus-ring shrink-0 rounded-input border border-line-strong bg-surface-2 px-2 py-1.5 text-sm text-ink outline-none"
+            >
+              {AUTOPLAY_SPEEDS.map((s) => (
+                <option key={s.seconds} value={s.seconds}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </Section>
 
         {language && (

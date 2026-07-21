@@ -15,10 +15,8 @@ import { DeckStatsPanel } from "@/components/deck/DeckStatsPanel";
 import { KebabMenu } from "@/components/shared/KebabMenu";
 import { ExportDeckModal } from "@/components/deck/ExportDeckModal";
 import { Card } from "@/components/ui/Card";
-import { Ring } from "@/components/ui/Ring";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { SoonTag } from "@/components/ui/controls";
-import { buttonClasses } from "@/components/ui/Button";
 
 type Step = "flashcards" | "setup";
 
@@ -72,6 +70,13 @@ function DeckDetail() {
     obs.observe(studyModesEl);
     return () => obs.disconnect();
   }, [studyModesEl]);
+
+  // "Hide term / definition" self-test mode for the Cards-in-this-deck list, driven
+  // from the floating study rail. `hideOn` gates it; `hideSide` picks the column
+  // to blank ("back" = definition, the default; "front" = term).
+  const [hideOn, setHideOn] = useState(false);
+  const [hideSide, setHideSide] = useState<"front" | "back">("back");
+  const hiddenSide = hideOn ? hideSide : null;
 
   const parsed = useMemo(
     () => (contentsQuery.data ? deckContentsToParsed(contentsQuery.data) : null),
@@ -168,64 +173,40 @@ function DeckDetail() {
       {step === "flashcards" && (
         <>
           {/* deck header */}
-          <Card className="p-0">
-            {/* rounded top so the accent bar fits the card without overflow-hidden
-                (which would clip the "⋯" Deck-options dropdown). */}
+          <Card className="relative p-0">
+            {/* No overflow-hidden (it would clip the "⋯" dropdown); the accent bar
+                gets a rounded top so it still fits the card's corners. */}
             <div className="h-1.5 rounded-t-card bg-accent" />
-            <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-start">
-              <div className="min-w-0 flex-1">
-                <h1 className="font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl">
-                  {deckName}
-                </h1>
-                <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted">
-                  <span className="inline-flex items-center gap-1.5">
-                    <Icon name="layers" size={15} />
-                    {cardCount} card{cardCount === 1 ? "" : "s"}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Icon name="cards" size={15} />
-                    {noteTypeCount} note type{noteTypeCount === 1 ? "" : "s"}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 opacity-70">
-                    <Icon name="flame" size={15} />
-                    Learners <SoonTag />
-                  </span>
-                </div>
-              </div>
-              <div className="flex flex-col items-center gap-1.5 self-center sm:self-start">
-                <Ring
-                  value={completion / 100}
-                  size={66}
-                  stroke={5}
-                  label={`${Math.round(completion)}%`}
-                />
-                <span className="font-mono text-[11px] text-faint">mastered</span>
-              </div>
+            {/* deck-options menu (Edit / Export / Delete), pinned to the top-right
+                corner — the header no longer carries a separate action bar. */}
+            <div className="absolute right-3 top-4">
+              <KebabMenu
+                label="Deck options"
+                items={[
+                  { label: "Edit flashcards", onClick: () => router.push(`/decks/${deckId}/edit`) },
+                  { label: "Export deck", onClick: () => setExportOpen(true) },
+                  { label: "Delete deck", onClick: () => setDeleteOpen(true), danger: true },
+                ]}
+              />
             </div>
-            <div className="flex flex-wrap items-center gap-2 border-t border-line px-6 py-4">
-              <button
-                type="button"
-                onClick={() => router.push(`/decks/${deckId}/edit`)}
-                className={buttonClasses({ variant: "ghost", size: "sm" })}
-              >
-                <Icon name="pencil" size={15} /> Edit
-              </button>
-              <button
-                type="button"
-                onClick={() => setExportOpen(true)}
-                className={buttonClasses({ variant: "ghost", size: "sm" })}
-              >
-                <Icon name="upload" size={15} /> Export
-              </button>
-              <div className="ml-auto">
-                <KebabMenu
-                  label="Deck options"
-                  items={[
-                    { label: "Edit flashcards", onClick: () => router.push(`/decks/${deckId}/edit`) },
-                    { label: "Export deck", onClick: () => setExportOpen(true) },
-                    { label: "Delete deck", onClick: () => setDeleteOpen(true), danger: true },
-                  ]}
-                />
+            <div className="p-6">
+              {/* pr-10 keeps a long title clear of the corner "⋯" menu */}
+              <h1 className="pr-10 font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+                {deckName}
+              </h1>
+              <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted">
+                <span className="inline-flex items-center gap-1.5">
+                  <Icon name="layers" size={15} />
+                  {cardCount} card{cardCount === 1 ? "" : "s"}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Icon name="cards" size={15} />
+                  {noteTypeCount} note type{noteTypeCount === 1 ? "" : "s"}
+                </span>
+                <span className="inline-flex items-center gap-1.5 opacity-70">
+                  <Icon name="flame" size={15} />
+                  Learners <SoonTag />
+                </span>
               </div>
             </div>
           </Card>
@@ -282,18 +263,27 @@ function DeckDetail() {
               editable
               deckId={deckId}
               previewSlot={previewSlot}
+              hiddenSide={hiddenSide}
               onBack={() => router.push("/dashboard")}
               onStartTest={goToSetup}
             />
           </div>
 
-          {/* progress: stat tiles + accuracy-over-time chart (below the player) */}
-          <DeckStatsPanel deckId={deckId} onQuizWeak={goToSetupWeak} />
+          {/* progress: mastery ring + stat tiles + accuracy chart (below the player) */}
+          <DeckStatsPanel deckId={deckId} completion={completion} onQuizWeak={goToSetupWeak} />
 
           {/* "Cards in this deck" list is portaled here by FlashcardViewer above. */}
           <div ref={setPreviewSlot} />
 
-          <FloatingStudyRail visible={railVisible} onQuiz={goToSetup} onFlashcards={scrollToCards} />
+          <FloatingStudyRail
+            visible={railVisible}
+            onQuiz={goToSetup}
+            onFlashcards={scrollToCards}
+            hideOn={hideOn}
+            hideSide={hideSide}
+            onToggleHide={() => setHideOn((v) => !v)}
+            onSwitchSide={() => setHideSide((s) => (s === "back" ? "front" : "back"))}
+          />
         </>
       )}
 
@@ -424,11 +414,21 @@ function FloatingStudyRail({
   visible,
   onQuiz,
   onFlashcards,
+  hideOn,
+  hideSide,
+  onToggleHide,
+  onSwitchSide,
 }: {
   visible: boolean;
   onQuiz: () => void;
   onFlashcards: () => void;
+  // Self-test controls: hide one column of the Cards-in-this-deck list.
+  hideOn: boolean;
+  hideSide: "front" | "back";
+  onToggleHide: () => void;
+  onSwitchSide: () => void;
 }) {
+  const hidingLabel = hideSide === "back" ? "definition" : "term";
   const actions: Array<{
     icon: IconName;
     label: string;
@@ -472,6 +472,45 @@ function FloatingStudyRail({
           </span>
         </div>
       ))}
+
+      {/* self-test: hide one column of the "Cards in this deck" list, with a switch
+          for which side (term vs definition) is covered. */}
+      <div className="mx-1 my-0.5 h-px bg-line" />
+
+      <div className="group relative flex justify-end">
+        <button
+          type="button"
+          onClick={onToggleHide}
+          aria-pressed={hideOn}
+          aria-label={hideOn ? "Show answers" : "Hide answers"}
+          className={`grid h-11 w-11 place-items-center rounded-full border transition ${
+            hideOn
+              ? "border-accent bg-accent-soft text-accent-ink"
+              : "border-line bg-surface text-ink hover:border-line-strong"
+          }`}
+        >
+          <Icon name={hideOn ? "eyeOff" : "eye"} size={20} />
+        </button>
+        <span className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 whitespace-nowrap rounded-input bg-ink px-2 py-1 text-xs font-medium text-canvas opacity-0 shadow-card transition group-hover:opacity-100">
+          {hideOn ? "Show answers" : "Hide answers"}
+        </span>
+      </div>
+
+      {hideOn && (
+        <div className="group relative flex justify-end">
+          <button
+            type="button"
+            onClick={onSwitchSide}
+            aria-label={`Hiding ${hidingLabel} — switch side`}
+            className="grid h-11 w-11 place-items-center rounded-full border border-line bg-surface text-[11px] font-bold uppercase tracking-tight text-ink transition hover:border-line-strong"
+          >
+            {hideSide === "back" ? "Def" : "Term"}
+          </button>
+          <span className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 whitespace-nowrap rounded-input bg-ink px-2 py-1 text-xs font-medium text-canvas opacity-0 shadow-card transition group-hover:opacity-100">
+            Hiding {hidingLabel} · tap to switch
+          </span>
+        </div>
+      )}
     </div>
   );
 }

@@ -21,6 +21,9 @@ export interface FlashcardPreferences {
   starredOnly: boolean;
   // Card-sorting mode: mark each card Know / Still-learning as you page through.
   cardSorting: boolean;
+  // Autoplay cadence: how many seconds each side is held before the player flips /
+  // advances. Smaller = faster. Clamped to [1, 15].
+  autoplaySeconds: number;
 }
 
 export const DEFAULT_FLASHCARD_PREFS: FlashcardPreferences = {
@@ -28,7 +31,16 @@ export const DEFAULT_FLASHCARD_PREFS: FlashcardPreferences = {
   shuffle: false,
   starredOnly: false,
   cardSorting: false,
+  autoplaySeconds: 4,
 };
+
+// Speed presets surfaced in the Flashcards Options modal (seconds per side).
+export const AUTOPLAY_SPEEDS: Array<{ seconds: number; label: string }> = [
+  { seconds: 2, label: "Fast · 2s" },
+  { seconds: 4, label: "Normal · 4s" },
+  { seconds: 6, label: "Slow · 6s" },
+  { seconds: 8, label: "Very slow · 8s" },
+];
 
 function key(deckId: string): string {
   return `${STORAGE_PREFIX}${deckId}`;
@@ -64,5 +76,9 @@ function sanitize(value: unknown): FlashcardPreferences {
     shuffle: typeof v.shuffle === "boolean" ? v.shuffle : d.shuffle,
     starredOnly: typeof v.starredOnly === "boolean" ? v.starredOnly : d.starredOnly,
     cardSorting: typeof v.cardSorting === "boolean" ? v.cardSorting : d.cardSorting,
+    autoplaySeconds:
+      typeof v.autoplaySeconds === "number" && v.autoplaySeconds >= 1 && v.autoplaySeconds <= 15
+        ? v.autoplaySeconds
+        : d.autoplaySeconds,
   };
 }

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { ImportProvider, useImportContext } from "@/components/import/ImportProvider";
 import { AccountMenu } from "@/components/account/AccountMenu";
 import { BrandMark } from "@/components/ui/BrandMark";
+import { DeckSearch } from "@/components/search/DeckSearch";
 import { Icon, type IconName } from "@/components/ui/icons";
 
 // True for any URL the running quiz takes over — sidebar is hidden so the test
@@ -149,17 +150,24 @@ export function AppShell({
         )}
 
         <div className="flex min-w-0 flex-1 flex-col">
-          {/* Mobile top bar: hamburger + brand. */}
-          <header className="flex items-center gap-3 border-b border-line bg-canvas/80 px-4 py-3 backdrop-blur md:hidden">
+          {/* Top navbar. Hamburger + brand show only on mobile (the rail is a
+              drawer there); the deck search rides on every size. Sticky so it
+              stays reachable as the page scrolls. */}
+          <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-canvas/80 px-4 py-3 backdrop-blur md:px-8">
             <button
               type="button"
               aria-label="Open menu"
               onClick={() => setDrawerOpen(true)}
-              className="grid h-10 w-10 place-items-center rounded-input border border-line bg-surface text-muted transition hover:text-ink"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-input border border-line bg-surface text-muted transition hover:text-ink md:hidden"
             >
               <Icon name="menu" size={18} />
             </button>
-            <BrandMark />
+            <div className="md:hidden">
+              <BrandMark />
+            </div>
+            <div className="min-w-0 flex-1 md:max-w-md">
+              <DeckSearch />
+            </div>
           </header>
           <main className="min-w-0 flex-1 p-5 md:p-8">{children}</main>
         </div>

@@ -42,7 +42,7 @@ export type NoteStatsLookup = (noteId: string) =>
   | undefined;
 
 // Which slice of the deck the quiz draws its questions from.
-type QuizSource = "all" | "starred" | "weak";
+export type QuizSource = "all" | "starred" | "weak";
 
 export function ApkgQuizSetup({
   parsed,
@@ -53,6 +53,7 @@ export function ApkgQuizSetup({
   showHeading = true,
   backLabel = "Back",
   startLabel = "Start quiz",
+  initialSource = "all",
 }: {
   parsed: ApkgParseResponse;
   onStart: (questions: Question[]) => void;
@@ -64,6 +65,9 @@ export function ApkgQuizSetup({
   showHeading?: boolean;
   backLabel?: string;
   startLabel?: string;
+  // Preselect the "Pull cards from" source — lets the Stats panel's
+  // "Quiz weak cards" shortcut deep-link straight into the weak slice.
+  initialSource?: QuizSource;
 }) {
   const quizable = useMemo(() => parsed.noteTypes.filter(isQuizable), [parsed]);
   const basicTypes = useMemo(() => quizable.filter((t) => !t.cloze), [quizable]);
@@ -105,7 +109,7 @@ export function ApkgQuizSetup({
   // "Pull cards from" source. Starred = cards the learner flagged; weak = cards
   // seen but not yet mastered (mastery < 80). Each subset (and its card count)
   // is precomputed so we can show the size and disable a source that's empty.
-  const [source, setSource] = useState<QuizSource>("all");
+  const [source, setSource] = useState<QuizSource>(initialSource);
   const starredIds = useMemo(() => collectStarredIds(quizable, getStats), [quizable, getStats]);
   const weakIds = useMemo(() => collectWeakIds(quizable, getStats), [quizable, getStats]);
   const starredCardCount = useMemo(() => countCardsIn(quizable, starredIds), [quizable, starredIds]);

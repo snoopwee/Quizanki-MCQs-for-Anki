@@ -11,6 +11,7 @@ import { reshuffleQuestions, type Question } from "@/lib/buildQuestions";
 import { useQuizStore } from "@/stores/quizStore";
 import { FlashcardViewer } from "@/components/deck/FlashcardViewer";
 import { ApkgQuizSetup, type NoteStatsLookup } from "@/components/deck/ApkgQuizSetup";
+import { DeckStatsPanel } from "@/components/deck/DeckStatsPanel";
 import { KebabMenu } from "@/components/shared/KebabMenu";
 import { ExportDeckModal } from "@/components/deck/ExportDeckModal";
 import { Card } from "@/components/ui/Card";
@@ -36,6 +37,9 @@ function DeckDetail() {
   // through the test page. Default (no param) is the flashcard browser.
   const params = useSearchParams();
   const step: Step = params.get("step") === "setup" ? "setup" : "flashcards";
+  // The Stats panel's "Quiz weak cards" shortcut deep-links here with source=weak
+  // so the setup screen opens straight on the still-learning slice.
+  const initialSource = params.get("source") === "weak" ? "weak" : "all";
 
   const contentsQuery = useDeckContents(deckId);
   const notesQuery = useNotes(deckId);
@@ -80,6 +84,9 @@ function DeckDetail() {
   }
   function goToFlashcards() {
     router.push(`/decks/${deckId}`);
+  }
+  function goToSetupWeak() {
+    router.push(`/decks/${deckId}?step=setup&source=weak`);
   }
 
   function startTest(questions: Question[]) {
@@ -202,6 +209,9 @@ function DeckDetail() {
             </div>
           </Card>
 
+          {/* progress: stat tiles + accuracy-over-time chart */}
+          <DeckStatsPanel deckId={deckId} onQuizWeak={goToSetupWeak} />
+
           {/* study modes */}
           <div>
             <p className="mb-3 font-mono text-xs font-semibold uppercase tracking-[0.06em] text-muted">
@@ -265,6 +275,7 @@ function DeckDetail() {
           deckId={deckId}
           showHeading={false}
           backLabel="Back to flashcards"
+          initialSource={initialSource}
           onBack={goToFlashcards}
           onStart={startTest}
         />

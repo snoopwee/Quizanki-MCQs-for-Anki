@@ -134,6 +134,10 @@ export function QuizSession({
             queryClient.invalidateQueries({ queryKey: ["notes"] });
             queryClient.invalidateQueries({ queryKey: ["decks"] });
             queryClient.invalidateQueries({ queryKey: ["deck-contents"] });
+            // Refresh the deck's Progress panel (tiles + accuracy-over-time chart)
+            // once the user navigates back to it.
+            queryClient.invalidateQueries({ queryKey: ["deck-stats"] });
+            queryClient.invalidateQueries({ queryKey: ["deck-stats-history"] });
           },
         },
       );

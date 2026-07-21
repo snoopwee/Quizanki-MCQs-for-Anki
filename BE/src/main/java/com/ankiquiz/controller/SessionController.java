@@ -49,6 +49,7 @@ public class SessionController {
             @PathVariable UUID sessionId,
             @Valid @RequestBody RecordAnswerRequest request
     ) {
-        return sessionService.recordAnswer(jwt.getSubject(), request);
+        // sessionId groups a quiz's answers into one "test" for the stats history.
+        return sessionService.recordAnswer(jwt.getSubject(), sessionId, request);
     }
 }

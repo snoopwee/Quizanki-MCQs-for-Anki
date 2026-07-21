@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.dto.response.DeckHistoryPoint;
 import com.ankiquiz.dto.response.DeckStatsResponse;
 import com.ankiquiz.service.StatsService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -9,8 +10,10 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -32,5 +35,17 @@ public class StatsController {
             @PathVariable UUID deckId
     ) {
         return statsService.getDeckStats(jwt.getSubject(), deckId);
+    }
+
+    @GetMapping("/history")
+    @Operation(summary = "Daily MCQ accuracy over time",
+            description = "Per-day answered/correct/accuracy for the deck over the last `days` "
+                    + "calendar days (UTC), newest last. Only days with graded answers are returned.")
+    public List<DeckHistoryPoint> getHistory(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId,
+            @RequestParam(defaultValue = "30") int days
+    ) {
+        return statsService.getDeckHistory(jwt.getSubject(), deckId, days);
     }
 }

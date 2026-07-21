@@ -207,7 +207,7 @@ function Sidebar({
       }
       // Constant horizontal padding so the icon column never shifts — only the
       // width and the labels animate.
-      className={`h-screen shrink-0 flex-col border-r border-line bg-surface px-3 py-5 transition-[width] duration-200 ease-out ${
+      className={`h-screen shrink-0 flex-col border-r border-line bg-surface px-3 py-5 pb-3 transition-[width] duration-200 ease-out ${
         expanded ? "w-64" : "w-16"
       } ${floating ? "shadow-card" : ""} ${className}`}
     >

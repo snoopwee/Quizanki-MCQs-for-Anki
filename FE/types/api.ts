@@ -48,6 +48,16 @@ export interface DeckStatsResponse {
   averageMastery: number;
 }
 
+// GET /api/v1/decks/{id}/stats/history — one point per test (quiz session) the
+// learner took, oldest first. Legacy pre-V8 answers with no session id collapse
+// per day. Only tests that happened are returned (no zero-fill).
+export interface DeckHistoryPoint {
+  at: number; // epoch ms (UTC) of the test's last answer; render local
+  answered: number;
+  correct: number;
+  accuracy: number; // 0–1
+}
+
 export interface NoteRequest {
   ankiNoteId?: string | null;
   fields: Record<string, string>;

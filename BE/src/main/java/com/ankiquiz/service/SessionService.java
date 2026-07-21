@@ -42,15 +42,19 @@ public class SessionService {
     }
 
     @Transactional
-    public RecordAnswerResponse recordAnswer(String userId, RecordAnswerRequest request) {
+    public RecordAnswerResponse recordAnswer(String userId, UUID sessionId, RecordAnswerRequest request) {
         Note note = noteRepository.findById(request.noteId())
                 .orElseThrow(() -> new NotFoundException("Note not found: " + request.noteId()));
         deckRepository.findByIdAndUserId(note.getDeckId(), userId)
                 .orElseThrow(() -> new NotFoundException("Note not found: " + request.noteId()));
 
-        entityManager.createNativeQuery("SELECT record_answer(:noteId, :correct)")
+        // sessionId is logged on the answer_events row so the stats chart can plot
+        // one point per test (see V8). It's not otherwise validated — a bogus id
+        // only fragments that user's own history.
+        entityManager.createNativeQuery("SELECT record_answer(:noteId, :correct, :sessionId)")
                 .setParameter("noteId", request.noteId())
                 .setParameter("correct", request.correct())
+                .setParameter("sessionId", sessionId)
                 .getSingleResult();
         entityManager.clear();
 

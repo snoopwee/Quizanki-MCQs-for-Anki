@@ -50,7 +50,6 @@ export function DeckStatsPanel({
         <TileSkeleton />
       ) : (
         <Tiles
-          total={statsQuery.data.totalCards}
           seen={statsQuery.data.seenCards}
           accuracy={statsQuery.data.averageAccuracy}
           weak={statsQuery.data.weakCards}
@@ -78,21 +77,18 @@ export function DeckStatsPanel({
 }
 
 function Tiles({
-  total,
   seen,
   accuracy,
   weak,
   mastered,
 }: {
-  total: number;
   seen: number;
   accuracy: number;
   weak: number;
   mastered: number;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-      <Tile icon="layers" color="var(--muted)" label="Total cards" value={String(total)} />
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       <Tile icon="clock" color="var(--info)" label="Cards seen" value={String(seen)} />
       <Tile
         icon="target"
@@ -136,8 +132,8 @@ function Tile({
 
 function TileSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-      {Array.from({ length: 5 }).map((_, i) => (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {Array.from({ length: 4 }).map((_, i) => (
         <Card key={i} className="flex flex-col gap-2 p-4">
           <div className="h-8 w-8 animate-pulse rounded-input bg-surface-2/60" />
           <div className="h-7 w-12 animate-pulse rounded bg-surface-2/60" />

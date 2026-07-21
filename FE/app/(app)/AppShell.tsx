@@ -219,7 +219,7 @@ function Sidebar({
         expanded ? "w-64" : "w-16"
       } ${floating ? "shadow-card" : ""} ${className}`}
     >
-      {/* Brand + pin toggle. The 40px logo tile matches the "New deck" tile below
+      {/* Brand + pin toggle. The 40px logo tile matches the "New deck" tile below 
           and fills the slim rail (so it's centred). The toggle only shows while
           expanded and carries a border, lined up with the nav tabs' right edge. */}
       <div className="flex h-10 items-center">

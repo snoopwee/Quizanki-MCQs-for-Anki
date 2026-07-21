@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { buildFlashcards, type Flashcard } from "@/lib/flashcards";
 import { classifyMastery } from "@/lib/masteryStage";
 import { CardPreviewRow, Lines, StageBadge } from "./CardPreview";
@@ -60,6 +61,7 @@ export function FlashcardViewer({
   deckId,
   getStarred,
   onToggleStar,
+  previewSlot,
 }: {
   parsed: ApkgParseResponse;
   // Mean mastery across the deck (0-100). Surfaced as a percent + progress bar
@@ -90,6 +92,10 @@ export function FlashcardViewer({
   // so all clozes of one note share a star.
   getStarred?: (id: string) => boolean;
   onToggleStar?: (id: string, next: boolean) => void;
+  // When set, the "Cards in this deck" list is portaled into this element instead
+  // of rendering inline under the player — lets the deck page place the player and
+  // the card list in separate sections while they keep sharing all viewer state.
+  previewSlot?: HTMLElement | null;
 }) {
   const allCards: StudyCard[] = useMemo(
     () => buildFlashcards(parsed.noteTypes).map((c, i) => ({ ...c, key: i })),
@@ -740,6 +746,69 @@ export function FlashcardViewer({
     </div>
   );
 
+  // Full preview list (Quizlet-style), rendered incrementally for big decks. Kept
+  // as its own node so it can render inline OR be portaled into `previewSlot`.
+  const previewList = (
+    <div className="space-y-3">
+      <h2 className="font-mono text-xs font-medium uppercase tracking-wide text-faint">
+        Cards in this deck ({total})
+      </h2>
+      <ul className="space-y-2">
+        {studyCards.slice(0, visible).map((c) => (
+          <CardPreviewRow
+            key={c.key}
+            front={c.front}
+            back={c.back}
+            stats={getStats?.(c.id)}
+            action={
+              speechOn || canStar || (canEdit && noteIndex.has(c.id)) ? (
+                <div className="flex items-center gap-1">
+                  {speechOn && (
+                    // Reads this row's whole card (front then back), language
+                    // auto-detected per segment.
+                    <SpeakButton
+                      id={`preview-${c.key}`}
+                      text={stripLatex([...c.front, ...c.back].join(". "))}
+                      size="sm"
+                      // Whole card (front then back); hint on the term side —
+                      // usually the foreign/ambiguous script — disambiguates it.
+                      lang={c.frontLang || effectiveTermLang}
+                    />
+                  )}
+                  {starFor(c.id, "sm")}
+                  {canEdit && noteIndex.has(c.id) && (
+                    <KebabMenu
+                      items={[{ label: "Edit fields", onClick: () => setEditingId(c.id) }]}
+                    />
+                  )}
+                </div>
+              ) : undefined
+            }
+          />
+        ))}
+      </ul>
+
+      {visible < total && (
+        <div className="flex justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => setVisible((v) => Math.min(total, v + SHOW_MORE_STEP))}
+            className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
+          >
+            Show more
+          </button>
+          <button
+            type="button"
+            onClick={() => setVisible(total)}
+            className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
+          >
+            Show all ({total})
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-5">
       {!hideHeader && !focus && (
@@ -808,67 +877,15 @@ export function FlashcardViewer({
         </div>
       )}
 
-      {/* Full preview list (Quizlet-style), rendered incrementally for big decks. */}
-      {!focus && (
-        <div className="space-y-3">
-          <h2 className="font-mono text-xs font-medium uppercase tracking-wide text-faint">
-            Cards in this deck ({total})
-          </h2>
-          <ul className="space-y-2">
-            {studyCards.slice(0, visible).map((c) => (
-              <CardPreviewRow
-                key={c.key}
-                front={c.front}
-                back={c.back}
-                stats={getStats?.(c.id)}
-                action={
-                  speechOn || canStar || (canEdit && noteIndex.has(c.id)) ? (
-                    <div className="flex items-center gap-1">
-                      {speechOn && (
-                        // Reads this row's whole card (front then back), language
-                        // auto-detected per segment.
-                        <SpeakButton
-                          id={`preview-${c.key}`}
-                          text={stripLatex([...c.front, ...c.back].join(". "))}
-                          size="sm"
-                          // Whole card (front then back); hint on the term side —
-                          // usually the foreign/ambiguous script — disambiguates it.
-                          lang={c.frontLang || effectiveTermLang}
-                        />
-                      )}
-                      {starFor(c.id, "sm")}
-                      {canEdit && noteIndex.has(c.id) && (
-                        <KebabMenu
-                          items={[{ label: "Edit fields", onClick: () => setEditingId(c.id) }]}
-                        />
-                      )}
-                    </div>
-                  ) : undefined
-                }
-              />
-            ))}
-          </ul>
-
-          {visible < total && (
-            <div className="flex justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => setVisible((v) => Math.min(total, v + SHOW_MORE_STEP))}
-                className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
-              >
-                Show more
-              </button>
-              <button
-                type="button"
-                onClick={() => setVisible(total)}
-                className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
-              >
-                Show all ({total})
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+      {/* previewSlot undefined → render inline (import/try flows). A caller that
+          opts into a slot passes the prop: null while it mounts (render nothing, so
+          the list never flashes inline first), then the element → portal it there. */}
+      {!focus &&
+        (previewSlot === undefined
+          ? previewList
+          : previewSlot
+            ? createPortal(previewList, previewSlot)
+            : null)}
 
       {!focus && showTop && (
         <button

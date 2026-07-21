@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useDeckContents, useDeleteDeck } from "@/hooks/useDecks";
@@ -50,9 +50,28 @@ function DeckDetail() {
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  // Anchor for the "Flashcards" study mode — scrolls down to the card browser.
+  // Anchor for the "Flashcards" study mode — scrolls to the flashcard player.
   const cardsRef = useRef<HTMLDivElement>(null);
   const scrollToCards = () => cardsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  // Portal target for the "Cards in this deck" list. The flashcard player renders
+  // right under the study modes; its card list is portaled down here, below "Your
+  // progress". State-backed so the portal attaches once the slot mounts — which is
+  // only after the deck finishes loading.
+  const [previewSlot, setPreviewSlot] = useState<HTMLElement | null>(null);
+
+  // Reveal the floating study-mode rail once the study-mode tiles scroll up out of
+  // view, so the quiz/flashcards actions stay reachable further down the page.
+  // State-backed ref (not a plain ref): the tiles mount only after the async deck
+  // load, and it's the state change that re-runs the effect so the observer attaches.
+  const [studyModesEl, setStudyModesEl] = useState<HTMLElement | null>(null);
+  const [railVisible, setRailVisible] = useState(false);
+  useEffect(() => {
+    if (!studyModesEl) return;
+    const obs = new IntersectionObserver(([entry]) => setRailVisible(!entry.isIntersecting));
+    obs.observe(studyModesEl);
+    return () => obs.disconnect();
+  }, [studyModesEl]);
 
   const parsed = useMemo(
     () => (contentsQuery.data ? deckContentsToParsed(contentsQuery.data) : null),
@@ -149,8 +168,10 @@ function DeckDetail() {
       {step === "flashcards" && (
         <>
           {/* deck header */}
-          <Card className="overflow-hidden p-0">
-            <div className="h-1.5 bg-accent" />
+          <Card className="p-0">
+            {/* rounded top so the accent bar fits the card without overflow-hidden
+                (which would clip the "⋯" Deck-options dropdown). */}
+            <div className="h-1.5 rounded-t-card bg-accent" />
             <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-start">
               <div className="min-w-0 flex-1">
                 <h1 className="font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl">
@@ -209,11 +230,8 @@ function DeckDetail() {
             </div>
           </Card>
 
-          {/* progress: stat tiles + accuracy-over-time chart */}
-          <DeckStatsPanel deckId={deckId} onQuizWeak={goToSetupWeak} />
-
           {/* study modes */}
-          <div>
+          <div ref={setStudyModesEl}>
             <p className="mb-3 font-mono text-xs font-semibold uppercase tracking-[0.06em] text-muted">
               Study modes
             </p>
@@ -249,7 +267,9 @@ function DeckDetail() {
             </div>
           </div>
 
-          {/* card browser */}
+          {/* flashcard player — belongs to the study modes; sits directly beneath
+              them as the "Flashcards" mode made visible. Its card LIST is portaled
+              into the slot below "Your progress" (see previewSlot). */}
           <div ref={cardsRef} className="scroll-mt-6">
             <FlashcardViewer
               parsed={parsed}
@@ -261,10 +281,19 @@ function DeckDetail() {
               hideHeader
               editable
               deckId={deckId}
+              previewSlot={previewSlot}
               onBack={() => router.push("/dashboard")}
               onStartTest={goToSetup}
             />
           </div>
+
+          {/* progress: stat tiles + accuracy-over-time chart (below the player) */}
+          <DeckStatsPanel deckId={deckId} onQuizWeak={goToSetupWeak} />
+
+          {/* "Cards in this deck" list is portaled here by FlashcardViewer above. */}
+          <div ref={setPreviewSlot} />
+
+          <FloatingStudyRail visible={railVisible} onQuiz={goToSetup} onFlashcards={scrollToCards} />
         </>
       )}
 
@@ -384,6 +413,66 @@ function StudyMode({
         <Icon name="chevronRight" size={16} />
       </span>
     </button>
+  );
+}
+
+// A fixed, right-side floating bar of the Study-mode actions, revealed once the
+// user scrolls down to the card browser so they don't have to scroll back up to
+// start a quiz. Large screens only — there's gutter room beside the centered
+// content; on smaller screens the study-mode tiles are only a short scroll away.
+function FloatingStudyRail({
+  visible,
+  onQuiz,
+  onFlashcards,
+}: {
+  visible: boolean;
+  onQuiz: () => void;
+  onFlashcards: () => void;
+}) {
+  const actions: Array<{
+    icon: IconName;
+    label: string;
+    color: string;
+    primary?: boolean;
+    soon?: boolean;
+    onClick?: () => void;
+  }> = [
+    { icon: "clipboard", label: "Quiz me", color: "var(--accent)", primary: true, onClick: onQuiz },
+    { icon: "cards", label: "Flashcards", color: "var(--info)", onClick: onFlashcards },
+    { icon: "brain", label: "Learn", color: "var(--plum)", soon: true },
+    { icon: "shuffle", label: "Match", color: "var(--success)", soon: true },
+  ];
+  return (
+    <div
+      aria-hidden={!visible}
+      className={`fixed right-6 top-1/2 z-30 hidden -translate-y-1/2 flex-col gap-2 rounded-card border border-line bg-surface/90 p-2 shadow-card backdrop-blur transition-all duration-300 lg:flex ${
+        visible ? "translate-x-0 opacity-100" : "pointer-events-none translate-x-3 opacity-0"
+      }`}
+    >
+      {actions.map((a) => (
+        <div key={a.label} className="group relative flex justify-end">
+          <button
+            type="button"
+            onClick={a.soon ? undefined : a.onClick}
+            disabled={a.soon}
+            aria-label={a.soon ? `${a.label} — coming soon` : a.label}
+            className={`grid h-11 w-11 place-items-center rounded-full transition disabled:cursor-not-allowed ${
+              a.primary
+                ? "bg-accent text-white shadow-btn enabled:hover:opacity-95"
+                : "border border-line bg-surface enabled:hover:border-line-strong"
+            } ${a.soon ? "opacity-45" : ""}`}
+            style={a.primary ? undefined : { color: a.color }}
+          >
+            <Icon name={a.icon} size={20} />
+          </button>
+          {/* label reveals to the left on hover */}
+          <span className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 whitespace-nowrap rounded-input bg-ink px-2 py-1 text-xs font-medium text-canvas opacity-0 shadow-card transition group-hover:opacity-100">
+            {a.label}
+            {a.soon && " · soon"}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 

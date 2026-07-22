@@ -231,12 +231,14 @@ async function run(plan: PlaybackStep[], gen: number): Promise<void> {
 
 // Speak `text` under `key`: stop anything playing, split into per-language
 // segments, and play them in order (device voice or cloud fallback per segment).
-export function speak(key: string, text: string): void {
+// `hint` is the face's primary language (BCP-47 primary subtag) — it disambiguates
+// same-script runs (e.g. bare kanji → Japanese, not Chinese); "" = pure auto.
+export function speak(key: string, text: string, hint = ""): void {
   if (!isSpeechSupported() || text.trim().length === 0) return;
   ensureVoicesLoaded();
   stopPlayback();
 
-  const detected = segmentByLang(text);
+  const detected = segmentByLang(text, hint);
   const segments = detected.length > 0 ? detected : [{ text, lang: "" }];
   const plan = planPlayback(segments, (lang) => pickVoice(voices, lang) !== null);
 

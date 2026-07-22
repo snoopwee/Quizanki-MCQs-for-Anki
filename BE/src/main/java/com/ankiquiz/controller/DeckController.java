@@ -1,6 +1,7 @@
 package com.ankiquiz.controller;
 
 import com.ankiquiz.dto.request.ImportDeckRequest;
+import com.ankiquiz.dto.request.SetDeckLanguagesRequest;
 import com.ankiquiz.dto.request.UpdateDeckContentsRequest;
 import com.ankiquiz.dto.request.UpdateDeckRequest;
 import com.ankiquiz.dto.response.DeckContentsResponse;
@@ -104,6 +105,19 @@ public class DeckController {
             @Valid @RequestBody UpdateDeckRequest request
     ) {
         return deckService.renameDeck(jwt.getSubject(), deckId, request.name());
+    }
+
+    @PutMapping("/{deckId}/languages")
+    @Operation(summary = "Set a deck's primary TTS language per face",
+            description = "Sets the term (front) and definition (back) primary language "
+                    + "used for text-to-speech. A blank value clears it back to auto-detect. "
+                    + "Returns the refreshed deck contents.")
+    public DeckContentsResponse setDeckLanguages(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId,
+            @Valid @RequestBody SetDeckLanguagesRequest request
+    ) {
+        return deckService.setDeckLanguages(jwt.getSubject(), deckId, request.frontLang(), request.backLang());
     }
 
     @DeleteMapping("/{deckId}")

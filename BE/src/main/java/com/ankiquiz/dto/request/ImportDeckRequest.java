@@ -16,6 +16,10 @@ public record ImportDeckRequest(
         @NotBlank @Size(max = 200) String name,
         @Size(max = 500) String subdeckPath,
         @Size(max = 300) String sourceFilename,
+        // Deck-level primary TTS language per face (BCP-47 primary subtag), computed
+        // client-side from the majority language of each face. Null = auto-detect.
+        @Size(max = 16) String frontLang,
+        @Size(max = 16) String backLang,
         @NotEmpty @Valid List<NoteTypeRequest> noteTypes
 ) {
 }

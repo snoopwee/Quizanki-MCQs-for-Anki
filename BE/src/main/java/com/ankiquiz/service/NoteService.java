@@ -78,7 +78,8 @@ public class NoteService {
      * inject unknown ones. Cloze markup ({{c1::...}}) is stored verbatim.
      */
     @Transactional
-    public NoteResponse updateNote(String userId, UUID deckId, UUID noteId, Map<String, String> incoming) {
+    public NoteResponse updateNote(String userId, UUID deckId, UUID noteId, Map<String, String> incoming,
+                                   String frontLang, String backLang) {
         deckRepository.findByIdAndUserId(deckId, userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
         Note note = noteRepository.findByIdAndDeckId(noteId, deckId)
@@ -93,6 +94,14 @@ public class NoteService {
             }
         }
         note.setFields(merged);
+        // Per-face language override: a present value (including a blank one, which
+        // clears back to auto) is applied; an absent (null) value leaves it as-is.
+        if (frontLang != null) {
+            note.setFrontLang(normalizeLang(frontLang));
+        }
+        if (backLang != null) {
+            note.setBackLang(normalizeLang(backLang));
+        }
         Note saved = noteRepository.save(note);
 
         CardStats stats = cardStatsRepository.findById(saved.getId()).orElse(null);
@@ -154,5 +163,15 @@ public class NoteService {
             return DEFAULT_LIMIT;
         }
         return Math.max(1, Math.min(limit, MAX_LIMIT));
+    }
+
+    // A blank / whitespace-only language code means "auto-detect" — store NULL so
+    // the column has one canonical empty value. Trimmed otherwise.
+    private static String normalizeLang(String lang) {
+        if (lang == null) {
+            return null;
+        }
+        String trimmed = lang.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

@@ -12,7 +12,11 @@ public record DeckResponse(
         String sourceFilename,
         Integer cardCount,
         OffsetDateTime importedAt,
-        Double completion
+        Double completion,
+        // Deck-level primary TTS language per face (BCP-47 primary subtag), or null
+        // to auto-detect. Set at import from the majority language of each face.
+        String frontLang,
+        String backLang
 ) {
     // For freshly-imported decks (no card_stats yet) completion is 0.
     public static DeckResponse from(Deck deck) {
@@ -27,7 +31,9 @@ public record DeckResponse(
                 deck.getSourceFilename(),
                 deck.getCardCount(),
                 deck.getImportedAt(),
-                completion
+                completion,
+                deck.getFrontLang(),
+                deck.getBackLang()
         );
     }
 }

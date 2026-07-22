@@ -10,6 +10,10 @@ import java.util.UUID;
  * same shape as {@code /public/parse-apkg} so the client can reuse its flashcard
  * viewer and quiz setup. Each note carries its persisted UUID (for answer
  * recording) plus its original Anki note id.
+ *
+ * <p>{@code frontLang}/{@code backLang} at the deck level are the primary TTS
+ * language for each face (term/definition); each {@link NoteContents} may carry a
+ * per-card override of the same. All are nullable — null means auto-detect.
  */
 public record DeckContentsResponse(
         UUID id,
@@ -19,6 +23,8 @@ public record DeckContentsResponse(
         Integer cardCount,
         OffsetDateTime importedAt,
         Double completion,
+        String frontLang,
+        String backLang,
         List<NoteTypeContents> noteTypes
 ) {
     public record NoteTypeContents(
@@ -38,7 +44,9 @@ public record DeckContentsResponse(
             UUID id,
             String ankiNoteId,
             Map<String, String> fields,
-            List<String> tags
+            List<String> tags,
+            String frontLang,
+            String backLang
     ) {
     }
 }

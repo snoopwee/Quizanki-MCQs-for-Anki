@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useQuizStore } from "@/stores/quizStore";
 import { useGuestMastery } from "@/stores/guestMasteryStore";
 import { useRecordAnswer } from "@/hooks/useQuizSession";
 import { cancelSpeech } from "@/lib/tts";
-import { textDirection, stripLatex } from "@/lib/displayText";
+import { textDirection } from "@/lib/displayText";
 import { reshuffleQuestions } from "@/lib/buildQuestions";
+import { gradeWritten } from "@/lib/questionTypes";
+import { RichText } from "@/components/shared/RichText";
 import { applyAnswer } from "@/lib/mastery";
 import { QuestionCard } from "./QuestionCard";
 import { OptionButton } from "./OptionButton";
@@ -66,6 +68,20 @@ export function QuizSession({
   const queryClient = useQueryClient();
   const recordGuestAnswer = useGuestMastery((s) => s.recordAnswer);
 
+  // Written-answer local state: the typed text, and (once checked) the auto-grade
+  // plus whether the learner overrode it ("I was right"). Kept out of the store —
+  // the answer isn't committed to the score/backend until they move to Next, so
+  // an override changes the single recorded result rather than double-counting.
+  const [writtenInput, setWrittenInput] = useState("");
+  const [writtenResult, setWrittenResult] = useState<
+    { autoCorrect: boolean; override: boolean } | null
+  >(null);
+  // Reset the written scratch state whenever the question changes.
+  useEffect(() => {
+    setWrittenInput("");
+    setWrittenResult(null);
+  }, [currentIndex]);
+
   const finished = currentIndex >= questions.length;
 
   // Stop any in-progress narration when the question changes or the quiz unmounts,
@@ -112,38 +128,82 @@ export function QuizSession({
   }
 
   const question = questions[currentIndex];
-  const answered = selectedAnswer !== null;
+  const isWritten = question.kind === "written";
+  // Written locks once checked; MCQ / True-False lock once an answer is recorded.
+  const answered = isWritten ? writtenResult !== null : selectedAnswer !== null;
   const isLast = currentIndex === questions.length - 1;
+  const writtenFinalCorrect = writtenResult
+    ? writtenResult.autoCorrect || writtenResult.override
+    : false;
 
-  function handleSelect(option: string) {
-    if (answered) return;
-    const correct = option === question.correct;
+  // Records one answer (score + AnswerRecord + backend/guest mastery). Correctness
+  // is graded per kind by the caller; the recording plumbing is identical.
+  function commit(wasCorrect: boolean, selectedDisplay: string) {
+    if (selectedAnswer !== null) return;
     // Same +15/-20 curve the BE runs, so the optimistic value matches the
     // server-confirmed mastery — no flicker on the results screen.
     const prevMastery = getStats?.(question.noteId)?.mastery ?? 0;
-    const newMastery = applyAnswer(prevMastery, correct);
-    selectAnswer(option, newMastery);
+    const newMastery = applyAnswer(prevMastery, wasCorrect);
+    selectAnswer(selectedDisplay, wasCorrect, newMastery);
     if (sessionId) {
       // Authed: server is the source of truth for mastery. Invalidate notes so
       // the next "set up a quiz" picks the new mastery up (and the dashboard
       // completion %, after the user navigates back).
       recordAnswer.mutate(
-        { sessionId, noteId: question.noteId, correct },
+        { sessionId, noteId: question.noteId, correct: wasCorrect },
         {
           onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["notes"] });
             queryClient.invalidateQueries({ queryKey: ["decks"] });
             queryClient.invalidateQueries({ queryKey: ["deck-contents"] });
+            // Refresh the deck's Progress panel (tiles + accuracy-over-time chart)
+            // once the user navigates back to it.
+            queryClient.invalidateQueries({ queryKey: ["deck-stats"] });
+            queryClient.invalidateQueries({ queryKey: ["deck-stats-history"] });
           },
         },
       );
     } else {
       // Guest trial: mastery lives client-side, applyAnswer mirrors the SQL curve.
-      recordGuestAnswer(question.noteId, correct);
+      recordGuestAnswer(question.noteId, wasCorrect);
     }
   }
 
-  const answeredCorrect = answered && selectedAnswer === question.correct;
+  // MCQ: an option was tapped. Instant feedback, records immediately.
+  function handleOption(option: string) {
+    if (answered) return;
+    commit(option === question.correct, option);
+  }
+
+  // True/False: the learner judged the asserted statement.
+  function handleTrueFalse(pick: boolean) {
+    if (answered || question.kind !== "truefalse") return;
+    commit(pick === question.truth, pick ? "True" : "False");
+  }
+
+  // Written: grade the typed answer and reveal — but don't record yet, so an
+  // "I was right" override can still flip the outcome before Next commits it.
+  function checkWritten() {
+    if (question.kind !== "written" || writtenResult !== null) return;
+    setWrittenResult({ autoCorrect: gradeWritten(writtenInput, question.correct), override: false });
+  }
+
+  // Advance. For written, this is where the (possibly overridden) result is
+  // finally recorded — MCQ / True-False already recorded on selection.
+  function handleNext() {
+    if (isWritten && writtenResult && selectedAnswer === null) {
+      commit(writtenFinalCorrect, writtenInput || "(blank)");
+    }
+    nextQuestion();
+  }
+
+  let answeredCorrect = false;
+  if (answered) {
+    if (question.kind === "written") answeredCorrect = writtenFinalCorrect;
+    else if (question.kind === "truefalse")
+      answeredCorrect = selectedAnswer === (question.truth ? "True" : "False");
+    else answeredCorrect = selectedAnswer === question.correct;
+  }
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-10rem)] w-full max-w-3xl flex-col">
@@ -199,20 +259,45 @@ export function QuizSession({
         <div className="flex min-h-full flex-col justify-center gap-6 py-6">
           <QuestionCard prompt={question.prompt} />
 
-          {/* options (lettered A–D) */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {question.options.map((option, idx) => (
-              <OptionButton
-                key={option}
-                option={option}
-                index={idx}
-                answered={answered}
-                isCorrect={option === question.correct}
-                isSelected={option === selectedAnswer}
-                onSelect={() => handleSelect(option)}
-              />
-            ))}
-          </div>
+          {question.kind === "mcq" && (
+            /* options (lettered A–D) */
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {question.options.map((option, idx) => (
+                <OptionButton
+                  key={option}
+                  option={option}
+                  index={idx}
+                  answered={answered}
+                  isCorrect={option === question.correct}
+                  isSelected={option === selectedAnswer}
+                  onSelect={() => handleOption(option)}
+                />
+              ))}
+            </div>
+          )}
+
+          {question.kind === "truefalse" && (
+            <TrueFalseChoice
+              statement={question.statement}
+              truth={question.truth}
+              answered={answered}
+              picked={selectedAnswer}
+              onPick={handleTrueFalse}
+            />
+          )}
+
+          {question.kind === "written" && (
+            <WrittenAnswer
+              input={writtenInput}
+              onInput={setWrittenInput}
+              onCheck={checkWritten}
+              result={writtenResult}
+              correct={question.correct}
+              onToggleOverride={() =>
+                setWrittenResult((r) => (r ? { ...r, override: !r.override } : r))
+              }
+            />
+          )}
         </div>
       </div>
 
@@ -234,25 +319,159 @@ export function QuizSession({
                 <>
                   Answer:{" "}
                   <span dir={textDirection(question.correct)} className="text-success">
-                    {stripLatex(question.correct)}
+                    <RichText text={question.correct} />
                   </span>
                 </>
               )}
             </span>
           </div>
         ) : (
-          <span className="font-mono text-sm text-faint">Pick the closest answer</span>
+          <span className="font-mono text-sm text-faint">
+            {question.kind === "written"
+              ? "Type your answer"
+              : question.kind === "truefalse"
+                ? "True or false?"
+                : "Pick the closest answer"}
+          </span>
         )}
         <div className="flex-1" />
         <button
           type="button"
-          onClick={nextQuestion}
+          onClick={handleNext}
           disabled={!answered}
           className="focus-ring shrink-0 rounded-input bg-accent px-6 py-2.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-40"
         >
           {isLast ? "Finish" : "Next"}
         </button>
       </div>
+    </div>
+  );
+}
+
+// True/False: the asserted statement above two verdict buttons. After answering,
+// the correct verdict goes green and a wrong pick goes red (mirroring OptionButton).
+function TrueFalseChoice({
+  statement,
+  truth,
+  answered,
+  picked,
+  onPick,
+}: {
+  statement: string;
+  truth: boolean;
+  answered: boolean;
+  picked: string | null;
+  onPick: (pick: boolean) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-card border border-line-strong bg-surface-2 p-5 text-center">
+        <p className="font-mono text-[11px] uppercase tracking-wide text-faint">Proposed answer</p>
+        <p
+          dir={textDirection(statement)}
+          className="mt-2 font-display text-2xl font-semibold leading-tight break-words text-ink"
+        >
+          <RichText text={statement} />
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[true, false].map((val) => {
+          const label = val ? "True" : "False";
+          const isPicked = picked === label;
+          const isRight = val === truth;
+          const showCorrect = answered && isRight;
+          const showWrong = answered && isPicked && !isRight;
+          let cls =
+            "focus-ring flex items-center justify-center gap-2 rounded-card border px-4 py-5 text-base font-semibold transition ";
+          if (showCorrect) cls += "border-success bg-success/10 text-ink";
+          else if (showWrong) cls += "border-danger bg-danger/10 text-ink";
+          else if (answered) cls += "border-line text-faint";
+          else cls += "border-line-strong bg-surface text-ink hover:border-accent hover:bg-accent-soft";
+          return (
+            <button key={label} type="button" disabled={answered} onClick={() => onPick(val)} className={cls}>
+              <Icon name={val ? "check" : "x"} size={18} />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Written: a free-text field the learner types into, then checks. Grading is
+// lenient (see gradeWritten) but imperfect, so a missed auto-grade offers an
+// "I was right" override — the session records the final verdict on Next.
+function WrittenAnswer({
+  input,
+  onInput,
+  onCheck,
+  result,
+  correct,
+  onToggleOverride,
+}: {
+  input: string;
+  onInput: (v: string) => void;
+  onCheck: () => void;
+  result: { autoCorrect: boolean; override: boolean } | null;
+  correct: string;
+  onToggleOverride: () => void;
+}) {
+  const revealed = result !== null;
+  return (
+    <div className="space-y-3">
+      <input
+        autoFocus
+        value={input}
+        onChange={(e) => onInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !revealed) {
+            e.preventDefault();
+            onCheck();
+          }
+        }}
+        disabled={revealed}
+        dir={textDirection(input)}
+        placeholder="Type the answer…"
+        aria-label="Your answer"
+        className="focus-ring w-full rounded-card border border-line-strong bg-surface px-4 py-3.5 text-lg text-ink disabled:opacity-70"
+      />
+
+      {!revealed && (
+        <button
+          type="button"
+          onClick={onCheck}
+          className="focus-ring w-full rounded-input bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95"
+        >
+          Check answer
+        </button>
+      )}
+
+      {result && (
+        <div
+          className={`rounded-card border p-4 ${
+            result.autoCorrect || result.override
+              ? "border-success/40 bg-success/10"
+              : "border-danger/40 bg-danger/10"
+          }`}
+        >
+          <p className="font-mono text-[11px] uppercase tracking-wide text-faint">Correct answer</p>
+          <p dir={textDirection(correct)} className="mt-1 font-display text-xl font-semibold break-words text-ink">
+            <RichText text={correct} />
+          </p>
+          {!result.autoCorrect && (
+            <button
+              type="button"
+              onClick={onToggleOverride}
+              aria-pressed={result.override}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-input border border-line-strong bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-accent"
+            >
+              <Icon name={result.override ? "check" : "pencil"} size={13} />
+              {result.override ? "Counted as correct" : "I was right — count it"}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

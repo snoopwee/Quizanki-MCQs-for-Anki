@@ -144,6 +144,40 @@
     background: var(--accent-soft);
     color: var(--accent-ink);
   }
+
+  /* Furigana rendered by <RichText>: the reading sits above its kanji, smaller
+     and muted so it supports the base without competing with it. */
+  ruby > rt {
+    font-size: 0.5em;
+    font-weight: 500;
+    color: var(--muted);
+  }
+}
+
+/* ── Custom page scrollbar ─────────────────────────────────────────────────
+   Replaces the OS default with a warm pill that matches the paper theme in both
+   modes (live tokens). The transparent border + padding-box clip makes the thumb
+   read as an inset pill on ANY background, so it also tidies inner scroll areas
+   that don't opt into .nice-scroll. */
+html {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: var(--line-strong) transparent;
+}
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--line-strong);
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted);
 }
 
 /* ── Helper utilities ──────────────────────────────────────────────────── */
@@ -199,6 +233,84 @@
 @media (prefers-reduced-motion: reduce) {
   .rise {
     animation: none;
+  }
+}
+
+/* ── Flashcard player motion (Quizlet/Knowt-style) ─────────────────────────
+   A 3D flip + a slide-in on card advance. The flip needs BOTH faces in the DOM
+   at once: the scene supplies perspective, the card rotates on its Y axis, and
+   each face hides its own backside so the rotation reveals the other face. */
+.flip-scene {
+  perspective: 1400px;
+}
+.flip-card {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.flip-card.is-flipped {
+  transform: rotateY(180deg);
+}
+.flip-face {
+  position: absolute;
+  inset: 0;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+.flip-face-back {
+  transform: rotateY(180deg);
+}
+
+/* Card advance: the OUTGOING card lifts off the stack and glides away to the
+   side of travel while fading, revealing the next card sitting beneath it (like
+   lifting a real flashcard off a pile). The card underneath is already in place,
+   so this exit *is* the transition — there's no separate enter animation.
+   0.45s reads as a deliberate hand movement without stalling; the 22% "pick up"
+   beat (lift + small scale bump) sells the lift before the card flies off. */
+@keyframes fc-leave-next {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  22% {
+    opacity: 1;
+    transform: translate3d(2%, -16px, 0) rotate(1.5deg) scale(1.03);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(34%, -10px, 0) rotate(5deg) scale(0.96);
+  }
+}
+@keyframes fc-leave-prev {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  22% {
+    opacity: 1;
+    transform: translate3d(-2%, -16px, 0) rotate(-1.5deg) scale(1.03);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(-34%, -10px, 0) rotate(-5deg) scale(0.96);
+  }
+}
+.fc-leave-next {
+  animation: fc-leave-next 0.45s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.fc-leave-prev {
+  animation: fc-leave-prev 0.45s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flip-card {
+    transition: none;
+  }
+  /* Near-instant (not `none`) so the overlay still fires animationend and gets
+     cleared — just without perceptible motion. */
+  .fc-leave-next,
+  .fc-leave-prev {
+    animation-duration: 1ms;
   }
 }
 

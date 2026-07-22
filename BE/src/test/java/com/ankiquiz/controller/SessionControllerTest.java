@@ -73,7 +73,7 @@ class SessionControllerTest {
     @Test
     void recordAnswer_returns200_withUpdatedStats() throws Exception {
         UUID sessionId = UUID.randomUUID();
-        when(sessionService.recordAnswer(eq("user-1"), any()))
+        when(sessionService.recordAnswer(eq("user-1"), any(), any()))
                 .thenReturn(new RecordAnswerResponse(0.75, 3, 60.0));
 
         RecordAnswerRequest request = new RecordAnswerRequest(UUID.randomUUID(), true);

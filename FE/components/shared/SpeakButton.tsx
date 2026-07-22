@@ -40,12 +40,16 @@ export function SpeakButton({
   text,
   label,
   size = "md",
+  lang = "",
 }: {
   id: string;
   text: string;
   // When set, renders a labeled pill button (e.g. "Listen"); otherwise icon-only.
   label?: string;
   size?: Size;
+  // Primary-language hint for this text (BCP-47 primary subtag, e.g. "ja"). Steers
+  // TTS away from the ambiguous script default (bare kanji → Chinese). "" = auto.
+  lang?: string;
 }) {
   const { supported, activeKey, activeStatus, toggle } = useSpeech();
   if (!supported) return null;
@@ -68,7 +72,7 @@ export function SpeakButton({
     // Inside flip cards / clickable rows — don't let the toggle bubble.
     e.stopPropagation();
     e.preventDefault();
-    toggle(id, text);
+    toggle(id, text, lang);
   };
 
   const common = {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useDeckContents, useDeleteDeck } from "@/hooks/useDecks";
@@ -11,13 +11,12 @@ import { reshuffleQuestions, type Question } from "@/lib/buildQuestions";
 import { useQuizStore } from "@/stores/quizStore";
 import { FlashcardViewer } from "@/components/deck/FlashcardViewer";
 import { ApkgQuizSetup, type NoteStatsLookup } from "@/components/deck/ApkgQuizSetup";
+import { DeckStatsPanel } from "@/components/deck/DeckStatsPanel";
 import { KebabMenu } from "@/components/shared/KebabMenu";
 import { ExportDeckModal } from "@/components/deck/ExportDeckModal";
 import { Card } from "@/components/ui/Card";
-import { Ring } from "@/components/ui/Ring";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { SoonTag } from "@/components/ui/controls";
-import { buttonClasses } from "@/components/ui/Button";
 
 type Step = "flashcards" | "setup";
 
@@ -36,6 +35,9 @@ function DeckDetail() {
   // through the test page. Default (no param) is the flashcard browser.
   const params = useSearchParams();
   const step: Step = params.get("step") === "setup" ? "setup" : "flashcards";
+  // The Stats panel's "Quiz weak cards" shortcut deep-links here with source=weak
+  // so the setup screen opens straight on the still-learning slice.
+  const initialSource = params.get("source") === "weak" ? "weak" : "all";
 
   const contentsQuery = useDeckContents(deckId);
   const notesQuery = useNotes(deckId);
@@ -46,9 +48,35 @@ function DeckDetail() {
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  // Anchor for the "Flashcards" study mode — scrolls down to the card browser.
+  // Anchor for the "Flashcards" study mode — scrolls to the flashcard player.
   const cardsRef = useRef<HTMLDivElement>(null);
   const scrollToCards = () => cardsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  // Portal target for the "Cards in this deck" list. The flashcard player renders
+  // right under the study modes; its card list is portaled down here, below "Your
+  // progress". State-backed so the portal attaches once the slot mounts — which is
+  // only after the deck finishes loading.
+  const [previewSlot, setPreviewSlot] = useState<HTMLElement | null>(null);
+
+  // Reveal the floating study-mode rail once the study-mode tiles scroll up out of
+  // view, so the quiz/flashcards actions stay reachable further down the page.
+  // State-backed ref (not a plain ref): the tiles mount only after the async deck
+  // load, and it's the state change that re-runs the effect so the observer attaches.
+  const [studyModesEl, setStudyModesEl] = useState<HTMLElement | null>(null);
+  const [railVisible, setRailVisible] = useState(false);
+  useEffect(() => {
+    if (!studyModesEl) return;
+    const obs = new IntersectionObserver(([entry]) => setRailVisible(!entry.isIntersecting));
+    obs.observe(studyModesEl);
+    return () => obs.disconnect();
+  }, [studyModesEl]);
+
+  // "Hide term / definition" self-test mode for the Cards-in-this-deck list, driven
+  // from the floating study rail. `hideOn` gates it; `hideSide` picks the column
+  // to blank ("back" = definition, the default; "front" = term).
+  const [hideOn, setHideOn] = useState(false);
+  const [hideSide, setHideSide] = useState<"front" | "back">("back");
+  const hiddenSide = hideOn ? hideSide : null;
 
   const parsed = useMemo(
     () => (contentsQuery.data ? deckContentsToParsed(contentsQuery.data) : null),
@@ -80,6 +108,12 @@ function DeckDetail() {
   }
   function goToFlashcards() {
     router.push(`/decks/${deckId}`);
+  }
+  function goToSetupWeak() {
+    router.push(`/decks/${deckId}?step=setup&source=weak`);
+  }
+  function goToMatch() {
+    router.push(`/decks/${deckId}/match`);
   }
 
   function startTest(questions: Question[]) {
@@ -142,68 +176,46 @@ function DeckDetail() {
       {step === "flashcards" && (
         <>
           {/* deck header */}
-          <Card className="overflow-hidden p-0">
-            <div className="h-1.5 bg-accent" />
-            <div className="flex flex-col gap-5 p-6 sm:flex-row sm:items-start">
-              <div className="min-w-0 flex-1">
-                <h1 className="font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl">
-                  {deckName}
-                </h1>
-                <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted">
-                  <span className="inline-flex items-center gap-1.5">
-                    <Icon name="layers" size={15} />
-                    {cardCount} card{cardCount === 1 ? "" : "s"}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Icon name="cards" size={15} />
-                    {noteTypeCount} note type{noteTypeCount === 1 ? "" : "s"}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 opacity-70">
-                    <Icon name="flame" size={15} />
-                    Learners <SoonTag />
-                  </span>
-                </div>
-              </div>
-              <div className="flex flex-col items-center gap-1.5 self-center sm:self-start">
-                <Ring
-                  value={completion / 100}
-                  size={66}
-                  stroke={5}
-                  label={`${Math.round(completion)}%`}
-                />
-                <span className="font-mono text-[11px] text-faint">mastered</span>
-              </div>
+          <Card className="relative p-0">
+            {/* No overflow-hidden (it would clip the "⋯" dropdown); the accent bar
+                gets a rounded top so it still fits the card's corners. */}
+            <div className="h-1.5 rounded-t-card bg-accent" />
+            {/* deck-options menu (Edit / Export / Delete), pinned to the top-right
+                corner — the header no longer carries a separate action bar. */}
+            <div className="absolute right-3 top-4">
+              <KebabMenu
+                label="Deck options"
+                items={[
+                  { label: "Edit flashcards", onClick: () => router.push(`/decks/${deckId}/edit`) },
+                  { label: "Export deck", onClick: () => setExportOpen(true) },
+                  { label: "Delete deck", onClick: () => setDeleteOpen(true), danger: true },
+                ]}
+              />
             </div>
-            <div className="flex flex-wrap items-center gap-2 border-t border-line px-6 py-4">
-              <button
-                type="button"
-                onClick={() => router.push(`/decks/${deckId}/edit`)}
-                className={buttonClasses({ variant: "ghost", size: "sm" })}
-              >
-                <Icon name="pencil" size={15} /> Edit
-              </button>
-              <button
-                type="button"
-                onClick={() => setExportOpen(true)}
-                className={buttonClasses({ variant: "ghost", size: "sm" })}
-              >
-                <Icon name="upload" size={15} /> Export
-              </button>
-              <div className="ml-auto">
-                <KebabMenu
-                  label="Deck options"
-                  items={[
-                    { label: "Edit flashcards", onClick: () => router.push(`/decks/${deckId}/edit`) },
-                    { label: "Export deck", onClick: () => setExportOpen(true) },
-                    { label: "Delete deck", onClick: () => setDeleteOpen(true), danger: true },
-                  ]}
-                />
+            <div className="p-6">
+              {/* pr-10 keeps a long title clear of the corner "⋯" menu */}
+              <h1 className="pr-10 font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+                {deckName}
+              </h1>
+              <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted">
+                <span className="inline-flex items-center gap-1.5">
+                  <Icon name="layers" size={15} />
+                  {cardCount} card{cardCount === 1 ? "" : "s"}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Icon name="cards" size={15} />
+                  {noteTypeCount} note type{noteTypeCount === 1 ? "" : "s"}
+                </span>
+                <span className="inline-flex items-center gap-1.5 opacity-70">
+                  <Icon name="flame" size={15} />
+                  Learners <SoonTag />
+                </span>
               </div>
             </div>
           </Card>
 
           {/* study modes */}
-          <div>
+          <div ref={setStudyModesEl}>
             <p className="mb-3 font-mono text-xs font-semibold uppercase tracking-[0.06em] text-muted">
               Study modes
             </p>
@@ -223,23 +235,18 @@ function DeckDetail() {
                 onClick={scrollToCards}
               />
               <StudyMode
-                icon="brain"
-                color="var(--plum)"
-                label="Learn"
-                desc="Adaptive spaced repetition"
-                soon
-              />
-              <StudyMode
                 icon="shuffle"
                 color="var(--success)"
                 label="Match"
                 desc="Race to pair terms & meanings"
-                soon
+                onClick={goToMatch}
               />
             </div>
           </div>
 
-          {/* card browser */}
+          {/* flashcard player — belongs to the study modes; sits directly beneath
+              them as the "Flashcards" mode made visible. Its card LIST is portaled
+              into the slot below "Your progress" (see previewSlot). */}
           <div ref={cardsRef} className="scroll-mt-6">
             <FlashcardViewer
               parsed={parsed}
@@ -251,10 +258,29 @@ function DeckDetail() {
               hideHeader
               editable
               deckId={deckId}
+              previewSlot={previewSlot}
+              hiddenSide={hiddenSide}
               onBack={() => router.push("/dashboard")}
               onStartTest={goToSetup}
             />
           </div>
+
+          {/* progress: mastery ring + stat tiles + accuracy chart (below the player) */}
+          <DeckStatsPanel deckId={deckId} completion={completion} onQuizWeak={goToSetupWeak} />
+
+          {/* "Cards in this deck" list is portaled here by FlashcardViewer above. */}
+          <div ref={setPreviewSlot} />
+
+          <FloatingStudyRail
+            visible={railVisible}
+            onQuiz={goToSetup}
+            onFlashcards={scrollToCards}
+            onMatch={goToMatch}
+            hideOn={hideOn}
+            hideSide={hideSide}
+            onToggleHide={() => setHideOn((v) => !v)}
+            onSwitchSide={() => setHideSide((s) => (s === "back" ? "front" : "back"))}
+          />
         </>
       )}
 
@@ -265,6 +291,7 @@ function DeckDetail() {
           deckId={deckId}
           showHeading={false}
           backLabel="Back to flashcards"
+          initialSource={initialSource}
           onBack={goToFlashcards}
           onStart={startTest}
         />
@@ -373,6 +400,116 @@ function StudyMode({
         <Icon name="chevronRight" size={16} />
       </span>
     </button>
+  );
+}
+
+// A fixed, right-side floating bar of the Study-mode actions, revealed once the
+// user scrolls down to the card browser so they don't have to scroll back up to
+// start a quiz. Large screens only — there's gutter room beside the centered
+// content; on smaller screens the study-mode tiles are only a short scroll away.
+function FloatingStudyRail({
+  visible,
+  onQuiz,
+  onFlashcards,
+  onMatch,
+  hideOn,
+  hideSide,
+  onToggleHide,
+  onSwitchSide,
+}: {
+  visible: boolean;
+  onQuiz: () => void;
+  onFlashcards: () => void;
+  onMatch: () => void;
+  // Self-test controls: hide one column of the Cards-in-this-deck list.
+  hideOn: boolean;
+  hideSide: "front" | "back";
+  onToggleHide: () => void;
+  onSwitchSide: () => void;
+}) {
+  const hidingLabel = hideSide === "back" ? "definition" : "term";
+  const actions: Array<{
+    icon: IconName;
+    label: string;
+    color: string;
+    primary?: boolean;
+    soon?: boolean;
+    onClick?: () => void;
+  }> = [
+    { icon: "clipboard", label: "Quiz me", color: "var(--accent)", primary: true, onClick: onQuiz },
+    { icon: "cards", label: "Flashcards", color: "var(--info)", onClick: onFlashcards },
+    { icon: "shuffle", label: "Match", color: "var(--success)", onClick: onMatch },
+  ];
+  return (
+    <div
+      aria-hidden={!visible}
+      className={`fixed right-6 top-1/2 z-30 hidden -translate-y-1/2 flex-col gap-2 rounded-card border border-line bg-surface/90 p-2 shadow-card backdrop-blur transition-all duration-300 lg:flex ${
+        visible ? "translate-x-0 opacity-100" : "pointer-events-none translate-x-3 opacity-0"
+      }`}
+    >
+      {actions.map((a) => (
+        <div key={a.label} className="group relative flex justify-end">
+          <button
+            type="button"
+            onClick={a.soon ? undefined : a.onClick}
+            disabled={a.soon}
+            aria-label={a.soon ? `${a.label} — coming soon` : a.label}
+            className={`grid h-11 w-11 place-items-center rounded-full transition disabled:cursor-not-allowed ${
+              a.primary
+                ? "bg-accent text-white shadow-btn enabled:hover:opacity-95"
+                : "border border-line bg-surface enabled:hover:border-line-strong"
+            } ${a.soon ? "opacity-45" : ""}`}
+            style={a.primary ? undefined : { color: a.color }}
+          >
+            <Icon name={a.icon} size={20} />
+          </button>
+          {/* label reveals to the left on hover */}
+          <span className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 whitespace-nowrap rounded-input bg-ink px-2 py-1 text-xs font-medium text-canvas opacity-0 shadow-card transition group-hover:opacity-100">
+            {a.label}
+            {a.soon && " · soon"}
+          </span>
+        </div>
+      ))}
+
+      {/* self-test: hide one column of the "Cards in this deck" list, with a switch
+          for which side (term vs definition) is covered. */}
+      <div className="mx-1 my-0.5 h-px bg-line" />
+
+      <div className="group relative flex justify-end">
+        <button
+          type="button"
+          onClick={onToggleHide}
+          aria-pressed={hideOn}
+          aria-label={hideOn ? "Show answers" : "Hide answers"}
+          className={`grid h-11 w-11 place-items-center rounded-full border transition ${
+            hideOn
+              ? "border-accent bg-accent-soft text-accent-ink"
+              : "border-line bg-surface text-ink hover:border-line-strong"
+          }`}
+        >
+          <Icon name={hideOn ? "eyeOff" : "eye"} size={20} />
+        </button>
+        <span className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 whitespace-nowrap rounded-input bg-ink px-2 py-1 text-xs font-medium text-canvas opacity-0 shadow-card transition group-hover:opacity-100">
+          {hideOn ? "Show answers" : "Hide answers"}
+        </span>
+      </div>
+
+      {hideOn && (
+        <div className="group relative flex justify-end">
+          <button
+            type="button"
+            onClick={onSwitchSide}
+            aria-label={`Hiding ${hidingLabel} — switch side`}
+            className="grid h-11 w-11 place-items-center rounded-full border border-line bg-surface text-[11px] font-bold uppercase tracking-tight text-ink transition hover:border-line-strong"
+          >
+            {hideSide === "back" ? "Def" : "Term"}
+          </button>
+          <span className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 whitespace-nowrap rounded-input bg-ink px-2 py-1 text-xs font-medium text-canvas opacity-0 shadow-card transition group-hover:opacity-100">
+            Hiding {hidingLabel} · tap to switch
+          </span>
+        </div>
+      )}
+    </div>
   );
 }
 

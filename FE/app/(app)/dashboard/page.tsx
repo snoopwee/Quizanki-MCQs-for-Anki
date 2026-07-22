@@ -36,7 +36,7 @@ export default function DashboardPage() {
       </div>
 
       {/* stats */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3">
         <StatTile
           icon={<Icon name="layers" size={18} />}
           color="var(--info)"
@@ -50,20 +50,6 @@ export default function DashboardPage() {
           label="Avg. completion"
           value={loaded ? `${avgCompletion}%` : "—"}
           sub={loaded ? "across all decks" : undefined}
-        />
-        <StatTile
-          icon={<Icon name="flame" size={18} />}
-          color="var(--flame)"
-          label="Current streak"
-          value="—"
-          soon
-        />
-        <StatTile
-          icon={<Icon name="bolt" size={18} />}
-          color="var(--accent)"
-          label="Total XP"
-          value="—"
-          soon
         />
       </div>
 

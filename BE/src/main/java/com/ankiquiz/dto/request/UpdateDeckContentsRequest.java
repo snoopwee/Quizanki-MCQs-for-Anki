@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 import java.util.Map;
@@ -31,12 +32,16 @@ public record UpdateDeckContentsRequest(
     /**
      * One card in display order. {@code id} null means a new card; {@code noteTypeId}
      * null (or unknown) routes it to the deck's Basic (Front/Back) type.
+     * {@code frontLang}/{@code backLang} are the per-face TTS language override
+     * (BCP-47 primary subtag); blank/null = inherit the deck default.
      */
     public record NoteEntry(
             UUID id,
             UUID noteTypeId,
             @NotEmpty Map<String, String> fields,
-            List<String> tags
+            List<String> tags,
+            @Size(max = 16) String frontLang,
+            @Size(max = 16) String backLang
     ) {
     }
 }

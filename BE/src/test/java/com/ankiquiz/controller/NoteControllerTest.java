@@ -93,17 +93,35 @@ class NoteControllerTest {
                 List.of("N4", "verb"),
                 null
         );
-        when(noteService.updateNote(eq("user-1"), eq(deckId), eq(noteId), any()))
+        when(noteService.updateNote(eq("user-1"), eq(deckId), eq(noteId), any(), any(), any()))
                 .thenReturn(updated);
 
         mockMvc.perform(patch("/api/v1/decks/{deckId}/notes/{noteId}", deckId, noteId)
                         .with(jwt().jwt(j -> j.subject("user-1")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new UpdateNoteRequest(
-                                Map.of("Front", "食べる", "Back", "to eat (edited)")))))
+                                Map.of("Front", "食べる", "Back", "to eat (edited)"), null, null))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(noteId.toString()))
                 .andExpect(jsonPath("$.fields.Back").value("to eat (edited)"));
+    }
+
+    @Test
+    void updateNote_passesFaceLanguageOverrideThrough() throws Exception {
+        UUID deckId = UUID.randomUUID();
+        UUID noteId = UUID.randomUUID();
+        NoteResponse updated = new NoteResponse(
+                noteId, deckId, Map.of("Front", "水", "Back", "water"), List.of(), null);
+        when(noteService.updateNote(eq("user-1"), eq(deckId), eq(noteId), any(), eq("ja"), eq("en")))
+                .thenReturn(updated);
+
+        mockMvc.perform(patch("/api/v1/decks/{deckId}/notes/{noteId}", deckId, noteId)
+                        .with(jwt().jwt(j -> j.subject("user-1")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new UpdateNoteRequest(
+                                Map.of("Front", "水", "Back", "water"), "ja", "en"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(noteId.toString()));
     }
 
     @Test
@@ -111,7 +129,7 @@ class NoteControllerTest {
         mockMvc.perform(patch("/api/v1/decks/{deckId}/notes/{noteId}", UUID.randomUUID(), UUID.randomUUID())
                         .with(jwt().jwt(j -> j.subject("user-1")))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new UpdateNoteRequest(Map.of()))))
+                        .content(objectMapper.writeValueAsString(new UpdateNoteRequest(Map.of(), null, null))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.details.fields").exists());
     }
@@ -120,13 +138,13 @@ class NoteControllerTest {
     void updateNote_returns404_whenNoteMissing() throws Exception {
         UUID deckId = UUID.randomUUID();
         UUID noteId = UUID.randomUUID();
-        when(noteService.updateNote(eq("user-1"), eq(deckId), eq(noteId), any()))
+        when(noteService.updateNote(eq("user-1"), eq(deckId), eq(noteId), any(), any(), any()))
                 .thenThrow(new NotFoundException("Note not found: " + noteId));
 
         mockMvc.perform(patch("/api/v1/decks/{deckId}/notes/{noteId}", deckId, noteId)
                         .with(jwt().jwt(j -> j.subject("user-1")))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new UpdateNoteRequest(Map.of("Front", "x")))))
+                        .content(objectMapper.writeValueAsString(new UpdateNoteRequest(Map.of("Front", "x"), null, null))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }

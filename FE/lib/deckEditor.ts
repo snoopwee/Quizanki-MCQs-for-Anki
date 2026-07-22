@@ -22,6 +22,10 @@ export interface EditorRow {
   backFields: string[];
   fields: Record<string, string>;
   tags: string[];
+  // Per-face TTS language override (BCP-47 primary subtag); "" = inherit the deck
+  // default. Edited via the per-field "voice" menu; round-trips through save.
+  frontLang: string;
+  backLang: string;
 }
 
 export interface EditorState {
@@ -70,6 +74,8 @@ export function fromContents(contents: DeckContentsResponse): EditorState {
         backFields: nt.backFields,
         fields: { ...note.fields },
         tags: [...note.tags],
+        frontLang: note.frontLang ?? "",
+        backLang: note.backLang ?? "",
       });
     }
   }
@@ -92,16 +98,19 @@ function clozeNoteToRows(
     .filter((v) => v.trim().length > 0);
   const indices = uniqueClozeIndices(text);
 
-  // Cloze type but this note has no deletion — keep its text as the term.
+  // Cloze type but this note has no deletion — keep its text as the term. All
+  // rows from one note inherit that note's per-face language override.
+  const fl = note.frontLang ?? "";
+  const bl = note.backLang ?? "";
   if (indices.length === 0) {
-    return [rowWithId(note.id, text, extras.join("\n"), note.tags)];
+    return [rowWithId(note.id, text, extras.join("\n"), note.tags, fl, bl)];
   }
 
   const definition = [renderClozeBack(text), ...extras]
     .filter((v) => v.trim().length > 0)
     .join("\n");
   return indices.map((idx, i) =>
-    rowWithId(i === 0 ? note.id : null, renderClozeFront(text, idx), definition, note.tags),
+    rowWithId(i === 0 ? note.id : null, renderClozeFront(text, idx), definition, note.tags, fl, bl),
   );
 }
 
@@ -132,6 +141,9 @@ export function swapValuesForRow(row: EditorRow): EditorRow {
       [front]: row.fields[back] ?? "",
       [back]: row.fields[front] ?? "",
     },
+    // The languages follow their text to the other side.
+    frontLang: row.backLang,
+    backLang: row.frontLang,
   };
 }
 
@@ -184,6 +196,8 @@ function rowWithId(
   front: string,
   back: string,
   tags: string[],
+  frontLang = "",
+  backLang = "",
 ): EditorRow {
   return {
     key: nextKey(),
@@ -195,6 +209,8 @@ function rowWithId(
     backFields: ["Back"],
     fields: { Front: front, Back: back },
     tags: [...tags],
+    frontLang,
+    backLang,
   };
 }
 
@@ -227,6 +243,8 @@ export function toPayload(state: EditorState): UpdateDeckContentsRequest {
       noteTypeId: r.noteTypeId,
       fields: r.fields,
       tags: r.tags,
+      frontLang: r.frontLang,
+      backLang: r.backLang,
     }));
   return { name: state.name.trim(), noteTypes, notes };
 }

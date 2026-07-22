@@ -9,6 +9,8 @@
 // removed that dropdown and always runs in mixed-all-cards mode, so v1 data
 // no longer fits and we start fresh.
 
+import { ALL_QUESTION_KINDS, type QuestionKind } from "@/lib/questionTypes";
+
 const STORAGE_PREFIX = "quizanki:quiz-prefs:v2:";
 
 /** Per-note-type field choices. Only basic note types use this; cloze types
@@ -23,6 +25,8 @@ export interface QuizPreferences {
   /** Keyed by note-type id (stringified). Empty when the user hasn't
    * customized any basic type's field picks. */
   fieldPrefs: Record<string, NoteTypeFieldPrefs>;
+  /** Enabled question formats. Always has at least one; defaults to ["mcq"]. */
+  kinds: QuestionKind[];
 }
 
 function key(deckId: string): string {
@@ -76,5 +80,9 @@ function sanitize(value: unknown): QuizPreferences | null {
       fieldPrefs[k] = { questionFields, answerField };
     }
   }
-  return { count, fieldPrefs };
+  // Keep only recognized kinds, in canonical order, and never an empty set (that
+  // would make the quiz un-startable) — fall back to multiple-choice.
+  const rawKinds = Array.isArray(v.kinds) ? v.kinds : [];
+  const kinds = ALL_QUESTION_KINDS.filter((k) => rawKinds.includes(k));
+  return { count, fieldPrefs, kinds: kinds.length > 0 ? kinds : ["mcq"] };
 }

@@ -32,13 +32,19 @@ export function useUpdateNote(deckId: string) {
     mutationFn: async ({
       noteId,
       fields,
+      frontLang,
+      backLang,
     }: {
       noteId: string;
       fields: Record<string, string>;
+      // Per-face TTS language override. "" clears it back to the deck default;
+      // omit (undefined) to leave it unchanged. See BE UpdateNoteRequest.
+      frontLang?: string;
+      backLang?: string;
     }) => {
       const { data } = await api.patch<NoteResponse>(
         `/decks/${deckId}/notes/${noteId}`,
-        { fields },
+        { fields, frontLang, backLang },
       );
       return data;
     },

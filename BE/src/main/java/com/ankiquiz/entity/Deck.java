@@ -33,6 +33,14 @@ public class Deck {
     @Column(name = "card_count")
     private Integer cardCount;
 
+    // Deck-level primary TTS language per face (BCP-47 primary subtag, e.g. "ja").
+    // Null = auto-detect. Set at import from the majority language of that face.
+    @Column(name = "front_lang")
+    private String frontLang;
+
+    @Column(name = "back_lang")
+    private String backLang;
+
     @Column(name = "imported_at")
     private OffsetDateTime importedAt;
 
@@ -82,6 +90,22 @@ public class Deck {
 
     public void setCardCount(Integer cardCount) {
         this.cardCount = cardCount;
+    }
+
+    public String getFrontLang() {
+        return frontLang;
+    }
+
+    public void setFrontLang(String frontLang) {
+        this.frontLang = frontLang;
+    }
+
+    public String getBackLang() {
+        return backLang;
+    }
+
+    public void setBackLang(String backLang) {
+        this.backLang = backLang;
     }
 
     public OffsetDateTime getImportedAt() {

@@ -6,9 +6,10 @@ import { useQuizStore } from "@/stores/quizStore";
 import { useGuestMastery } from "@/stores/guestMasteryStore";
 import { useRecordAnswer } from "@/hooks/useQuizSession";
 import { cancelSpeech } from "@/lib/tts";
-import { textDirection, stripLatex } from "@/lib/displayText";
+import { textDirection } from "@/lib/displayText";
 import { reshuffleQuestions } from "@/lib/buildQuestions";
 import { gradeWritten } from "@/lib/questionTypes";
+import { RichText } from "@/components/shared/RichText";
 import { applyAnswer } from "@/lib/mastery";
 import { QuestionCard } from "./QuestionCard";
 import { OptionButton } from "./OptionButton";
@@ -318,7 +319,7 @@ export function QuizSession({
                 <>
                   Answer:{" "}
                   <span dir={textDirection(question.correct)} className="text-success">
-                    {stripLatex(question.correct)}
+                    <RichText text={question.correct} />
                   </span>
                 </>
               )}
@@ -370,7 +371,7 @@ function TrueFalseChoice({
           dir={textDirection(statement)}
           className="mt-2 font-display text-2xl font-semibold leading-tight break-words text-ink"
         >
-          {stripLatex(statement)}
+          <RichText text={statement} />
         </p>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -456,7 +457,7 @@ function WrittenAnswer({
         >
           <p className="font-mono text-[11px] uppercase tracking-wide text-faint">Correct answer</p>
           <p dir={textDirection(correct)} className="mt-1 font-display text-xl font-semibold break-words text-ink">
-            {stripLatex(correct)}
+            <RichText text={correct} />
           </p>
           {!result.autoCorrect && (
             <button

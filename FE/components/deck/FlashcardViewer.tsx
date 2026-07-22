@@ -12,6 +12,7 @@ import { SpeakButton } from "@/components/shared/SpeakButton";
 import { useSpeechSupported } from "@/hooks/useSpeech";
 import { cancelSpeech } from "@/lib/tts";
 import { stripLatex } from "@/lib/displayText";
+import { stripFurigana } from "@/lib/furigana";
 import { EditFlashcardModal, type EditableNote } from "./EditFlashcardModal";
 import { FlashcardsOptionsModal } from "./FlashcardsOptionsModal";
 import { Icon } from "@/components/ui/icons";
@@ -427,8 +428,8 @@ export function FlashcardViewer({
   // showing) — not the whole card.
   // Per-face TTS text + language (per-card override → deck default → auto ""), so
   // each face carries its own speaker reading that side in the right voice.
-  const frontText = card ? stripLatex(card.front.join(". ")) : "";
-  const backText = card ? stripLatex(card.back.join(". ")) : "";
+  const frontText = card ? stripFurigana(stripLatex(card.front.join(". "))) : "";
+  const backText = card ? stripFurigana(stripLatex(card.back.join(". "))) : "";
   const frontFaceLang = card ? card.frontLang || effectiveTermLang : "";
   const backFaceLang = card ? card.backLang || effectiveDefLang : "";
 
@@ -918,7 +919,7 @@ export function FlashcardViewer({
                         // auto-detected per segment.
                         <SpeakButton
                           id={`preview-${c.key}`}
-                          text={stripLatex([...c.front, ...c.back].join(". "))}
+                          text={stripFurigana(stripLatex([...c.front, ...c.back].join(". ")))}
                           size="sm"
                           // Whole card (front then back); hint on the term side —
                           // usually the foreign/ambiguous script — disambiguates it.

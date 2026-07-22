@@ -5,6 +5,7 @@
 // answer). No React, no I/O — deterministic given an injected rng.
 
 import { stripLatex } from "@/lib/displayText";
+import { stripFurigana } from "@/lib/furigana";
 
 export type QuestionKind = "mcq" | "truefalse" | "written";
 
@@ -46,7 +47,7 @@ export function buildTrueFalseFace(
 // each acceptable answer so "To eat." and "  to  eat " compare equal. It never
 // touches the values shown on screen — only the comparison keys.
 export function normalizeWritten(s: string): string {
-  return stripLatex(s)
+  return stripFurigana(stripLatex(s))
     .normalize("NFC")
     .toLowerCase()
     .replace(/[「」『』【】《》"'“”‘’()（）\[\]{}.,!?…。、，！？；;:：/]/g, " ")

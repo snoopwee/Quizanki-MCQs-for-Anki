@@ -112,6 +112,9 @@ function DeckDetail() {
   function goToSetupWeak() {
     router.push(`/decks/${deckId}?step=setup&source=weak`);
   }
+  function goToMatch() {
+    router.push(`/decks/${deckId}/match`);
+  }
 
   function startTest(questions: Question[]) {
     const shuffled = reshuffleQuestions(questions);
@@ -236,7 +239,7 @@ function DeckDetail() {
                 color="var(--success)"
                 label="Match"
                 desc="Race to pair terms & meanings"
-                soon
+                onClick={goToMatch}
               />
             </div>
           </div>
@@ -272,6 +275,7 @@ function DeckDetail() {
             visible={railVisible}
             onQuiz={goToSetup}
             onFlashcards={scrollToCards}
+            onMatch={goToMatch}
             hideOn={hideOn}
             hideSide={hideSide}
             onToggleHide={() => setHideOn((v) => !v)}
@@ -407,6 +411,7 @@ function FloatingStudyRail({
   visible,
   onQuiz,
   onFlashcards,
+  onMatch,
   hideOn,
   hideSide,
   onToggleHide,
@@ -415,6 +420,7 @@ function FloatingStudyRail({
   visible: boolean;
   onQuiz: () => void;
   onFlashcards: () => void;
+  onMatch: () => void;
   // Self-test controls: hide one column of the Cards-in-this-deck list.
   hideOn: boolean;
   hideSide: "front" | "back";
@@ -432,7 +438,7 @@ function FloatingStudyRail({
   }> = [
     { icon: "clipboard", label: "Quiz me", color: "var(--accent)", primary: true, onClick: onQuiz },
     { icon: "cards", label: "Flashcards", color: "var(--info)", onClick: onFlashcards },
-    { icon: "shuffle", label: "Match", color: "var(--success)", soon: true },
+    { icon: "shuffle", label: "Match", color: "var(--success)", onClick: onMatch },
   ];
   return (
     <div

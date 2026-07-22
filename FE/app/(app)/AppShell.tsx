@@ -9,11 +9,11 @@ import { BrandMark } from "@/components/ui/BrandMark";
 import { DeckSearch } from "@/components/search/DeckSearch";
 import { Icon, type IconName } from "@/components/ui/icons";
 
-// True for any URL the running quiz takes over — sidebar is hidden so the test
-// occupies the full screen (less chrome, fewer distractions). Other deck
-// sub-routes (detail, settings) keep the sidebar.
+// True for any URL a full-screen study mode takes over — sidebar is hidden so the
+// test / match game occupies the full screen (less chrome, fewer distractions).
+// Other deck sub-routes (detail, settings) keep the sidebar.
 function isImmersiveRoute(pathname: string): boolean {
-  return /\/decks\/[^/]+\/test\b/.test(pathname);
+  return /\/decks\/[^/]+\/(test|match)\b/.test(pathname);
 }
 
 const PIN_KEY = "quizanki:sidebar-pinned";

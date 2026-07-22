@@ -1,5 +1,6 @@
 import { Icon } from "@/components/ui/icons";
-import { textDirection, stripLatex } from "@/lib/displayText";
+import { textDirection } from "@/lib/displayText";
+import { RichText } from "@/components/shared/RichText";
 
 // One MCQ answer: a lettered A–D badge + the option text (reference exam layout).
 // After answering, the badge flips to a check (correct) / cross (your wrong pick),
@@ -51,7 +52,7 @@ export function OptionButton({
         )}
       </span>
       <span dir={textDirection(option)} className="nice-scroll max-h-28 min-w-0 overflow-y-auto break-words">
-        {stripLatex(option)}
+        <RichText text={option} />
       </span>
     </button>
   );

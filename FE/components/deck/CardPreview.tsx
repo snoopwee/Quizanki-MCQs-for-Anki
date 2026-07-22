@@ -5,7 +5,8 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { classifyMastery, type StageInfo } from "@/lib/masteryStage";
-import { textDirection, stripLatex } from "@/lib/displayText";
+import { textDirection } from "@/lib/displayText";
+import { RichText } from "@/components/shared/RichText";
 
 // Renders each field value on its own line, or a muted placeholder when empty.
 // Per line we set `dir` so Arabic/Hebrew fields lay out RTL, and placeholder any
@@ -18,7 +19,7 @@ export function Lines({ values, className = "" }: { values: string[]; className?
     <>
       {values.map((v, i) => (
         <span key={i} dir={textDirection(v)} className={`block break-words ${className}`}>
-          {stripLatex(v)}
+          <RichText text={v} />
         </span>
       ))}
     </>

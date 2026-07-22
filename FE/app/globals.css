@@ -144,6 +144,14 @@
     background: var(--accent-soft);
     color: var(--accent-ink);
   }
+
+  /* Furigana rendered by <RichText>: the reading sits above its kanji, smaller
+     and muted so it supports the base without competing with it. */
+  ruby > rt {
+    font-size: 0.5em;
+    font-weight: 500;
+    color: var(--muted);
+  }
 }
 
 /* ── Custom page scrollbar ─────────────────────────────────────────────────

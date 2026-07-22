@@ -15,6 +15,11 @@ import {
   renderClozeFront,
   uniqueClozeIndices,
 } from "@/lib/cloze";
+import {
+  assignQuestionKind,
+  buildTrueFalseFace,
+  type QuestionKind,
+} from "@/lib/questionTypes";
 
 export interface QuizNote {
   id: string;
@@ -37,14 +42,40 @@ export interface PromptSegment {
   value: string;
 }
 
-export interface Question {
+// Every question shares the card identity, prompt, and canonical correct answer;
+// the `kind` discriminant carries the format-specific payload. The results screen
+// and answer recording only read the shared fields, so adding a format never
+// touches mastery / stats / the BE record call.
+export interface BaseQuestion {
   noteId: string;
   prompt: PromptSegment[];
   // Flattened prompt text, kept for answer records / the results summary.
   question: string;
+  // The canonical correct answer (the answer field). Shown on the results screen.
   correct: string;
+}
+
+// Multiple choice — the correct answer among shuffled distractors.
+export interface McqQuestion extends BaseQuestion {
+  kind: "mcq";
   options: string[];
 }
+
+// True / false — assert `statement` (the real answer, or a distractor) and ask
+// whether it matches the prompt; `truth` is the right verdict.
+export interface TrueFalseQuestion extends BaseQuestion {
+  kind: "truefalse";
+  statement: string;
+  truth: boolean;
+}
+
+// Written — the learner types the answer; grading compares the input to the
+// `correct` field (see gradeWritten), so no extra payload is needed.
+export interface WrittenQuestion extends BaseQuestion {
+  kind: "written";
+}
+
+export type Question = McqQuestion | TrueFalseQuestion | WrittenQuestion;
 
 const OPTION_COUNT = 4;
 
@@ -90,16 +121,16 @@ function weightedSampleWithoutReplacement<T>(
 }
 
 // Re-randomizes an existing set of questions for a retake: shuffles the question
-// order and the option positions within each question, so the answer never sits
-// in the same spot twice. Reuses each question's existing options (no rebuild).
+// order and, for multiple-choice, the option positions within each question so
+// the answer never sits in the same spot twice. True/False and Written have no
+// positional layout to re-randomize, so they pass through unchanged.
 export function reshuffleQuestions(
   questions: Question[],
   rng: () => number = Math.random,
 ): Question[] {
-  return shuffle(questions, rng).map((q) => ({
-    ...q,
-    options: shuffle(q.options, rng),
-  }));
+  return shuffle(questions, rng).map((q) =>
+    q.kind === "mcq" ? { ...q, options: shuffle(q.options, rng) } : q,
+  );
 }
 
 // Card selection. The shape of a quiz depends on which pools exist:
@@ -198,7 +229,7 @@ export function buildClozeQuestions(
   textField: string,
   fullPool: QuizNote[] = notes,
   rng: () => number = Math.random,
-): Question[] {
+): McqQuestion[] {
   // One synthetic QuizNote per cloze deletion. The selection layer treats them
   // exactly like normal notes, so mastery weighting "just works" — every
   // synthetic clone of a note shares the same mastery/timesSeen.
@@ -242,6 +273,7 @@ export function buildClozeQuestions(
     ).slice(0, OPTION_COUNT - 1);
 
     return {
+      kind: "mcq",
       // Parent note id, not the synthetic one — answer recording + mastery
       // updates need to land on the real note row.
       noteId: s.parentId,
@@ -293,6 +325,10 @@ export function buildMixedQuestions(
   count: number,
   rng: () => number = Math.random,
   eligibleNoteIds?: Set<string>,
+  // Which question formats the quiz may use. Each selected card is randomly
+  // assigned one enabled kind. Defaults to multiple-choice only so existing
+  // callers/tests are unaffected.
+  enabledKinds: QuestionKind[] = ["mcq"],
 ): Question[] {
   type Synth = QuizNote & {
     parentId: string;
@@ -382,32 +418,48 @@ export function buildMixedQuestions(
 
   return selected.map((s) => {
     const sameTypePool = answerPoolByType.get(s.noteTypeId) ?? [];
+    let base: BaseQuestion;
     if (s.kind === "cloze") {
       const correct = clozeAnswer(s.clozeText!, s.clozeIndex!);
       const question = renderClozeFront(s.clozeText!, s.clozeIndex!);
-      const distractors = pickDistractors(correct, sameTypePool, globalPool, rng);
-      return {
-        noteId: s.parentId,
-        prompt: [{ label: "Cloze", value: question }],
-        question,
-        correct,
-        options: shuffle([correct, ...distractors], rng),
-      };
+      base = { noteId: s.parentId, prompt: [{ label: "Cloze", value: question }], question, correct };
+    } else {
+      const correct = s.fields[s.basicAnswerField!] ?? "";
+      const prompt = s.basicQuestionFields!
+        .map((f) => ({ label: f, value: s.fields[f] ?? "" }))
+        .filter((seg) => seg.value.length > 0);
+      const question = prompt.map((seg) => seg.value).join(" — ");
+      base = { noteId: s.parentId, prompt, question, correct };
     }
-    const correct = s.fields[s.basicAnswerField!] ?? "";
-    const prompt = s.basicQuestionFields!
-      .map((f) => ({ label: f, value: s.fields[f] ?? "" }))
-      .filter((seg) => seg.value.length > 0);
-    const question = prompt.map((seg) => seg.value).join(" — ");
-    const distractors = pickDistractors(correct, sameTypePool, globalPool, rng);
-    return {
-      noteId: s.parentId,
-      prompt,
-      question,
-      correct,
-      options: shuffle([correct, ...distractors], rng),
-    };
+    return shapeQuestion(base, assignQuestionKind(enabledKinds, rng), sameTypePool, globalPool, rng);
   });
+}
+
+/**
+ * Wraps a card's shared fields into a concrete question of the chosen format.
+ * MCQ pulls distractors (same-type first, padded from the global pool); True/
+ * False asserts the answer or a distractor 50/50 (preferring a same-type false
+ * statement); Written precomputes the accepted-answer set for grading.
+ */
+function shapeQuestion(
+  base: BaseQuestion,
+  kind: QuestionKind,
+  sameTypePool: string[],
+  globalPool: string[],
+  rng: () => number,
+): Question {
+  if (kind === "written") {
+    return { ...base, kind: "written" };
+  }
+  if (kind === "truefalse") {
+    // A same-type false statement is more plausible; fall back to the global
+    // pool only when this type has no other answer to assert.
+    const pool = sameTypePool.some((a) => a !== base.correct) ? sameTypePool : globalPool;
+    const { statement, truth } = buildTrueFalseFace(base.correct, pool, rng);
+    return { ...base, kind: "truefalse", statement, truth };
+  }
+  const distractors = pickDistractors(base.correct, sameTypePool, globalPool, rng);
+  return { ...base, kind: "mcq", options: shuffle([base.correct, ...distractors], rng) };
 }
 
 /**
@@ -444,7 +496,7 @@ export function buildQuestions(
   // to `notes` so callers without a separate pool still work.
   fullPool: QuizNote[] = notes,
   rng: () => number = Math.random,
-): Question[] {
+): McqQuestion[] {
   const { questionFields, answerField } = config;
 
   const allAnswers = Array.from(
@@ -468,6 +520,7 @@ export function buildQuestions(
     ).slice(0, OPTION_COUNT - 1);
 
     return {
+      kind: "mcq",
       noteId: note.id,
       prompt,
       question,

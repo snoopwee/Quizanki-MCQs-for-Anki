@@ -16,6 +16,7 @@ import {
   type NoteTypeFieldPrefs,
   type QuizPreferences,
 } from "@/lib/quizPreferences";
+import { ALL_QUESTION_KINDS, type QuestionKind } from "@/lib/questionTypes";
 import { ConfidenceBadge } from "@/components/shared/ConfidenceBadge";
 import { FieldSelect } from "@/components/deck/FieldSelect";
 import { Card } from "@/components/ui/Card";
@@ -86,6 +87,20 @@ export function ApkgQuizSetup({
   const [perTypePrefs, setPerTypePrefs] = useState<Record<string, NoteTypeFieldPrefs>>(
     () => initialPrefsByType(basicTypes, savedPrefs),
   );
+
+  // Enabled question formats. Each selected card is asked in one of these; the
+  // set never empties (toggling off the last one is a no-op).
+  const [enabledKinds, setEnabledKinds] = useState<QuestionKind[]>(
+    () => savedPrefs?.kinds ?? ["mcq"],
+  );
+  function toggleKind(kind: QuestionKind) {
+    setEnabledKinds((prev) => {
+      const has = prev.includes(kind);
+      if (has && prev.length === 1) return prev; // keep at least one on
+      const next = has ? prev.filter((k) => k !== kind) : [...prev, kind];
+      return ALL_QUESTION_KINDS.filter((k) => next.includes(k)); // canonical order
+    });
+  }
 
   // If basicTypes change (rare — e.g. quizable set changes after a re-import),
   // re-seed prefs for any missing keys. Don't blow away user choices already in state.
@@ -159,9 +174,15 @@ export function ApkgQuizSetup({
     if (specs.length === 0) return;
     // Pass the chosen subset as the askable set; distractors still come from
     // every note (the full-pool rule lives inside buildMixedQuestions).
-    const questions = buildMixedQuestions(specs, effCount, undefined, eligibleIds ?? undefined);
+    const questions = buildMixedQuestions(
+      specs,
+      effCount,
+      undefined,
+      eligibleIds ?? undefined,
+      enabledKinds,
+    );
     if (deckId) {
-      saveQuizPreferences(deckId, { count: effCount, fieldPrefs: perTypePrefs });
+      saveQuizPreferences(deckId, { count: effCount, fieldPrefs: perTypePrefs, kinds: enabledKinds });
     }
     onStart(questions);
   }
@@ -205,12 +226,21 @@ export function ApkgQuizSetup({
         />
       </SettingCard>
 
-      {/* question types — only multiple choice is real today */}
-      <SettingCard title="Question types">
+      {/* question types — mix any combination; each card is asked in one of them */}
+      <SettingCard
+        title="Question types"
+        desc="Mix any combination — each card is asked in one of the enabled formats."
+      >
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-          <QTypeChip icon="clipboard" label="Multiple choice" on />
-          <QTypeChip icon="check" label="True / false" soon />
-          <QTypeChip icon="pencil" label="Written" soon />
+          {ALL_QUESTION_KINDS.map((kind) => (
+            <QTypeChip
+              key={kind}
+              icon={KIND_META[kind].icon}
+              label={KIND_META[kind].label}
+              on={enabledKinds.includes(kind)}
+              onClick={() => toggleKind(kind)}
+            />
+          ))}
         </div>
       </SettingCard>
 
@@ -433,40 +463,49 @@ function SettingCard({
   );
 }
 
-// A question-type pill. `on` = enabled-and-selected (accent), `soon` = a future
-// question format (greyed, Soon-tagged). Presentational — selection isn't wired
-// until those formats exist.
+// Icon + label for each question format, in canonical order.
+const KIND_META: Record<QuestionKind, { icon: IconName; label: string }> = {
+  mcq: { icon: "clipboard", label: "Multiple choice" },
+  truefalse: { icon: "check", label: "True / false" },
+  written: { icon: "pencil", label: "Written" },
+};
+
+// A question-format toggle. `on` shows the accent fill + a filled checkbox; off
+// is a plain, clickable chip with an empty checkbox.
 function QTypeChip({
   icon,
   label,
-  on = false,
-  soon = false,
+  on,
+  onClick,
 }: {
   icon: IconName;
   label: string;
-  on?: boolean;
-  soon?: boolean;
+  on: boolean;
+  onClick: () => void;
 }) {
   return (
-    <div
-      className={`flex items-center gap-2.5 rounded-card border px-3.5 py-3 ${
-        on ? "border-accent bg-accent-soft" : "border-line bg-surface-2"
-      } ${soon ? "opacity-70" : ""}`}
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className={`focus-ring flex items-center gap-2.5 rounded-card border px-3.5 py-3 text-left transition ${
+        on ? "border-accent bg-accent-soft" : "border-line bg-surface-2 hover:border-line-strong"
+      }`}
     >
       <span className={on ? "text-accent-ink" : "text-faint"}>
         <Icon name={icon} size={18} />
       </span>
       <span className={`text-sm font-semibold ${on ? "text-ink" : "text-muted"}`}>{label}</span>
       <span className="ml-auto">
-        {soon ? (
-          <SoonTag />
-        ) : on ? (
+        {on ? (
           <span className="grid h-[18px] w-[18px] place-items-center rounded-[6px] bg-accent text-white">
             <Icon name="check" size={12} />
           </span>
-        ) : null}
+        ) : (
+          <span className="block h-[18px] w-[18px] rounded-[6px] border border-line-strong" />
+        )}
       </span>
-    </div>
+    </button>
   );
 }
 

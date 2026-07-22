@@ -232,13 +232,6 @@ function DeckDetail() {
                 onClick={scrollToCards}
               />
               <StudyMode
-                icon="brain"
-                color="var(--plum)"
-                label="Learn"
-                desc="Adaptive spaced repetition"
-                soon
-              />
-              <StudyMode
                 icon="shuffle"
                 color="var(--success)"
                 label="Match"
@@ -439,7 +432,6 @@ function FloatingStudyRail({
   }> = [
     { icon: "clipboard", label: "Quiz me", color: "var(--accent)", primary: true, onClick: onQuiz },
     { icon: "cards", label: "Flashcards", color: "var(--info)", onClick: onFlashcards },
-    { icon: "brain", label: "Learn", color: "var(--plum)", soon: true },
     { icon: "shuffle", label: "Match", color: "var(--success)", soon: true },
   ];
   return (

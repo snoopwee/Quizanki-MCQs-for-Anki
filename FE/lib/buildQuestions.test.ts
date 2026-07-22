@@ -8,8 +8,16 @@ import {
   reshuffleQuestions,
   selectQuizNotes,
   type NoteTypeQuizSpec,
+  type Question,
   type QuizNote,
 } from "@/lib/buildQuestions";
+
+// buildMixedQuestions / reshuffleQuestions return the Question union; these
+// tests build MCQ-only quizzes (default kinds), so narrow to read `.options`.
+function mcqOptions(q: Question): string[] {
+  if (q.kind !== "mcq") throw new Error(`expected an mcq question, got ${q.kind}`);
+  return q.options;
+}
 
 // Deterministic-but-non-trivial LCG so weighted sampling actually exercises
 // different probabilities (Math.random's distribution is uneven across runs).
@@ -95,13 +103,13 @@ describe("buildQuestions", () => {
     for (const q of original) {
       const match = reshuffled.find((r) => r.noteId === q.noteId)!;
       expect(match.correct).toBe(q.correct);
-      expect([...match.options].sort()).toEqual([...q.options].sort());
+      expect([...mcqOptions(match)].sort()).toEqual([...q.options].sort());
     }
 
     // ...but at least one question's option order actually changed.
     const someOrderChanged = original.some((q) => {
       const match = reshuffled.find((r) => r.noteId === q.noteId)!;
-      return match.options.join("|") !== q.options.join("|");
+      return mcqOptions(match).join("|") !== q.options.join("|");
     });
     expect(someOrderChanged).toBe(true);
   });
@@ -407,7 +415,7 @@ describe("buildMixedQuestions", () => {
 
     for (const q of questions) {
       const isBasic = basicIds.has(q.noteId);
-      for (const o of q.options) {
+      for (const o of mcqOptions(q)) {
         if (isBasic) {
           expect(basicAnswers.has(o)).toBe(true);
           expect(clozeAnswers.has(o)).toBe(false);
@@ -440,7 +448,7 @@ describe("buildMixedQuestions", () => {
     );
     for (const q of questions) {
       expect(q.question).not.toMatch(/\{\{c\d+::/);
-      for (const o of q.options) expect(o).not.toMatch(/\{\{c\d+::/);
+      for (const o of mcqOptions(q)) expect(o).not.toMatch(/\{\{c\d+::/);
     }
   });
 
@@ -481,10 +489,10 @@ describe("buildMixedQuestions", () => {
     const basicQuestions = questions.filter((q) => basicIds.has(q.noteId));
     expect(basicQuestions.length).toBeGreaterThan(0);
     for (const q of basicQuestions) {
-      expect(q.options).toHaveLength(4);
+      expect(mcqOptions(q)).toHaveLength(4);
       // At least one cross-type filler appears since basic alone can only
       // provide 2 same-type distractors.
-      const crossType = q.options.filter((o) => clozeAnswers.has(o));
+      const crossType = mcqOptions(q).filter((o) => clozeAnswers.has(o));
       expect(crossType.length).toBeGreaterThanOrEqual(1);
     }
   });
@@ -516,10 +524,45 @@ describe("buildMixedQuestions", () => {
     expect(questions).toHaveLength(1);
     const q = questions[0];
     expect(q.noteId).toBe("b1");
-    expect(q.options).toHaveLength(4);
-    expect(q.options).toContain("to eat"); // correct
+    expect(mcqOptions(q)).toHaveLength(4);
+    expect(mcqOptions(q)).toContain("to eat"); // correct
     // At least one distractor is some other note's answer.
     const others = new Set(["to drink", "to go", "to see", "to speak"]);
-    expect(q.options.some((o) => others.has(o))).toBe(true);
+    expect(mcqOptions(q).some((o) => others.has(o))).toBe(true);
+  });
+
+  it("asks every card as True/False when only that kind is enabled", () => {
+    const questions = buildMixedQuestions([basicSpec(basicNotes)], 5, makeRng(), undefined, [
+      "truefalse",
+    ]);
+    const basicAnswers = new Set(basicNotes.map((n) => n.fields.a));
+    expect(questions.length).toBeGreaterThan(0);
+    for (const q of questions) {
+      expect(q.kind).toBe("truefalse");
+      if (q.kind !== "truefalse") continue;
+      expect(typeof q.truth).toBe("boolean");
+      if (q.truth) {
+        expect(q.statement).toBe(q.correct); // a true statement asserts the real answer
+      } else {
+        expect(q.statement).not.toBe(q.correct); // a false statement asserts a distractor
+        expect(basicAnswers.has(q.statement)).toBe(true); // ...drawn from the deck's answers
+      }
+    }
+  });
+
+  it("asks every card as Written when only that kind is enabled", () => {
+    const questions = buildMixedQuestions([basicSpec(basicNotes)], 5, makeRng(), undefined, [
+      "written",
+    ]);
+    expect(questions.length).toBeGreaterThan(0);
+    for (const q of questions) {
+      expect(q.kind).toBe("written");
+      expect(q.correct.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("defaults to multiple-choice when no kinds are passed", () => {
+    const questions = buildMixedQuestions([basicSpec(basicNotes)], 3, makeRng());
+    for (const q of questions) expect(q.kind).toBe("mcq");
   });
 });

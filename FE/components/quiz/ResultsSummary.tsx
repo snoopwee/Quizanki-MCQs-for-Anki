@@ -2,7 +2,6 @@ import type { AnswerRecord } from "@/stores/quizStore";
 import { Card } from "@/components/ui/Card";
 import { Ring } from "@/components/ui/Ring";
 import { Icon } from "@/components/ui/icons";
-import { SoonTag } from "@/components/ui/controls";
 import { buttonClasses } from "@/components/ui/Button";
 import { CardPreviewRow } from "@/components/deck/CardPreview";
 
@@ -50,14 +49,6 @@ export function ResultsSummary({
               </strong>{" "}
               correct.
             </p>
-            <div className="mt-4 flex flex-wrap justify-center gap-2 sm:justify-start">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1.5 font-mono text-xs font-bold text-accent-ink">
-                <Icon name="bolt" size={14} /> +{score * 12} XP <SoonTag />
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-flame/15 px-3 py-1.5 font-mono text-xs font-bold text-flame">
-                <Icon name="flame" size={14} /> Streak +1 <SoonTag />
-              </span>
-            </div>
           </div>
         </div>
       </Card>

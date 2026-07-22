@@ -25,9 +25,10 @@ interface QuizState {
   sessionId: string | null;
 
   startSession: (questions: Question[], sessionId: string) => void;
-  // `newMastery` is computed by the caller (it knows the card's current
-  // mastery); the store just records it alongside the answer.
-  selectAnswer: (answer: string, newMastery: number) => void;
+  // The session grades each answer (correctness differs by question kind) and
+  // passes the result in: `selected` is the learner's answer for display, and
+  // `newMastery` is computed by the caller (it knows the card's current mastery).
+  selectAnswer: (selected: string, wasCorrect: boolean, newMastery: number) => void;
   nextQuestion: () => void;
   reset: () => void;
 }
@@ -50,14 +51,13 @@ export const useQuizStore = create<QuizState>((set, get) => ({
       answers: [],
     }),
 
-  selectAnswer: (answer, newMastery) => {
+  selectAnswer: (selected, wasCorrect, newMastery) => {
     const { selectedAnswer, questions, currentIndex, answers, score } = get();
     if (selectedAnswer !== null) return; // locked once answered
     const question = questions[currentIndex];
     if (!question) return;
-    const wasCorrect = answer === question.correct;
     set({
-      selectedAnswer: answer,
+      selectedAnswer: selected,
       score: wasCorrect ? score + 1 : score,
       answers: [
         ...answers,
@@ -66,7 +66,7 @@ export const useQuizStore = create<QuizState>((set, get) => ({
           question: question.question,
           prompt: question.prompt,
           correct: question.correct,
-          selected: answer,
+          selected,
           wasCorrect,
           newMastery,
         },

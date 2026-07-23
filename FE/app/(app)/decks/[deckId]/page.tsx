@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useDeckContents, useDeleteDeck } from "@/hooks/useDecks";
+import { useDeckContents, useDeckCopies, useDeleteDeck } from "@/hooks/useDecks";
 import { useNotes, useToggleStar } from "@/hooks/useNotes";
 import { useStartSession } from "@/hooks/useQuizSession";
 import { deckContentsToParsed } from "@/lib/deckContents";
@@ -14,6 +14,8 @@ import { ApkgQuizSetup, type NoteStatsLookup } from "@/components/deck/ApkgQuizS
 import { DeckStatsPanel } from "@/components/deck/DeckStatsPanel";
 import { KebabMenu } from "@/components/shared/KebabMenu";
 import { ExportDeckModal } from "@/components/deck/ExportDeckModal";
+import { ShareDeckModal } from "@/components/deck/ShareDeckModal";
+import { DeckAuthor } from "@/components/deck/DeckAuthor";
 import { Card } from "@/components/ui/Card";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { SoonTag } from "@/components/ui/controls";
@@ -44,10 +46,12 @@ function DeckDetail() {
   const startSession = useStartSession();
   const startQuiz = useQuizStore((s) => s.startSession);
   const deleteDeck = useDeleteDeck();
+  const copies = useDeckCopies(deckId).data ?? 0;
   const toggleStar = useToggleStar(deckId);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   // Anchor for the "Flashcards" study mode — scrolls to the flashcard player.
   const cardsRef = useRef<HTMLDivElement>(null);
   const scrollToCards = () => cardsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -187,6 +191,7 @@ function DeckDetail() {
                 label="Deck options"
                 items={[
                   { label: "Edit flashcards", onClick: () => router.push(`/decks/${deckId}/edit`) },
+                  { label: "Share deck", onClick: () => setShareOpen(true) },
                   { label: "Export deck", onClick: () => setExportOpen(true) },
                   { label: "Delete deck", onClick: () => setDeleteOpen(true), danger: true },
                 ]}
@@ -197,6 +202,11 @@ function DeckDetail() {
               <h1 className="pr-10 font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl">
                 {deckName}
               </h1>
+              <DeckAuthor
+                authorName={contentsQuery.data.authorName}
+                sourceAuthorName={contentsQuery.data.sourceAuthorName}
+                className="mt-2"
+              />
               <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted">
                 <span className="inline-flex items-center gap-1.5">
                   <Icon name="layers" size={15} />
@@ -206,10 +216,24 @@ function DeckDetail() {
                   <Icon name="cards" size={15} />
                   {noteTypeCount} note type{noteTypeCount === 1 ? "" : "s"}
                 </span>
-                <span className="inline-flex items-center gap-1.5 opacity-70">
-                  <Icon name="flame" size={15} />
-                  Learners <SoonTag />
-                </span>
+                {/* Real "N copies" now that clone provenance is tracked — this
+                    replaced the old placeholder "Learners · Soon" chip. */}
+                {copies > 0 && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Icon name="copy" size={15} />
+                    {copies} cop{copies === 1 ? "y" : "ies"}
+                  </span>
+                )}
+                {contentsQuery.data.isPublic && (
+                  <button
+                    type="button"
+                    onClick={() => setShareOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent-ink transition hover:opacity-90"
+                  >
+                    <Icon name="link" size={13} />
+                    Shared
+                  </button>
+                )}
               </div>
             </div>
           </Card>
@@ -294,6 +318,13 @@ function DeckDetail() {
           initialSource={initialSource}
           onBack={goToFlashcards}
           onStart={startTest}
+        />
+      )}
+
+      {shareOpen && (
+        <ShareDeckModal
+          contents={contentsQuery.data}
+          onClose={() => setShareOpen(false)}
         />
       )}
 

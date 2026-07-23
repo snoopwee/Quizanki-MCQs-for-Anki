@@ -46,8 +46,11 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**",
-                                // Public .apkg parse for guest try-before-signup.
-                                // Stateless (persists nothing); rate-limited in a later chunk.
+                                // Public, unauthenticated reads:
+                                //  * /public/parse-apkg  — guest try-before-signup; stateless
+                                //    (persists nothing), per-IP rate limited.
+                                //  * /public/shared/{id} — a deck its owner has shared; the
+                                //    service 404s anything not currently shared.
                                 "/api/v1/public/**"
                         ).permitAll()
                         .anyRequest().authenticated()

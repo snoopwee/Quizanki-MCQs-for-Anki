@@ -20,6 +20,10 @@ public record ImportDeckRequest(
         // client-side from the majority language of each face. Null = auto-detect.
         @Size(max = 16) String frontLang,
         @Size(max = 16) String backLang,
+        // Whether to publish the deck to Discover on save. The review screen
+        // defaults its control to public, but a MISSING value here means private:
+        // an older or third-party client must never publish a deck by omission.
+        Boolean isPublic,
         @NotEmpty @Valid List<NoteTypeRequest> noteTypes
 ) {
 }

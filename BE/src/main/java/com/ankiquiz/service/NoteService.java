@@ -3,6 +3,7 @@ package com.ankiquiz.service;
 import com.ankiquiz.dto.response.CardStatsResponse;
 import com.ankiquiz.dto.response.NoteResponse;
 import com.ankiquiz.entity.CardStats;
+import com.ankiquiz.entity.Deck;
 import com.ankiquiz.entity.Note;
 import com.ankiquiz.entity.NoteType;
 import com.ankiquiz.exception.NotFoundException;
@@ -76,22 +77,31 @@ public class NoteService {
      * belong to the note's type are accepted; incoming values are merged over the
      * existing field map, so an empty or partial form can't drop other fields or
      * inject unknown ones. Cloze markup ({{c1::...}}) is stored verbatim.
+     *
+     * <p>Changing a card is real work, so it also claims authorship of the deck —
+     * this is how a copy of someone else's deck becomes the editor's own (see
+     * {@code DeckService.claimAuthorship}).
      */
     @Transactional
-    public NoteResponse updateNote(String userId, UUID deckId, UUID noteId, Map<String, String> incoming,
+    public NoteResponse updateNote(Caller caller, UUID deckId, UUID noteId, Map<String, String> incoming,
                                    String frontLang, String backLang) {
-        deckRepository.findByIdAndUserId(deckId, userId)
+        Deck deck = deckRepository.findByIdAndUserId(deckId, caller.id())
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
         Note note = noteRepository.findByIdAndDeckId(noteId, deckId)
                 .orElseThrow(() -> new NotFoundException("Note not found: " + noteId));
 
         Set<String> allowed = allowedFieldKeys(note);
-        Map<String, String> merged = new LinkedHashMap<>(
-                note.getFields() == null ? Map.of() : note.getFields());
+        Map<String, String> existing = note.getFields() == null ? Map.of() : note.getFields();
+        Map<String, String> merged = new LinkedHashMap<>(existing);
         for (Map.Entry<String, String> e : incoming.entrySet()) {
             if (allowed.isEmpty() || allowed.contains(e.getKey())) {
                 merged.put(e.getKey(), e.getValue() == null ? "" : e.getValue());
             }
+        }
+        if (!merged.equals(existing)) {
+            deck.setAuthorId(caller.id());
+            deck.setAuthorName(caller.displayName());
+            deckRepository.save(deck);
         }
         note.setFields(merged);
         // Per-face language override: a present value (including a blank one, which

@@ -4,6 +4,7 @@ import type {
   DeckContentsResponse,
   DeckResponse,
   ImportDeckRequest,
+  PublicDeckSummary,
   UpdateDeckContentsRequest,
 } from "@/types/api";
 
@@ -115,6 +116,80 @@ export function useExportApkg(deckId: string) {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+    },
+  });
+}
+
+// Turn this deck's public share link on or off. Refreshes the deck list (so a
+// "Shared" badge stays accurate) and this deck's contents, which is where the
+// share modal reads the current state from.
+export function useShareDeck(deckId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (isPublic: boolean) => {
+      const { data } = await api.patch<DeckResponse>(`/decks/${deckId}/share`, { isPublic });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: DECKS_KEY });
+      queryClient.invalidateQueries({ queryKey: ["deck-contents", deckId] });
+    },
+  });
+}
+
+// Read a shared deck without authentication — this backs the public
+// /shared/{deckId} page. 404s when the deck isn't (or is no longer) shared, so
+// don't retry: a missing share is a permanent answer, not a blip.
+export function useSharedDeck(deckId: string) {
+  return useQuery({
+    queryKey: ["shared-deck", deckId],
+    enabled: Boolean(deckId),
+    retry: false,
+    queryFn: async () => {
+      const { data } = await api.get<DeckContentsResponse>(`/public/shared/${deckId}`);
+      return data;
+    },
+  });
+}
+
+// Copy a shared deck into the signed-in user's account. The copy is independent:
+// its own notes, its own progress, and private until they share it themselves.
+export function useCloneDeck() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (sourceDeckId: string) => {
+      const { data } = await api.post<DeckResponse>(`/decks/${sourceDeckId}/clone`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: DECKS_KEY });
+    },
+  });
+}
+
+// The public Discover directory. Unauthenticated — guests browse the same list
+// as members; only copying a deck needs an account. Keyed by the query so typing
+// in the search box swaps between cached result sets.
+export function useDiscoverDecks(query: string) {
+  return useQuery({
+    queryKey: ["discover", query],
+    queryFn: async () => {
+      const { data } = await api.get<PublicDeckSummary[]>("/public/discover", {
+        params: query ? { q: query } : undefined,
+      });
+      return data;
+    },
+  });
+}
+
+// How many people have taken a copy of this deck.
+export function useDeckCopies(deckId: string) {
+  return useQuery({
+    queryKey: ["deck-copies", deckId],
+    enabled: Boolean(deckId),
+    queryFn: async () => {
+      const { data } = await api.get<{ copies: number }>(`/decks/${deckId}/copies`);
+      return data.copies;
     },
   });
 }

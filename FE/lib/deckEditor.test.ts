@@ -46,6 +46,10 @@ function deck(noteTypes: DeckContentsNoteType[]): DeckContentsResponse {
     completion: 0,
     frontLang: null,
     backLang: null,
+    isPublic: false,
+    authorId: "u1",
+    authorName: "Alice",
+    sourceAuthorName: null,
     noteTypes,
   };
 }

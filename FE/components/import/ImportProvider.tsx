@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { Toast } from "@/components/shared/Toast";
 import { useImportDeck } from "@/hooks/useDecks";
 import { parsedToImportRequest } from "@/lib/parsedToImportRequest";
-import type { ApkgParseResponse, ImportDeckRequest } from "@/types/api";
+import type { ApkgParseResponse, DeckResponse, ImportDeckRequest } from "@/types/api";
 
 // Owns the deck-import mutation + its status toast. Mounted in AppShell so the
 // mutation and its UI survive navigation between (app) pages — without this, the
@@ -12,9 +12,10 @@ import type { ApkgParseResponse, ImportDeckRequest } from "@/types/api";
 // clicks Dashboard, even though the POST is still in flight.
 interface ImportContextValue {
   startImport(parsed: ApkgParseResponse): void;
-  // Save an already-built request (e.g. from pasted plain text), bypassing the
-  // .apkg parse step.
-  startImportRequest(request: ImportDeckRequest): void;
+  // Save an already-built request — what the import review screen sends once the
+  // user has looked the deck over. `onSaved` runs with the created deck so the
+  // caller can drop its local draft and navigate to it.
+  startImportRequest(request: ImportDeckRequest, onSaved?: (deck: DeckResponse) => void): void;
   retryImport(): void;
   status: "idle" | "pending" | "success" | "error";
 }
@@ -42,10 +43,10 @@ export function ImportProvider({ children }: { children: ReactNode }) {
     if (importDeck.status === "pending") setDismissed(false);
   }, [importDeck.status]);
 
-  function startImportRequest(request: ImportDeckRequest) {
+  function startImportRequest(request: ImportDeckRequest, onSaved?: (deck: DeckResponse) => void) {
     setLastRequest(request);
     setDismissed(false);
-    importDeck.mutate(request);
+    importDeck.mutate(request, onSaved ? { onSuccess: onSaved } : undefined);
   }
 
   function startImport(parsed: ApkgParseResponse) {

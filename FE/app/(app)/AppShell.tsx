@@ -264,6 +264,7 @@ function Sidebar({
 
       <nav className="mt-6 flex flex-col gap-1 text-sm">
         <NavLink href="/dashboard" pathname={pathname} label="Dashboard" icon="home" expanded={expanded} onNavigate={onNavigate} />
+        <NavLink href="/discover" pathname={pathname} label="Discover" icon="search" expanded={expanded} onNavigate={onNavigate} />
         <NavLink
           href="/import"
           pathname={pathname}

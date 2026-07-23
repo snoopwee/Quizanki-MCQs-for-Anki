@@ -29,6 +29,16 @@ export interface DeckResponse {
   // auto-detect. term = front, definition = back.
   frontLang: string | null;
   backLang: string | null;
+  // True while the deck's share link is live: anyone holding /shared/{id} can
+  // preview it and clone it into their own account.
+  isPublic: boolean;
+  // Who is CREDITED for the deck — not necessarily who owns it. A copy is owned
+  // by whoever took it but keeps crediting the original author until they edit
+  // it. `sourceAuthorName` drives the "Original deck by X" line (null if this
+  // deck isn't a copy).
+  authorId: string;
+  authorName: string | null;
+  sourceAuthorName: string | null;
 }
 
 export interface NoteResponse {
@@ -85,6 +95,9 @@ export interface ImportDeckRequest {
   // language of each face. Null / omitted = auto-detect.
   frontLang?: string | null;
   backLang?: string | null;
+  // Publish the deck to Discover on save. Chosen in the import review step
+  // (which defaults to public); omitting it saves the deck private.
+  isPublic?: boolean;
   noteTypes: NoteTypeRequest[];
 }
 
@@ -216,5 +229,23 @@ export interface DeckContentsResponse {
   // Deck-level primary TTS language per face, or null to auto-detect.
   frontLang: string | null;
   backLang: string | null;
+  // True while the deck's share link is live. Always true on the public read
+  // (GET /public/shared/{id}), which is gated on it.
+  isPublic: boolean;
+  // Credit. Compare `authorId` against the signed-in user to tell whether they
+  // may share this deck (only the credited author can).
+  authorId: string;
+  authorName: string | null;
+  sourceAuthorName: string | null;
   noteTypes: DeckContentsNoteType[];
+}
+
+// GET /api/v1/public/discover — one row of the public deck directory.
+export interface PublicDeckSummary {
+  id: string;
+  name: string;
+  cardCount: number | null;
+  authorName: string | null;
+  sourceAuthorName: string | null;
+  sharedAt: string | null;
 }

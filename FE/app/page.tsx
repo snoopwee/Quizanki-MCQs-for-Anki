@@ -10,8 +10,8 @@ import { QuizSession } from "@/components/quiz/QuizSession";
 import { Modal } from "@/components/shared/Modal";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { reshuffleQuestions, type Question } from "@/lib/buildQuestions";
-import { parsedToImportRequest } from "@/lib/parsedToImportRequest";
-import { useImportDeck } from "@/hooks/useDecks";
+import { fromParsed } from "@/lib/deckDraft";
+import { saveDraft } from "@/lib/draftStore";
 import { useSession } from "@/hooks/useSession";
 import { useQuizStore } from "@/stores/quizStore";
 import { useGuestMastery } from "@/stores/guestMasteryStore";
@@ -46,7 +46,6 @@ function Landing() {
   const [saveOpen, setSaveOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(Boolean(next));
   const startSession = useQuizStore((s) => s.startSession);
-  const importDeck = useImportDeck();
   // Trial stars DO subscribe (toggling one should re-render the ★ immediately),
   // unlike mastery which is read via getState() so answering a question doesn't
   // force a re-render every time.
@@ -208,13 +207,21 @@ function Landing() {
               {saveOpen && (
                 <AuthModal
                   title="Save your deck"
-                  description="Nice work! Create an account (or log in) to save this deck to your library and keep studying."
-                  loginLabel="Log in & save"
-                  signupLabel="Sign up & save"
+                  description="Nice work! Create an account (or log in) to review this deck and save it to your library."
+                  loginLabel="Log in & continue"
+                  signupLabel="Sign up & continue"
                   onClose={() => setSaveOpen(false)}
                   onAuthed={async () => {
-                    const deck = await importDeck.mutateAsync(parsedToImportRequest(step.parsed));
-                    router.push(`/decks/${deck.id}`);
+                    // Hand the parsed deck to the import review screen rather than
+                    // saving it here, so a guest gets the same look-it-over-and-
+                    // choose-public-or-private step every other import gets.
+                    await saveDraft({
+                      savedAt: Date.now(),
+                      state: fromParsed(step.parsed),
+                      isPublic: true,
+                      sourceFilename: step.parsed.filename,
+                    });
+                    router.push("/import?draft=1");
                     router.refresh();
                   }}
                 />

@@ -5,8 +5,11 @@ type CookieToSet = { name: string; value: string; options: CookieOptions };
 
 // Auth is modal-first: there are no dedicated login/signup pages. The landing
 // page ("/") hosts the auth modal; "/auth/callback" handles the Supabase email/
-// OAuth redirect.
-const PUBLIC_PATHS = ["/", "/try", "/auth/callback"];
+// OAuth redirect. "/shared/<deckId>" is a deck someone shared and "/discover" is
+// the public directory of them — both must open for logged-out visitors (that's
+// the whole point); they host the auth modal themselves for the "save a copy"
+// step.
+const PUBLIC_PATHS = ["/", "/try", "/auth/callback", "/shared", "/discover"];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });

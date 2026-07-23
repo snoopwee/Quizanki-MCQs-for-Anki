@@ -6,6 +6,7 @@ import com.ankiquiz.dto.response.CardStatsResponse;
 import com.ankiquiz.dto.response.NoteResponse;
 import com.ankiquiz.exception.GlobalExceptionHandler;
 import com.ankiquiz.exception.NotFoundException;
+import com.ankiquiz.service.Caller;
 import com.ankiquiz.service.NoteService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,10 @@ class NoteControllerTest {
 
     @MockBean
     private NoteService noteService;
+
+    // What Caller.from() resolves the bare test JWT to (no email / user_metadata
+    // claim on it, so the display name falls all the way through to anonymous).
+    private static final Caller CALLER = new Caller("user-1", Caller.ANONYMOUS);
 
     @MockBean
     private JwtDecoder jwtDecoder;
@@ -93,7 +98,7 @@ class NoteControllerTest {
                 List.of("N4", "verb"),
                 null
         );
-        when(noteService.updateNote(eq("user-1"), eq(deckId), eq(noteId), any(), any(), any()))
+        when(noteService.updateNote(eq(CALLER), eq(deckId), eq(noteId), any(), any(), any()))
                 .thenReturn(updated);
 
         mockMvc.perform(patch("/api/v1/decks/{deckId}/notes/{noteId}", deckId, noteId)
@@ -112,7 +117,7 @@ class NoteControllerTest {
         UUID noteId = UUID.randomUUID();
         NoteResponse updated = new NoteResponse(
                 noteId, deckId, Map.of("Front", "水", "Back", "water"), List.of(), null);
-        when(noteService.updateNote(eq("user-1"), eq(deckId), eq(noteId), any(), eq("ja"), eq("en")))
+        when(noteService.updateNote(eq(CALLER), eq(deckId), eq(noteId), any(), eq("ja"), eq("en")))
                 .thenReturn(updated);
 
         mockMvc.perform(patch("/api/v1/decks/{deckId}/notes/{noteId}", deckId, noteId)
@@ -138,7 +143,7 @@ class NoteControllerTest {
     void updateNote_returns404_whenNoteMissing() throws Exception {
         UUID deckId = UUID.randomUUID();
         UUID noteId = UUID.randomUUID();
-        when(noteService.updateNote(eq("user-1"), eq(deckId), eq(noteId), any(), any(), any()))
+        when(noteService.updateNote(eq(CALLER), eq(deckId), eq(noteId), any(), any(), any()))
                 .thenThrow(new NotFoundException("Note not found: " + noteId));
 
         mockMvc.perform(patch("/api/v1/decks/{deckId}/notes/{noteId}", deckId, noteId)

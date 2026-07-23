@@ -1,78 +1,245 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ApkgUploader } from "@/components/deck/ApkgUploader";
-import { FlashcardViewer } from "@/components/deck/FlashcardViewer";
+import { DeckReviewEditor } from "@/components/deck/DeckReviewEditor";
+import { ConfirmLeaveModal } from "@/components/shared/ConfirmLeaveModal";
+import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { useImportContext } from "@/components/import/ImportProvider";
+import { draftToImportRequest, fromParsed } from "@/lib/deckDraft";
+import { basicRow, type EditorState } from "@/lib/deckEditor";
+import { clearDraft, describeAge, loadDraft, saveDraft } from "@/lib/draftStore";
 import { parsePlainText, type ParsedPair } from "@/lib/parsePlainText";
-import { plainTextToImportRequest, plainTextToParsed } from "@/lib/plainTextDeck";
 import type { ApkgParseResponse } from "@/types/api";
 
-// /import is the auth-only "bring in a deck, get it saved" flow. Quizzes are
-// launched from the dashboard / deck detail screens, not this page — so we
-// only need two steps: choose a source (an .apkg file or pasted Quizlet-style
-// text), then browse the flashcards it produced.
-// The guest landing page (/) keeps the full parse → quiz → save flow.
+// /import is "bring in a deck, look it over, then save it". Importing used to
+// save the moment the parse returned — the user never saw the deck first and
+// never chose how it was shared. Now a parse produces a DRAFT: they can rename
+// it, fix cards, delete cards, add cards, and pick public or private, and
+// nothing reaches the server until they press Save.
+//
+// The draft is autosaved to IndexedDB (lib/draftStore) so a crash or a closed
+// laptop doesn't cost them the work, and navigating away mid-edit asks first.
 type Step =
   | { kind: "import" }
-  | { kind: "flashcards"; parsed: ApkgParseResponse };
+  | { kind: "review" };
 
 type Source = "file" | "text";
 
+const AUTOSAVE_DELAY_MS = 600;
+
 export default function ImportPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+      <ImportFlow />
+    </Suspense>
+  );
+}
+
+function ImportFlow() {
+  const router = useRouter();
+  const params = useSearchParams();
+  // The landing page hands a guest's just-imported deck over after signup by
+  // stashing it as a draft and sending them here.
+  const wantsHandoff = params.get("draft") === "1";
+
   const [step, setStep] = useState<Step>({ kind: "import" });
   const [source, setSource] = useState<Source>("file");
-  // The deck-save mutation + its status toast live in AppShell's ImportProvider,
-  // so navigating away mid-save keeps the toast visible and the deck still
-  // arrives in the dashboard list once the POST completes.
-  const { startImport, startImportRequest } = useImportContext();
+  const [draft, setDraft] = useState<EditorState | null>(null);
+  const [isPublic, setIsPublic] = useState(true); // public by default
+  const [sourceFilename, setSourceFilename] = useState<string | null>(null);
+  // A stored draft found on arrival, offered as "Resume?" rather than silently
+  // restored — the user may well have moved on and want a clean start.
+  const [recovered, setRecovered] = useState<Awaited<ReturnType<typeof loadDraft>>>(null);
+  const [checkedStorage, setCheckedStorage] = useState(false);
 
-  // /import is logged-in only, so a successfully parsed .apkg is auto-saved to
-  // the user's decks. The flashcard step is just for browsing what was imported.
-  function handleParsed(parsed: ApkgParseResponse) {
-    setStep({ kind: "flashcards", parsed });
-    startImport(parsed);
+  // The save lives in AppShell's ImportProvider so its toast (and Retry)
+  // survive navigation — a 5,000-card deck can take a moment to land.
+  const { startImportRequest, status } = useImportContext();
+  const savedRef = useRef(false);
+
+  const dirty = step.kind === "review" && draft !== null && !savedRef.current;
+  const { pendingHref, cancel } = useUnsavedGuard(dirty);
+
+  const resume = useCallback((stored: NonNullable<Awaited<ReturnType<typeof loadDraft>>>) => {
+    setDraft(stored.state);
+    setIsPublic(stored.isPublic);
+    setSourceFilename(stored.sourceFilename);
+    setStep({ kind: "review" });
+    setRecovered(null);
+  }, []);
+
+  // Look for an unsaved draft once on arrival. (Reading local storage into
+  // state, not fetching server data — the no-useEffect-for-data rule is about
+  // the latter.)
+  useEffect(() => {
+    let cancelled = false;
+    loadDraft().then((stored) => {
+      if (cancelled) return;
+      setCheckedStorage(true);
+      if (!stored) return;
+      // A handoff from the landing page is an explicit "continue with this one".
+      if (wantsHandoff) resume(stored);
+      else setRecovered(stored);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [wantsHandoff, resume]);
+
+  // Autosave, debounced so a burst of keystrokes writes once.
+  useEffect(() => {
+    if (!draft || savedRef.current) return;
+    const timer = setTimeout(() => {
+      void saveDraft({ savedAt: Date.now(), state: draft, isPublic, sourceFilename });
+    }, AUTOSAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [draft, isPublic, sourceFilename]);
+
+  function startDraft(next: EditorState, filename: string | null) {
+    savedRef.current = false;
+    setDraft(next);
+    setSourceFilename(filename);
+    setRecovered(null);
+    setStep({ kind: "review" });
   }
+
+  function handleParsed(parsed: ApkgParseResponse) {
+    startDraft(fromParsed(parsed), parsed.filename);
+  }
+
+  function handlePasted(name: string, pairs: ParsedPair[]) {
+    startDraft(
+      {
+        name: name.trim() || "Untitled deck",
+        rows: pairs.map((p) => basicRow(p.front, p.back)),
+        layoutByType: {},
+      },
+      null,
+    );
+  }
+
+  function handleSave() {
+    if (!draft) return;
+    startImportRequest(draftToImportRequest(draft, { isPublic, sourceFilename }), (deck) => {
+      // Mark saved BEFORE navigating so the leave guard doesn't challenge our
+      // own redirect, and drop the local copy — it's on the server now.
+      savedRef.current = true;
+      void clearDraft();
+      router.push(`/decks/${deck.id}`);
+    });
+  }
+
+  async function discard() {
+    savedRef.current = true; // nothing left to protect
+    await clearDraft();
+    setDraft(null);
+    setSourceFilename(null);
+    setIsPublic(true);
+    setStep({ kind: "import" });
+    savedRef.current = false;
+  }
+
+  const resumeAge = useMemo(
+    () => (recovered ? describeAge(recovered.savedAt) : ""),
+    [recovered],
+  );
 
   return (
     <div className="mx-auto max-w-2xl">
       {step.kind === "import" && (
         <div className="space-y-5">
+          {checkedStorage && recovered && (
+            <ResumeBanner
+              name={recovered.state.name}
+              cardCount={recovered.state.rows.length}
+              age={resumeAge}
+              onResume={() => resume(recovered)}
+              onDiscard={async () => {
+                await clearDraft();
+                setRecovered(null);
+              }}
+            />
+          )}
+
           <div className="inline-flex rounded-input border border-line bg-surface p-0.5 text-sm">
             <SourceTab label="Upload .apkg" active={source === "file"} onClick={() => setSource("file")} />
             <SourceTab label="Paste text" active={source === "text"} onClick={() => setSource("text")} />
           </div>
 
           {source === "file" && <ApkgUploader onContinue={handleParsed} />}
-          {source === "text" && (
-            <PasteTextImport
-              onImport={(name, pairs) => {
-                setStep({ kind: "flashcards", parsed: plainTextToParsed(name, pairs) });
-                startImportRequest(plainTextToImportRequest(name, pairs));
-              }}
-            />
-          )}
+          {source === "text" && <PasteTextImport onImport={handlePasted} />}
         </div>
       )}
 
-      {step.kind === "flashcards" && (
-        <div className="space-y-5">
-          <button
-            type="button"
-            onClick={() => setStep({ kind: "import" })}
-            className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
-          >
-            ← Import another
-          </button>
-          {/* Quiz button intentionally omitted — authed users launch quizzes
-              from the dashboard / deck detail page, where mastery is tracked. */}
-          <FlashcardViewer
-            parsed={step.parsed}
-            hideActions
-            onBack={() => setStep({ kind: "import" })}
-          />
-        </div>
+      {step.kind === "review" && draft && (
+        <DeckReviewEditor
+          draft={draft}
+          isPublic={isPublic}
+          saving={status === "pending"}
+          error={status === "error"}
+          onChange={setDraft}
+          onVisibilityChange={setIsPublic}
+          onSave={handleSave}
+          onDiscard={discard}
+        />
       )}
+
+      {pendingHref && (
+        <ConfirmLeaveModal
+          onStay={cancel}
+          onLeave={() => {
+            savedRef.current = true; // stop the guard re-firing on our own push
+            cancel();
+            router.push(pendingHref);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// "Resume your unsaved deck?" — offered, not forced, because a stale draft from
+// last week shouldn't hijack a fresh import.
+function ResumeBanner({
+  name,
+  cardCount,
+  age,
+  onResume,
+  onDiscard,
+}: {
+  name: string;
+  cardCount: number;
+  age: string;
+  onResume: () => void;
+  onDiscard: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-card border border-accent/30 bg-accent-soft/50 p-4">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-ink">You have an unsaved deck</p>
+        <p className="mt-0.5 text-xs text-muted">
+          <span className="font-medium text-ink">{name || "Untitled deck"}</span> · {cardCount} card
+          {cardCount === 1 ? "" : "s"} · edited {age}
+        </p>
+      </div>
+      <div className="flex shrink-0 gap-2">
+        <button
+          type="button"
+          onClick={onDiscard}
+          className="rounded-input border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium text-muted transition hover:border-danger hover:text-danger"
+        >
+          Discard
+        </button>
+        <button
+          type="button"
+          onClick={onResume}
+          className="focus-ring rounded-input bg-accent px-3 py-1.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95"
+        >
+          Resume
+        </button>
+      </div>
     </div>
   );
 }
@@ -182,7 +349,7 @@ function PasteTextImport({
           onClick={() => onImport(name, pairs)}
           className="focus-ring rounded-input bg-accent px-4 py-2 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-50"
         >
-          Import {pairs.length > 0 ? `${pairs.length} card${pairs.length === 1 ? "" : "s"}` : "cards"}
+          Review {pairs.length > 0 ? `${pairs.length} card${pairs.length === 1 ? "" : "s"}` : "cards"}
         </button>
       </div>
     </div>

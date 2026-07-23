@@ -25,6 +25,15 @@ public record DeckContentsResponse(
         Double completion,
         String frontLang,
         String backLang,
+        // True while the deck's share link is live. Always true on the public
+        // shared-deck read (that read is gated on it).
+        boolean isPublic,
+        // Credit. `authorId` lets the client tell whether the viewer is the
+        // credited author (which gates the share toggle); `sourceAuthorName` is
+        // the "Original deck by X" line, null when this deck isn't a copy.
+        String authorId,
+        String authorName,
+        String sourceAuthorName,
         List<NoteTypeContents> noteTypes
 ) {
     public record NoteTypeContents(

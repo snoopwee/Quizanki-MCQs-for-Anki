@@ -170,6 +170,20 @@ const PATHS = {
       <circle cx="12" cy="13" r="3.5" />
     </>
   ),
+  // Two interlocking chain links — the share/copy-link affordance.
+  link: (
+    <>
+      <path d="M10 13.5a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1.5 1.5" />
+      <path d="M14 10.5a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1.5-1.5" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="9" y="9" width="12" height="12" rx="2" />
+      <path d="M15 5.5V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h.5" />
+    </>
+  ),
+  download: <path d="M12 3v12M7.5 10.5 12 15l4.5-4.5M4 20h16" />,
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof PATHS;

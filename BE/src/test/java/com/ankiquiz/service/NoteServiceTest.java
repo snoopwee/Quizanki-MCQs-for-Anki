@@ -32,6 +32,7 @@ import static org.mockito.Mockito.when;
 class NoteServiceTest {
 
     private static final String USER = "user-1";
+    private static final Caller CALLER = new Caller(USER, "Alice");
 
     @Mock private DeckRepository deckRepository;
     @Mock private NoteRepository noteRepository;
@@ -77,7 +78,7 @@ class NoteServiceTest {
         incoming.put("Front", "a-edited");
         incoming.put("Bogus", "junk");
 
-        NoteResponse res = service.updateNote(USER, deckId, noteId, incoming, null, null);
+        NoteResponse res = service.updateNote(CALLER, deckId, noteId, incoming, null, null);
 
         assertThat(res.fields()).containsEntry("Front", "a-edited");
         assertThat(res.fields()).containsEntry("Back", "b");
@@ -89,7 +90,7 @@ class NoteServiceTest {
         Note note = existingNote(Map.of("Front", "a", "Back", "b"));
         stubOwnedNote(note, "Front", "Back");
 
-        NoteResponse res = service.updateNote(USER, deckId, noteId, Map.of("Back", "b-edited"), null, null);
+        NoteResponse res = service.updateNote(CALLER, deckId, noteId, Map.of("Back", "b-edited"), null, null);
 
         assertThat(res.fields()).containsEntry("Front", "a");
         assertThat(res.fields()).containsEntry("Back", "b-edited");
@@ -100,7 +101,7 @@ class NoteServiceTest {
         Note note = existingNote(Map.of("Text", "old"));
         stubOwnedNote(note, "Text");
 
-        NoteResponse res = service.updateNote(USER, deckId, noteId,
+        NoteResponse res = service.updateNote(CALLER, deckId, noteId,
                 Map.of("Text", "The capital is {{c1::Paris}}."), null, null);
 
         assertThat(res.fields()).containsEntry("Text", "The capital is {{c1::Paris}}.");
@@ -112,12 +113,12 @@ class NoteServiceTest {
         stubOwnedNote(note, "Front", "Back");
 
         // Set an override on the front face; a null back leaves that face unchanged.
-        service.updateNote(USER, deckId, noteId, Map.of("Front", "a"), "ja", null);
+        service.updateNote(CALLER, deckId, noteId, Map.of("Front", "a"), "ja", null);
         assertThat(note.getFrontLang()).isEqualTo("ja");
         assertThat(note.getBackLang()).isNull();
 
         // A present-but-blank value clears the override back to auto-detect.
-        service.updateNote(USER, deckId, noteId, Map.of("Front", "a"), "  ", "en");
+        service.updateNote(CALLER, deckId, noteId, Map.of("Front", "a"), "  ", "en");
         assertThat(note.getFrontLang()).isNull();
         assertThat(note.getBackLang()).isEqualTo("en");
     }
@@ -126,7 +127,7 @@ class NoteServiceTest {
     void updateNote_throwsNotFound_whenDeckNotOwned() {
         when(deckRepository.findByIdAndUserId(deckId, USER)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.updateNote(USER, deckId, noteId, Map.of("Front", "x"), null, null))
+        assertThatThrownBy(() -> service.updateNote(CALLER, deckId, noteId, Map.of("Front", "x"), null, null))
                 .isInstanceOf(NotFoundException.class);
     }
 
@@ -135,7 +136,7 @@ class NoteServiceTest {
         when(deckRepository.findByIdAndUserId(deckId, USER)).thenReturn(Optional.of(new Deck()));
         when(noteRepository.findByIdAndDeckId(noteId, deckId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.updateNote(USER, deckId, noteId, Map.of("Front", "x"), null, null))
+        assertThatThrownBy(() -> service.updateNote(CALLER, deckId, noteId, Map.of("Front", "x"), null, null))
                 .isInstanceOf(NotFoundException.class);
     }
 

@@ -120,9 +120,19 @@ export default function DashboardPage() {
                             <p className="truncate font-display text-base font-semibold text-ink">
                               {deck.name}
                             </p>
-                            <p className="mt-1 inline-flex items-center gap-1.5 font-mono text-xs text-faint">
-                              <Icon name="layers" size={13} />
-                              {deck.cardCount ?? 0} cards
+                            <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-faint">
+                              <span className="inline-flex items-center gap-1.5">
+                                <Icon name="layers" size={13} />
+                                {deck.cardCount ?? 0} cards
+                              </span>
+                              {/* So the owner can tell at a glance which decks
+                                  currently have a live share link. */}
+                              {deck.isPublic && (
+                                <span className="inline-flex items-center gap-1 text-accent">
+                                  <Icon name="link" size={13} />
+                                  Shared
+                                </span>
+                              )}
                             </p>
                           </div>
                           <Ring value={completion / 100} size={46} label={`${completion}%`} />

@@ -2,11 +2,13 @@ package com.ankiquiz.controller;
 
 import com.ankiquiz.dto.request.ImportDeckRequest;
 import com.ankiquiz.dto.request.SetDeckLanguagesRequest;
+import com.ankiquiz.dto.request.ShareDeckRequest;
 import com.ankiquiz.dto.request.UpdateDeckContentsRequest;
 import com.ankiquiz.dto.request.UpdateDeckRequest;
 import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.DeckResponse;
 import com.ankiquiz.service.ApkgExportService;
+import com.ankiquiz.service.Caller;
 import com.ankiquiz.service.DeckService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -28,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -56,7 +59,7 @@ public class DeckController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody ImportDeckRequest request
     ) {
-        DeckResponse body = deckService.importDeck(jwt.getSubject(), request);
+        DeckResponse body = deckService.importDeck(Caller.from(jwt), request);
         return ResponseEntity.status(HttpStatus.CREATED).body(body);
     }
 
@@ -94,7 +97,7 @@ public class DeckController {
             @PathVariable UUID deckId,
             @Valid @RequestBody UpdateDeckContentsRequest request
     ) {
-        return deckService.replaceDeckContents(jwt.getSubject(), deckId, request);
+        return deckService.replaceDeckContents(Caller.from(jwt), deckId, request);
     }
 
     @PatchMapping("/{deckId}")
@@ -118,6 +121,41 @@ public class DeckController {
             @Valid @RequestBody SetDeckLanguagesRequest request
     ) {
         return deckService.setDeckLanguages(jwt.getSubject(), deckId, request.frontLang(), request.backLang());
+    }
+
+    @PatchMapping("/{deckId}/share")
+    @Operation(summary = "Turn a deck's public share link on or off",
+            description = "While shared, anyone holding /shared/{deckId} can preview the deck "
+                    + "and clone it into their own account. The owner's deck and progress are "
+                    + "never modified by a clone. Off by default.")
+    public DeckResponse setDeckSharing(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId,
+            @Valid @RequestBody ShareDeckRequest request
+    ) {
+        return deckService.setDeckSharing(jwt.getSubject(), deckId, request.isPublic());
+    }
+
+    @PostMapping("/{deckId}/clone")
+    @Operation(summary = "Copy a shared deck into the caller's account",
+            description = "Creates an independent deck with its own notes — and therefore its own "
+                    + "progress. No card stats are copied. Allowed when the source is shared, or "
+                    + "when the caller already owns it (a plain duplicate); otherwise 404.")
+    public ResponseEntity<DeckResponse> cloneDeck(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId
+    ) {
+        DeckResponse body = deckService.cloneDeck(Caller.from(jwt), deckId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(body);
+    }
+
+    @GetMapping("/{deckId}/copies")
+    @Operation(summary = "How many copies people have taken of this deck")
+    public Map<String, Long> countCopies(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId
+    ) {
+        return Map.of("copies", deckService.countCopies(jwt.getSubject(), deckId));
     }
 
     @DeleteMapping("/{deckId}")

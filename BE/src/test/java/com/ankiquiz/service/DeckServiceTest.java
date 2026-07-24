@@ -5,6 +5,7 @@ import com.ankiquiz.dto.request.UpdateDeckContentsRequest.NoteEntry;
 import com.ankiquiz.dto.request.UpdateDeckContentsRequest.NoteTypeLayout;
 import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.DeckResponse;
+import com.ankiquiz.dto.response.PublicDeckPage;
 import com.ankiquiz.dto.response.PublicDeckSummary;
 import com.ankiquiz.entity.Deck;
 import com.ankiquiz.entity.Note;
@@ -24,6 +25,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import java.time.OffsetDateTime;
@@ -38,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -75,9 +80,10 @@ class DeckServiceTest {
             }
             return t;
         });
-        // The trailing getDeckContents() completion query.
+        // The trailing getDeckContents() completion query (now bound with both
+        // deckId and the viewer's userId).
         when(entityManager.createNativeQuery(anyString())).thenReturn(query);
-        when(query.setParameter(eq("deckId"), any())).thenReturn(query);
+        when(query.setParameter(anyString(), any())).thenReturn(query);
         when(query.getSingleResult()).thenReturn(0.0);
     }
 
@@ -552,31 +558,52 @@ class DeckServiceTest {
 
     // ── discover ─────────────────────────────────────────────────────────────
 
+    private Page<Deck> pageOf(List<Deck> decks, int pageSize, long total) {
+        return new PageImpl<>(decks, PageRequest.of(0, pageSize), total);
+    }
+
     @Test
-    void getPublicDecks_mapsRowsAndCapsThePageSize() {
+    void getPublicDecks_mapsRows_capsThePageSize_andReportsTheTotal() {
         Deck shared = deck();
         shared.setPublic(true);
         shared.setCardCount(12);
         shared.setSharedAt(OffsetDateTime.now());
-        when(deckRepository.findPublicDecks(eq("jlpt"), any(Pageable.class))).thenReturn(List.of(shared));
+        when(deckRepository.findPublicDecks(eq("jlpt"), eq(20), eq(50), any(Pageable.class)))
+                .thenReturn(pageOf(List.of(shared), 60, 130));
 
-        List<PublicDeckSummary> results = service.getPublicDecks("  jlpt  ", 500, 0);
+        PublicDeckPage result = service.getPublicDecks("  jlpt  ", 20, 50, 500, 0);
 
-        assertThat(results).hasSize(1);
-        assertThat(results.get(0).name()).isEqualTo("Old name");
-        assertThat(results.get(0).authorName()).isEqualTo("Alice");
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.items().get(0).name()).isEqualTo("Old name");
+        assertThat(result.total()).isEqualTo(130);
 
-        // The query is trimmed, and a hand-crafted ?limit= can't ask for the world.
+        // The query is trimmed, the card-count filter is passed through, and a
+        // hand-crafted ?limit= can't ask for the whole directory.
         ArgumentCaptor<Pageable> pageCaptor = ArgumentCaptor.forClass(Pageable.class);
-        verify(deckRepository).findPublicDecks(eq("jlpt"), pageCaptor.capture());
+        verify(deckRepository).findPublicDecks(eq("jlpt"), eq(20), eq(50), pageCaptor.capture());
         assertThat(pageCaptor.getValue().getPageSize()).isLessThanOrEqualTo(60);
+        assertThat(result.pageSize()).isLessThanOrEqualTo(60);
+    }
+
+    @Test
+    void getPublicDecks_translatesRowOffsetToAPageIndex() {
+        when(deckRepository.findPublicDecks(eq(""), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(pageOf(List.of(), 12, 0));
+
+        // offset 24 at page size 12 is the third page (index 2).
+        service.getPublicDecks(null, null, null, 12, 24);
+
+        ArgumentCaptor<Pageable> pageCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(deckRepository).findPublicDecks(eq(""), isNull(), isNull(), pageCaptor.capture());
+        assertThat(pageCaptor.getValue().getPageNumber()).isEqualTo(2);
     }
 
     @Test
     void getPublicDecks_treatsANullQueryAsMatchEverything() {
-        when(deckRepository.findPublicDecks(eq(""), any(Pageable.class))).thenReturn(List.of());
+        when(deckRepository.findPublicDecks(eq(""), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(pageOf(List.of(), 12, 0));
 
-        assertThat(service.getPublicDecks(null, 24, 0)).isEmpty();
-        verify(deckRepository).findPublicDecks(eq(""), any(Pageable.class));
+        assertThat(service.getPublicDecks(null, null, null, 24, 0).items()).isEmpty();
+        verify(deckRepository).findPublicDecks(eq(""), isNull(), isNull(), any(Pageable.class));
     }
 }

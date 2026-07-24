@@ -1,7 +1,7 @@
 package com.ankiquiz.controller;
 
 import com.ankiquiz.dto.response.DeckContentsResponse;
-import com.ankiquiz.dto.response.PublicDeckSummary;
+import com.ankiquiz.dto.response.PublicDeckPage;
 import com.ankiquiz.service.DeckService;
 import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -45,12 +44,16 @@ public class SharedDeckController {
     @GetMapping("/discover")
     @Operation(summary = "Browse every shared deck (public, no auth)",
             description = "Newest-shared first, optionally narrowed by a case-insensitive name "
-                    + "fragment. Page size is capped server-side.")
-    public List<PublicDeckSummary> discover(
+                    + "fragment and a card-count range (minCards/maxCards, inclusive; either may "
+                    + "be omitted). Paged — page size is capped server-side; the response carries "
+                    + "the total so the client can render a pager.")
+    public PublicDeckPage discover(
             @RequestParam(required = false) String q,
-            @RequestParam(defaultValue = "24") int limit,
+            @RequestParam(required = false) Integer minCards,
+            @RequestParam(required = false) Integer maxCards,
+            @RequestParam(defaultValue = "12") int limit,
             @RequestParam(defaultValue = "0") int offset
     ) {
-        return deckService.getPublicDecks(q, limit, offset);
+        return deckService.getPublicDecks(q, minCards, maxCards, limit, offset);
     }
 }

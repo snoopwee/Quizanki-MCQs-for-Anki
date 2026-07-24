@@ -2,6 +2,7 @@ package com.ankiquiz.controller;
 
 import com.ankiquiz.config.SecurityConfig;
 import com.ankiquiz.dto.response.DeckContentsResponse;
+import com.ankiquiz.dto.response.PublicDeckPage;
 import com.ankiquiz.dto.response.PublicDeckSummary;
 import com.ankiquiz.exception.GlobalExceptionHandler;
 import com.ankiquiz.exception.NotFoundException;
@@ -71,25 +72,31 @@ class SharedDeckControllerTest {
     }
 
     @Test
-    void discover_isReachableWithoutAuth_andReturnsSummaries() throws Exception {
+    void discover_isReachableWithoutAuth_andReturnsAPage() throws Exception {
         UUID deckId = UUID.randomUUID();
-        when(deckService.getPublicDecks(eq("jlpt"), eq(24), eq(0))).thenReturn(List.of(
-                new PublicDeckSummary(deckId, "JLPT N4", 120, "Alice", null, OffsetDateTime.now())));
+        PublicDeckPage page = new PublicDeckPage(
+                List.of(new PublicDeckSummary(deckId, "JLPT N4", 120, "Alice", null, OffsetDateTime.now())),
+                0, 12, 1, 1);
+        when(deckService.getPublicDecks(eq("jlpt"), eq(20), eq(50), eq(12), eq(0))).thenReturn(page);
 
         // Browsing Discover is open to guests — only copying a deck needs an account.
-        mockMvc.perform(get("/api/v1/public/discover").param("q", "jlpt"))
+        mockMvc.perform(get("/api/v1/public/discover")
+                        .param("q", "jlpt").param("minCards", "20").param("maxCards", "50"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(deckId.toString()))
-                .andExpect(jsonPath("$[0].name").value("JLPT N4"))
-                .andExpect(jsonPath("$[0].authorName").value("Alice"));
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(deckId.toString()))
+                .andExpect(jsonPath("$.items[0].authorName").value("Alice"));
     }
 
     @Test
-    void discover_defaultsPagingWhenNoParamsAreGiven() throws Exception {
-        when(deckService.getPublicDecks(isNull(), eq(24), eq(0))).thenReturn(List.of());
+    void discover_defaultsPagingAndOmitsFiltersWhenNoParamsAreGiven() throws Exception {
+        when(deckService.getPublicDecks(isNull(), isNull(), isNull(), eq(12), eq(0)))
+                .thenReturn(new PublicDeckPage(List.of(), 0, 12, 0, 0));
 
         mockMvc.perform(get("/api/v1/public/discover"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray());
+                .andExpect(jsonPath("$.items").isArray())
+                .andExpect(jsonPath("$.total").value(0));
     }
 }

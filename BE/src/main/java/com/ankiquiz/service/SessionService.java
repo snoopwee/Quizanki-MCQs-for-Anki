@@ -48,17 +48,19 @@ public class SessionService {
         deckRepository.findByIdAndUserId(note.getDeckId(), userId)
                 .orElseThrow(() -> new NotFoundException("Note not found: " + request.noteId()));
 
-        // sessionId is logged on the answer_events row so the stats chart can plot
-        // one point per test (see V8). It's not otherwise validated — a bogus id
-        // only fragments that user's own history.
-        entityManager.createNativeQuery("SELECT record_answer(:noteId, :correct, :sessionId)")
+        // Progress is per-user (V11): record_answer upserts the caller's own
+        // (user_id, note_id) row. sessionId is logged on the answer_events row so
+        // the stats chart can plot one point per test (see V8); it's not otherwise
+        // validated — a bogus id only fragments that user's own history.
+        entityManager.createNativeQuery("SELECT record_answer(:userId, :noteId, :correct, :sessionId)")
+                .setParameter("userId", userId)
                 .setParameter("noteId", request.noteId())
                 .setParameter("correct", request.correct())
                 .setParameter("sessionId", sessionId)
                 .getSingleResult();
         entityManager.clear();
 
-        CardStats stats = cardStatsRepository.findById(request.noteId())
+        CardStats stats = cardStatsRepository.findByUserIdAndNoteId(userId, request.noteId())
                 .orElseThrow(() -> new NotFoundException("Card stats not found after recording answer"));
         return new RecordAnswerResponse(stats.getAccuracy(), stats.getStreak(), stats.getMastery());
     }

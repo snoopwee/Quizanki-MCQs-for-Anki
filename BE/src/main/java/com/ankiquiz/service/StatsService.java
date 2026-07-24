@@ -44,8 +44,10 @@ public class StatsService {
                 FROM card_stats cs
                 JOIN notes n ON n.id = cs.note_id
                 WHERE n.deck_id = :deckId
+                  AND cs.user_id = :userId
                 """)
                 .setParameter("deckId", deckId)
+                .setParameter("userId", userId)
                 .getSingleResult();
 
         long total = ((Number) row[0]).longValue();
@@ -96,6 +98,7 @@ public class StatsService {
                 FROM answer_events ae
                 JOIN notes n ON n.id = ae.note_id
                 WHERE n.deck_id = :deckId
+                  AND ae.user_id = :userId
                   AND ae.answered_at >= :since
                 GROUP BY
                     CASE WHEN ae.session_id IS NOT NULL
@@ -105,6 +108,7 @@ public class StatsService {
                 ORDER BY at_ms
                 """)
                 .setParameter("deckId", deckId)
+                .setParameter("userId", userId)
                 .setParameter("since", since)
                 .getResultList();
 

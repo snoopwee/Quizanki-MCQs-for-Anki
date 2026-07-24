@@ -8,6 +8,7 @@ import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.DeckContentsResponse.NoteContents;
 import com.ankiquiz.dto.response.DeckContentsResponse.NoteTypeContents;
 import com.ankiquiz.dto.response.DeckResponse;
+import com.ankiquiz.dto.response.PublicDeckPage;
 import com.ankiquiz.dto.response.PublicDeckSummary;
 import com.ankiquiz.entity.Deck;
 import com.ankiquiz.entity.Note;
@@ -19,6 +20,7 @@ import com.ankiquiz.repository.DeckRepository;
 import com.ankiquiz.repository.NoteRepository;
 import com.ankiquiz.repository.NoteTypeRepository;
 import jakarta.persistence.EntityManager;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -71,7 +73,7 @@ public class DeckService {
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
         deck.setName(name.trim());
         Deck saved = deckRepository.save(deck);
-        return DeckResponse.from(saved, completionForDeck(deckId));
+        return DeckResponse.from(saved, completionForDeck(userId, deckId));
     }
 
     @Transactional
@@ -174,7 +176,7 @@ public class DeckService {
         deck.setPublic(isPublic);
         deck.setSharedAt(isPublic ? OffsetDateTime.now() : null);
         Deck saved = deckRepository.save(deck);
-        return DeckResponse.from(saved, completionForDeck(deckId));
+        return DeckResponse.from(saved, completionForDeck(userId, deckId));
     }
 
     /**
@@ -182,15 +184,16 @@ public class DeckService {
      * share page. Gated on {@code is_public}: a private (or missing) deck is a 404,
      * never a 403, so the link can't be used to probe for a deck's existence.
      *
-     * <p>Note the {@code completion} it reports is the OWNER's mastery, since
-     * card_stats hang off the owner's notes. The share page ignores it.
+     * <p>Unauthenticated, so there's no viewer to report completion for — it comes
+     * back 0. The share page ignores it anyway (a signed-in visitor sees their own
+     * progress through the studiable-deck read instead).
      */
     @Transactional(readOnly = true)
     public DeckContentsResponse getPublicDeckContents(UUID deckId) {
         Deck deck = deckRepository.findById(deckId)
                 .filter(Deck::isPublic)
                 .orElseThrow(() -> new NotFoundException("Shared deck not found: " + deckId));
-        return buildContents(deck);
+        return buildContents(deck, null);
     }
 
     /**
@@ -199,14 +202,17 @@ public class DeckService {
      * is open to guests; only copying a deck requires an account.
      */
     @Transactional(readOnly = true)
-    public List<PublicDeckSummary> getPublicDecks(String query, int limit, int offset) {
+    public PublicDeckPage getPublicDecks(String query, Integer minCards, Integer maxCards,
+                                         int limit, int offset) {
         int size = Math.max(1, Math.min(limit, MAX_DISCOVER_PAGE));
         // Spring Data pages by page number, so translate the caller's row offset.
         // Snapping to a page boundary keeps the contract honest for the paging the
         // client actually does (offset always a multiple of limit).
-        Pageable page = PageRequest.of(Math.max(0, offset) / size, size);
+        Pageable pageable = PageRequest.of(Math.max(0, offset) / size, size);
         String q = query == null ? "" : query.trim();
-        return deckRepository.findPublicDecks(q, page).stream()
+
+        Page<Deck> page = deckRepository.findPublicDecks(q, minCards, maxCards, pageable);
+        List<PublicDeckSummary> items = page.getContent().stream()
                 .map(d -> new PublicDeckSummary(
                         d.getId(),
                         d.getName(),
@@ -215,6 +221,8 @@ public class DeckService {
                         d.getSourceAuthorName(),
                         d.getSharedAt()))
                 .toList();
+        return new PublicDeckPage(items, page.getNumber(), size,
+                page.getTotalElements(), page.getTotalPages());
     }
 
     /** How many people have taken a copy of this deck (owner-scoped read). */
@@ -243,7 +251,9 @@ public class DeckService {
                 .filter(d -> d.isPublic() || d.getUserId().equals(caller.id()))
                 .orElseThrow(() -> new NotFoundException("Shared deck not found: " + sourceDeckId));
 
-        DeckContentsResponse contents = buildContents(source);
+        // Completion is irrelevant here (we only map fields into the copy), so no
+        // viewer is needed.
+        DeckContentsResponse contents = buildContents(source, null);
         ImportDeckRequest request = new ImportDeckRequest(
                 contents.name(),
                 contents.subdeckPath(),
@@ -425,12 +435,14 @@ public class DeckService {
     public DeckContentsResponse getDeckContents(String userId, UUID deckId) {
         Deck deck = deckRepository.findByIdAndUserId(deckId, userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
-        return buildContents(deck);
+        return buildContents(deck, userId);
     }
 
     // Assemble a loaded deck's note types + notes. Access control belongs to the
-    // caller — this is reached both owner-scoped and (for shared decks) unauthenticated.
-    private DeckContentsResponse buildContents(Deck deck) {
+    // caller — this is reached owner-scoped, for shared decks unauthenticated
+    // (viewer == null), and (Phase 2) for a signed-in visitor of a shared deck.
+    // `viewerUserId` scopes the reported completion to that user's own progress.
+    private DeckContentsResponse buildContents(Deck deck, String viewerUserId) {
         UUID deckId = deck.getId();
 
         List<NoteType> types = noteTypeRepository.findAllByDeckId(deckId);
@@ -464,7 +476,7 @@ public class DeckService {
                 deck.getSourceFilename(),
                 deck.getCardCount(),
                 deck.getImportedAt(),
-                completionForDeck(deckId),
+                completionForDeck(viewerUserId, deckId),
                 deck.getFrontLang(),
                 deck.getBackLang(),
                 deck.isPublic(),
@@ -475,17 +487,22 @@ public class DeckService {
         );
     }
 
-    // Mean mastery across every note in the deck, with unseen notes counted as 0
-    // (inner COALESCE turns a missing card_stats row into 0 instead of NULL,
-    // which AVG would otherwise skip). Returned as 0-100, matching the column.
-    private double completionForDeck(UUID deckId) {
+    // Mean of the VIEWER's mastery across every note in the deck, unseen notes
+    // counted as 0 (inner COALESCE turns a missing card_stats row into 0 instead of
+    // NULL, which AVG would otherwise skip). Returned as 0-100, matching the column.
+    // A null viewer (an unauthenticated public read) has no progress → 0.
+    private double completionForDeck(String viewerUserId, UUID deckId) {
+        if (viewerUserId == null) {
+            return 0.0;
+        }
         Object value = entityManager.createNativeQuery("""
                 SELECT COALESCE(AVG(COALESCE(cs.mastery, 0)), 0)
                 FROM notes n
-                LEFT JOIN card_stats cs ON cs.note_id = n.id
+                LEFT JOIN card_stats cs ON cs.note_id = n.id AND cs.user_id = :userId
                 WHERE n.deck_id = :deckId
                 """)
                 .setParameter("deckId", deckId)
+                .setParameter("userId", viewerUserId)
                 .getSingleResult();
         return value == null ? 0.0 : ((Number) value).doubleValue();
     }
@@ -498,7 +515,7 @@ public class DeckService {
                 SELECT d.id, COALESCE(AVG(COALESCE(cs.mastery, 0)), 0)
                 FROM decks d
                 LEFT JOIN notes n ON n.deck_id = d.id
-                LEFT JOIN card_stats cs ON cs.note_id = n.id
+                LEFT JOIN card_stats cs ON cs.note_id = n.id AND cs.user_id = :userId
                 WHERE d.user_id = :userId
                 GROUP BY d.id
                 """)

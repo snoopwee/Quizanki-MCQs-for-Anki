@@ -1,6 +1,7 @@
 package com.ankiquiz.repository;
 
 import com.ankiquiz.entity.Deck;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -20,16 +21,33 @@ public interface DeckRepository extends JpaRepository<Deck, UUID> {
 
     /**
      * The Discover listing: public decks, newest-shared first, optionally filtered
-     * by a case-insensitive name fragment. Backed by the partial index added in
-     * V10 (`decks_public_idx`). A blank query means "everything".
+     * by a case-insensitive name fragment and a card-count range. Backed by the
+     * partial index added in V10 (`decks_public_idx`) for the is_public + ordering.
+     * A blank query and null bounds each mean "no restriction".
+     *
+     * <p>Returns a {@link Page} so the caller gets the total count for the pager in
+     * the same round trip — the count query below shares the exact same filters.
      */
-    @Query("""
+    @Query(value = """
             select d from Deck d
             where d.isPublic = true
               and (:q = '' or lower(d.name) like lower(concat('%', :q, '%')))
+              and (:minCards is null or d.cardCount >= :minCards)
+              and (:maxCards is null or d.cardCount <= :maxCards)
             order by d.sharedAt desc
+            """,
+            countQuery = """
+            select count(d) from Deck d
+            where d.isPublic = true
+              and (:q = '' or lower(d.name) like lower(concat('%', :q, '%')))
+              and (:minCards is null or d.cardCount >= :minCards)
+              and (:maxCards is null or d.cardCount <= :maxCards)
             """)
-    List<Deck> findPublicDecks(@Param("q") String q, Pageable pageable);
+    Page<Deck> findPublicDecks(
+            @Param("q") String q,
+            @Param("minCards") Integer minCards,
+            @Param("maxCards") Integer maxCards,
+            Pageable pageable);
 
     /** How many copies people have taken of this deck. */
     long countByCloneSourceDeckId(UUID cloneSourceDeckId);

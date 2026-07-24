@@ -240,7 +240,7 @@ export interface DeckContentsResponse {
   noteTypes: DeckContentsNoteType[];
 }
 
-// GET /api/v1/public/discover — one row of the public deck directory.
+// One row of the public deck directory.
 export interface PublicDeckSummary {
   id: string;
   name: string;
@@ -248,4 +248,14 @@ export interface PublicDeckSummary {
   authorName: string | null;
   sourceAuthorName: string | null;
   sharedAt: string | null;
+}
+
+// GET /api/v1/public/discover — one page of the directory plus the counts the
+// pager needs (page is zero-based, matching the offset the client sends).
+export interface PublicDeckPage {
+  items: PublicDeckSummary[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
 }

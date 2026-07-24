@@ -66,7 +66,7 @@ class NoteServiceTest {
         type.setFieldNames(fieldNames);
         when(noteTypeRepository.findById(typeId)).thenReturn(Optional.of(type));
         when(noteRepository.save(any(Note.class))).thenAnswer(inv -> inv.getArgument(0));
-        lenient().when(cardStatsRepository.findById(noteId)).thenReturn(Optional.empty());
+        lenient().when(cardStatsRepository.findByUserIdAndNoteId(USER, noteId)).thenReturn(Optional.empty());
     }
 
     @Test
@@ -145,7 +145,7 @@ class NoteServiceTest {
         Note note = existingNote(Map.of("Front", "a", "Back", "b"));
         when(deckRepository.findByIdAndUserId(deckId, USER)).thenReturn(Optional.of(new Deck()));
         when(noteRepository.findByIdAndDeckId(noteId, deckId)).thenReturn(Optional.of(note));
-        when(cardStatsRepository.findById(noteId)).thenReturn(Optional.empty());
+        when(cardStatsRepository.findByUserIdAndNoteId(USER, noteId)).thenReturn(Optional.empty());
         when(cardStatsRepository.save(any(CardStats.class))).thenAnswer(inv -> inv.getArgument(0));
 
         NoteResponse res = service.setStarred(USER, deckId, noteId, true);
@@ -167,7 +167,7 @@ class NoteServiceTest {
         existing.setStarred(false);
         when(deckRepository.findByIdAndUserId(deckId, USER)).thenReturn(Optional.of(new Deck()));
         when(noteRepository.findByIdAndDeckId(noteId, deckId)).thenReturn(Optional.of(note));
-        when(cardStatsRepository.findById(noteId)).thenReturn(Optional.of(existing));
+        when(cardStatsRepository.findByUserIdAndNoteId(USER, noteId)).thenReturn(Optional.of(existing));
         when(cardStatsRepository.save(any(CardStats.class))).thenAnswer(inv -> inv.getArgument(0));
 
         NoteResponse res = service.setStarred(USER, deckId, noteId, true);

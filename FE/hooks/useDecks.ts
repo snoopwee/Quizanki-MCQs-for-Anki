@@ -1,10 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/axios";
 import type {
   DeckContentsResponse,
   DeckResponse,
   ImportDeckRequest,
-  PublicDeckSummary,
+  PublicDeckPage,
   UpdateDeckContentsRequest,
 } from "@/types/api";
 
@@ -167,15 +167,32 @@ export function useCloneDeck() {
   });
 }
 
+export interface DiscoverParams {
+  q: string;
+  minCards: number | null;
+  maxCards: number | null;
+  page: number; // zero-based
+  pageSize: number;
+}
+
 // The public Discover directory. Unauthenticated — guests browse the same list
-// as members; only copying a deck needs an account. Keyed by the query so typing
-// in the search box swaps between cached result sets.
-export function useDiscoverDecks(query: string) {
+// as members; only copying a deck needs an account. Keyed by the full param set,
+// so each (search × filter × page) combination is cached independently and paging
+// back is instant. `placeholderData` keeps the current page on screen while the
+// next loads, so changing page/filter doesn't flash an empty grid.
+export function useDiscoverDecks(params: DiscoverParams) {
   return useQuery({
-    queryKey: ["discover", query],
+    queryKey: ["discover", params],
+    placeholderData: keepPreviousData,
     queryFn: async () => {
-      const { data } = await api.get<PublicDeckSummary[]>("/public/discover", {
-        params: query ? { q: query } : undefined,
+      const { data } = await api.get<PublicDeckPage>("/public/discover", {
+        params: {
+          q: params.q || undefined,
+          minCards: params.minCards ?? undefined,
+          maxCards: params.maxCards ?? undefined,
+          limit: params.pageSize,
+          offset: params.page * params.pageSize,
+        },
       });
       return data;
     },

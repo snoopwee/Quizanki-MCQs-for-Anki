@@ -59,8 +59,10 @@ public class NoteService {
             return List.of();
         }
 
+        // The caller's OWN progress for these notes — someone else studying the
+        // same (shared) deck has separate rows.
         Map<UUID, CardStats> statsByNoteId = cardStatsRepository
-                .findAllById(notes.stream().map(Note::getId).toList()).stream()
+                .findByUserIdAndNoteIdIn(userId, notes.stream().map(Note::getId).toList()).stream()
                 .collect(Collectors.toMap(CardStats::getNoteId, Function.identity()));
 
         return notes.stream()
@@ -114,7 +116,7 @@ public class NoteService {
         }
         Note saved = noteRepository.save(note);
 
-        CardStats stats = cardStatsRepository.findById(saved.getId()).orElse(null);
+        CardStats stats = cardStatsRepository.findByUserIdAndNoteId(caller.id(), saved.getId()).orElse(null);
         return NoteResponse.from(saved, stats == null ? null : CardStatsResponse.from(stats));
     }
 
@@ -132,8 +134,10 @@ public class NoteService {
         Note note = noteRepository.findByIdAndDeckId(noteId, deckId)
                 .orElseThrow(() -> new NotFoundException("Note not found: " + noteId));
 
-        CardStats stats = cardStatsRepository.findById(note.getId())
-                .orElseGet(() -> newStatsRow(note.getId()));
+        // The star is the caller's own (per-user card_stats), so it never touches
+        // another user's row for the same shared note.
+        CardStats stats = cardStatsRepository.findByUserIdAndNoteId(userId, note.getId())
+                .orElseGet(() -> newStatsRow(userId, note.getId()));
         stats.setStarred(starred);
         CardStats saved = cardStatsRepository.save(stats);
 
@@ -143,8 +147,9 @@ public class NoteService {
     // A fresh card_stats row for a never-answered note. JPA includes every column
     // in the INSERT, so DB-level defaults wouldn't apply — set them explicitly to
     // match the V1/V3/V5 column defaults.
-    private static CardStats newStatsRow(UUID noteId) {
+    private static CardStats newStatsRow(String userId, UUID noteId) {
         CardStats stats = new CardStats();
+        stats.setUserId(userId);
         stats.setNoteId(noteId);
         stats.setTimesSeen(0);
         stats.setTimesCorrect(0);

@@ -8,9 +8,9 @@ import { useSession } from "@/hooks/useSession";
 import { deckContentsToParsed } from "@/lib/deckContents";
 import { buildFlashcards } from "@/lib/flashcards";
 import { AuthModal } from "@/components/auth/AuthModal";
+import { AppChrome } from "@/components/layout/AppChrome";
 import { CardPreviewRow } from "@/components/deck/CardPreview";
 import { DeckAuthor } from "@/components/deck/DeckAuthor";
-import { BrandMark } from "@/components/ui/BrandMark";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/icons";
 
@@ -27,7 +27,7 @@ const PREVIEW_LIMIT = 12;
 export default function SharedDeckPage() {
   const { deckId } = useParams<{ deckId: string }>();
   const router = useRouter();
-  const { user, loading: sessionLoading } = useSession();
+  const { user } = useSession();
 
   const deckQuery = useSharedDeck(deckId);
   const cloneDeck = useCloneDeck();
@@ -55,26 +55,8 @@ export default function SharedDeckPage() {
   }
 
   return (
-    <div className="relative min-h-screen">
-      <div aria-hidden className="landing-grid pointer-events-none absolute inset-0 -z-10" />
-
-      <header className="sticky top-0 z-40 border-b border-line bg-canvas/80 backdrop-blur">
-        <div className="flex items-center justify-between px-6 py-4 sm:px-8">
-          <Link href="/">
-            <BrandMark />
-          </Link>
-          {!sessionLoading && (
-            <Link
-              href={user ? "/dashboard" : "/"}
-              className="rounded-full border border-line-strong bg-surface px-4 py-1.5 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent"
-            >
-              {user ? "Dashboard →" : "Log in"}
-            </Link>
-          )}
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-3xl space-y-6 px-6 py-10">
+    <AppChrome>
+      <div className="mx-auto max-w-3xl space-y-6">
         {deckQuery.isLoading && <p className="text-sm text-muted">Loading deck…</p>}
 
         {deckQuery.isError && <NotShared />}
@@ -149,7 +131,7 @@ export default function SharedDeckPage() {
             </section>
           </>
         )}
-      </main>
+      </div>
 
       {authOpen && (
         <AuthModal
@@ -161,7 +143,7 @@ export default function SharedDeckPage() {
           onAuthed={clone}
         />
       )}
-    </div>
+    </AppChrome>
   );
 }
 

@@ -34,6 +34,12 @@ public record DeckContentsResponse(
         String authorId,
         String authorName,
         String sourceAuthorName,
+        // The VIEWER's relationship to the deck, so the client can pick the right
+        // controls: `owned` = they own it (owner kebab: edit/share/export/delete);
+        // otherwise `saved` drives the Save-to-Home toggle state. Both false on the
+        // unauthenticated public read.
+        boolean owned,
+        boolean saved,
         List<NoteTypeContents> noteTypes
 ) {
     public record NoteTypeContents(

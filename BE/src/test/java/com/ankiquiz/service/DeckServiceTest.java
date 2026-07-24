@@ -10,11 +10,13 @@ import com.ankiquiz.dto.response.PublicDeckSummary;
 import com.ankiquiz.entity.Deck;
 import com.ankiquiz.entity.Note;
 import com.ankiquiz.entity.NoteType;
+import com.ankiquiz.entity.UserDeck;
 import com.ankiquiz.exception.ConflictException;
 import com.ankiquiz.exception.NotFoundException;
 import com.ankiquiz.repository.DeckRepository;
 import com.ankiquiz.repository.NoteRepository;
 import com.ankiquiz.repository.NoteTypeRepository;
+import com.ankiquiz.repository.UserDeckRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,6 +61,7 @@ class DeckServiceTest {
     @Mock private DeckRepository deckRepository;
     @Mock private NoteTypeRepository noteTypeRepository;
     @Mock private NoteRepository noteRepository;
+    @Mock private UserDeckRepository userDeckRepository;
     @Mock private EntityManager entityManager;
     @Mock private Query query;
 
@@ -69,7 +72,8 @@ class DeckServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new DeckService(deckRepository, noteTypeRepository, noteRepository, entityManager);
+        service = new DeckService(deckRepository, noteTypeRepository, noteRepository,
+                userDeckRepository, entityManager);
         // saveAll / save echo their argument; save assigns an id to new note types
         // so ensureBasicType can route new cards to it.
         when(noteRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -332,7 +336,7 @@ class DeckServiceTest {
         source.setSourceFilename("n4.apkg");
         source.setFrontLang("ja");
         source.setBackLang("en");
-        when(deckRepository.findById(deckId)).thenReturn(Optional.of(source));
+        when(deckRepository.findStudiable(deckId, OTHER_USER)).thenReturn(Optional.of(source));
         when(noteTypeRepository.findAllByDeckId(deckId)).thenReturn(List.of(basicType()));
         when(noteRepository.findAllByDeckIdOrderByPositionAscIdAsc(deckId))
                 .thenReturn(List.of(existingNote(UUID.randomUUID(), 0), existingNote(UUID.randomUUID(), 1)));
@@ -376,7 +380,7 @@ class DeckServiceTest {
     @Test
     void cloneDeck_allowsOwnerToDuplicateTheirOwnPrivateDeck() {
         Deck source = deck(); // private, owned by USER
-        when(deckRepository.findById(deckId)).thenReturn(Optional.of(source));
+        when(deckRepository.findStudiable(deckId, USER)).thenReturn(Optional.of(source));
         when(noteTypeRepository.findAllByDeckId(deckId)).thenReturn(List.of(basicType()));
         when(noteRepository.findAllByDeckIdOrderByPositionAscIdAsc(deckId))
                 .thenReturn(List.of(existingNote(UUID.randomUUID(), 0)));
@@ -407,7 +411,7 @@ class DeckServiceTest {
     void cloneDeck_keepsCreditingTheSourcesAuthor() {
         Deck source = deck();
         source.setPublic(true);
-        when(deckRepository.findById(deckId)).thenReturn(Optional.of(source));
+        when(deckRepository.findStudiable(deckId, OTHER_USER)).thenReturn(Optional.of(source));
         when(noteTypeRepository.findAllByDeckId(deckId)).thenReturn(List.of(basicType()));
         when(noteRepository.findAllByDeckIdOrderByPositionAscIdAsc(deckId))
                 .thenReturn(List.of(existingNote(UUID.randomUUID(), 0)));
@@ -605,5 +609,53 @@ class DeckServiceTest {
 
         assertThat(service.getPublicDecks(null, null, null, 24, 0).items()).isEmpty();
         verify(deckRepository).findPublicDecks(eq(""), isNull(), isNull(), any(Pageable.class));
+    }
+
+    // ── library: open (Recent) + save (bookmark) ─────────────────────────────
+
+    @Test
+    void openDeck_stampsLastOpened_onAStudiableDeck() {
+        when(deckRepository.findStudiable(deckId, USER)).thenReturn(Optional.of(deck()));
+        when(userDeckRepository.findByUserIdAndDeckId(USER, deckId)).thenReturn(Optional.empty());
+        when(userDeckRepository.save(any(UserDeck.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.openDeck(USER, deckId);
+
+        ArgumentCaptor<UserDeck> captor = ArgumentCaptor.forClass(UserDeck.class);
+        verify(userDeckRepository).save(captor.capture());
+        assertThat(captor.getValue().getUserId()).isEqualTo(USER);
+        assertThat(captor.getValue().getDeckId()).isEqualTo(deckId);
+        assertThat(captor.getValue().getLastOpenedAt()).isNotNull();
+    }
+
+    @Test
+    void openDeck_throwsNotFound_whenNotStudiable_andRecordsNothing() {
+        when(deckRepository.findStudiable(deckId, USER)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.openDeck(USER, deckId)).isInstanceOf(NotFoundException.class);
+        verify(userDeckRepository, never()).save(any());
+    }
+
+    @Test
+    void setSaved_bookmarksAStudiableDeck() {
+        // A visitor saving someone else's public deck.
+        when(deckRepository.findStudiable(deckId, OTHER_USER)).thenReturn(Optional.of(deck()));
+        when(userDeckRepository.findByUserIdAndDeckId(OTHER_USER, deckId)).thenReturn(Optional.empty());
+        when(userDeckRepository.save(any(UserDeck.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.setSaved(OTHER_USER, deckId, true);
+
+        ArgumentCaptor<UserDeck> captor = ArgumentCaptor.forClass(UserDeck.class);
+        verify(userDeckRepository).save(captor.capture());
+        assertThat(captor.getValue().isSaved()).isTrue();
+    }
+
+    @Test
+    void setSaved_throwsNotFound_whenNotStudiable() {
+        when(deckRepository.findStudiable(deckId, OTHER_USER)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.setSaved(OTHER_USER, deckId, true))
+                .isInstanceOf(NotFoundException.class);
+        verify(userDeckRepository, never()).save(any());
     }
 }

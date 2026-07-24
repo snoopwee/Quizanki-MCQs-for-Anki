@@ -27,7 +27,8 @@ public class StatsService {
 
     @Transactional(readOnly = true)
     public DeckStatsResponse getDeckStats(String userId, UUID deckId) {
-        deckRepository.findByIdAndUserId(deckId, userId)
+        // Studiable (owned or public): a visitor sees their own stats on a shared deck.
+        deckRepository.findStudiable(deckId, userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
 
         // Two-step query: first compute the card_stats aggregates over the deck's
@@ -75,7 +76,7 @@ public class StatsService {
      */
     @Transactional(readOnly = true)
     public List<DeckHistoryPoint> getDeckHistory(String userId, UUID deckId, int days) {
-        deckRepository.findByIdAndUserId(deckId, userId)
+        deckRepository.findStudiable(deckId, userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
 
         int window = Math.max(1, Math.min(days, MAX_HISTORY_DAYS));

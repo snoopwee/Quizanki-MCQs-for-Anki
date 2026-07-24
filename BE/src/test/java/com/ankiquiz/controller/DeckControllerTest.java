@@ -3,6 +3,7 @@ package com.ankiquiz.controller;
 import com.ankiquiz.dto.request.ImportDeckRequest;
 import com.ankiquiz.dto.request.NoteRequest;
 import com.ankiquiz.dto.request.NoteTypeRequest;
+import com.ankiquiz.dto.request.SaveDeckRequest;
 import com.ankiquiz.dto.request.SetDeckLanguagesRequest;
 import com.ankiquiz.dto.request.ShareDeckRequest;
 import com.ankiquiz.dto.request.UpdateDeckContentsRequest;
@@ -32,6 +33,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -157,7 +159,7 @@ class DeckControllerTest {
         UUID deckId = UUID.randomUUID();
         DeckContentsResponse response = new DeckContentsResponse(
                 deckId, "Renamed", null, null, 1, OffsetDateTime.now(), 0.0, null, null,
-                false, "user-123", "Alice", null, List.of());
+                false, "user-123", "Alice", null, true, false, List.of());
         when(deckService.replaceDeckContents(eq(CALLER), eq(deckId), any())).thenReturn(response);
 
         UpdateDeckContentsRequest request = new UpdateDeckContentsRequest(
@@ -243,7 +245,7 @@ class DeckControllerTest {
         UUID deckId = UUID.randomUUID();
         DeckContentsResponse response = new DeckContentsResponse(
                 deckId, "JLPT N4", null, null, 1, OffsetDateTime.now(), 0.0, "ja", "en",
-                false, "user-123", "Alice", null, List.of());
+                false, "user-123", "Alice", null, true, false, List.of());
         when(deckService.setDeckLanguages(eq("user-123"), eq(deckId), eq("ja"), eq("en")))
                 .thenReturn(response);
 
@@ -321,6 +323,62 @@ class DeckControllerTest {
                         .with(jwt().jwt(j -> j.subject("user-123"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.copies").value(7));
+    }
+
+    @Test
+    void openDeck_returns204() throws Exception {
+        UUID deckId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/decks/{deckId}/open", deckId)
+                        .with(jwt().jwt(j -> j.subject("user-123"))))
+                .andExpect(status().isNoContent());
+
+        verify(deckService).openDeck("user-123", deckId);
+    }
+
+    @Test
+    void setSaved_returns204() throws Exception {
+        UUID deckId = UUID.randomUUID();
+
+        mockMvc.perform(put("/api/v1/decks/{deckId}/save", deckId)
+                        .with(jwt().jwt(j -> j.subject("user-123")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new SaveDeckRequest(true))))
+                .andExpect(status().isNoContent());
+
+        verify(deckService).setSaved("user-123", deckId, true);
+    }
+
+    @Test
+    void setSaved_returns400_whenSavedMissing() throws Exception {
+        mockMvc.perform(put("/api/v1/decks/{deckId}/save", UUID.randomUUID())
+                        .with(jwt().jwt(j -> j.subject("user-123")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.saved").exists());
+    }
+
+    @Test
+    void getSaved_returns200_withTheSavedDecks() throws Exception {
+        UUID deckId = UUID.randomUUID();
+        when(deckService.getSavedDecks("user-123")).thenReturn(List.of(new DeckResponse(
+                deckId, "JLPT N4", null, null, 12, OffsetDateTime.now(), 30.0, "ja", "en",
+                true, "user-999", "Alice", null)));
+
+        mockMvc.perform(get("/api/v1/decks/saved").with(jwt().jwt(j -> j.subject("user-123"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(deckId.toString()))
+                .andExpect(jsonPath("$[0].completion").value(30.0));
+    }
+
+    @Test
+    void getRecent_returns200_withTheRecentDecks() throws Exception {
+        when(deckService.getRecentDecks("user-123")).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/decks/recent").with(jwt().jwt(j -> j.subject("user-123"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
     }
 
     @Test

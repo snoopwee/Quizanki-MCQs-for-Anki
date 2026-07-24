@@ -16,9 +16,11 @@ import com.ankiquiz.entity.NoteType;
 import com.ankiquiz.exception.ApkgParseException;
 import com.ankiquiz.exception.ConflictException;
 import com.ankiquiz.exception.NotFoundException;
+import com.ankiquiz.entity.UserDeck;
 import com.ankiquiz.repository.DeckRepository;
 import com.ankiquiz.repository.NoteRepository;
 import com.ankiquiz.repository.NoteTypeRepository;
+import com.ankiquiz.repository.UserDeckRepository;
 import jakarta.persistence.EntityManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -43,17 +45,23 @@ public class DeckService {
     private final DeckRepository deckRepository;
     private final NoteTypeRepository noteTypeRepository;
     private final NoteRepository noteRepository;
+    private final UserDeckRepository userDeckRepository;
     private final EntityManager entityManager;
 
     public DeckService(DeckRepository deckRepository,
                        NoteTypeRepository noteTypeRepository,
                        NoteRepository noteRepository,
+                       UserDeckRepository userDeckRepository,
                        EntityManager entityManager) {
         this.deckRepository = deckRepository;
         this.noteTypeRepository = noteTypeRepository;
         this.noteRepository = noteRepository;
+        this.userDeckRepository = userDeckRepository;
         this.entityManager = entityManager;
     }
+
+    // How far back the Recent tab reaches.
+    private static final int RECENT_WINDOW_DAYS = 30;
 
     @Transactional(readOnly = true)
     public List<DeckResponse> getDecksForUser(String userId) {
@@ -65,6 +73,84 @@ public class DeckService {
         return decks.stream()
                 .map(d -> DeckResponse.from(d, completion.getOrDefault(d.getId(), 0.0)))
                 .toList();
+    }
+
+    /** The Saved tab: decks the user has bookmarked but doesn't own. */
+    @Transactional(readOnly = true)
+    public List<DeckResponse> getSavedDecks(String userId) {
+        return withViewerCompletion(userId, deckRepository.findSavedByUser(userId));
+    }
+
+    /** The Recent tab: decks the user opened in the last {@value #RECENT_WINDOW_DAYS} days. */
+    @Transactional(readOnly = true)
+    public List<DeckResponse> getRecentDecks(String userId) {
+        OffsetDateTime since = OffsetDateTime.now().minusDays(RECENT_WINDOW_DAYS);
+        return withViewerCompletion(userId, deckRepository.findRecentByUser(userId, since));
+    }
+
+    // Mark a deck opened (upsert last_opened_at) so it shows in Recent. Gated on
+    // studiable, so opening a link to a deck you can't access still 404s.
+    @Transactional
+    public void openDeck(String userId, UUID deckId) {
+        deckRepository.findStudiable(deckId, userId)
+                .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
+        UserDeck ud = userDeckRepository.findByUserIdAndDeckId(userId, deckId)
+                .orElseGet(() -> newUserDeck(userId, deckId));
+        ud.setLastOpenedAt(OffsetDateTime.now());
+        userDeckRepository.save(ud);
+    }
+
+    // Bookmark a deck to Home ("Save to Home") or remove it — a reference, no copy.
+    // Gated on studiable so you can only save something you can currently access.
+    @Transactional
+    public void setSaved(String userId, UUID deckId, boolean saved) {
+        deckRepository.findStudiable(deckId, userId)
+                .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
+        UserDeck ud = userDeckRepository.findByUserIdAndDeckId(userId, deckId)
+                .orElseGet(() -> newUserDeck(userId, deckId));
+        ud.setSaved(saved);
+        userDeckRepository.save(ud);
+    }
+
+    private static UserDeck newUserDeck(String userId, UUID deckId) {
+        UserDeck ud = new UserDeck();
+        ud.setUserId(userId);
+        ud.setDeckId(deckId);
+        ud.setSaved(false);
+        return ud;
+    }
+
+    // Attach each deck's completion for THIS viewer (their own per-user mastery),
+    // in one round trip. Used by the Saved/Recent lists, where a deck may not be owned.
+    private List<DeckResponse> withViewerCompletion(String userId, List<Deck> decks) {
+        if (decks.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, Double> completion = completionForDecks(userId,
+                decks.stream().map(Deck::getId).toList());
+        return decks.stream()
+                .map(d -> DeckResponse.from(d, completion.getOrDefault(d.getId(), 0.0)))
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<UUID, Double> completionForDecks(String userId, List<UUID> deckIds) {
+        List<Object[]> rows = entityManager.createNativeQuery("""
+                SELECT d.id, COALESCE(AVG(COALESCE(cs.mastery, 0)), 0)
+                FROM decks d
+                LEFT JOIN notes n ON n.deck_id = d.id
+                LEFT JOIN card_stats cs ON cs.note_id = n.id AND cs.user_id = :userId
+                WHERE d.id IN (:deckIds)
+                GROUP BY d.id
+                """)
+                .setParameter("userId", userId)
+                .setParameter("deckIds", deckIds)
+                .getResultList();
+        Map<UUID, Double> result = new HashMap<>(rows.size());
+        for (Object[] row : rows) {
+            result.put((UUID) row[0], row[1] == null ? 0.0 : ((Number) row[1]).doubleValue());
+        }
+        return result;
     }
 
     @Transactional
@@ -225,10 +311,11 @@ public class DeckService {
                 page.getTotalElements(), page.getTotalPages());
     }
 
-    /** How many people have taken a copy of this deck (owner-scoped read). */
+    /** How many people have taken a copy of this deck — shown on the deck page,
+     *  so it's readable by anyone who may study the deck (owner or public). */
     @Transactional(readOnly = true)
     public long countCopies(String userId, UUID deckId) {
-        deckRepository.findByIdAndUserId(deckId, userId)
+        deckRepository.findStudiable(deckId, userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
         return deckRepository.countByCloneSourceDeckId(deckId);
     }
@@ -247,8 +334,10 @@ public class DeckService {
      */
     @Transactional
     public DeckResponse cloneDeck(Caller caller, UUID sourceDeckId) {
-        Deck source = deckRepository.findById(sourceDeckId)
-                .filter(d -> d.isPublic() || d.getUserId().equals(caller.id()))
+        // Duplicable if it's studiable to the caller — owned, public, or saved. The
+        // saved grant is why a deck you bookmarked stays duplicable even after its
+        // owner makes it private.
+        Deck source = deckRepository.findStudiable(sourceDeckId, caller.id())
                 .orElseThrow(() -> new NotFoundException("Shared deck not found: " + sourceDeckId));
 
         // Completion is irrelevant here (we only map fields into the copy), so no
@@ -389,7 +478,9 @@ public class DeckService {
         }
         deckRepository.save(deck);
 
-        return getDeckContents(userId, deckId);
+        // The owner-verified deck is already loaded — build the response from it
+        // directly rather than re-loading through the studiable read.
+        return buildContents(deck, userId);
     }
 
     /**
@@ -431,9 +522,12 @@ public class DeckService {
         return saved.getId();
     }
 
+    // Studiable, not owner-scoped: a signed-in visitor can open a shared deck and
+    // see it with their OWN progress (completion). Owner mutations don't route
+    // through here — they build their response from the already-loaded deck.
     @Transactional(readOnly = true)
     public DeckContentsResponse getDeckContents(String userId, UUID deckId) {
-        Deck deck = deckRepository.findByIdAndUserId(deckId, userId)
+        Deck deck = deckRepository.findStudiable(deckId, userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
         return buildContents(deck, userId);
     }
@@ -483,6 +577,8 @@ public class DeckService {
                 deck.getAuthorId(),
                 deck.getAuthorName(),
                 deck.getSourceAuthorName(),
+                viewerUserId != null && viewerUserId.equals(deck.getUserId()),
+                viewerUserId != null && userDeckRepository.existsByUserIdAndDeckIdAndSavedTrue(viewerUserId, deckId),
                 typeContents
         );
     }
@@ -571,7 +667,8 @@ public class DeckService {
         deck.setFrontLang(normalizeLang(frontLang));
         deck.setBackLang(normalizeLang(backLang));
         deckRepository.save(deck);
-        return getDeckContents(userId, deckId);
+        // Owner-verified deck already in hand — build from it directly.
+        return buildContents(deck, userId);
     }
 
     // A blank / whitespace-only language code means "auto-detect" — store it as

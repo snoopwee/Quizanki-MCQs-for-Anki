@@ -1,6 +1,7 @@
 package com.ankiquiz.controller;
 
 import com.ankiquiz.dto.request.ImportDeckRequest;
+import com.ankiquiz.dto.request.SaveDeckRequest;
 import com.ankiquiz.dto.request.SetDeckLanguagesRequest;
 import com.ankiquiz.dto.request.ShareDeckRequest;
 import com.ankiquiz.dto.request.UpdateDeckContentsRequest;
@@ -50,6 +51,43 @@ public class DeckController {
     @Operation(summary = "List the authenticated user's decks")
     public List<DeckResponse> getDecks(@AuthenticationPrincipal Jwt jwt) {
         return deckService.getDecksForUser(jwt.getSubject());
+    }
+
+    @GetMapping("/saved")
+    @Operation(summary = "The user's Saved tab: decks they bookmarked but don't own")
+    public List<DeckResponse> getSaved(@AuthenticationPrincipal Jwt jwt) {
+        return deckService.getSavedDecks(jwt.getSubject());
+    }
+
+    @GetMapping("/recent")
+    @Operation(summary = "The user's Recent tab: decks opened in the last 30 days")
+    public List<DeckResponse> getRecent(@AuthenticationPrincipal Jwt jwt) {
+        return deckService.getRecentDecks(jwt.getSubject());
+    }
+
+    @PostMapping("/{deckId}/open")
+    @Operation(summary = "Mark a deck opened (adds it to Recent)",
+            description = "Called when the deck page loads. Studiable decks only (owned, public, or "
+                    + "saved); anything else 404s.")
+    public ResponseEntity<Void> openDeck(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId
+    ) {
+        deckService.openDeck(jwt.getSubject(), deckId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{deckId}/save")
+    @Operation(summary = "Bookmark a deck to Home, or remove it",
+            description = "\"Save to Home\" — a reference, not a copy. A saved deck stays "
+                    + "accessible even if its owner later makes it private.")
+    public ResponseEntity<Void> setSaved(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId,
+            @Valid @RequestBody SaveDeckRequest request
+    ) {
+        deckService.setSaved(jwt.getSubject(), deckId, request.saved());
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping

@@ -48,7 +48,9 @@ public class NoteService {
     @Transactional(readOnly = true)
     public List<NoteResponse> getNotes(String userId, UUID deckId, List<String> tags,
                                        boolean weakOnly, boolean starredOnly, Integer limit) {
-        deckRepository.findByIdAndUserId(deckId, userId)
+        // Studiable (owned or public): a visitor of a shared deck sees its cards
+        // paired with THEIR own progress.
+        deckRepository.findStudiable(deckId, userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
 
         String tagsCsv = (tags == null || tags.isEmpty()) ? "" : String.join(",", tags);
@@ -121,15 +123,16 @@ public class NoteService {
     }
 
     /**
-     * Star / unstar a flashcard (a user focus flag). Scoped by deck ownership,
-     * then note→deck. The star lives on card_stats, which may not have a row yet
-     * for a card the user has never answered — in that case we insert a fresh row
-     * with default counters and only `starred` set, mirroring the column defaults
-     * (record_answer takes over the counters on the first answer).
+     * Star / unstar a flashcard (a per-user focus flag). Starring is a personal
+     * annotation, so it's allowed on any studiable deck (owned or public) — the
+     * star lives on the caller's own card_stats row, never the author's. That row
+     * may not exist yet for a never-answered card; we insert a fresh one with
+     * default counters and only `starred` set (record_answer takes over the
+     * counters on the first answer).
      */
     @Transactional
     public NoteResponse setStarred(String userId, UUID deckId, UUID noteId, boolean starred) {
-        deckRepository.findByIdAndUserId(deckId, userId)
+        deckRepository.findStudiable(deckId, userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
         Note note = noteRepository.findByIdAndDeckId(noteId, deckId)
                 .orElseThrow(() -> new NotFoundException("Note not found: " + noteId));

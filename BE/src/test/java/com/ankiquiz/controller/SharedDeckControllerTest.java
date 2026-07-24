@@ -50,7 +50,7 @@ class SharedDeckControllerTest {
         UUID deckId = UUID.randomUUID();
         DeckContentsResponse contents = new DeckContentsResponse(
                 deckId, "JLPT N4", null, "n4.apkg", 12, OffsetDateTime.now(), 0.0, "ja", "en",
-                true, "user-1", "Alice", null, List.of());
+                true, "user-1", "Alice", null, false, false, List.of());
         when(deckService.getPublicDeckContents(eq(deckId))).thenReturn(contents);
 
         // No .with(jwt(...)) — confirms the public whitelist covers shared decks.

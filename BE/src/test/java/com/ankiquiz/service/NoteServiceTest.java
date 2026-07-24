@@ -143,7 +143,7 @@ class NoteServiceTest {
     @Test
     void setStarred_createsDefaultStatsRow_whenNoneExists() {
         Note note = existingNote(Map.of("Front", "a", "Back", "b"));
-        when(deckRepository.findByIdAndUserId(deckId, USER)).thenReturn(Optional.of(new Deck()));
+        when(deckRepository.findStudiable(deckId, USER)).thenReturn(Optional.of(new Deck()));
         when(noteRepository.findByIdAndDeckId(noteId, deckId)).thenReturn(Optional.of(note));
         when(cardStatsRepository.findByUserIdAndNoteId(USER, noteId)).thenReturn(Optional.empty());
         when(cardStatsRepository.save(any(CardStats.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -165,7 +165,7 @@ class NoteServiceTest {
         existing.setTimesSeen(4);
         existing.setMastery(50.0);
         existing.setStarred(false);
-        when(deckRepository.findByIdAndUserId(deckId, USER)).thenReturn(Optional.of(new Deck()));
+        when(deckRepository.findStudiable(deckId, USER)).thenReturn(Optional.of(new Deck()));
         when(noteRepository.findByIdAndDeckId(noteId, deckId)).thenReturn(Optional.of(note));
         when(cardStatsRepository.findByUserIdAndNoteId(USER, noteId)).thenReturn(Optional.of(existing));
         when(cardStatsRepository.save(any(CardStats.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -178,8 +178,8 @@ class NoteServiceTest {
     }
 
     @Test
-    void setStarred_throwsNotFound_whenDeckNotOwned() {
-        when(deckRepository.findByIdAndUserId(deckId, USER)).thenReturn(Optional.empty());
+    void setStarred_throwsNotFound_whenDeckNotStudiable() {
+        when(deckRepository.findStudiable(deckId, USER)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.setStarred(USER, deckId, noteId, true))
                 .isInstanceOf(NotFoundException.class);
@@ -187,7 +187,7 @@ class NoteServiceTest {
 
     @Test
     void setStarred_throwsNotFound_whenNoteNotInDeck() {
-        when(deckRepository.findByIdAndUserId(deckId, USER)).thenReturn(Optional.of(new Deck()));
+        when(deckRepository.findStudiable(deckId, USER)).thenReturn(Optional.of(new Deck()));
         when(noteRepository.findByIdAndDeckId(noteId, deckId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.setStarred(USER, deckId, noteId, true))

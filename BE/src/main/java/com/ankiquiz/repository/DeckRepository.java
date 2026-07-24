@@ -20,6 +20,41 @@ public interface DeckRepository extends JpaRepository<Deck, UUID> {
     Optional<Deck> findByIdAndUserId(UUID id, String userId);
 
     /**
+     * A deck the user may STUDY / open / duplicate: one they own, any public deck,
+     * OR one they've SAVED to their library. The saved grant is what keeps a
+     * bookmarked deck accessible after its owner unshares it — "private" only
+     * removes it from Discovery, it doesn't revoke savers (V12). This is the access
+     * gate for read/study paths; mutations (edit/delete/share) stay
+     * {@link #findByIdAndUserId}. Absent reads as 404, never 403.
+     */
+    @Query("""
+            select d from Deck d
+            where d.id = :deckId
+              and (d.userId = :userId
+                   or d.isPublic = true
+                   or exists (select 1 from UserDeck ud
+                              where ud.deckId = d.id and ud.userId = :userId and ud.saved = true))
+            """)
+    Optional<Deck> findStudiable(@Param("deckId") UUID deckId, @Param("userId") String userId);
+
+    /** Decks the user has SAVED (bookmarked) that they don't own — the Saved tab. */
+    @Query("""
+            select d from Deck d, UserDeck ud
+            where ud.deckId = d.id and ud.userId = :userId and ud.saved = true and d.userId <> :userId
+            order by ud.lastOpenedAt desc nulls last
+            """)
+    List<Deck> findSavedByUser(@Param("userId") String userId);
+
+    /** Decks the user opened since {@code since}, newest first — the Recent tab. */
+    @Query("""
+            select d from Deck d, UserDeck ud
+            where ud.deckId = d.id and ud.userId = :userId and ud.lastOpenedAt >= :since
+            order by ud.lastOpenedAt desc
+            """)
+    List<Deck> findRecentByUser(@Param("userId") String userId,
+                                @Param("since") java.time.OffsetDateTime since);
+
+    /**
      * The Discover listing: public decks, newest-shared first, optionally filtered
      * by a case-insensitive name fragment and a card-count range. Backed by the
      * partial index added in V10 (`decks_public_idx`) for the is_public + ordering.

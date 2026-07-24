@@ -36,7 +36,8 @@ public class SessionService {
 
     @Transactional(readOnly = true)
     public StartSessionResponse startSession(String userId, StartSessionRequest request) {
-        deckRepository.findByIdAndUserId(request.deckId(), userId)
+        // Studiable (owned or public) — a visitor can quiz themselves on a shared deck.
+        deckRepository.findStudiable(request.deckId(), userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + request.deckId()));
         return new StartSessionResponse(UUID.randomUUID());
     }
@@ -45,7 +46,10 @@ public class SessionService {
     public RecordAnswerResponse recordAnswer(String userId, UUID sessionId, RecordAnswerRequest request) {
         Note note = noteRepository.findById(request.noteId())
                 .orElseThrow(() -> new NotFoundException("Note not found: " + request.noteId()));
-        deckRepository.findByIdAndUserId(note.getDeckId(), userId)
+        // The note's deck must be one the caller may study (owned or public) — this
+        // is what lets progress be recorded on a shared deck, and blocks recording
+        // against a private deck that isn't theirs.
+        deckRepository.findStudiable(note.getDeckId(), userId)
                 .orElseThrow(() -> new NotFoundException("Note not found: " + request.noteId()));
 
         // Progress is per-user (V11): record_answer upserts the caller's own

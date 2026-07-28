@@ -75,6 +75,19 @@ public class DeckService {
                 .toList();
     }
 
+    /**
+     * Propagate the user's current display name to every deck they author, so the
+     * credited name stays current after a profile rename. Prefers the name the
+     * caller just set (passed from the client, robust against JWT-refresh lag);
+     * falls back to the JWT-resolved name when that's blank (a cleared name → the
+     * same email-local default a fresh deck would get). Returns the rows updated.
+     */
+    @Transactional
+    public int syncAuthorName(Caller caller, String rawName) {
+        String name = (rawName != null && !rawName.isBlank()) ? rawName.trim() : caller.displayName();
+        return deckRepository.updateAuthorName(caller.id(), name);
+    }
+
     /** The Saved tab: decks the user has bookmarked but doesn't own. */
     @Transactional(readOnly = true)
     public List<DeckResponse> getSavedDecks(String userId) {

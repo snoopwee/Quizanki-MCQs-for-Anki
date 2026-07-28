@@ -19,7 +19,7 @@ import { useGuestStars } from "@/stores/guestStarStore";
 import type { ApkgParseResponse } from "@/types/api";
 
 // The landing page IS the product trial: a guest can upload a deck and study /
-// quiz it immediately. Logged-in users see a "Dashboard" link instead of Log in.
+// quiz it immediately. Logged-in users see a "Home" link instead of Log in.
 type Step =
   | { kind: "import" }
   | { kind: "flashcards"; parsed: ApkgParseResponse }
@@ -70,10 +70,10 @@ function Landing() {
     <span className="h-9 w-24" aria-hidden />
   ) : user ? (
     <Link
-      href="/dashboard"
+      href="/home"
       className="rounded-full bg-ink px-4 py-1.5 text-sm font-semibold text-canvas transition hover:opacity-90"
     >
-      Dashboard →
+      Home →
     </Link>
   ) : (
     <button
@@ -236,7 +236,7 @@ function Landing() {
           initialMode="login"
           onClose={() => setAuthOpen(false)}
           onAuthed={() => {
-            router.push(next ?? "/dashboard");
+            router.push(next ?? "/home");
             router.refresh();
           }}
         />

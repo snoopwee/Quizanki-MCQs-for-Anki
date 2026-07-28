@@ -658,4 +658,27 @@ class DeckServiceTest {
                 .isInstanceOf(NotFoundException.class);
         verify(userDeckRepository, never()).save(any());
     }
+
+    // ── author-name propagation ──────────────────────────────────────────────
+
+    @Test
+    void syncAuthorName_stampsTheProvidedNameAcrossAuthoredDecks() {
+        when(deckRepository.updateAuthorName(eq(USER), eq("Alice Renamed"))).thenReturn(3);
+
+        int updated = service.syncAuthorName(new Caller(USER, "stale-jwt-name"), "  Alice Renamed  ");
+
+        assertThat(updated).isEqualTo(3);
+        // The client-supplied name wins (trimmed) over the JWT's, so it works even
+        // before the token refreshes.
+        verify(deckRepository).updateAuthorName(USER, "Alice Renamed");
+    }
+
+    @Test
+    void syncAuthorName_fallsBackToTheJwtName_whenTheProvidedNameIsBlank() {
+        when(deckRepository.updateAuthorName(eq(USER), eq("alice"))).thenReturn(0);
+
+        service.syncAuthorName(new Caller(USER, "alice"), "   ");
+
+        verify(deckRepository).updateAuthorName(USER, "alice");
+    }
 }

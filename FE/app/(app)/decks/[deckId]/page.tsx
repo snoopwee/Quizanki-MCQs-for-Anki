@@ -3,7 +3,14 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useDeckContents, useDeckCopies, useDeleteDeck } from "@/hooks/useDecks";
+import {
+  useCloneDeck,
+  useDeckContents,
+  useDeckCopies,
+  useDeleteDeck,
+  useOpenDeck,
+  useSaveDeck,
+} from "@/hooks/useDecks";
 import { useNotes, useToggleStar } from "@/hooks/useNotes";
 import { useStartSession } from "@/hooks/useQuizSession";
 import { deckContentsToParsed } from "@/lib/deckContents";
@@ -46,8 +53,31 @@ function DeckDetail() {
   const startSession = useStartSession();
   const startQuiz = useQuizStore((s) => s.startSession);
   const deleteDeck = useDeleteDeck();
+  const cloneDeck = useCloneDeck();
+  const saveDeck = useSaveDeck(deckId);
+  const openDeck = useOpenDeck();
   const copies = useDeckCopies(deckId).data ?? 0;
   const toggleStar = useToggleStar(deckId);
+
+  // The viewer's relationship to this deck (from the studiable read). A non-owner
+  // studying a shared deck gets the Save/Duplicate controls instead of edit/delete.
+  const owned = contentsQuery.data?.owned ?? false;
+  const saved = contentsQuery.data?.saved ?? false;
+
+  // Mark the deck opened once it loads, so it shows in Home ▸ Recent. Fire-and-
+  // forget; a failure (e.g. lost access) is harmless.
+  const openedRef = useRef(false);
+  const openMutate = openDeck.mutate;
+  useEffect(() => {
+    if (contentsQuery.data && !openedRef.current) {
+      openedRef.current = true;
+      openMutate(deckId);
+    }
+  }, [contentsQuery.data, deckId, openMutate]);
+
+  function handleDuplicate() {
+    cloneDeck.mutate(deckId, { onSuccess: (deck) => router.push(`/decks/${deck.id}`) });
+  }
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -135,7 +165,7 @@ function DeckDetail() {
 
   function confirmDelete() {
     deleteDeck.mutate(deckId, {
-      onSuccess: () => router.push("/dashboard"),
+      onSuccess: () => router.push("/home"),
     });
   }
 
@@ -151,7 +181,7 @@ function DeckDetail() {
     return (
       <div className="mx-auto max-w-3xl space-y-3">
         <p className="text-sm text-muted">Deck not found.</p>
-        <Link href="/dashboard" className="text-sm font-medium text-accent hover:underline">
+        <Link href="/home" className="text-sm font-medium text-accent hover:underline">
           Back to decks
         </Link>
       </div>
@@ -167,7 +197,7 @@ function DeckDetail() {
     <div className="mx-auto max-w-3xl space-y-6">
       <Breadcrumb
         items={[
-          { label: "Dashboard", href: "/dashboard" },
+          { label: "Home", href: "/home" },
           // When on the setup step, the deck name becomes a link back to the
           // flashcard view; on the flashcard view it's the current page (no href).
           step === "setup"
@@ -189,12 +219,24 @@ function DeckDetail() {
             <div className="absolute right-3 top-4">
               <KebabMenu
                 label="Deck options"
-                items={[
-                  { label: "Edit flashcards", onClick: () => router.push(`/decks/${deckId}/edit`) },
-                  { label: "Share deck", onClick: () => setShareOpen(true) },
-                  { label: "Export deck", onClick: () => setExportOpen(true) },
-                  { label: "Delete deck", onClick: () => setDeleteOpen(true), danger: true },
-                ]}
+                items={
+                  owned
+                    ? [
+                        { label: "Edit flashcards", onClick: () => router.push(`/decks/${deckId}/edit`) },
+                        { label: "Share deck", onClick: () => setShareOpen(true) },
+                        { label: "Export deck", onClick: () => setExportOpen(true) },
+                        { label: "Delete deck", onClick: () => setDeleteOpen(true), danger: true },
+                      ]
+                    : [
+                        // Not the owner: they can keep it in their library or fork
+                        // an editable copy — but never edit/delete the original.
+                        {
+                          label: saved ? "Remove from Home" : "Save to Home",
+                          onClick: () => saveDeck.mutate(!saved),
+                        },
+                        { label: "Duplicate", onClick: handleDuplicate },
+                      ]
+                }
               />
             </div>
             <div className="p-6">
@@ -224,7 +266,7 @@ function DeckDetail() {
                     {copies} cop{copies === 1 ? "y" : "ies"}
                   </span>
                 )}
-                {contentsQuery.data.isPublic && (
+                {owned && contentsQuery.data.isPublic && (
                   <button
                     type="button"
                     onClick={() => setShareOpen(true)}
@@ -233,6 +275,13 @@ function DeckDetail() {
                     <Icon name="link" size={13} />
                     Shared
                   </button>
+                )}
+                {/* Non-owners see their library state at a glance. */}
+                {!owned && saved && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent-ink">
+                    <Icon name="check" size={13} />
+                    Saved
+                  </span>
                 )}
               </div>
             </div>
@@ -280,11 +329,11 @@ function DeckDetail() {
               onToggleStar={onToggleStar}
               hideActions
               hideHeader
-              editable
+              editable={owned}
               deckId={deckId}
               previewSlot={previewSlot}
               hiddenSide={hiddenSide}
-              onBack={() => router.push("/dashboard")}
+              onBack={() => router.push("/home")}
               onStartTest={goToSetup}
             />
           </div>

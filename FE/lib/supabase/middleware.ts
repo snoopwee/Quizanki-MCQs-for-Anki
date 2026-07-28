@@ -58,7 +58,7 @@ export async function updateSession(request: NextRequest) {
   // (modal opens on /, redirects to next on success) still works.
   if (user && path === "/" && !request.nextUrl.searchParams.get("next")) {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = "/home";
     url.search = "";
     return NextResponse.redirect(url);
   }

@@ -9,7 +9,7 @@ import type { ApkgParseResponse, DeckResponse, ImportDeckRequest } from "@/types
 // Owns the deck-import mutation + its status toast. Mounted in AppShell so the
 // mutation and its UI survive navigation between (app) pages — without this, the
 // "Saving deck…" toast lives on /import and disappears the moment the user
-// clicks Dashboard, even though the POST is still in flight.
+// clicks Home, even though the POST is still in flight.
 interface ImportContextValue {
   startImport(parsed: ApkgParseResponse): void;
   // Save an already-built request — what the import review screen sends once the

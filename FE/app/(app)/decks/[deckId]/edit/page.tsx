@@ -126,7 +126,7 @@ function DeckEditor() {
     return (
       <div className="mx-auto max-w-3xl space-y-3">
         <p className="text-sm text-muted">Deck not found.</p>
-        <Link href="/dashboard" className="text-sm font-medium text-accent hover:underline">
+        <Link href="/home" className="text-sm font-medium text-accent hover:underline">
           Back to decks
         </Link>
       </div>

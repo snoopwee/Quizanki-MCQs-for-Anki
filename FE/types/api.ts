@@ -237,6 +237,11 @@ export interface DeckContentsResponse {
   authorId: string;
   authorName: string | null;
   sourceAuthorName: string | null;
+  // The viewer's relationship to the deck: `owned` picks the deck-options kebab
+  // (owned = edit/share/export/delete; otherwise Save to Home + Duplicate);
+  // `saved` is the Save-to-Home toggle state. Both false on the public read.
+  owned: boolean;
+  saved: boolean;
   noteTypes: DeckContentsNoteType[];
 }
 

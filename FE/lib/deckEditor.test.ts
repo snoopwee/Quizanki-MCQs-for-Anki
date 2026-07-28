@@ -50,6 +50,8 @@ function deck(noteTypes: DeckContentsNoteType[]): DeckContentsResponse {
     authorId: "u1",
     authorName: "Alice",
     sourceAuthorName: null,
+    owned: true,
+    saved: false,
     noteTypes,
   };
 }

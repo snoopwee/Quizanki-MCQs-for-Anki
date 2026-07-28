@@ -223,7 +223,7 @@ function Sidebar({
           and fills the slim rail (so it's centred). The toggle only shows while
           expanded and carries a border, lined up with the nav tabs' right edge. */}
       <div className="flex h-10 items-center">
-        <Link href="/dashboard" onClick={onNavigate} aria-label="Dashboard" className="flex min-w-0 items-center">
+        <Link href="/home" onClick={onNavigate} aria-label="Home" className="flex min-w-0 items-center">
           <BrandMark size="lg" withWordmark={false} />
           <RevealLabel show={expanded} className="font-display text-lg font-semibold tracking-tight">
             Quizanki<span className="text-accent">.</span>
@@ -263,7 +263,7 @@ function Sidebar({
       </Link>
 
       <nav className="mt-6 flex flex-col gap-1 text-sm">
-        <NavLink href="/dashboard" pathname={pathname} label="Dashboard" icon="home" expanded={expanded} onNavigate={onNavigate} />
+        <NavLink href="/home" pathname={pathname} label="Home" icon="home" expanded={expanded} onNavigate={onNavigate} />
         <NavLink href="/discover" pathname={pathname} label="Discover" icon="search" expanded={expanded} onNavigate={onNavigate} />
         <NavLink
           href="/import"

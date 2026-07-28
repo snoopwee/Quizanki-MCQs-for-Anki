@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/hooks/useSession";
 import { useDecks } from "@/hooks/useDecks";
+import api from "@/lib/axios";
 import { createClient } from "@/lib/supabase/client";
 import { avatarUrlOf, displayNameOf, hasCustomAvatar, initialsFrom } from "@/lib/userDisplay";
 import { AccountSection, accountInputClasses } from "@/components/account/AccountSection";
@@ -22,6 +24,7 @@ function formatJoined(iso?: string): string | null {
 export default function ProfilePage() {
   const { user, loading } = useSession();
   const decksQuery = useDecks();
+  const queryClient = useQueryClient();
 
   const storedName = displayNameOf(user);
   const email = user?.email ?? "";
@@ -51,11 +54,30 @@ export default function ProfilePage() {
     setToast(null);
     const supabase = createClient();
     const { error } = await supabase.auth.updateUser({ data: { display_name: next } });
-    setSaving(false);
     if (error) {
+      setSaving(false);
       setToast({ kind: "error", message: error.message || "Couldn't save your name." });
       return;
     }
+
+    // Deck author names are stored snapshots (there's no user table), so a rename
+    // must be pushed onto the decks this user authored — otherwise old decks (and
+    // Discover / shared pages) keep showing the old name. We send the new name
+    // explicitly so it applies even before the JWT refreshes; refreshing the
+    // session first also fixes the "cleared name" case server-side.
+    try {
+      await supabase.auth.refreshSession();
+      await api.put("/me/author-name", { name: next });
+      // Drop caches that render the author name so it updates without a reload.
+      queryClient.invalidateQueries({ queryKey: ["deck-contents"] });
+      queryClient.invalidateQueries({ queryKey: ["discover"] });
+      queryClient.invalidateQueries({ queryKey: ["shared-deck"] });
+    } catch {
+      // The name itself is saved; propagation is best-effort and self-heals on the
+      // next rename, so don't surface this as a failure.
+    }
+
+    setSaving(false);
     setToast({ kind: "success", message: "Profile updated." });
   }
 

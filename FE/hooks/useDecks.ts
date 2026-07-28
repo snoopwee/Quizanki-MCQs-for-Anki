@@ -20,6 +20,61 @@ export function useDecks() {
   });
 }
 
+const SAVED_KEY = ["decks", "saved"] as const;
+const RECENT_KEY = ["decks", "recent"] as const;
+
+// The Home "Saved" tab: decks the user bookmarked but doesn't own.
+export function useSavedDecks() {
+  return useQuery({
+    queryKey: SAVED_KEY,
+    queryFn: async () => {
+      const { data } = await api.get<DeckResponse[]>("/decks/saved");
+      return data;
+    },
+  });
+}
+
+// The Home "Recent" tab: decks opened in the last 30 days.
+export function useRecentDecks() {
+  return useQuery({
+    queryKey: RECENT_KEY,
+    queryFn: async () => {
+      const { data } = await api.get<DeckResponse[]>("/decks/recent");
+      return data;
+    },
+  });
+}
+
+// Bookmark a deck to Home (or remove it) — a reference, not a copy. Refreshes the
+// deck's own contents (the Save toggle reads `saved` from there) plus the Home lists.
+export function useSaveDeck(deckId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (saved: boolean) => {
+      await api.put(`/decks/${deckId}/save`, { saved });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["deck-contents", deckId] });
+      queryClient.invalidateQueries({ queryKey: SAVED_KEY });
+      queryClient.invalidateQueries({ queryKey: RECENT_KEY });
+    },
+  });
+}
+
+// Mark a deck opened so it shows in Recent. Fire-and-forget from the deck page on
+// mount; a failure (e.g. a deck you can't study) is harmless and ignored.
+export function useOpenDeck() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (deckId: string) => {
+      await api.post(`/decks/${deckId}/open`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: RECENT_KEY });
+    },
+  });
+}
+
 export function useDeckContents(deckId: string) {
   return useQuery({
     queryKey: ["deck-contents", deckId],

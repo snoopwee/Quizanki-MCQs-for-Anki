@@ -4,6 +4,7 @@ import com.ankiquiz.entity.Deck;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -86,4 +87,14 @@ public interface DeckRepository extends JpaRepository<Deck, UUID> {
 
     /** How many copies people have taken of this deck. */
     long countByCloneSourceDeckId(UUID cloneSourceDeckId);
+
+    /**
+     * Refresh the credited name on every deck this user AUTHORS (not owns) to their
+     * current display name. author_name is denormalised (no user table to join), so
+     * a profile rename would otherwise leave old decks showing the old name until
+     * their next edit. Returns how many rows changed.
+     */
+    @Modifying
+    @Query("update Deck d set d.authorName = :name where d.authorId = :userId")
+    int updateAuthorName(@Param("userId") String userId, @Param("name") String name);
 }

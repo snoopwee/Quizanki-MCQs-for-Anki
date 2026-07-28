@@ -33,6 +33,9 @@ public record DeckContentsResponse(
         // the "Original deck by X" line, null when this deck isn't a copy.
         String authorId,
         String authorName,
+        // The author's profile picture (denormalised, kept current on rename), so
+        // the deck page can show it next to the name. Null → the client shows initials.
+        String authorAvatarUrl,
         String sourceAuthorName,
         // The VIEWER's relationship to the deck, so the client can pick the right
         // controls: `owned` = they own it (owner kebab: edit/share/export/delete);

@@ -181,40 +181,47 @@ function DeckGridSection({
     <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {decks.map((deck) => (
         <li key={deck.id}>
-          <Link href={`/decks/${deck.id}`} className="block">
-            <Card hover className="overflow-hidden p-0">
-              <div className="h-1.5 bg-accent" />
-              <div className="p-5">
-                <div className="flex items-start gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-display text-base font-semibold text-ink">
-                      {deck.name}
-                    </p>
-                    <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-faint">
-                      <span className="inline-flex items-center gap-1.5">
-                        <Icon name="layers" size={13} />
-                        {deck.cardCount ?? 0} cards
+          {/* Stretched-link card so the author link inside isn't nested in the
+              card link (nested <a> is invalid HTML). */}
+          <Card hover className="relative overflow-hidden p-0">
+            <div className="h-1.5 bg-accent" />
+            <div className="p-5">
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-display text-base font-semibold text-ink">
+                    {deck.name}
+                  </p>
+                  <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-faint">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Icon name="layers" size={13} />
+                      {deck.cardCount ?? 0} cards
+                    </span>
+                    {deck.isPublic && (
+                      <span className="inline-flex items-center gap-1 text-accent">
+                        <Icon name="link" size={13} />
+                        Shared
                       </span>
-                      {deck.isPublic && (
-                        <span className="inline-flex items-center gap-1 text-accent">
-                          <Icon name="link" size={13} />
-                          Shared
-                        </span>
-                      )}
-                    </p>
-                    {showAuthor && (
-                      <DeckAuthor
-                        authorName={deck.authorName}
-                        sourceAuthorName={deck.sourceAuthorName}
-                        className="mt-1.5"
-                      />
                     )}
-                  </div>
-                  <Ring value={Math.round(deck.completion ?? 0) / 100} size={46} label={`${Math.round(deck.completion ?? 0)}%`} />
+                  </p>
+                  {showAuthor && (
+                    <DeckAuthor
+                      authorId={deck.authorId}
+                      authorName={deck.authorName}
+                      authorAvatarUrl={deck.authorAvatarUrl}
+                      sourceAuthorName={deck.sourceAuthorName}
+                      className="relative z-20 mt-1.5"
+                    />
+                  )}
                 </div>
+                <Ring value={Math.round(deck.completion ?? 0) / 100} size={46} label={`${Math.round(deck.completion ?? 0)}%`} />
               </div>
-            </Card>
-          </Link>
+            </div>
+            <Link
+              href={`/decks/${deck.id}`}
+              aria-label={deck.name}
+              className="absolute inset-0 z-10"
+            />
+          </Card>
         </li>
       ))}
     </ul>

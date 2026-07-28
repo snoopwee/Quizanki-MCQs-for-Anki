@@ -73,6 +73,12 @@ public class Deck {
     @Column(name = "source_author_name")
     private String sourceAuthorName;
 
+    // The credited author's profile picture (denormalised like author_name — no
+    // user table to join). Snapshotted at write, refreshed on profile change.
+    // Null = no photo (client shows initials).
+    @Column(name = "author_avatar_url")
+    private String authorAvatarUrl;
+
     public UUID getId() {
         return id;
     }
@@ -191,5 +197,13 @@ public class Deck {
 
     public void setSourceAuthorName(String sourceAuthorName) {
         this.sourceAuthorName = sourceAuthorName;
+    }
+
+    public String getAuthorAvatarUrl() {
+        return authorAvatarUrl;
+    }
+
+    public void setAuthorAvatarUrl(String authorAvatarUrl) {
+        this.authorAvatarUrl = authorAvatarUrl;
     }
 }

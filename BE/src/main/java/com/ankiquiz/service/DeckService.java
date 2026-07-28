@@ -7,6 +7,7 @@ import com.ankiquiz.dto.request.UpdateDeckContentsRequest;
 import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.DeckContentsResponse.NoteContents;
 import com.ankiquiz.dto.response.DeckContentsResponse.NoteTypeContents;
+import com.ankiquiz.dto.response.AuthorPageResponse;
 import com.ankiquiz.dto.response.DeckResponse;
 import com.ankiquiz.dto.response.PublicDeckPage;
 import com.ankiquiz.dto.response.PublicDeckSummary;
@@ -76,16 +77,23 @@ public class DeckService {
     }
 
     /**
-     * Propagate the user's current display name to every deck they author, so the
-     * credited name stays current after a profile rename. Prefers the name the
-     * caller just set (passed from the client, robust against JWT-refresh lag);
-     * falls back to the JWT-resolved name when that's blank (a cleared name → the
-     * same email-local default a fresh deck would get). Returns the rows updated.
+     * Propagate the user's current profile (display name + avatar) onto every deck
+     * they author, so the credited name and picture stay current after a profile
+     * change. Prefers the values the caller just set (passed from the client, robust
+     * against JWT-refresh lag): a blank name falls back to the JWT-resolved name (a
+     * cleared name → the same email-local default a fresh deck gets); a blank avatar
+     * means "no photo" (null → initials). Returns the rows updated.
      */
     @Transactional
-    public int syncAuthorName(Caller caller, String rawName) {
+    public int syncAuthorProfile(Caller caller, String rawName, String rawAvatarUrl) {
         String name = (rawName != null && !rawName.isBlank()) ? rawName.trim() : caller.displayName();
-        return deckRepository.updateAuthorName(caller.id(), name);
+        // Blank avatar → fall back to the (refreshed) JWT's avatar, symmetric with
+        // the name. This is what makes "remove custom photo" reveal an OAuth default
+        // rather than wiping the credit to initials — the caller cleared the custom
+        // key and refreshed before this call, so caller.avatarUrl() is now the
+        // effective one (OAuth photo, or null when there's none).
+        String avatar = (rawAvatarUrl != null && !rawAvatarUrl.isBlank()) ? rawAvatarUrl.trim() : caller.avatarUrl();
+        return deckRepository.updateAuthorProfile(caller.id(), name, avatar);
     }
 
     /** The Saved tab: decks the user has bookmarked but doesn't own. */
@@ -193,16 +201,16 @@ public class DeckService {
      * clone differ only in these four values — an import credits the importer; a
      * copy keeps crediting the deck it came from until its new owner edits it.
      */
-    private record Provenance(String authorId, String authorName, String sourceAuthorName,
-                              UUID cloneSourceDeckId) {
+    private record Provenance(String authorId, String authorName, String authorAvatarUrl,
+                              String sourceAuthorName, UUID cloneSourceDeckId) {
 
         static Provenance ownWork(Caller caller) {
-            return new Provenance(caller.id(), caller.displayName(), null, null);
+            return new Provenance(caller.id(), caller.displayName(), caller.avatarUrl(), null, null);
         }
 
         static Provenance copyOf(Deck source) {
             return new Provenance(source.getAuthorId(), source.getAuthorName(),
-                    source.getAuthorName(), source.getId());
+                    source.getAuthorAvatarUrl(), source.getAuthorName(), source.getId());
         }
     }
 
@@ -224,6 +232,7 @@ public class DeckService {
         deck.setImportedAt(OffsetDateTime.now());
         deck.setAuthorId(provenance.authorId());
         deck.setAuthorName(provenance.authorName());
+        deck.setAuthorAvatarUrl(provenance.authorAvatarUrl());
         deck.setSourceAuthorName(provenance.sourceAuthorName());
         deck.setCloneSourceDeckId(provenance.cloneSourceDeckId());
         // A MISSING isPublic means private. The review screen defaults its control
@@ -312,16 +321,38 @@ public class DeckService {
 
         Page<Deck> page = deckRepository.findPublicDecks(q, minCards, maxCards, pageable);
         List<PublicDeckSummary> items = page.getContent().stream()
-                .map(d -> new PublicDeckSummary(
-                        d.getId(),
-                        d.getName(),
-                        d.getCardCount(),
-                        d.getAuthorName(),
-                        d.getSourceAuthorName(),
-                        d.getSharedAt()))
+                .map(DeckService::toSummary)
                 .toList();
         return new PublicDeckPage(items, page.getNumber(), size,
                 page.getTotalElements(), page.getTotalPages());
+    }
+
+    private static PublicDeckSummary toSummary(Deck d) {
+        return new PublicDeckSummary(
+                d.getId(),
+                d.getName(),
+                d.getCardCount(),
+                d.getAuthorId(),
+                d.getAuthorName(),
+                d.getAuthorAvatarUrl(),
+                d.getSourceAuthorName(),
+                d.getSharedAt());
+    }
+
+    /**
+     * A public author page: an author's published decks + their current name. No
+     * user table, so the name comes off their decks' denormalised author_name
+     * (kept current by the profile-rename propagation). Public decks only — you
+     * can't expose an author's private decks to other viewers. An author with no
+     * public decks yields a null name + empty list (the page reads as empty).
+     */
+    @Transactional(readOnly = true)
+    public AuthorPageResponse getAuthorPage(String authorId) {
+        List<Deck> decks = deckRepository.findPublicByAuthor(authorId);
+        List<PublicDeckSummary> summaries = decks.stream().map(DeckService::toSummary).toList();
+        String authorName = decks.isEmpty() ? null : decks.get(0).getAuthorName();
+        String avatarUrl = decks.isEmpty() ? null : decks.get(0).getAuthorAvatarUrl();
+        return new AuthorPageResponse(authorId, authorName, avatarUrl, summaries.size(), summaries);
     }
 
     /** How many people have taken a copy of this deck — shown on the deck page,
@@ -510,6 +541,7 @@ public class DeckService {
             deck.setAuthorId(caller.id());
         }
         deck.setAuthorName(caller.displayName());
+        deck.setAuthorAvatarUrl(caller.avatarUrl());
     }
 
     // The note type new/imported Front-Back cards land in. Reuse a non-cloze type
@@ -589,6 +621,7 @@ public class DeckService {
                 deck.isPublic(),
                 deck.getAuthorId(),
                 deck.getAuthorName(),
+                deck.getAuthorAvatarUrl(),
                 deck.getSourceAuthorName(),
                 viewerUserId != null && viewerUserId.equals(deck.getUserId()),
                 viewerUserId != null && userDeckRepository.existsByUserIdAndDeckIdAndSavedTrue(viewerUserId, deckId),

@@ -133,25 +133,36 @@ function DiscoverContent() {
           >
             {decks.map((deck) => (
               <li key={deck.id}>
-                <Link href={`/shared/${deck.id}`} className="block">
-                  <Card hover className="overflow-hidden p-0">
-                    <div className="h-1.5 bg-accent" />
-                    <div className="space-y-2 p-5">
-                      <p className="truncate font-display text-base font-semibold text-ink">
-                        {deck.name}
-                      </p>
-                      <p className="inline-flex items-center gap-1.5 font-mono text-xs text-faint">
+                {/* Stretched-link card: the whole card is clickable via an overlay
+                    link, so the author link inside stays a real (non-nested) link. */}
+                <Card hover className="relative overflow-hidden p-0">
+                  <div className="h-1.5 bg-accent" />
+                  <div className="space-y-2 p-5">
+                    <p className="truncate font-display text-base font-semibold text-ink">
+                      {deck.name}
+                    </p>
+                    {/* Card count and author share a row; DeckAuthor's "·" (dot
+                        variant) separates them — no avatar on Discover. */}
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="inline-flex items-center gap-1.5 font-mono text-xs text-faint">
                         <Icon name="layers" size={13} />
                         {deck.cardCount ?? 0} card{deck.cardCount === 1 ? "" : "s"}
-                      </p>
+                      </span>
                       <DeckAuthor
+                        authorId={deck.authorId}
                         authorName={deck.authorName}
                         sourceAuthorName={deck.sourceAuthorName}
-                        className="block"
+                        variant="dot"
+                        className="relative z-20"
                       />
                     </div>
-                  </Card>
-                </Link>
+                  </div>
+                  <Link
+                    href={`/shared/${deck.id}`}
+                    aria-label={deck.name}
+                    className="absolute inset-0 z-10"
+                  />
+                </Card>
               </li>
             ))}
           </ul>

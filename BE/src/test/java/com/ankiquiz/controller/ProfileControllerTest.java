@@ -1,6 +1,6 @@
 package com.ankiquiz.controller;
 
-import com.ankiquiz.dto.request.AuthorNameRequest;
+import com.ankiquiz.dto.request.AuthorProfileRequest;
 import com.ankiquiz.exception.GlobalExceptionHandler;
 import com.ankiquiz.service.Caller;
 import com.ankiquiz.service.DeckService;
@@ -37,26 +37,29 @@ class ProfileControllerTest {
     @MockBean
     private JwtDecoder jwtDecoder;
 
-    // Same as elsewhere: a bare test JWT resolves to (subject, Anonymous).
-    private static final Caller CALLER = new Caller("user-123", Caller.ANONYMOUS);
+    // Same as elsewhere: a bare test JWT resolves to (subject, Anonymous, no avatar).
+    private static final Caller CALLER = new Caller("user-123", Caller.ANONYMOUS, null);
 
     @Test
-    void syncAuthorName_returns200_withTheUpdatedCount() throws Exception {
-        when(deckService.syncAuthorName(eq(CALLER), eq("Alice Renamed"))).thenReturn(4);
+    void syncAuthorProfile_returns200_withTheUpdatedCount() throws Exception {
+        when(deckService.syncAuthorProfile(eq(CALLER), eq("Alice Renamed"), eq("https://cdn/a.png")))
+                .thenReturn(4);
 
-        mockMvc.perform(put("/api/v1/me/author-name")
+        mockMvc.perform(put("/api/v1/me/author-profile")
                         .with(jwt().jwt(j -> j.subject("user-123")))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new AuthorNameRequest("Alice Renamed"))))
+                        .content(objectMapper.writeValueAsString(
+                                new AuthorProfileRequest("Alice Renamed", "https://cdn/a.png"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.updated").value(4));
     }
 
     @Test
-    void syncAuthorName_toleratesAnEmptyBody() throws Exception {
-        when(deckService.syncAuthorName(eq(CALLER), eq((String) null))).thenReturn(0);
+    void syncAuthorProfile_toleratesAnEmptyBody() throws Exception {
+        when(deckService.syncAuthorProfile(eq(CALLER), eq((String) null), eq((String) null)))
+                .thenReturn(0);
 
-        mockMvc.perform(put("/api/v1/me/author-name")
+        mockMvc.perform(put("/api/v1/me/author-profile")
                         .with(jwt().jwt(j -> j.subject("user-123"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.updated").value(0));

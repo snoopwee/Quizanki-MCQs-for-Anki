@@ -69,4 +69,29 @@ class CallerTest {
 
         assertThat(caller.displayName()).isEqualTo("alice");
     }
+
+    @Test
+    void prefersTheUploadedAvatarOverAnyOAuthDefault() {
+        Caller caller = Caller.from(token()
+                .claim("user_metadata", Map.of(
+                        "custom_avatar_url", "https://cdn/uploaded.png",
+                        "avatar_url", "https://google/default.png"))
+                .build());
+
+        assertThat(caller.avatarUrl()).isEqualTo("https://cdn/uploaded.png");
+    }
+
+    @Test
+    void fallsBackToTheOAuthAvatar_whenNoUploadExists() {
+        Caller caller = Caller.from(token()
+                .claim("user_metadata", Map.of("picture", "https://google/pic.png"))
+                .build());
+
+        assertThat(caller.avatarUrl()).isEqualTo("https://google/pic.png");
+    }
+
+    @Test
+    void hasNoAvatar_whenTheTokenCarriesNone() {
+        assertThat(Caller.from(token().build()).avatarUrl()).isNull();
+    }
 }

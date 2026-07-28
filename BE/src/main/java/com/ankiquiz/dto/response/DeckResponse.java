@@ -26,6 +26,10 @@ public record DeckResponse(
         // this deck isn't a copy).
         String authorId,
         String authorName,
+        // The author's profile picture (denormalised, kept current on rename), so
+        // Home / deck cards can show it next to the name. Null → the client shows
+        // initials.
+        String authorAvatarUrl,
         String sourceAuthorName
 ) {
     // For freshly-imported decks (no card_stats yet) completion is 0.
@@ -47,6 +51,7 @@ public record DeckResponse(
                 deck.isPublic(),
                 deck.getAuthorId(),
                 deck.getAuthorName(),
+                deck.getAuthorAvatarUrl(),
                 deck.getSourceAuthorName()
         );
     }

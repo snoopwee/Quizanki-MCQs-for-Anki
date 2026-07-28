@@ -19,12 +19,23 @@ import java.util.Map;
  * OAuth sign-in populates {@code full_name} but not {@code display_name}, and a
  * token could carry neither.
  */
-public record Caller(String id, String displayName) {
+public record Caller(String id, String displayName, String avatarUrl) {
 
     public static final String ANONYMOUS = "Anonymous";
 
     public static Caller from(Jwt jwt) {
-        return new Caller(jwt.getSubject(), resolveDisplayName(jwt));
+        return new Caller(jwt.getSubject(), resolveDisplayName(jwt), resolveAvatarUrl(jwt));
+    }
+
+    // The profile picture, mirroring the FE's avatarUrlOf: the user's uploaded
+    // photo first, then an OAuth default (Google sets avatar_url/picture), else
+    // null. Kept in sync with the deck's snapshot via PUT /me/author-profile.
+    private static String resolveAvatarUrl(Jwt jwt) {
+        Map<String, Object> metadata = userMetadata(jwt);
+        return firstNonBlank(
+                stringValue(metadata.get("custom_avatar_url")),
+                stringValue(metadata.get("avatar_url")),
+                stringValue(metadata.get("picture")));
     }
 
     private static String resolveDisplayName(Jwt jwt) {

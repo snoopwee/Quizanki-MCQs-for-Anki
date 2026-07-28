@@ -245,9 +245,13 @@ function DeckDetail() {
                 {deckName}
               </h1>
               <DeckAuthor
+                authorId={contentsQuery.data.authorId}
                 authorName={contentsQuery.data.authorName}
+                authorAvatarUrl={contentsQuery.data.authorAvatarUrl}
                 sourceAuthorName={contentsQuery.data.sourceAuthorName}
-                className="mt-2"
+                variant="detailed"
+                createdAt={contentsQuery.data.importedAt}
+                className="mt-3"
               />
               <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted">
                 <span className="inline-flex items-center gap-1.5">

@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/hooks/useSession";
 import { useDecks } from "@/hooks/useDecks";
-import api from "@/lib/axios";
 import { createClient } from "@/lib/supabase/client";
 import { avatarUrlOf, displayNameOf, hasCustomAvatar, initialsFrom } from "@/lib/userDisplay";
+import { propagateAuthorProfile } from "@/lib/authorProfile";
 import { AccountSection, accountInputClasses } from "@/components/account/AccountSection";
 import { AvatarUploadModal } from "@/components/account/AvatarUploadModal";
 import { Avatar } from "@/components/ui/Avatar";
@@ -60,22 +60,12 @@ export default function ProfilePage() {
       return;
     }
 
-    // Deck author names are stored snapshots (there's no user table), so a rename
-    // must be pushed onto the decks this user authored — otherwise old decks (and
-    // Discover / shared pages) keep showing the old name. We send the new name
-    // explicitly so it applies even before the JWT refreshes; refreshing the
-    // session first also fixes the "cleared name" case server-side.
-    try {
-      await supabase.auth.refreshSession();
-      await api.put("/me/author-name", { name: next });
-      // Drop caches that render the author name so it updates without a reload.
-      queryClient.invalidateQueries({ queryKey: ["deck-contents"] });
-      queryClient.invalidateQueries({ queryKey: ["discover"] });
-      queryClient.invalidateQueries({ queryKey: ["shared-deck"] });
-    } catch {
-      // The name itself is saved; propagation is best-effort and self-heals on the
-      // next rename, so don't surface this as a failure.
-    }
+    // Deck author name/avatar are stored snapshots (there's no user table), so a
+    // rename must be pushed onto the decks this user authored — otherwise old decks
+    // (and Discover / shared / author / Home pages) keep showing the old name. The
+    // avatar is unchanged here; we re-stamp the current one so name + avatar stay
+    // consistent on the deck rows.
+    await propagateAuthorProfile(supabase, queryClient, { name: next, avatarUrl: avatarUrl || null });
 
     setSaving(false);
     setToast({ kind: "success", message: "Profile updated." });
@@ -181,6 +171,7 @@ export default function ProfilePage() {
         <AvatarUploadModal
           currentUrl={avatarUrl}
           initials={avatar}
+          displayName={storedName}
           canRemove={hasUploadedAvatar}
           onClose={() => setPhotoOpen(false)}
           onResult={(kind, message) => setToast({ kind, message })}

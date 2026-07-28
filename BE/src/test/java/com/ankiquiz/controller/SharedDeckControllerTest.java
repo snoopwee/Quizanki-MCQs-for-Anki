@@ -1,6 +1,7 @@
 package com.ankiquiz.controller;
 
 import com.ankiquiz.config.SecurityConfig;
+import com.ankiquiz.dto.response.AuthorPageResponse;
 import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.PublicDeckPage;
 import com.ankiquiz.dto.response.PublicDeckSummary;
@@ -50,7 +51,7 @@ class SharedDeckControllerTest {
         UUID deckId = UUID.randomUUID();
         DeckContentsResponse contents = new DeckContentsResponse(
                 deckId, "JLPT N4", null, "n4.apkg", 12, OffsetDateTime.now(), 0.0, "ja", "en",
-                true, "user-1", "Alice", null, false, false, List.of());
+                true, "user-1", "Alice", null, null, false, false, List.of());
         when(deckService.getPublicDeckContents(eq(deckId))).thenReturn(contents);
 
         // No .with(jwt(...)) — confirms the public whitelist covers shared decks.
@@ -75,7 +76,7 @@ class SharedDeckControllerTest {
     void discover_isReachableWithoutAuth_andReturnsAPage() throws Exception {
         UUID deckId = UUID.randomUUID();
         PublicDeckPage page = new PublicDeckPage(
-                List.of(new PublicDeckSummary(deckId, "JLPT N4", 120, "Alice", null, OffsetDateTime.now())),
+                List.of(new PublicDeckSummary(deckId, "JLPT N4", 120, "author-1", "Alice", null, null, OffsetDateTime.now())),
                 0, 12, 1, 1);
         when(deckService.getPublicDecks(eq("jlpt"), eq(20), eq(50), eq(12), eq(0))).thenReturn(page);
 
@@ -87,6 +88,22 @@ class SharedDeckControllerTest {
                 .andExpect(jsonPath("$.totalPages").value(1))
                 .andExpect(jsonPath("$.items[0].id").value(deckId.toString()))
                 .andExpect(jsonPath("$.items[0].authorName").value("Alice"));
+    }
+
+    @Test
+    void getAuthor_isReachableWithoutAuth_andListsTheAuthorsPublicDecks() throws Exception {
+        UUID deckId = UUID.randomUUID();
+        AuthorPageResponse page = new AuthorPageResponse("author-1", "Alice", null, 1,
+                List.of(new PublicDeckSummary(deckId, "JLPT N4", 120, "author-1", "Alice", null, null,
+                        OffsetDateTime.now())));
+        when(deckService.getAuthorPage(eq("author-1"))).thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/public/authors/{authorId}", "author-1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.authorName").value("Alice"))
+                .andExpect(jsonPath("$.deckCount").value(1))
+                .andExpect(jsonPath("$.decks[0].id").value(deckId.toString()))
+                .andExpect(jsonPath("$.decks[0].authorId").value("author-1"));
     }
 
     @Test

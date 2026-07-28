@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, type ChangeEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Modal } from "@/components/shared/Modal";
 import { Avatar } from "@/components/ui/Avatar";
 import { AvatarCropper, type AvatarCropperHandle } from "@/components/account/AvatarCropper";
@@ -8,6 +9,7 @@ import { buttonClasses } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/icons";
 import { createClient } from "@/lib/supabase/client";
 import { CUSTOM_AVATAR_KEY } from "@/lib/userDisplay";
+import { propagateAuthorProfile } from "@/lib/authorProfile";
 import { ACCEPTED_IMAGE_TYPES, validateImageFile } from "@/lib/image";
 import { avatarErrorMessage, removeAvatar, uploadAvatar } from "@/lib/avatarStorage";
 
@@ -17,17 +19,22 @@ import { avatarErrorMessage, removeAvatar, uploadAvatar } from "@/lib/avatarStor
 export function AvatarUploadModal({
   currentUrl,
   initials,
+  displayName,
   canRemove,
   onClose,
   onResult,
 }: {
   currentUrl: string;
   initials: string;
+  // The user's current display name — re-stamped alongside the new avatar when we
+  // propagate the change onto their authored decks.
+  displayName: string;
   // True only when there's an avatar of ours to delete (not an OAuth default).
   canRemove: boolean;
   onClose: () => void;
   onResult: (kind: "success" | "error", message: string) => void;
 }) {
+  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cropperRef = useRef<AvatarCropperHandle>(null);
   const [pickedFile, setPickedFile] = useState<File | null>(null);
@@ -61,6 +68,9 @@ export function AvatarUploadModal({
         data: { [CUSTOM_AVATAR_KEY]: url },
       });
       if (updateErr) throw updateErr;
+      // Snapshotted onto the user's decks like the display name, so their avatar
+      // updates on the deck / Discover / author pages without them re-saving.
+      await propagateAuthorProfile(supabase, queryClient, { name: displayName, avatarUrl: url });
       onResult("success", "Profile picture updated.");
       onClose();
     } catch (err) {
@@ -80,6 +90,8 @@ export function AvatarUploadModal({
         data: { [CUSTOM_AVATAR_KEY]: null },
       });
       if (updateErr) throw updateErr;
+      // Clear the avatar off the user's authored decks too (falls back to initials).
+      await propagateAuthorProfile(supabase, queryClient, { name: displayName, avatarUrl: null });
       onResult("success", "Profile picture removed.");
       onClose();
     } catch (err) {

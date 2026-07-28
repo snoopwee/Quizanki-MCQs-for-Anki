@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/axios";
 import type {
+  AuthorPageResponse,
   DeckContentsResponse,
   DeckResponse,
   ImportDeckRequest,
@@ -70,7 +71,10 @@ export function useOpenDeck() {
       await api.post(`/decks/${deckId}/open`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: RECENT_KEY });
+      // Only mark Recent stale — don't refetch now. This fires while the user is
+      // on the deck page (not Home), so an immediate /decks/recent round-trip is
+      // pure waste; Home refetches it on its next mount, which is soon enough.
+      queryClient.invalidateQueries({ queryKey: RECENT_KEY, refetchType: "none" });
     },
   });
 }
@@ -249,6 +253,20 @@ export function useDiscoverDecks(params: DiscoverParams) {
           offset: params.page * params.pageSize,
         },
       });
+      return data;
+    },
+  });
+}
+
+// An author's public decks + identity. Public — guests can view an author page.
+// A 404 (no such author / no public decks) is a permanent answer, so don't retry.
+export function useAuthorPage(authorId: string) {
+  return useQuery({
+    queryKey: ["author", authorId],
+    enabled: Boolean(authorId),
+    retry: false,
+    queryFn: async () => {
+      const { data } = await api.get<AuthorPageResponse>(`/public/authors/${authorId}`);
       return data;
     },
   });

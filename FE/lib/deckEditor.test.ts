@@ -49,6 +49,7 @@ function deck(noteTypes: DeckContentsNoteType[]): DeckContentsResponse {
     isPublic: false,
     authorId: "u1",
     authorName: "Alice",
+    authorAvatarUrl: null,
     sourceAuthorName: null,
     owned: true,
     saved: false,

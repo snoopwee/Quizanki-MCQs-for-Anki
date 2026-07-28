@@ -67,8 +67,8 @@ class DeckControllerTest {
     // What Caller.from() resolves a bare test JWT to: the subject, and — with no
     // email or user_metadata claim on it — the anonymous display name. Asserting
     // on this exact value keeps the controller→service hand-off pinned down.
-    private static final Caller CALLER = new Caller("user-123", Caller.ANONYMOUS);
-    private static final Caller OTHER_CALLER = new Caller("user-456", Caller.ANONYMOUS);
+    private static final Caller CALLER = new Caller("user-123", Caller.ANONYMOUS, null);
+    private static final Caller OTHER_CALLER = new Caller("user-456", Caller.ANONYMOUS, null);
 
     private static NoteTypeRequest noteType(String name, NoteRequest... notes) {
         return new NoteTypeRequest(
@@ -83,7 +83,7 @@ class DeckControllerTest {
         UUID deckId = UUID.randomUUID();
         DeckResponse response = new DeckResponse(
                 deckId, "JLPT N4", "Japanese::N4", "n4.apkg", 1, OffsetDateTime.now(), 0.0, "ja", "en",
-                true, "user-123", "Alice", null
+                true, "user-123", "Alice", null, null
         );
         when(deckService.importDeck(eq(CALLER), any())).thenReturn(response);
 
@@ -131,7 +131,7 @@ class DeckControllerTest {
         UUID deckId = UUID.randomUUID();
         DeckResponse response = new DeckResponse(
                 deckId, "JLPT N3", "Japanese::N4", "n4.apkg", 1, OffsetDateTime.now(), 42.0, null, null,
-                false, "user-123", "Alice", null
+                false, "user-123", "Alice", null, null
         );
         when(deckService.renameDeck(eq("user-123"), eq(deckId), eq("JLPT N3"))).thenReturn(response);
 
@@ -159,7 +159,7 @@ class DeckControllerTest {
         UUID deckId = UUID.randomUUID();
         DeckContentsResponse response = new DeckContentsResponse(
                 deckId, "Renamed", null, null, 1, OffsetDateTime.now(), 0.0, null, null,
-                false, "user-123", "Alice", null, true, false, List.of());
+                false, "user-123", "Alice", null, null, true, false, List.of());
         when(deckService.replaceDeckContents(eq(CALLER), eq(deckId), any())).thenReturn(response);
 
         UpdateDeckContentsRequest request = new UpdateDeckContentsRequest(
@@ -245,7 +245,7 @@ class DeckControllerTest {
         UUID deckId = UUID.randomUUID();
         DeckContentsResponse response = new DeckContentsResponse(
                 deckId, "JLPT N4", null, null, 1, OffsetDateTime.now(), 0.0, "ja", "en",
-                false, "user-123", "Alice", null, true, false, List.of());
+                false, "user-123", "Alice", null, null, true, false, List.of());
         when(deckService.setDeckLanguages(eq("user-123"), eq(deckId), eq("ja"), eq("en")))
                 .thenReturn(response);
 
@@ -263,7 +263,7 @@ class DeckControllerTest {
         UUID deckId = UUID.randomUUID();
         DeckResponse response = new DeckResponse(
                 deckId, "JLPT N4", null, null, 1, OffsetDateTime.now(), 0.0, null, null,
-                true, "user-123", "Alice", null
+                true, "user-123", "Alice", null, null
         );
         when(deckService.setDeckSharing(eq("user-123"), eq(deckId), eq(true))).thenReturn(response);
 
@@ -364,7 +364,7 @@ class DeckControllerTest {
         UUID deckId = UUID.randomUUID();
         when(deckService.getSavedDecks("user-123")).thenReturn(List.of(new DeckResponse(
                 deckId, "JLPT N4", null, null, 12, OffsetDateTime.now(), 30.0, "ja", "en",
-                true, "user-999", "Alice", null)));
+                true, "user-999", "Alice", null, null)));
 
         mockMvc.perform(get("/api/v1/decks/saved").with(jwt().jwt(j -> j.subject("user-123"))))
                 .andExpect(status().isOk())
@@ -387,7 +387,7 @@ class DeckControllerTest {
         UUID cloneId = UUID.randomUUID();
         DeckResponse response = new DeckResponse(
                 cloneId, "JLPT N4", null, null, 12, OffsetDateTime.now(), 0.0, "ja", "en",
-                false, "user-123", "Alice", "Alice"
+                false, "user-123", "Alice", null, "Alice"
         );
         when(deckService.cloneDeck(eq(OTHER_CALLER), eq(sourceId))).thenReturn(response);
 

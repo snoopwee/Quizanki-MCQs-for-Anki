@@ -38,6 +38,9 @@ export interface DeckResponse {
   // deck isn't a copy).
   authorId: string;
   authorName: string | null;
+  // The author's profile picture (denormalised, kept current on rename), shown on
+  // Home / deck cards next to the name. Null → the client renders initials.
+  authorAvatarUrl: string | null;
   sourceAuthorName: string | null;
 }
 
@@ -236,6 +239,9 @@ export interface DeckContentsResponse {
   // may share this deck (only the credited author can).
   authorId: string;
   authorName: string | null;
+  // The author's profile picture (denormalised, kept current on rename), shown
+  // next to their name. Null → the client renders initials.
+  authorAvatarUrl: string | null;
   sourceAuthorName: string | null;
   // The viewer's relationship to the deck: `owned` picks the deck-options kebab
   // (owned = edit/share/export/delete; otherwise Save to Home + Duplicate);
@@ -250,9 +256,23 @@ export interface PublicDeckSummary {
   id: string;
   name: string;
   cardCount: number | null;
+  // The credited author's id — lets the author name link to their author page.
+  authorId: string;
   authorName: string | null;
+  // The author's profile picture (null → initials).
+  authorAvatarUrl: string | null;
   sourceAuthorName: string | null;
   sharedAt: string | null;
+}
+
+// GET /api/v1/public/authors/{authorId} — an author's public decks + who they are.
+export interface AuthorPageResponse {
+  authorId: string;
+  authorName: string | null;
+  // The author's profile picture for the page header (null → initials).
+  authorAvatarUrl: string | null;
+  deckCount: number;
+  decks: PublicDeckSummary[];
 }
 
 // GET /api/v1/public/discover — one page of the directory plus the counts the

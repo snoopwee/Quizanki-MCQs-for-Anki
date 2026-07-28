@@ -12,7 +12,13 @@ public record PublicDeckSummary(
         UUID id,
         String name,
         Integer cardCount,
+        // The credited author's id — lets the client link the author name to their
+        // author page (all their public decks).
+        String authorId,
         String authorName,
+        // The credited author's avatar (a Supabase Storage URL), or null → the
+        // client shows initials. Denormalized onto the deck like authorName.
+        String authorAvatarUrl,
         // "Original deck by X" — set when this deck started life as a copy.
         String sourceAuthorName,
         OffsetDateTime sharedAt

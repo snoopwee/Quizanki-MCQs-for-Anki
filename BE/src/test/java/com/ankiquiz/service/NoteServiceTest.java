@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
 class NoteServiceTest {
 
     private static final String USER = "user-1";
-    private static final Caller CALLER = new Caller(USER, "Alice");
+    private static final Caller CALLER = new Caller(USER, "Alice", null);
 
     @Mock private DeckRepository deckRepository;
     @Mock private NoteRepository noteRepository;

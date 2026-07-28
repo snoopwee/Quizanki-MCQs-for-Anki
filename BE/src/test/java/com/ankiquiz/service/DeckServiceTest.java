@@ -6,7 +6,6 @@ import com.ankiquiz.dto.request.UpdateDeckContentsRequest.NoteTypeLayout;
 import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.DeckResponse;
 import com.ankiquiz.dto.response.PublicDeckPage;
-import com.ankiquiz.dto.response.PublicDeckSummary;
 import com.ankiquiz.entity.Deck;
 import com.ankiquiz.entity.Note;
 import com.ankiquiz.entity.NoteType;
@@ -55,8 +54,8 @@ class DeckServiceTest {
 
     private static final String USER = "user-1";
     private static final String OTHER_USER = "user-2";
-    private static final Caller CALLER = new Caller(USER, "Alice");
-    private static final Caller OTHER_CALLER = new Caller(OTHER_USER, "Bob");
+    private static final Caller CALLER = new Caller(USER, "Alice", null);
+    private static final Caller OTHER_CALLER = new Caller(OTHER_USER, "Bob", null);
 
     @Mock private DeckRepository deckRepository;
     @Mock private NoteTypeRepository noteTypeRepository;
@@ -533,7 +532,7 @@ class DeckServiceTest {
         when(deckRepository.save(any(Deck.class))).thenAnswer(inv -> inv.getArgument(0));
 
         // Same author, but they've since renamed themselves in their profile.
-        service.replaceDeckContents(new Caller(USER, "Alice Renamed"), deckId,
+        service.replaceDeckContents(new Caller(USER, "Alice Renamed", null), deckId,
                 new UpdateDeckContentsRequest("Old name", List.of(),
                         List.of(new NoteEntry(noteId, typeId, Map.of("Front", "EDITED", "Back", "b0"),
                                 List.of(), null, null))));
@@ -603,6 +602,32 @@ class DeckServiceTest {
     }
 
     @Test
+    void getAuthorPage_listsPublicDecks_andTakesTheNameFromThem() {
+        Deck a = deck();
+        a.setPublic(true);
+        a.setSharedAt(OffsetDateTime.now());
+        when(deckRepository.findPublicByAuthor("alice")).thenReturn(List.of(a));
+
+        var page = service.getAuthorPage("alice");
+
+        assertThat(page.authorId()).isEqualTo("alice");
+        assertThat(page.authorName()).isEqualTo("Alice"); // from the deck's author_name
+        assertThat(page.deckCount()).isEqualTo(1);
+        assertThat(page.decks().get(0).authorId()).isEqualTo(USER); // deck()'s authorId
+    }
+
+    @Test
+    void getAuthorPage_isEmpty_whenTheAuthorHasNoPublicDecks() {
+        when(deckRepository.findPublicByAuthor("nobody")).thenReturn(List.of());
+
+        var page = service.getAuthorPage("nobody");
+
+        assertThat(page.authorName()).isNull();
+        assertThat(page.deckCount()).isZero();
+        assertThat(page.decks()).isEmpty();
+    }
+
+    @Test
     void getPublicDecks_treatsANullQueryAsMatchEverything() {
         when(deckRepository.findPublicDecks(eq(""), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(pageOf(List.of(), 12, 0));
@@ -659,26 +684,40 @@ class DeckServiceTest {
         verify(userDeckRepository, never()).save(any());
     }
 
-    // ── author-name propagation ──────────────────────────────────────────────
+    // ── author-profile (name + avatar) propagation ───────────────────────────
 
     @Test
-    void syncAuthorName_stampsTheProvidedNameAcrossAuthoredDecks() {
-        when(deckRepository.updateAuthorName(eq(USER), eq("Alice Renamed"))).thenReturn(3);
+    void syncAuthorProfile_stampsTheProvidedNameAndAvatarAcrossAuthoredDecks() {
+        when(deckRepository.updateAuthorProfile(eq(USER), eq("Alice Renamed"), eq("https://cdn/a.png")))
+                .thenReturn(3);
 
-        int updated = service.syncAuthorName(new Caller(USER, "stale-jwt-name"), "  Alice Renamed  ");
+        int updated = service.syncAuthorProfile(
+                new Caller(USER, "stale-jwt-name", null), "  Alice Renamed  ", "  https://cdn/a.png  ");
 
         assertThat(updated).isEqualTo(3);
-        // The client-supplied name wins (trimmed) over the JWT's, so it works even
-        // before the token refreshes.
-        verify(deckRepository).updateAuthorName(USER, "Alice Renamed");
+        // The client-supplied name/avatar win (trimmed) over the JWT's, so it works
+        // even before the token refreshes.
+        verify(deckRepository).updateAuthorProfile(USER, "Alice Renamed", "https://cdn/a.png");
     }
 
     @Test
-    void syncAuthorName_fallsBackToTheJwtName_whenTheProvidedNameIsBlank() {
-        when(deckRepository.updateAuthorName(eq(USER), eq("alice"))).thenReturn(0);
+    void syncAuthorProfile_fallsBackToTheJwtNameAndAvatar_whenBlank() {
+        when(deckRepository.updateAuthorProfile(eq(USER), eq("alice"), eq("https://oauth/pic.png")))
+                .thenReturn(0);
 
-        service.syncAuthorName(new Caller(USER, "alice"), "   ");
+        // Blank name/avatar → the (refreshed) JWT's values. This is the "removed my
+        // custom photo, keep my OAuth one" case: the caller carries the OAuth avatar.
+        service.syncAuthorProfile(new Caller(USER, "alice", "https://oauth/pic.png"), "   ", "  ");
 
-        verify(deckRepository).updateAuthorName(USER, "alice");
+        verify(deckRepository).updateAuthorProfile(USER, "alice", "https://oauth/pic.png");
+    }
+
+    @Test
+    void syncAuthorProfile_clearsToNull_whenBlankAndTheJwtHasNoAvatar() {
+        when(deckRepository.updateAuthorProfile(eq(USER), eq("alice"), isNull())).thenReturn(0);
+
+        service.syncAuthorProfile(new Caller(USER, "alice", null), "   ", "  ");
+
+        verify(deckRepository).updateAuthorProfile(USER, "alice", null);
     }
 }

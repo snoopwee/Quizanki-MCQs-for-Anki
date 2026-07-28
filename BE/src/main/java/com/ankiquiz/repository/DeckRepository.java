@@ -38,6 +38,10 @@ public interface DeckRepository extends JpaRepository<Deck, UUID> {
             """)
     Optional<Deck> findStudiable(@Param("deckId") UUID deckId, @Param("userId") String userId);
 
+    /** An author's public decks, newest-shared first — backs the author page. */
+    @Query("select d from Deck d where d.authorId = :authorId and d.isPublic = true order by d.sharedAt desc")
+    List<Deck> findPublicByAuthor(@Param("authorId") String authorId);
+
     /** Decks the user has SAVED (bookmarked) that they don't own — the Saved tab. */
     @Query("""
             select d from Deck d, UserDeck ud
@@ -95,6 +99,8 @@ public interface DeckRepository extends JpaRepository<Deck, UUID> {
      * their next edit. Returns how many rows changed.
      */
     @Modifying
-    @Query("update Deck d set d.authorName = :name where d.authorId = :userId")
-    int updateAuthorName(@Param("userId") String userId, @Param("name") String name);
+    @Query("update Deck d set d.authorName = :name, d.authorAvatarUrl = :avatarUrl where d.authorId = :userId")
+    int updateAuthorProfile(@Param("userId") String userId,
+                            @Param("name") String name,
+                            @Param("avatarUrl") String avatarUrl);
 }

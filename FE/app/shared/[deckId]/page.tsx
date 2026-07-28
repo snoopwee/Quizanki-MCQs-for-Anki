@@ -76,9 +76,13 @@ export default function SharedDeckPage() {
                   {deckQuery.data.name}
                 </h1>
                 <DeckAuthor
+                  authorId={deckQuery.data.authorId}
                   authorName={deckQuery.data.authorName}
+                  authorAvatarUrl={deckQuery.data.authorAvatarUrl}
                   sourceAuthorName={deckQuery.data.sourceAuthorName}
-                  className="mt-2"
+                  variant="detailed"
+                  createdAt={deckQuery.data.importedAt}
+                  className="mt-3"
                 />
                 <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted">
                   <span className="inline-flex items-center gap-1.5">

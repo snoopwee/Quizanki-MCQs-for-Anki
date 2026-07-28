@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.dto.response.AuthorPageResponse;
 import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.PublicDeckPage;
 import com.ankiquiz.service.DeckService;
@@ -39,6 +40,15 @@ public class SharedDeckController {
                     + "doesn't exist or its owner hasn't shared it.")
     public DeckContentsResponse getSharedDeck(@PathVariable UUID deckId) {
         return deckService.getPublicDeckContents(deckId);
+    }
+
+    @GetMapping("/authors/{authorId}")
+    @Operation(summary = "An author's public decks (public, no auth)",
+            description = "All decks credited to the author that are currently shared, newest "
+                    + "first, plus their current display name. Empty when the author has no "
+                    + "public decks.")
+    public AuthorPageResponse getAuthor(@PathVariable String authorId) {
+        return deckService.getAuthorPage(authorId);
     }
 
     @GetMapping("/discover")

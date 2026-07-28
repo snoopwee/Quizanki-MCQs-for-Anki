@@ -9,7 +9,7 @@ type CookieToSet = { name: string; value: string; options: CookieOptions };
 // the public directory of them — both must open for logged-out visitors (that's
 // the whole point); they host the auth modal themselves for the "save a copy"
 // step.
-const PUBLIC_PATHS = ["/", "/try", "/auth/callback", "/shared", "/discover"];
+const PUBLIC_PATHS = ["/", "/try", "/auth/callback", "/shared", "/discover", "/authors"];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });

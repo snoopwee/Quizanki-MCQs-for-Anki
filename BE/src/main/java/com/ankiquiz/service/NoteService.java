@@ -105,6 +105,7 @@ public class NoteService {
         if (!merged.equals(existing)) {
             deck.setAuthorId(caller.id());
             deck.setAuthorName(caller.displayName());
+            deck.setAuthorAvatarUrl(caller.avatarUrl());
             deckRepository.save(deck);
         }
         note.setFields(merged);

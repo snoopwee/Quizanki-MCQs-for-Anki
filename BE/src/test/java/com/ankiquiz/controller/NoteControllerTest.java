@@ -49,7 +49,7 @@ class NoteControllerTest {
 
     // What Caller.from() resolves the bare test JWT to (no email / user_metadata
     // claim on it, so the display name falls all the way through to anonymous).
-    private static final Caller CALLER = new Caller("user-1", Caller.ANONYMOUS);
+    private static final Caller CALLER = new Caller("user-1", Caller.ANONYMOUS, null);
 
     @MockBean
     private JwtDecoder jwtDecoder;

@@ -1,6 +1,6 @@
 package com.ankiquiz.controller;
 
-import com.ankiquiz.dto.request.AuthorNameRequest;
+import com.ankiquiz.dto.request.AuthorProfileRequest;
 import com.ankiquiz.service.Caller;
 import com.ankiquiz.service.DeckService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,16 +31,18 @@ public class ProfileController {
         this.deckService = deckService;
     }
 
-    @PutMapping("/author-name")
-    @Operation(summary = "Propagate the user's display name onto the decks they authored",
-            description = "Deck author names are stored, not joined (there's no user table), so a "
-                    + "profile rename must be pushed to existing decks or they'd show the old name. "
-                    + "Body carries the just-set name; a blank body falls back to the JWT name.")
-    public Map<String, Integer> syncAuthorName(
+    @PutMapping("/author-profile")
+    @Operation(summary = "Propagate the user's name + avatar onto the decks they authored",
+            description = "Deck author name/avatar are stored, not joined (there's no user table), so "
+                    + "a profile change must be pushed to existing decks or they'd show the old values. "
+                    + "Body carries the just-set name + avatar; a blank name falls back to the JWT name.")
+    public Map<String, Integer> syncAuthorProfile(
             @AuthenticationPrincipal Jwt jwt,
-            @Valid @RequestBody(required = false) AuthorNameRequest request
+            @Valid @RequestBody(required = false) AuthorProfileRequest request
     ) {
-        int updated = deckService.syncAuthorName(Caller.from(jwt), request == null ? null : request.name());
+        String name = request == null ? null : request.name();
+        String avatarUrl = request == null ? null : request.avatarUrl();
+        int updated = deckService.syncAuthorProfile(Caller.from(jwt), name, avatarUrl);
         return Map.of("updated", updated);
     }
 }

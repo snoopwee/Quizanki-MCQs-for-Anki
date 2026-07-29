@@ -24,6 +24,13 @@ spring:
     hikari:
       # Don't block startup if the DB is briefly unreachable.
       initialization-fail-timeout: -1
+      data-source-properties:
+        # Rewrite a batch of single-row INSERTs into ONE multi-row INSERT. Turns an
+        # N-note deck import from N driver round-trips into ceil(N / batch_size) —
+        # the dominant cost, since the DB is a remote Supabase pooler. Applied as a
+        # driver connection property so it doesn't need appending to the (secret)
+        # JDBC URL. Safe with jsonb/text[] columns.
+        reWriteBatchedInserts: true
 
   jpa:
     hibernate:
@@ -35,6 +42,13 @@ spring:
       hibernate:
         jdbc:
           time_zone: UTC
+          # Batch inserts/updates instead of one statement per row. Notes use an
+          # in-memory-assigned UUID id (GenerationType.UUID), so inserts ARE
+          # batchable — IDENTITY would silently disable this. order_inserts groups
+          # same-table rows so a whole note-type's notes go out as one batch.
+          batch_size: 200
+        order_inserts: true
+        order_updates: true
 
   flyway:
     enabled: true

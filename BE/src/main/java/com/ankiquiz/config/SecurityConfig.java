@@ -6,11 +6,15 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -24,13 +28,16 @@ public class SecurityConfig {
 
     private final String supabaseUrl;
     private final List<String> allowedOrigins;
+    private final AdminAccess adminAccess;
 
     public SecurityConfig(
             @Value("${supabase.url}") String supabaseUrl,
-            @Value("${app.cors.allowed-origins}") List<String> allowedOrigins
+            @Value("${app.cors.allowed-origins}") List<String> allowedOrigins,
+            AdminAccess adminAccess
     ) {
         this.supabaseUrl = supabaseUrl;
         this.allowedOrigins = allowedOrigins;
+        this.adminAccess = adminAccess;
     }
 
     @Bean
@@ -53,10 +60,27 @@ public class SecurityConfig {
                                 //    service 404s anything not currently shared.
                                 "/api/v1/public/**"
                         ).permitAll()
+                        // Admin-only surface. ROLE_ADMIN is granted below only to
+                        // subjects on the app.admin.user-ids allowlist, so everyone
+                        // else gets 403 here — the backend is the real gate; the
+                        // frontend /admin guard is only UX.
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(jwtDecoder())))
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt
+                        .decoder(jwtDecoder())
+                        .jwtAuthenticationConverter(adminAwareConverter())))
                 .build();
+    }
+
+    /**
+     * Turns a validated Supabase JWT into an authentication, adding ROLE_ADMIN when
+     * the subject is on the allowlist. Regular users carry no extra authority, so
+     * only the admin matcher above is affected.
+     */
+    private Converter<Jwt, AbstractAuthenticationToken> adminAwareConverter() {
+        return jwt -> new JwtAuthenticationToken(
+                jwt, adminAccess.authoritiesFor(jwt.getSubject(), jwt.getClaimAsString("email")));
     }
 
     /**

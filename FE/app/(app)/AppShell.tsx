@@ -4,6 +4,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ImportProvider, useImportContext } from "@/components/import/ImportProvider";
+import { useMe } from "@/hooks/useMe";
+import { ADMIN_SECTIONS } from "@/lib/adminNav";
 import { AccountMenu } from "@/components/account/AccountMenu";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { DeckSearch } from "@/components/search/DeckSearch";
@@ -201,6 +203,9 @@ function Sidebar({
   onMenuOpenChange?: (open: boolean) => void;
   onNavigate?: () => void;
 }) {
+  // Gates the Admin nav entry. Cached via useMe; non-admins never see the link
+  // (and the /admin route + its endpoints are gated server-side regardless).
+  const isAdmin = useMe().data?.isAdmin ?? false;
   return (
     <aside
       onMouseEnter={onHoverChange ? () => onHoverChange(true) : undefined}
@@ -223,10 +228,16 @@ function Sidebar({
           and fills the slim rail (so it's centred). The toggle only shows while
           expanded and carries a border, lined up with the nav tabs' right edge. */}
       <div className="flex h-10 items-center">
-        <Link href="/home" onClick={onNavigate} aria-label="Home" className="flex min-w-0 items-center">
+        <Link
+          href={isAdmin ? "/admin" : "/home"}
+          onClick={onNavigate}
+          aria-label={isAdmin ? "Admin" : "Home"}
+          className="flex min-w-0 items-center"
+        >
           <BrandMark size="lg" withWordmark={false} />
           <RevealLabel show={expanded} className="font-display text-lg font-semibold tracking-tight">
             Quizanki<span className="text-accent">.</span>
+            {isAdmin && <span className="ml-1 text-xs font-semibold uppercase tracking-wide text-muted">admin</span>}
           </RevealLabel>
         </Link>
         {onTogglePin && expanded && (
@@ -247,34 +258,70 @@ function Sidebar({
         )}
       </div>
 
-      {/* Primary CTA — 40px plus tile stays put, label grows out. */}
-      <Link
-        href="/import"
-        onClick={onNavigate}
-        title={expanded ? undefined : "New deck"}
-        className="mt-6 flex h-10 items-center rounded-input bg-accent font-semibold text-white shadow-btn transition hover:opacity-95"
-      >
-        <span className="grid h-10 w-10 shrink-0 place-items-center">
-          <Icon name="plus" size={18} />
-        </span>
-        <RevealLabel show={expanded} className="text-sm">
-          New deck
-        </RevealLabel>
-      </Link>
+      {/* An admin account isn't for studying, so it gets an admin-focused rail
+          instead of the New deck / Home / Import study nav. It can still open and
+          view any deck (Browse decks → Discover) and its own profile (account
+          menu). Everyone else gets the normal study nav. */}
+      {isAdmin ? (
+        <nav className="mt-6 flex flex-col gap-1 text-sm">
+          {ADMIN_SECTIONS.map((s) =>
+            s.ready ? (
+              <NavLink
+                key={s.href}
+                href={s.href}
+                pathname={pathname}
+                label={s.label}
+                icon={s.icon}
+                expanded={expanded}
+                onNavigate={onNavigate}
+              />
+            ) : (
+              <SoonNavItem key={s.href} label={s.label} icon={s.icon} expanded={expanded} />
+            ),
+          )}
+          <div className="my-2 border-t border-line" />
+          {/* Admins don't study, but they do need to inspect deck content. */}
+          <NavLink
+            href="/discover"
+            pathname={pathname}
+            label="Browse decks"
+            icon="search"
+            expanded={expanded}
+            onNavigate={onNavigate}
+          />
+        </nav>
+      ) : (
+        <>
+          {/* Primary CTA — 40px plus tile stays put, label grows out. */}
+          <Link
+            href="/import"
+            onClick={onNavigate}
+            title={expanded ? undefined : "New deck"}
+            className="mt-6 flex h-10 items-center rounded-input bg-accent font-semibold text-white shadow-btn transition hover:opacity-95"
+          >
+            <span className="grid h-10 w-10 shrink-0 place-items-center">
+              <Icon name="plus" size={18} />
+            </span>
+            <RevealLabel show={expanded} className="text-sm">
+              New deck
+            </RevealLabel>
+          </Link>
 
-      <nav className="mt-6 flex flex-col gap-1 text-sm">
-        <NavLink href="/home" pathname={pathname} label="Home" icon="home" expanded={expanded} onNavigate={onNavigate} />
-        <NavLink href="/discover" pathname={pathname} label="Discover" icon="search" expanded={expanded} onNavigate={onNavigate} />
-        <NavLink
-          href="/import"
-          pathname={pathname}
-          label="Import deck"
-          icon="upload"
-          expanded={expanded}
-          onNavigate={onNavigate}
-          trailing={<ImportPendingDot />}
-        />
-      </nav>
+          <nav className="mt-6 flex flex-col gap-1 text-sm">
+            <NavLink href="/home" pathname={pathname} label="Home" icon="home" expanded={expanded} onNavigate={onNavigate} />
+            <NavLink href="/discover" pathname={pathname} label="Discover" icon="search" expanded={expanded} onNavigate={onNavigate} />
+            <NavLink
+              href="/import"
+              pathname={pathname}
+              label="Import deck"
+              icon="upload"
+              expanded={expanded}
+              onNavigate={onNavigate}
+              trailing={<ImportPendingDot />}
+            />
+          </nav>
+        </>
+      )}
 
       <div className="mt-auto border-t border-line pt-3">
         <AccountMenu
@@ -328,6 +375,36 @@ function NavLink({
         {trailing}
       </RevealLabel>
     </Link>
+  );
+}
+
+// A not-yet-built admin section: shown in the rail so the admin surface is
+// visible as a roadmap, but muted and unclickable until its route ships (flip
+// `ready` in ADMIN_SECTIONS). Collapses to just the icon like a real NavLink.
+function SoonNavItem({
+  label,
+  icon,
+  expanded,
+}: {
+  label: string;
+  icon: IconName;
+  expanded: boolean;
+}) {
+  return (
+    <div
+      title={expanded ? "Coming soon" : `${label} — coming soon`}
+      className="flex h-10 cursor-not-allowed items-center rounded-input text-faint"
+    >
+      <span className="grid h-10 w-10 shrink-0 place-items-center">
+        <Icon name={icon} size={18} />
+      </span>
+      <RevealLabel show={expanded} className="flex flex-1 items-center gap-2">
+        <span className="flex-1">{label}</span>
+        <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold text-muted">
+          soon
+        </span>
+      </RevealLabel>
+    </div>
   );
 }
 

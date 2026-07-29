@@ -93,6 +93,15 @@ avatar:
 app:
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000}
+  admin:
+    # Admins are provisioned here, out of band — there is no user table and no
+    # self-service. A caller is an admin if their Supabase user UUID (jwt.sub) is
+    # in user-ids OR their verified email (jwt.email) is in emails. Allowlisted
+    # callers are granted ROLE_ADMIN, which /api/v1/admin/** requires. Both empty
+    # (default) = no admins, so admin routes stay locked until configured.
+    user-ids: ${ADMIN_USER_IDS:}
+    # Comma-separated admin emails, e.g. ADMIN_EMAILS=adminquizanki@gmail.com
+    emails: ${ADMIN_EMAILS:}
 
 springdoc:
   api-docs:

@@ -3,6 +3,14 @@
 
 export type QuizDirection = "FRONT_TO_BACK" | "BACK_TO_FRONT";
 
+// GET /api/v1/me — who the signed-in user is + whether they're an admin. The
+// client uses isAdmin to show/hide the admin area; the backend enforces it too.
+export interface MeResponse {
+  userId: string;
+  email: string;
+  isAdmin: boolean;
+}
+
 export interface CardStatsResponse {
   timesSeen: number;
   timesCorrect: number;

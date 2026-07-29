@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.config.AdminAccess;
 import com.ankiquiz.dto.request.AuthorProfileRequest;
 import com.ankiquiz.service.Caller;
 import com.ankiquiz.service.DeckService;
@@ -8,6 +9,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,9 +28,24 @@ import java.util.Map;
 public class ProfileController {
 
     private final DeckService deckService;
+    private final AdminAccess adminAccess;
 
-    public ProfileController(DeckService deckService) {
+    public ProfileController(DeckService deckService, AdminAccess adminAccess) {
         this.deckService = deckService;
+        this.adminAccess = adminAccess;
+    }
+
+    @GetMapping
+    @Operation(summary = "Who the signed-in user is, plus whether they're an admin",
+            description = "The client reads isAdmin to decide whether to show the /admin area. "
+                    + "Authoritative on the server too — admin endpoints are gated independently.")
+    public Map<String, Object> me(@AuthenticationPrincipal Jwt jwt) {
+        String email = jwt.getClaimAsString("email");
+        return Map.of(
+                "userId", jwt.getSubject(),
+                "email", email == null ? "" : email,
+                "isAdmin", adminAccess.isAdmin(jwt.getSubject(), email)
+        );
     }
 
     @PutMapping("/author-profile")

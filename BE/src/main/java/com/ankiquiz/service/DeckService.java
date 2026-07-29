@@ -190,6 +190,31 @@ public class DeckService {
         deckRepository.delete(deck);
     }
 
+    // ── Admin moderation ─────────────────────────────────────────────────────
+    // These bypass owner scoping on purpose: access is gated to admins by
+    // SecurityConfig (/api/v1/admin/**), so there is no per-user check here.
+
+    /** Take a deck off Discover without deleting it — the owner keeps their deck,
+     *  it just stops being public. The gentle moderation action. */
+    @Transactional
+    public void adminUnpublishDeck(UUID deckId) {
+        Deck deck = deckRepository.findById(deckId)
+                .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
+        deck.setPublic(false);
+        deck.setSharedAt(null);
+        deckRepository.save(deck);
+    }
+
+    /** Remove a deck entirely (spam / abuse). Cascades to its notes and everyone's
+     *  progress on it — the same blast radius as an owner delete (per-user-progress
+     *  model), which is why it's the heavier action. */
+    @Transactional
+    public void adminDeleteDeck(UUID deckId) {
+        Deck deck = deckRepository.findById(deckId)
+                .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
+        deckRepository.delete(deck);
+    }
+
     @Transactional
     public DeckResponse importDeck(Caller caller, ImportDeckRequest request) {
         // A freshly-imported deck has no card_stats yet, so completion is 0.

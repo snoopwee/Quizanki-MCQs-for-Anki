@@ -720,4 +720,39 @@ class DeckServiceTest {
 
         verify(deckRepository).updateAuthorProfile(USER, "alice", null);
     }
+
+    // ── admin moderation ─────────────────────────────────────────────────────
+
+    @Test
+    void adminUnpublishDeck_takesItOffDiscover_withoutDeleting() {
+        Deck deck = deck();
+        deck.setPublic(true);
+        deck.setSharedAt(OffsetDateTime.now());
+        when(deckRepository.findById(deckId)).thenReturn(Optional.of(deck));
+
+        service.adminUnpublishDeck(deckId);
+
+        assertThat(deck.isPublic()).isFalse();
+        assertThat(deck.getSharedAt()).isNull();
+        verify(deckRepository).save(deck);
+        verify(deckRepository, never()).delete(any());
+    }
+
+    @Test
+    void adminDeleteDeck_removesTheDeck() {
+        Deck deck = deck();
+        when(deckRepository.findById(deckId)).thenReturn(Optional.of(deck));
+
+        service.adminDeleteDeck(deckId);
+
+        verify(deckRepository).delete(deck);
+    }
+
+    @Test
+    void adminModeration_404sWhenTheDeckIsMissing() {
+        when(deckRepository.findById(deckId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.adminUnpublishDeck(deckId)).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> service.adminDeleteDeck(deckId)).isInstanceOf(NotFoundException.class);
+    }
 }

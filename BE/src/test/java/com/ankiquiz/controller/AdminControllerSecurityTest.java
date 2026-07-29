@@ -2,9 +2,11 @@ package com.ankiquiz.controller;
 
 import com.ankiquiz.config.AdminAccess;
 import com.ankiquiz.config.SecurityConfig;
+import com.ankiquiz.service.DeckService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.TestPropertySource;
@@ -32,6 +34,9 @@ class AdminControllerSecurityTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockBean
+    private DeckService deckService;
 
     @Test
     void adminEndpoint_rejectsUnauthenticated_with401() throws Exception {

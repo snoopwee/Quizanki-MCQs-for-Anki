@@ -1,31 +1,71 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.dto.response.PublicDeckPage;
+import com.ankiquiz.service.DeckService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Admin-only endpoints. Everything under {@code /api/v1/admin/**} is gated to
- * ROLE_ADMIN in SecurityConfig (granted only to the app.admin.user-ids allowlist),
- * so a non-admin hitting any of these gets 403 regardless of the frontend guard.
+ * ROLE_ADMIN in SecurityConfig (granted only to the app.admin.* allowlist), so a
+ * non-admin hitting any of these gets 403 regardless of the frontend guard.
  *
- * <p>Feature endpoints (deck moderation, stats, users, reports, site config) land
- * here in later phases; for now this just confirms the gate works.
+ * <p>Phase B: deck moderation — list every public deck and either unpublish it
+ * (off Discover, owner keeps it) or delete it outright.
  */
 @RestController
 @RequestMapping("/api/v1/admin")
 @SecurityRequirement(name = "bearerAuth")
 public class AdminController {
 
+    private final DeckService deckService;
+
+    public AdminController(DeckService deckService) {
+        this.deckService = deckService;
+    }
+
     @GetMapping("/whoami")
     @Operation(summary = "Confirm the caller is recognised as an admin (200 for admins, 403 otherwise)")
     public Map<String, Object> whoami(@AuthenticationPrincipal Jwt jwt) {
         return Map.of("userId", jwt.getSubject(), "admin", true);
+    }
+
+    @GetMapping("/decks")
+    @Operation(summary = "Every public deck, for moderation",
+            description = "Same catalogue as Discover (all shared decks), optionally filtered by a "
+                    + "name fragment and paged. Reused so moderation sees exactly what users see.")
+    public PublicDeckPage listDecks(
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "20") int limit,
+            @RequestParam(defaultValue = "0") int offset
+    ) {
+        return deckService.getPublicDecks(q, null, null, limit, offset);
+    }
+
+    @PostMapping("/decks/{deckId}/unpublish")
+    @Operation(summary = "Take a deck off Discover without deleting it (owner keeps the deck)")
+    public ResponseEntity<Void> unpublishDeck(@PathVariable UUID deckId) {
+        deckService.adminUnpublishDeck(deckId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/decks/{deckId}")
+    @Operation(summary = "Delete a deck outright (spam/abuse) — cascades to its notes and progress")
+    public ResponseEntity<Void> deleteDeck(@PathVariable UUID deckId) {
+        deckService.adminDeleteDeck(deckId);
+        return ResponseEntity.noContent().build();
     }
 }

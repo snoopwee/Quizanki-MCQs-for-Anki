@@ -10,7 +10,7 @@ import { Icon, type IconName } from "@/components/ui/icons";
 type Panel = { label: string; icon: IconName; blurb: string; status: string };
 
 const PANELS: Panel[] = [
-  { label: "Moderate decks", icon: "layers", status: "Next", blurb: "Review every public deck; unpublish or remove ones that shouldn't be shared." },
+  { label: "Moderate decks", icon: "layers", status: "Live", blurb: "Review every public deck; unpublish or remove ones that shouldn't be shared." },
   { label: "Site stats", icon: "target", status: "Planned", blurb: "Totals at a glance — users, decks, public decks, imports." },
   { label: "Users", icon: "user", status: "Planned", blurb: "List users and disable/ban, via the Supabase Admin API." },
   { label: "Reports", icon: "clipboard", status: "Planned", blurb: "A moderation queue of decks users have reported." },

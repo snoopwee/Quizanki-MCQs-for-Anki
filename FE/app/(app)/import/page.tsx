@@ -1,9 +1,18 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ApkgUploader } from "@/components/deck/ApkgUploader";
 import { DeckReviewEditor } from "@/components/deck/DeckReviewEditor";
+import { Spinner } from "@/components/ui/Spinner";
 import { ConfirmLeaveModal } from "@/components/shared/ConfirmLeaveModal";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { useImportContext } from "@/components/import/ImportProvider";
@@ -59,16 +68,27 @@ function ImportFlow() {
   const { startImportRequest, status } = useImportContext();
   const savedRef = useRef(false);
 
+  // Building the draft + mounting the review editor is CPU work, not a fetch, so
+  // it can't be awaited — but for a large deck it's enough to feel laggy after
+  // "Continue". A transition renders it off the click and lets us show a spinner
+  // meanwhile, so the button never looks frozen.
+  const [isPreparing, startPreparing] = useTransition();
+
   const dirty = step.kind === "review" && draft !== null && !savedRef.current;
   const { pendingHref, cancel } = useUnsavedGuard(dirty);
 
-  const resume = useCallback((stored: NonNullable<Awaited<ReturnType<typeof loadDraft>>>) => {
-    setDraft(stored.state);
-    setIsPublic(stored.isPublic);
-    setSourceFilename(stored.sourceFilename);
-    setStep({ kind: "review" });
-    setRecovered(null);
-  }, []);
+  const resume = useCallback(
+    (stored: NonNullable<Awaited<ReturnType<typeof loadDraft>>>) => {
+      setIsPublic(stored.isPublic);
+      setSourceFilename(stored.sourceFilename);
+      setRecovered(null);
+      startPreparing(() => {
+        setDraft(stored.state);
+        setStep({ kind: "review" });
+      });
+    },
+    [startPreparing],
+  );
 
   // Look for an unsaved draft once on arrival. (Reading local storage into
   // state, not fetching server data — the no-useEffect-for-data rule is about
@@ -97,25 +117,29 @@ function ImportFlow() {
     return () => clearTimeout(timer);
   }, [draft, isPublic, sourceFilename]);
 
-  function startDraft(next: EditorState, filename: string | null) {
+  // `build` is deferred into the transition so both the draft construction (a big
+  // .apkg is thousands of rows) and the review editor's mount happen off the click.
+  function startDraft(build: () => EditorState, filename: string | null) {
     savedRef.current = false;
-    setDraft(next);
     setSourceFilename(filename);
     setRecovered(null);
-    setStep({ kind: "review" });
+    startPreparing(() => {
+      setDraft(build());
+      setStep({ kind: "review" });
+    });
   }
 
   function handleParsed(parsed: ApkgParseResponse) {
-    startDraft(fromParsed(parsed), parsed.filename);
+    startDraft(() => fromParsed(parsed), parsed.filename);
   }
 
   function handlePasted(name: string, pairs: ParsedPair[]) {
     startDraft(
-      {
+      () => ({
         name: name.trim() || "Untitled deck",
         rows: pairs.map((p) => basicRow(p.front, p.back)),
         layoutByType: {},
-      },
+      }),
       null,
     );
   }
@@ -148,7 +172,9 @@ function ImportFlow() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      {step.kind === "import" && (
+      {step.kind === "import" && isPreparing && <PreparingPanel />}
+
+      {step.kind === "import" && !isPreparing && (
         <div className="space-y-5">
           {checkedStorage && recovered && (
             <ResumeBanner
@@ -196,6 +222,18 @@ function ImportFlow() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+// Shown between "Continue" and the review editor appearing. The editor's first
+// render is the slow part for a big deck, so this reassures the user it's working.
+function PreparingPanel() {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-card border border-line bg-surface px-6 py-14 text-center">
+      <Spinner className="h-7 w-7 text-accent" />
+      <p className="text-sm font-medium text-ink">Preparing your deck…</p>
+      <p className="text-xs text-muted">Laying out the cards for review.</p>
     </div>
   );
 }

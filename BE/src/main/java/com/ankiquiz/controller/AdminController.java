@@ -1,6 +1,8 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.dto.response.AdminStatsResponse;
 import com.ankiquiz.dto.response.PublicDeckPage;
+import com.ankiquiz.service.AdminService;
 import com.ankiquiz.service.DeckService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -32,15 +34,23 @@ import java.util.UUID;
 public class AdminController {
 
     private final DeckService deckService;
+    private final AdminService adminService;
 
-    public AdminController(DeckService deckService) {
+    public AdminController(DeckService deckService, AdminService adminService) {
         this.deckService = deckService;
+        this.adminService = adminService;
     }
 
     @GetMapping("/whoami")
     @Operation(summary = "Confirm the caller is recognised as an admin (200 for admins, 403 otherwise)")
     public Map<String, Object> whoami(@AuthenticationPrincipal Jwt jwt) {
         return Map.of("userId", jwt.getSubject(), "admin", true);
+    }
+
+    @GetMapping("/stats")
+    @Operation(summary = "Site-wide totals for the admin overview dashboard")
+    public AdminStatsResponse stats() {
+        return adminService.getStats();
     }
 
     @GetMapping("/decks")

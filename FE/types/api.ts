@@ -11,6 +11,20 @@ export interface MeResponse {
   isAdmin: boolean;
 }
 
+// GET /api/v1/admin/stats — site-wide totals for the admin overview. `creators`
+// (users with ≥1 deck) and `learners` (users who've studied) are the honest user
+// numbers we can measure without the Supabase Admin API (no user table).
+export interface AdminStatsResponse {
+  decks: number;
+  publicDecks: number;
+  notes: number;
+  creators: number;
+  learners: number;
+  answers: number;
+  decksLast30Days: number;
+  answersLast7Days: number;
+}
+
 export interface CardStatsResponse {
   timesSeen: number;
   timesCorrect: number;

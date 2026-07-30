@@ -1,9 +1,11 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.dto.response.AdminStatsResponse;
 import com.ankiquiz.dto.response.PublicDeckPage;
 import com.ankiquiz.dto.response.PublicDeckSummary;
 import com.ankiquiz.exception.GlobalExceptionHandler;
 import com.ankiquiz.exception.NotFoundException;
+import com.ankiquiz.service.AdminService;
 import com.ankiquiz.service.DeckService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,7 +47,24 @@ class AdminControllerTest {
     private DeckService deckService;
 
     @MockBean
+    private AdminService adminService;
+
+    @MockBean
     private JwtDecoder jwtDecoder;
+
+    @Test
+    void stats_returnsTheOverviewTotals() throws Exception {
+        when(adminService.getStats())
+                .thenReturn(new AdminStatsResponse(42, 12, 3800, 9, 15, 5000, 4, 120));
+
+        mockMvc.perform(get("/api/v1/admin/stats")
+                        .with(jwt().jwt(j -> j.subject("admin-1"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.decks").value(42))
+                .andExpect(jsonPath("$.publicDecks").value(12))
+                .andExpect(jsonPath("$.learners").value(15))
+                .andExpect(jsonPath("$.answersLast7Days").value(120));
+    }
 
     @Test
     void listDecks_returnsThePublicCatalogue() throws Exception {

@@ -1,6 +1,17 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/axios";
-import type { PublicDeckPage } from "@/types/api";
+import type { AdminStatsResponse, PublicDeckPage } from "@/types/api";
+
+// Site-wide totals for the admin overview dashboard.
+export function useAdminStats() {
+  return useQuery({
+    queryKey: ["admin", "stats"],
+    queryFn: async () => {
+      const { data } = await api.get<AdminStatsResponse>("/admin/stats");
+      return data;
+    },
+  });
+}
 
 export interface AdminDecksParams {
   q: string;

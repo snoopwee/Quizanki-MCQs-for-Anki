@@ -203,9 +203,14 @@ function Sidebar({
   onMenuOpenChange?: (open: boolean) => void;
   onNavigate?: () => void;
 }) {
-  // Gates the Admin nav entry. Cached via useMe; non-admins never see the link
-  // (and the /admin route + its endpoints are gated server-side regardless).
-  const isAdmin = useMe().data?.isAdmin ?? false;
+  // Which rail to show — admin or study — is decided by /me. Until it resolves the
+  // role is UNKNOWN, so we render a neutral placeholder rather than defaulting to
+  // the study nav (which flashed the normal sidebar at admins on a cold load). Once
+  // cached, this is instant on later navigations. The /admin route + endpoints are
+  // gated server-side regardless of what the sidebar shows.
+  const me = useMe();
+  const isAdmin = me.data?.isAdmin ?? false;
+  const roleKnown = !me.isPending;
   return (
     <aside
       onMouseEnter={onHoverChange ? () => onHoverChange(true) : undefined}
@@ -261,8 +266,11 @@ function Sidebar({
       {/* An admin account isn't for studying, so it gets an admin-focused rail
           instead of the New deck / Home / Import study nav. It can still open and
           view any deck (Browse decks → Discover) and its own profile (account
-          menu). Everyone else gets the normal study nav. */}
-      {isAdmin ? (
+          menu). Everyone else gets the normal study nav. Until /me resolves we
+          don't know which, so show a neutral skeleton — never the wrong rail. */}
+      {!roleKnown ? (
+        <NavSkeleton expanded={expanded} />
+      ) : isAdmin ? (
         <nav className="mt-6 flex flex-col gap-1 text-sm">
           {ADMIN_SECTIONS.map((s) =>
             s.ready ? (
@@ -280,7 +288,16 @@ function Sidebar({
             ),
           )}
           <div className="my-2 border-t border-line" />
-          {/* Admins don't study, but they do need to inspect deck content. */}
+          {/* Admins don't study, but they still need to reach the normal site —
+              Home and any deck's content. */}
+          <NavLink
+            href="/home"
+            pathname={pathname}
+            label="Home"
+            icon="home"
+            expanded={expanded}
+            onNavigate={onNavigate}
+          />
           <NavLink
             href="/discover"
             pathname={pathname}
@@ -375,6 +392,24 @@ function NavLink({
         {trailing}
       </RevealLabel>
     </Link>
+  );
+}
+
+// Neutral nav placeholder shown while /me is still resolving, so a cold load never
+// flashes the study rail at an admin (or vice-versa). Pulse rows sit where the nav
+// links will land; collapses to icon-width dots like the real rail.
+function NavSkeleton({ expanded }: { expanded: boolean }) {
+  return (
+    <div className="mt-6 flex flex-col gap-1" aria-hidden>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="flex h-10 items-center">
+          <span className="grid h-10 w-10 shrink-0 place-items-center">
+            <span className="h-4 w-4 animate-pulse rounded bg-surface-2" />
+          </span>
+          {expanded && <span className="h-3 flex-1 animate-pulse rounded bg-surface-2" />}
+        </div>
+      ))}
+    </div>
   );
 }
 

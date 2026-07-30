@@ -11,6 +11,14 @@ export interface MeResponse {
   isAdmin: boolean;
 }
 
+// GET /api/v1/public/config — live site settings every client applies on load.
+// PUT /api/v1/admin/config updates them. Messages are null when unset.
+export interface SiteConfig {
+  maintenanceMode: boolean;
+  maintenanceMessage: string | null;
+  announcement: string | null;
+}
+
 // GET /api/v1/admin/stats — site-wide totals for the admin overview. `creators`
 // (users with ≥1 deck) and `learners` (users who've studied) are the honest user
 // numbers we can measure without the Supabase Admin API (no user table).

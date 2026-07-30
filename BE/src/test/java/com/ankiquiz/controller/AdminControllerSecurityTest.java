@@ -4,6 +4,7 @@ import com.ankiquiz.config.AdminAccess;
 import com.ankiquiz.config.SecurityConfig;
 import com.ankiquiz.service.AdminService;
 import com.ankiquiz.service.DeckService;
+import com.ankiquiz.service.SiteConfigService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -41,6 +42,9 @@ class AdminControllerSecurityTest {
 
     @MockBean
     private AdminService adminService;
+
+    @MockBean
+    private SiteConfigService siteConfigService;
 
     @Test
     void adminEndpoint_rejectsUnauthenticated_with401() throws Exception {

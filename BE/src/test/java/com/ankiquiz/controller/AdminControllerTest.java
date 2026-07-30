@@ -3,10 +3,12 @@ package com.ankiquiz.controller;
 import com.ankiquiz.dto.response.AdminStatsResponse;
 import com.ankiquiz.dto.response.PublicDeckPage;
 import com.ankiquiz.dto.response.PublicDeckSummary;
+import com.ankiquiz.dto.response.SiteConfigResponse;
 import com.ankiquiz.exception.GlobalExceptionHandler;
 import com.ankiquiz.exception.NotFoundException;
 import com.ankiquiz.service.AdminService;
 import com.ankiquiz.service.DeckService;
+import com.ankiquiz.service.SiteConfigService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -50,7 +52,25 @@ class AdminControllerTest {
     private AdminService adminService;
 
     @MockBean
+    private SiteConfigService siteConfigService;
+
+    @MockBean
     private JwtDecoder jwtDecoder;
+
+    @Test
+    void updateConfig_savesAndReturnsTheSettings() throws Exception {
+        when(siteConfigService.updateConfig(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new SiteConfigResponse(true, "Back at 5pm", "Welcome!"));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .put("/api/v1/admin/config")
+                        .with(jwt().jwt(j -> j.subject("admin-1")))
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"maintenanceMode\":true,\"maintenanceMessage\":\"Back at 5pm\",\"announcement\":\"Welcome!\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.maintenanceMode").value(true))
+                .andExpect(jsonPath("$.announcement").value("Welcome!"));
+    }
 
     @Test
     void stats_returnsTheOverviewTotals() throws Exception {

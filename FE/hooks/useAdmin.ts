@@ -1,6 +1,34 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/axios";
-import type { AdminStatsResponse, PublicDeckPage } from "@/types/api";
+import type { AdminStatsResponse, AdminUsersPage, PublicDeckPage } from "@/types/api";
+
+// A page of Supabase users (1-based), from the Admin API. keepPreviousData so the
+// table doesn't blank out while paging.
+export function useAdminUsers(page: number) {
+  return useQuery({
+    queryKey: ["admin", "users", page],
+    placeholderData: keepPreviousData,
+    queryFn: async () => {
+      const { data } = await api.get<AdminUsersPage>("/admin/users", {
+        params: { page, perPage: 50 },
+      });
+      return data;
+    },
+  });
+}
+
+// Ban (disable sign-in) or unban a user. Refreshes the user list.
+export function useSetUserBanned() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, banned }: { userId: string; banned: boolean }) => {
+      await api.put(`/admin/users/${userId}/ban`, { banned });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+    },
+  });
+}
 
 // Site-wide totals for the admin overview dashboard.
 export function useAdminStats() {

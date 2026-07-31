@@ -11,6 +11,24 @@ export interface MeResponse {
   isAdmin: boolean;
 }
 
+// GET /api/v1/admin/users — a page of Supabase users (from the Admin API). No user
+// table locally, so this is fetched live. `banned` = an active ban.
+export interface AdminUser {
+  id: string;
+  email: string | null;
+  displayName: string | null;
+  createdAt: string | null;
+  lastSignInAt: string | null;
+  banned: boolean;
+}
+
+export interface AdminUsersPage {
+  users: AdminUser[];
+  page: number; // 1-based (GoTrue)
+  perPage: number;
+  hasMore: boolean;
+}
+
 // GET /api/v1/public/config — live site settings every client applies on load.
 // PUT /api/v1/admin/config updates them. Messages are null when unset.
 export interface SiteConfig {

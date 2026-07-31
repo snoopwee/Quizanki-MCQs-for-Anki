@@ -22,6 +22,7 @@ import { DeckStatsPanel } from "@/components/deck/DeckStatsPanel";
 import { KebabMenu } from "@/components/shared/KebabMenu";
 import { ExportDeckModal } from "@/components/deck/ExportDeckModal";
 import { ShareDeckModal } from "@/components/deck/ShareDeckModal";
+import { ReportDeckModal } from "@/components/deck/ReportDeckModal";
 import { DeckAuthor } from "@/components/deck/DeckAuthor";
 import { Card } from "@/components/ui/Card";
 import { Icon, type IconName } from "@/components/ui/icons";
@@ -82,6 +83,7 @@ function DeckDetail() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   // Anchor for the "Flashcards" study mode — scrolls to the flashcard player.
   const cardsRef = useRef<HTMLDivElement>(null);
   const scrollToCards = () => cardsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -235,6 +237,7 @@ function DeckDetail() {
                           onClick: () => saveDeck.mutate(!saved),
                         },
                         { label: "Duplicate", onClick: handleDuplicate },
+                        { label: "Report deck", onClick: () => setReportOpen(true), danger: true },
                       ]
                 }
               />
@@ -385,6 +388,14 @@ function DeckDetail() {
         <ExportDeckModal
           contents={contentsQuery.data}
           onClose={() => setExportOpen(false)}
+        />
+      )}
+
+      {reportOpen && (
+        <ReportDeckModal
+          deckId={deckId}
+          deckName={deckName}
+          onClose={() => setReportOpen(false)}
         />
       )}
 

@@ -11,6 +11,19 @@ export interface MeResponse {
   isAdmin: boolean;
 }
 
+// GET /api/v1/admin/reports — one row of the deck-report moderation queue.
+export interface AdminReport {
+  id: string;
+  deckId: string;
+  deckName: string | null;
+  authorName: string | null;
+  reporterId: string;
+  reason: string | null;
+  details: string | null;
+  status: string; // open | resolved | dismissed
+  createdAt: string;
+}
+
 // GET /api/v1/admin/users — a page of Supabase users (from the Admin API). No user
 // table locally, so this is fetched live. `banned` = an active ban.
 export interface AdminUser {

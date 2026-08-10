@@ -72,7 +72,7 @@ public class CardImageService {
         }
         String contentType = AvatarService.sniffImageType(bytes);
         if (contentType == null) {
-            throw new AvatarException(HttpStatus.BAD_REQUEST, "Please upload a PNG, JPG or WebP image.");
+            throw new AvatarException(HttpStatus.BAD_REQUEST, "Please upload a PNG, JPG, WebP or GIF image.");
         }
 
         ensureBucket();

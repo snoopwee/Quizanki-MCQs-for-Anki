@@ -280,6 +280,8 @@ export function FlashcardViewer({
           fields: note.fields,
           frontLang: note.frontLang ?? null,
           backLang: note.backLang ?? null,
+          frontImageUrl: note.frontImageUrl ?? null,
+          backImageUrl: note.backImageUrl ?? null,
         });
       }
     }
@@ -563,7 +565,15 @@ export function FlashcardViewer({
         <div className="nice-scroll flex flex-1 flex-col items-center overflow-y-auto py-3">
           {/* my-auto centers content when it fits, but collapses so the top stays
               scrollable when content overflows (justify-center would clip it). */}
-          <div className="my-auto w-full space-y-2">
+          <div className="my-auto w-full space-y-3">
+            {(isBack ? card!.backImageUrl : card!.frontImageUrl) && (
+              // eslint-disable-next-line @next/next/no-img-element -- arbitrary Supabase Storage host; next/image would need remotePatterns config
+              <img
+                src={(isBack ? card!.backImageUrl : card!.frontImageUrl) as string}
+                alt=""
+                className="mx-auto max-h-48 max-w-full rounded-input object-contain"
+              />
+            )}
             <Lines
               values={isBack ? card!.back : card!.front}
               className="text-4xl font-medium"
@@ -909,6 +919,8 @@ export function FlashcardViewer({
                 key={c.key}
                 front={c.front}
                 back={c.back}
+                frontImageUrl={c.frontImageUrl}
+                backImageUrl={c.backImageUrl}
                 stats={getStats?.(c.id)}
                 hiddenSide={hiddenSide}
                 action={

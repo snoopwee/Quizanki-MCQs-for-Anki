@@ -110,6 +110,9 @@ export interface NoteResponse {
   deckId: string;
   fields: Record<string, string>;
   tags: string[];
+  // Per-face card image URLs (null = no image on that side).
+  frontImageUrl: string | null;
+  backImageUrl: string | null;
   cardStats: CardStatsResponse | null;
 }
 
@@ -136,6 +139,10 @@ export interface NoteRequest {
   ankiNoteId?: string | null;
   fields: Record<string, string>;
   tags: string[];
+  // Per-face card image URL (null = none). Carried through import so a deck
+  // imported with images keeps them on the cards.
+  frontImageUrl?: string | null;
+  backImageUrl?: string | null;
 }
 
 export interface NoteTypeRequest {
@@ -201,6 +208,9 @@ export interface ApkgParsedNote {
   // fall back to the deck default. Only present for saved decks.
   frontLang?: string | null;
   backLang?: string | null;
+  // Per-face card image URL, or null when the side has no image.
+  frontImageUrl?: string | null;
+  backImageUrl?: string | null;
 }
 
 export interface ApkgNoteType {
@@ -243,6 +253,9 @@ export interface DeckContentsNote {
   // Per-card TTS language override per face, or null to inherit the deck default.
   frontLang: string | null;
   backLang: string | null;
+  // Per-face card image URL, or null when the side has no image.
+  frontImageUrl: string | null;
+  backImageUrl: string | null;
 }
 
 export interface DeckContentsNoteType {
@@ -274,6 +287,9 @@ export interface UpdateDeckContentsNote {
   // the deck default. Travels with the card through the bulk editor save.
   frontLang?: string | null;
   backLang?: string | null;
+  // Per-face card image URL; "" / null = no image. Travels with the bulk save.
+  frontImageUrl?: string | null;
+  backImageUrl?: string | null;
 }
 
 export interface UpdateDeckContentsRequest {

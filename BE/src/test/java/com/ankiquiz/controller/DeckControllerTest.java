@@ -92,7 +92,8 @@ class DeckControllerTest {
                 List.of(noteType("Basic", new NoteRequest(
                         "1234567890",
                         Map.of("Front", "食べる", "Back", "to eat"),
-                        List.of("N4", "verb")
+                        List.of("N4", "verb"),
+                        null, null
                 )))
         );
 
@@ -115,7 +116,7 @@ class DeckControllerTest {
     void importDeck_returns400_whenNameBlank() throws Exception {
         ImportDeckRequest request = new ImportDeckRequest(
                 "", null, "n4.apkg", null, null, true,
-                List.of(noteType("Basic", new NoteRequest("1", Map.of("Front", "a", "Back", "b"), List.of())))
+                List.of(noteType("Basic", new NoteRequest("1", Map.of("Front", "a", "Back", "b"), List.of(), null, null)))
         );
 
         mockMvc.perform(post("/api/v1/decks")
@@ -165,7 +166,7 @@ class DeckControllerTest {
         UpdateDeckContentsRequest request = new UpdateDeckContentsRequest(
                 "Renamed", List.of(),
                 List.of(new UpdateDeckContentsRequest.NoteEntry(
-                        null, null, Map.of("Front", "q", "Back", "a"), List.of(), null, null)));
+                        null, null, Map.of("Front", "q", "Back", "a"), List.of(), null, null, null, null)));
 
         mockMvc.perform(put("/api/v1/decks/{deckId}/contents", deckId)
                         .with(jwt().jwt(j -> j.subject("user-123")))

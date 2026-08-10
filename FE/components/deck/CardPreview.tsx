@@ -61,12 +61,17 @@ export function StageBadge({ info }: { info: StageInfo }) {
 export function CardPreviewRow({
   front,
   back,
+  frontImageUrl = null,
+  backImageUrl = null,
   stats,
   action,
   hiddenSide = null,
 }: {
   front: string[];
   back: string[];
+  // Per-face image URL, shown as a thumbnail above that column's text.
+  frontImageUrl?: string | null;
+  backImageUrl?: string | null;
   stats?: { mastery?: number; timesSeen?: number };
   action?: ReactNode;
   hiddenSide?: "front" | "back" | null;
@@ -88,18 +93,28 @@ export function CardPreviewRow({
         </div>
       )}
       <div className="grid grid-cols-[1fr_2fr] gap-4">
-        <div className="relative space-y-0.5 font-medium text-ink">
+        <div className="relative space-y-1 font-medium text-ink">
+          {frontImageUrl && <Thumb url={frontImageUrl} />}
           <Lines values={front} />
           {hideFront && <Cover onReveal={() => setRevealed(true)} />}
         </div>
         <div className="relative border-l border-line">
-          <div className="nice-scroll absolute inset-0 space-y-0.5 overflow-y-auto pl-4 text-muted">
+          <div className="nice-scroll absolute inset-0 space-y-1 overflow-y-auto pl-4 text-muted">
+            {backImageUrl && <Thumb url={backImageUrl} />}
             <Lines values={back} />
           </div>
           {hideBack && <Cover onReveal={() => setRevealed(true)} />}
         </div>
       </div>
     </li>
+  );
+}
+
+// A card face's image in the preview list — small, so a row stays scannable.
+function Thumb({ url }: { url: string }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- arbitrary Supabase Storage host; next/image would need remotePatterns config
+    <img src={url} alt="" className="max-h-20 rounded object-contain" />
   );
 }
 

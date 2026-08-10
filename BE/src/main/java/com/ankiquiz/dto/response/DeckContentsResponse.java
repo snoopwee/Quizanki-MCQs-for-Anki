@@ -64,7 +64,10 @@ public record DeckContentsResponse(
             Map<String, String> fields,
             List<String> tags,
             String frontLang,
-            String backLang
+            String backLang,
+            // Per-face card image URLs, null when the side has no image.
+            String frontImageUrl,
+            String backImageUrl
     ) {
     }
 }

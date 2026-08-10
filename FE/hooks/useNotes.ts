@@ -34,6 +34,8 @@ export function useUpdateNote(deckId: string) {
       fields,
       frontLang,
       backLang,
+      frontImageUrl,
+      backImageUrl,
     }: {
       noteId: string;
       fields: Record<string, string>;
@@ -41,10 +43,14 @@ export function useUpdateNote(deckId: string) {
       // omit (undefined) to leave it unchanged. See BE UpdateNoteRequest.
       frontLang?: string;
       backLang?: string;
+      // Per-face image URL. "" clears the image; omit (undefined) to leave it
+      // unchanged.
+      frontImageUrl?: string;
+      backImageUrl?: string;
     }) => {
       const { data } = await api.patch<NoteResponse>(
         `/decks/${deckId}/notes/${noteId}`,
-        { fields, frontLang, backLang },
+        { fields, frontLang, backLang, frontImageUrl, backImageUrl },
       );
       return data;
     },

@@ -26,6 +26,10 @@ export interface EditorRow {
   // default. Edited via the per-field "voice" menu; round-trips through save.
   frontLang: string;
   backLang: string;
+  // Per-face card image URL; "" = no image. Set in the card editor, round-trips
+  // through the bulk save.
+  frontImageUrl: string;
+  backImageUrl: string;
 }
 
 export interface EditorState {
@@ -76,6 +80,8 @@ export function fromContents(contents: DeckContentsResponse): EditorState {
         tags: [...note.tags],
         frontLang: note.frontLang ?? "",
         backLang: note.backLang ?? "",
+        frontImageUrl: note.frontImageUrl ?? "",
+        backImageUrl: note.backImageUrl ?? "",
       });
     }
   }
@@ -141,9 +147,11 @@ export function swapValuesForRow(row: EditorRow): EditorRow {
       [front]: row.fields[back] ?? "",
       [back]: row.fields[front] ?? "",
     },
-    // The languages follow their text to the other side.
+    // The languages and images follow their text to the other side.
     frontLang: row.backLang,
     backLang: row.frontLang,
+    frontImageUrl: row.backImageUrl,
+    backImageUrl: row.frontImageUrl,
   };
 }
 
@@ -211,6 +219,8 @@ function rowWithId(
     tags: [...tags],
     frontLang,
     backLang,
+    frontImageUrl: "",
+    backImageUrl: "",
   };
 }
 
@@ -224,10 +234,12 @@ export function fieldLabel(name: string): string {
   return name;
 }
 
-// A row with no content in any field — dropped on save so stray empty cards
-// (e.g. an "Add card" the user never filled in) don't persist.
+// A row with no content in any field AND no image — dropped on save so stray
+// empty cards (e.g. an "Add card" the user never filled in) don't persist. A card
+// carrying only an image is NOT blank.
 export function isBlankRow(row: EditorRow): boolean {
-  return row.fieldNames.every((f) => !(row.fields[f] ?? "").trim());
+  const noText = row.fieldNames.every((f) => !(row.fields[f] ?? "").trim());
+  return noText && !row.frontImageUrl && !row.backImageUrl;
 }
 
 export function toPayload(state: EditorState): UpdateDeckContentsRequest {
@@ -245,6 +257,8 @@ export function toPayload(state: EditorState): UpdateDeckContentsRequest {
       tags: r.tags,
       frontLang: r.frontLang,
       backLang: r.backLang,
+      frontImageUrl: r.frontImageUrl,
+      backImageUrl: r.backImageUrl,
     }));
   return { name: state.name.trim(), noteTypes, notes };
 }

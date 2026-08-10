@@ -434,7 +434,8 @@ public class DeckService {
     // a clone keeps the deck-level frontLang/backLang and drops per-card overrides.
     private static NoteTypeRequest toNoteTypeRequest(NoteTypeContents type) {
         List<NoteRequest> notes = type.notes().stream()
-                .map(n -> new NoteRequest(n.ankiNoteId(), new LinkedHashMap<>(n.fields()), n.tags()))
+                .map(n -> new NoteRequest(n.ankiNoteId(), new LinkedHashMap<>(n.fields()), n.tags(),
+                        n.frontImageUrl(), n.backImageUrl()))
                 .toList();
         return new NoteTypeRequest(
                 type.ankiModelId(),
@@ -528,6 +529,9 @@ public class DeckService {
             // Per-face TTS language override travels with the card (blank = inherit).
             note.setFrontLang(normalizeLang(entry.frontLang()));
             note.setBackLang(normalizeLang(entry.backLang()));
+            // Per-face image URL travels with the card too (blank = no image).
+            note.setFrontImageUrl(blankToNull(entry.frontImageUrl()));
+            note.setBackImageUrl(blankToNull(entry.backImageUrl()));
             note.setPosition(position++);
             toSave.add(note);
         }
@@ -709,6 +713,8 @@ public class DeckService {
             note.setAnkiNoteId(req.ankiNoteId());
             note.setFields(req.fields());
             note.setTags(req.tags() == null ? new String[0] : req.tags().toArray(String[]::new));
+            note.setFrontImageUrl(blankToNull(req.frontImageUrl()));
+            note.setBackImageUrl(blankToNull(req.backImageUrl()));
             note.setPosition(pos++);
             result.add(note);
         }
@@ -722,7 +728,9 @@ public class DeckService {
                 note.getFields(),
                 toList(note.getTags()),
                 note.getFrontLang(),
-                note.getBackLang()
+                note.getBackLang(),
+                note.getFrontImageUrl(),
+                note.getBackImageUrl()
         );
     }
 
@@ -749,6 +757,15 @@ public class DeckService {
             return null;
         }
         String trimmed = lang.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    // Blank/whitespace image URL → NULL (no image); trimmed otherwise.
+    private static String blankToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
     }
 

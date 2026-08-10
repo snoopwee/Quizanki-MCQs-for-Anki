@@ -14,11 +14,16 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Base64;
+import java.util.HashMap;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -119,6 +124,21 @@ public class ApkgParserService {
      */
     static final long PARSE_TIMEOUT_SECONDS = 20L;
 
+    // ── Media (card image) extraction bounds ─────────────────────────────────
+    /** Biggest single media blob we'll pull out of the deck (bigger images are skipped). */
+    static final int MAX_IMAGE_BYTES = 1024 * 1024; // 1 MB
+    /** Total media we'll buffer in memory per parse — the memory ceiling for extraction. */
+    static final long MAX_MEDIA_BUFFER_BYTES = 12L * 1024 * 1024; // 12 MB
+    /** The Anki media manifest is small JSON (number → filename); cap it defensively. */
+    static final int MAX_MEDIA_MANIFEST_BYTES = 4 * 1024 * 1024; // 4 MB
+    /** Anki's media manifest entry name in the .apkg zip. */
+    private static final String MEDIA_MANIFEST = "media";
+    /** Media blobs are stored under numeric names ("0", "1", …). */
+    private static final Pattern NUMBERED_ENTRY = Pattern.compile("\\d+");
+    /** First {@code <img src="…">} in a field value (either quote style). */
+    private static final Pattern IMG_SRC =
+            Pattern.compile("<img\\b[^>]*?\\bsrc\\s*=\\s*[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
+
     private final ObjectMapper objectMapper;
 
     public ApkgParserService(ObjectMapper objectMapper) {
@@ -146,7 +166,9 @@ public class ApkgParserService {
     /** Extracts the collection and returns its notes grouped by note type. */
     public ApkgNotesResponse parseNotes(MultipartFile file) {
         long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(PARSE_TIMEOUT_SECONDS);
-        ExtractedCollection col = extractCollection(file);
+        ExtractedApkg apkg = extractApkg(file);
+        ExtractedCollection col = apkg.collection();
+        Map<String, byte[]> media = apkg.mediaByName();
         try (Connection conn = openReadOnly(col.dbFile())) {
             checkDeadline(deadlineNanos);
             boolean modern = tableExists(conn, "notetypes") && tableExists(conn, "fields");
@@ -170,21 +192,33 @@ public class ApkgParserService {
                         skipped++; // note references a model we couldn't resolve
                         continue;
                     }
-                    Map<String, String> fields = mapFields(type.fieldNames(), rs.getString("flds"));
+                    String flds = rs.getString("flds");
+                    Map<String, String> fields = mapFields(type.fieldNames(), flds);
+                    // Pull a card image out of the deck's media for each face. Front
+                    // scans the front fields (all fields when the template gave none,
+                    // e.g. modern decks); back scans the back fields.
+                    Map<String, String> raw = media.isEmpty() ? Map.of() : rawFields(type.fieldNames(), flds);
+                    List<String> frontScan = type.frontFields().isEmpty() ? type.fieldNames() : type.frontFields();
+                    String frontImage = firstImageDataUrl(frontScan, raw, media);
+                    String backImage = firstImageDataUrl(type.backFields(), raw, media);
+                    boolean hasImage = frontImage != null || backImage != null;
                     // Image-occlusion notes can't be quizzed as MCQ, so exclude + count:
                     //   1. Note-type name says "Image Occlusion" (Anki's official IO
                     //      add-on; its text fields are just internal IDs/SVGs)
                     //   2. Any field contains the IO Enhanced cloze marker
                     //      {{c1::image-occlusion:rect:...}}
-                    //   3. Every field is empty after cleaning (naive <img>-only cards)
-                    if (isImageOcclusion(type, fields) || isAllEmpty(fields)) {
+                    //   3. Every field is empty after cleaning AND there's no extracted
+                    //      image (a plain <img>-only card is now kept, with its picture)
+                    if (isImageOcclusion(type, fields) || (isAllEmpty(fields) && !hasImage)) {
                         imageOnly++;
                         continue;
                     }
                     ParsedNote note = new ParsedNote(
                             String.valueOf(rs.getLong("id")),
                             fields,
-                            parseTags(rs.getString("tags")));
+                            parseTags(rs.getString("tags")),
+                            frontImage,
+                            backImage);
                     notesByType.computeIfAbsent(type.id(), k -> new ArrayList<>()).add(note);
                     total++;
                     if (total > MAX_NOTES) {
@@ -450,9 +484,18 @@ public class ApkgParserService {
 
     // ── Extraction ──────────────────────────────────────────────────────────
 
-    private ExtractedCollection extractCollection(MultipartFile file) {
+    /** Collection extracted to a temp file, plus card-image media buffered in memory. */
+    private record ExtractedApkg(ExtractedCollection collection, Map<String, byte[]> mediaByName) {
+    }
+
+    private ExtractedApkg extractApkg(MultipartFile file) {
         requireNonEmpty(file);
         requireApkgFilename(file);
+
+        ExtractedCollection collection = null;
+        byte[] manifest = null;
+        Map<String, byte[]> numbered = new HashMap<>();
+        long buffered = 0;
 
         try (InputStream in = new BufferedInputStream(file.getInputStream());
              ZipInputStream zip = new ZipInputStream(in)) {
@@ -462,19 +505,122 @@ public class ApkgParserService {
                 if (++count > MAX_ENTRIES) {
                     throw new ApkgParseException("Archive has too many entries (> " + MAX_ENTRIES + ").");
                 }
-                if (COLLECTION_NAMES.contains(entry.getName())) {
-                    // Early-stop: grab the collection and ignore the rest (media).
-                    return extractEntry(zip, entry.getName());
+                String name = entry.getName();
+                if (COLLECTION_NAMES.contains(name)) {
+                    collection = extractEntry(zip, name);
+                } else if (MEDIA_MANIFEST.equals(name)) {
+                    manifest = readEntryBounded(zip, MAX_MEDIA_MANIFEST_BYTES);
+                } else if (NUMBERED_ENTRY.matcher(name).matches() && buffered < MAX_MEDIA_BUFFER_BYTES) {
+                    // Buffer media blobs (bounded) so we can pull out card images
+                    // after parsing the collection. Bigger-than-cap blobs are skipped.
+                    byte[] bytes = readEntryBounded(zip, MAX_IMAGE_BYTES);
+                    if (bytes != null) {
+                        numbered.put(name, bytes);
+                        buffered += bytes.length;
+                    }
                 }
-                zip.closeEntry();
+                // Any other entry (or an over-cap blob) is ignored; getNextEntry advances past it.
             }
         } catch (ZipException e) {
             throw new ApkgParseException("The uploaded file is not a valid .apkg (zip) archive.", e);
         } catch (IOException e) {
             throw new ApkgParseException("Could not read the uploaded file.", e);
         }
-        throw new ApkgParseException(
-                "No Anki collection (collection.anki2/anki21/anki21b) found — not a valid .apkg deck.");
+        if (collection == null) {
+            throw new ApkgParseException(
+                    "No Anki collection (collection.anki2/anki21/anki21b) found — not a valid .apkg deck.");
+        }
+        return new ExtractedApkg(collection, buildMediaMap(manifest, numbered));
+    }
+
+    // Reads the current zip entry into memory up to maxBytes; null if it exceeds
+    // (skip — we won't hold a single huge blob) or the entry runs long.
+    private static byte[] readEntryBounded(ZipInputStream zip, int maxBytes) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buf = new byte[8192];
+        int read;
+        while ((read = zip.read(buf)) != -1) {
+            if (out.size() + read > maxBytes) {
+                return null;
+            }
+            out.write(buf, 0, read);
+        }
+        return out.toByteArray();
+    }
+
+    // Anki's media manifest is JSON mapping a numeric key to the real filename
+    // ({@code {"0":"cat.jpg", ...}}). Combined with the numbered blobs we buffered,
+    // this yields filename -> bytes. A missing / non-JSON manifest (e.g. the newest
+    // protobuf format) yields no media — images just aren't extracted, cards keep
+    // their text.
+    private Map<String, byte[]> buildMediaMap(byte[] manifest, Map<String, byte[]> numbered) {
+        if (manifest == null || numbered.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            JsonNode root = objectMapper.readTree(manifest);
+            Map<String, byte[]> byName = new HashMap<>();
+            Iterator<Map.Entry<String, JsonNode>> it = root.fields();
+            while (it.hasNext()) {
+                Map.Entry<String, JsonNode> e = it.next();
+                byte[] bytes = numbered.get(e.getKey());
+                if (bytes != null) {
+                    byName.put(e.getValue().asText(), bytes);
+                }
+            }
+            return byName;
+        } catch (IOException e) {
+            return Map.of();
+        }
+    }
+
+    // The first <img>'s image, as a data URL, found across the given face's fields —
+    // or null if none resolves to a known, supported image blob.
+    private static String firstImageDataUrl(List<String> faceFields, Map<String, String> rawFields,
+                                            Map<String, byte[]> media) {
+        if (media.isEmpty()) {
+            return null;
+        }
+        for (String fieldName : faceFields) {
+            String raw = rawFields.get(fieldName);
+            if (raw == null || raw.isEmpty()) {
+                continue;
+            }
+            Matcher m = IMG_SRC.matcher(raw);
+            while (m.find()) {
+                String src = m.group(1);
+                byte[] bytes = media.get(src);
+                if (bytes == null) {
+                    bytes = media.get(urlDecode(src)); // filenames may be %20-encoded
+                }
+                if (bytes != null) {
+                    String mime = AvatarService.sniffImageType(bytes);
+                    if (mime != null) {
+                        return "data:" + mime + ";base64," + Base64.getEncoder().encodeToString(bytes);
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String urlDecode(String s) {
+        try {
+            return URLDecoder.decode(s, StandardCharsets.UTF_8);
+        } catch (RuntimeException e) {
+            return s;
+        }
+    }
+
+    // Split a note's flds blob onto its field names WITHOUT cleaning — so <img> tags
+    // survive for image extraction (mapFields strips them for the display text).
+    private static Map<String, String> rawFields(List<String> fieldNames, String flds) {
+        String[] values = (flds == null ? "" : flds).split(FIELD_SEPARATOR, -1);
+        Map<String, String> raw = new LinkedHashMap<>();
+        for (int i = 0; i < fieldNames.size(); i++) {
+            raw.put(fieldNames.get(i), i < values.length ? values[i] : "");
+        }
+        return raw;
     }
 
     /** Copies the current zip entry to a temp file, decompressing zstd if needed. */

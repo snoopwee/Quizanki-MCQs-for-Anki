@@ -118,6 +118,21 @@ export function ApkgUploader({
       {validationError && <p className="text-sm text-danger">{validationError}</p>}
       {parse.isError && <p className="text-sm text-danger">{errorMessage(parse.error)}</p>}
 
+      {/* AnkiWeb only lets you download shared decks from its own site, so we point
+          there rather than fetching for you — grab the .apkg, then drop it above. */}
+      <p className="text-xs text-muted">
+        Need a deck?{" "}
+        <a
+          href="https://ankiweb.net/shared/decks"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-accent underline-offset-2 hover:underline"
+        >
+          Browse AnkiWeb shared decks ↗
+        </a>{" "}
+        — download the .apkg from AnkiWeb, then upload it here.
+      </p>
+
       {parse.data && <ApkgSummary result={parse.data} onContinue={onContinue} />}
     </div>
   );

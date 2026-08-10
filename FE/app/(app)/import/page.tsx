@@ -17,6 +17,7 @@ import { ConfirmLeaveModal } from "@/components/shared/ConfirmLeaveModal";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { useImportContext } from "@/components/import/ImportProvider";
 import { draftToImportRequest, fromParsed } from "@/lib/deckDraft";
+import { draftHasPendingImages, uploadDraftImages } from "@/lib/cardImageUpload";
 import { basicRow, type EditorState } from "@/lib/deckEditor";
 import { clearDraft, describeAge, loadDraft, saveDraft } from "@/lib/draftStore";
 import { parsePlainText, type ParsedPair } from "@/lib/parsePlainText";
@@ -62,6 +63,9 @@ function ImportFlow() {
   // restored — the user may well have moved on and want a clean start.
   const [recovered, setRecovered] = useState<Awaited<ReturnType<typeof loadDraft>>>(null);
   const [checkedStorage, setCheckedStorage] = useState(false);
+  // Uploading imported-image data URLs to storage, just before the deck save.
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   // The save lives in AppShell's ImportProvider so its toast (and Retry)
   // survive navigation — a 5,000-card deck can take a moment to land.
@@ -144,9 +148,25 @@ function ImportFlow() {
     );
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!draft) return;
-    startImportRequest(draftToImportRequest(draft, { isPublic, sourceFilename }), (deck) => {
+    setImageError(false);
+    let prepared = draft;
+    // Imported .apkg images arrive as data: URLs; upload them to storage first so
+    // the deck saves with real URLs (not megabytes of base64).
+    if (draftHasPendingImages(draft)) {
+      setUploadingImages(true);
+      try {
+        prepared = await uploadDraftImages(draft);
+        setDraft(prepared); // keep the real URLs if the deck save then fails
+      } catch {
+        setUploadingImages(false);
+        setImageError(true);
+        return;
+      }
+      setUploadingImages(false);
+    }
+    startImportRequest(draftToImportRequest(prepared, { isPublic, sourceFilename }), (deck) => {
       // Mark saved BEFORE navigating so the leave guard doesn't challenge our
       // own redirect, and drop the local copy — it's on the server now.
       savedRef.current = true;
@@ -203,8 +223,10 @@ function ImportFlow() {
         <DeckReviewEditor
           draft={draft}
           isPublic={isPublic}
-          saving={status === "pending"}
+          saving={status === "pending" || uploadingImages}
+          savingLabel={uploadingImages ? "Uploading images…" : undefined}
           error={status === "error"}
+          imageError={imageError}
           onChange={setDraft}
           onVisibilityChange={setIsPublic}
           onSave={handleSave}

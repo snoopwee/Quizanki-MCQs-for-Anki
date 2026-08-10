@@ -52,6 +52,8 @@ function rowsForNoteType(nt: ApkgNoteType, index: number): EditorRow[] {
     tags: [...note.tags],
     frontLang: note.frontLang ?? "",
     backLang: note.backLang ?? "",
+    frontImageUrl: note.frontImageUrl ?? "",
+    backImageUrl: note.backImageUrl ?? "",
   }));
 }
 
@@ -123,6 +125,8 @@ export function draftToImportRequest(
       ankiNoteId: null,
       fields: r.fields,
       tags: r.tags,
+      frontImageUrl: r.frontImageUrl || null,
+      backImageUrl: r.backImageUrl || null,
     }));
     if (key === BASIC_TYPE_KEY) {
       return basicNoteType(notes);

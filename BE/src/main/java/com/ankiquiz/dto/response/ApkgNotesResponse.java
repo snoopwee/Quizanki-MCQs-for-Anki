@@ -46,6 +46,19 @@ public record ApkgNotesResponse(
     ) {
     }
 
-    public record ParsedNote(String ankiNoteId, Map<String, String> fields, List<String> tags) {
+    /**
+     * {@code frontImageUrl}/{@code backImageUrl} carry a card image extracted from
+     * the deck's media — as a {@code data:} URL — when a front/back field contained
+     * an {@code <img>}. Null when the side has no image (or it was too big / missing).
+     * The client uploads the data URL to storage and saves the resulting URL on the
+     * card (the parse endpoint is stateless, so nothing is stored here).
+     */
+    public record ParsedNote(
+            String ankiNoteId,
+            Map<String, String> fields,
+            List<String> tags,
+            String frontImageUrl,
+            String backImageUrl
+    ) {
     }
 }

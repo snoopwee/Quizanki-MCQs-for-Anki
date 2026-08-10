@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { canSwapRow, fieldLabel, type EditorRow } from "@/lib/deckEditor";
 import { TTS_LANGUAGE_OPTIONS } from "@/lib/ttsLanguages";
+import { CardImageSlot } from "@/components/deck/CardImageSlot";
 
 // One card's editable body, shared by the saved-deck editor
 // (app/(app)/decks/[deckId]/edit) and the pre-save import review screen so the
@@ -19,9 +20,12 @@ export interface EditableCardProps {
   onSwap: (key: string) => void;
   onDelete: (key: string) => void;
   onLang: (key: string, face: "front" | "back", code: string) => void;
+  // Set a face's image URL ("" clears it). When omitted, the image UI is hidden —
+  // e.g. the import-review screen, whose save path doesn't carry images yet.
+  onImage?: (key: string, face: "front" | "back", url: string) => void;
 }
 
-export function EditableCard({ row, index, onField, onSwap, onDelete, onLang }: EditableCardProps) {
+export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, onImage }: EditableCardProps) {
   const [activeField, setActiveField] = useState<string | null>(null);
   // The field rows that carry the term (front) and definition (back) language.
   const termField = row.frontFields[0] ?? row.fieldNames[0];
@@ -90,6 +94,13 @@ export function EditableCard({ row, index, onField, onSwap, onDelete, onLang }: 
                 rows={row.cloze ? 3 : 2}
                 className="nice-scroll focus-ring w-full cursor-text select-text resize-y rounded-input border border-line-strong bg-surface-2 px-3 py-1.5 text-sm text-ink outline-none"
               />
+              {/* Optional per-face image (term face → front, definition → back). */}
+              {onImage && (showTerm || showDef) && (
+                <CardImageSlot
+                  url={showTerm ? row.frontImageUrl : row.backImageUrl}
+                  onChange={(url) => onImage(row.key, showTerm ? "front" : "back", url)}
+                />
+              )}
             </div>
           );
         })}

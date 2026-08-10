@@ -62,6 +62,7 @@ class NoteControllerTest {
                 noteId, deckId,
                 Map.of("Front", "食べる", "Back", "to eat"),
                 List.of("N4", "verb"),
+                null, null,
                 new CardStatsResponse(3, 2, 0.66, 0, 40.0, true, OffsetDateTime.now())
         );
         when(noteService.getNotes(eq("user-1"), eq(deckId), any(), anyBoolean(), anyBoolean(), any()))
@@ -96,16 +97,16 @@ class NoteControllerTest {
                 noteId, deckId,
                 Map.of("Front", "食べる", "Back", "to eat (edited)"),
                 List.of("N4", "verb"),
-                null
+                null, null, null
         );
-        when(noteService.updateNote(eq(CALLER), eq(deckId), eq(noteId), any(), any(), any()))
+        when(noteService.updateNote(eq(CALLER), eq(deckId), eq(noteId), any(), any(), any(), any(), any()))
                 .thenReturn(updated);
 
         mockMvc.perform(patch("/api/v1/decks/{deckId}/notes/{noteId}", deckId, noteId)
                         .with(jwt().jwt(j -> j.subject("user-1")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new UpdateNoteRequest(
-                                Map.of("Front", "食べる", "Back", "to eat (edited)"), null, null))))
+                                Map.of("Front", "食べる", "Back", "to eat (edited)"), null, null, null, null))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(noteId.toString()))
                 .andExpect(jsonPath("$.fields.Back").value("to eat (edited)"));
@@ -116,15 +117,15 @@ class NoteControllerTest {
         UUID deckId = UUID.randomUUID();
         UUID noteId = UUID.randomUUID();
         NoteResponse updated = new NoteResponse(
-                noteId, deckId, Map.of("Front", "水", "Back", "water"), List.of(), null);
-        when(noteService.updateNote(eq(CALLER), eq(deckId), eq(noteId), any(), eq("ja"), eq("en")))
+                noteId, deckId, Map.of("Front", "水", "Back", "water"), List.of(), null, null, null);
+        when(noteService.updateNote(eq(CALLER), eq(deckId), eq(noteId), any(), eq("ja"), eq("en"), any(), any()))
                 .thenReturn(updated);
 
         mockMvc.perform(patch("/api/v1/decks/{deckId}/notes/{noteId}", deckId, noteId)
                         .with(jwt().jwt(j -> j.subject("user-1")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new UpdateNoteRequest(
-                                Map.of("Front", "水", "Back", "water"), "ja", "en"))))
+                                Map.of("Front", "水", "Back", "water"), "ja", "en", null, null))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(noteId.toString()));
     }
@@ -134,7 +135,7 @@ class NoteControllerTest {
         mockMvc.perform(patch("/api/v1/decks/{deckId}/notes/{noteId}", UUID.randomUUID(), UUID.randomUUID())
                         .with(jwt().jwt(j -> j.subject("user-1")))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new UpdateNoteRequest(Map.of(), null, null))))
+                        .content(objectMapper.writeValueAsString(new UpdateNoteRequest(Map.of(), null, null, null, null))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.details.fields").exists());
     }
@@ -143,13 +144,13 @@ class NoteControllerTest {
     void updateNote_returns404_whenNoteMissing() throws Exception {
         UUID deckId = UUID.randomUUID();
         UUID noteId = UUID.randomUUID();
-        when(noteService.updateNote(eq(CALLER), eq(deckId), eq(noteId), any(), any(), any()))
+        when(noteService.updateNote(eq(CALLER), eq(deckId), eq(noteId), any(), any(), any(), any(), any()))
                 .thenThrow(new NotFoundException("Note not found: " + noteId));
 
         mockMvc.perform(patch("/api/v1/decks/{deckId}/notes/{noteId}", deckId, noteId)
                         .with(jwt().jwt(j -> j.subject("user-1")))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new UpdateNoteRequest(Map.of("Front", "x"), null, null))))
+                        .content(objectMapper.writeValueAsString(new UpdateNoteRequest(Map.of("Front", "x"), null, null, null, null))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }
@@ -162,6 +163,7 @@ class NoteControllerTest {
                 noteId, deckId,
                 Map.of("Front", "食べる", "Back", "to eat"),
                 List.of(),
+                null, null,
                 new CardStatsResponse(0, 0, 0.0, 0, 0.0, true, null)
         );
         when(noteService.setStarred(eq("user-1"), eq(deckId), eq(noteId), eq(true)))

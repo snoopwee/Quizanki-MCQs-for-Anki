@@ -88,7 +88,8 @@ public class NoteService {
      */
     @Transactional
     public NoteResponse updateNote(Caller caller, UUID deckId, UUID noteId, Map<String, String> incoming,
-                                   String frontLang, String backLang) {
+                                   String frontLang, String backLang,
+                                   String frontImageUrl, String backImageUrl) {
         Deck deck = deckRepository.findByIdAndUserId(deckId, caller.id())
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
         Note note = noteRepository.findByIdAndDeckId(noteId, deckId)
@@ -116,6 +117,14 @@ public class NoteService {
         }
         if (backLang != null) {
             note.setBackLang(normalizeLang(backLang));
+        }
+        // Per-face image URL: same rule — a present value (blank clears the image)
+        // is applied; an absent (null) value leaves it unchanged.
+        if (frontImageUrl != null) {
+            note.setFrontImageUrl(normalizeLang(frontImageUrl));
+        }
+        if (backImageUrl != null) {
+            note.setBackImageUrl(normalizeLang(backImageUrl));
         }
         Note saved = noteRepository.save(note);
 

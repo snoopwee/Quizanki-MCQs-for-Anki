@@ -78,7 +78,7 @@ class NoteServiceTest {
         incoming.put("Front", "a-edited");
         incoming.put("Bogus", "junk");
 
-        NoteResponse res = service.updateNote(CALLER, deckId, noteId, incoming, null, null);
+        NoteResponse res = service.updateNote(CALLER, deckId, noteId, incoming, null, null, null, null);
 
         assertThat(res.fields()).containsEntry("Front", "a-edited");
         assertThat(res.fields()).containsEntry("Back", "b");
@@ -90,7 +90,7 @@ class NoteServiceTest {
         Note note = existingNote(Map.of("Front", "a", "Back", "b"));
         stubOwnedNote(note, "Front", "Back");
 
-        NoteResponse res = service.updateNote(CALLER, deckId, noteId, Map.of("Back", "b-edited"), null, null);
+        NoteResponse res = service.updateNote(CALLER, deckId, noteId, Map.of("Back", "b-edited"), null, null, null, null);
 
         assertThat(res.fields()).containsEntry("Front", "a");
         assertThat(res.fields()).containsEntry("Back", "b-edited");
@@ -102,7 +102,7 @@ class NoteServiceTest {
         stubOwnedNote(note, "Text");
 
         NoteResponse res = service.updateNote(CALLER, deckId, noteId,
-                Map.of("Text", "The capital is {{c1::Paris}}."), null, null);
+                Map.of("Text", "The capital is {{c1::Paris}}."), null, null, null, null);
 
         assertThat(res.fields()).containsEntry("Text", "The capital is {{c1::Paris}}.");
     }
@@ -113,21 +113,39 @@ class NoteServiceTest {
         stubOwnedNote(note, "Front", "Back");
 
         // Set an override on the front face; a null back leaves that face unchanged.
-        service.updateNote(CALLER, deckId, noteId, Map.of("Front", "a"), "ja", null);
+        service.updateNote(CALLER, deckId, noteId, Map.of("Front", "a"), "ja", null, null, null);
         assertThat(note.getFrontLang()).isEqualTo("ja");
         assertThat(note.getBackLang()).isNull();
 
         // A present-but-blank value clears the override back to auto-detect.
-        service.updateNote(CALLER, deckId, noteId, Map.of("Front", "a"), "  ", "en");
+        service.updateNote(CALLER, deckId, noteId, Map.of("Front", "a"), "  ", "en", null, null);
         assertThat(note.getFrontLang()).isNull();
         assertThat(note.getBackLang()).isEqualTo("en");
+    }
+
+    @Test
+    void updateNote_setsAndClearsFaceImage() {
+        Note note = existingNote(Map.of("Front", "a", "Back", "b"));
+        stubOwnedNote(note, "Front", "Back");
+
+        // Present value sets the image; a null on the other face leaves it unchanged.
+        service.updateNote(CALLER, deckId, noteId, Map.of("Front", "a"), null, null,
+                "https://cdn/pic.png", null);
+        assertThat(note.getFrontImageUrl()).isEqualTo("https://cdn/pic.png");
+        assertThat(note.getBackImageUrl()).isNull();
+
+        // A present-but-blank value clears the image.
+        service.updateNote(CALLER, deckId, noteId, Map.of("Front", "a"), null, null,
+                "  ", "https://cdn/b.png");
+        assertThat(note.getFrontImageUrl()).isNull();
+        assertThat(note.getBackImageUrl()).isEqualTo("https://cdn/b.png");
     }
 
     @Test
     void updateNote_throwsNotFound_whenDeckNotOwned() {
         when(deckRepository.findByIdAndUserId(deckId, USER)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.updateNote(CALLER, deckId, noteId, Map.of("Front", "x"), null, null))
+        assertThatThrownBy(() -> service.updateNote(CALLER, deckId, noteId, Map.of("Front", "x"), null, null, null, null))
                 .isInstanceOf(NotFoundException.class);
     }
 
@@ -136,7 +154,7 @@ class NoteServiceTest {
         when(deckRepository.findByIdAndUserId(deckId, USER)).thenReturn(Optional.of(new Deck()));
         when(noteRepository.findByIdAndDeckId(noteId, deckId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.updateNote(CALLER, deckId, noteId, Map.of("Front", "x"), null, null))
+        assertThatThrownBy(() -> service.updateNote(CALLER, deckId, noteId, Map.of("Front", "x"), null, null, null, null))
                 .isInstanceOf(NotFoundException.class);
     }
 

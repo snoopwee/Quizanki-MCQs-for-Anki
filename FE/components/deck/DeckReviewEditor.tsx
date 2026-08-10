@@ -33,7 +33,9 @@ export function DeckReviewEditor({
   draft,
   isPublic,
   saving,
+  savingLabel,
   error,
+  imageError = false,
   onChange,
   onVisibilityChange,
   onSave,
@@ -42,7 +44,11 @@ export function DeckReviewEditor({
   draft: EditorState;
   isPublic: boolean;
   saving: boolean;
+  // Overrides the busy-button label (e.g. "Uploading images…" while imported
+  // images upload before the deck save).
+  savingLabel?: string;
   error: boolean;
+  imageError?: boolean;
   onChange: (next: EditorState) => void;
   onVisibilityChange: (isPublic: boolean) => void;
   onSave: () => void;
@@ -70,6 +76,13 @@ export function DeckReviewEditor({
       ...d,
       rows: d.rows.map((r) =>
         r.key === key ? { ...r, [face === "front" ? "frontLang" : "backLang"]: code } : r,
+      ),
+    }));
+  const setImage = (key: string, face: "front" | "back", url: string) =>
+    patch((d) => ({
+      ...d,
+      rows: d.rows.map((r) =>
+        r.key === key ? { ...r, [face === "front" ? "frontImageUrl" : "backImageUrl"]: url } : r,
       ),
     }));
   const deleteRow = (key: string) =>
@@ -129,7 +142,7 @@ export function DeckReviewEditor({
             disabled={saveDisabled}
             className="focus-ring rounded-input bg-accent px-4 py-1.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-50"
           >
-            {saving ? "Saving…" : "Save deck"}
+            {saving ? savingLabel ?? "Saving…" : "Save deck"}
           </button>
         </div>
       </div>
@@ -139,6 +152,12 @@ export function DeckReviewEditor({
         <span className="font-semibold text-ink">Save deck</span>. Your progress here is kept on this
         device, so you can come back to it.
       </p>
+
+      {imageError && (
+        <p className="rounded-input border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+          Couldn&apos;t upload one of the card images. Your work is safe — try again.
+        </p>
+      )}
 
       {error && (
         <p className="rounded-input border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
@@ -188,6 +207,7 @@ export function DeckReviewEditor({
               onSwap={swapRow}
               onDelete={deleteRow}
               onLang={setLang}
+              onImage={setImage}
             />
           </li>
         ))}

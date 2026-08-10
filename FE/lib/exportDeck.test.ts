@@ -8,8 +8,8 @@ import type { Flashcard } from "@/lib/flashcards";
 import type { DeckContentsNote, DeckContentsNoteType, DeckContentsResponse } from "@/types/api";
 
 // Test notes may omit the per-face language fields; they default to null (auto).
-type TestNote = Omit<DeckContentsNote, "frontLang" | "backLang"> &
-  Partial<Pick<DeckContentsNote, "frontLang" | "backLang">>;
+type TestNote = Omit<DeckContentsNote, "frontLang" | "backLang" | "frontImageUrl" | "backImageUrl"> &
+  Partial<Pick<DeckContentsNote, "frontLang" | "backLang" | "frontImageUrl" | "backImageUrl">>;
 
 function noteType(
   over: Omit<Partial<DeckContentsNoteType>, "notes"> &
@@ -23,7 +23,13 @@ function noteType(
     backFields: [],
     noteCount: over.notes.length,
     ...over,
-    notes: over.notes.map((n) => ({ frontLang: null, backLang: null, ...n })),
+    notes: over.notes.map((n) => ({
+      frontLang: null,
+      backLang: null,
+      frontImageUrl: null,
+      backImageUrl: null,
+      ...n,
+    })),
   };
 }
 

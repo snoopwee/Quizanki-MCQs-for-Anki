@@ -3,6 +3,7 @@ package com.ankiquiz.service;
 import com.ankiquiz.dto.request.ImportDeckRequest;
 import com.ankiquiz.dto.request.NoteRequest;
 import com.ankiquiz.dto.request.NoteTypeRequest;
+import com.ankiquiz.dto.request.SetDeckLayoutRequest;
 import com.ankiquiz.dto.request.UpdateDeckContentsRequest;
 import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.DeckContentsResponse.NoteContents;
@@ -31,13 +32,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -754,6 +758,43 @@ public class DeckService {
         deck.setBackLang(normalizeLang(backLang));
         deckRepository.save(deck);
         // Owner-verified deck already in hand — build from it directly.
+        return buildContents(deck, userId);
+    }
+
+    /**
+     * Change which fields each note type shows on the card front/back — the
+     * "show/hide extra fields" control. Only known field names are kept, and a
+     * front that would end up empty is left as-is (a card must have a term). Scoped
+     * by deck ownership; returns the refreshed contents.
+     */
+    @Transactional
+    public DeckContentsResponse setDeckLayout(String userId, UUID deckId,
+                                              List<SetDeckLayoutRequest.NoteTypeLayout> layouts) {
+        Deck deck = deckRepository.findByIdAndUserId(deckId, userId)
+                .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
+        Map<UUID, NoteType> typeById = noteTypeRepository.findAllByDeckId(deckId).stream()
+                .collect(Collectors.toMap(NoteType::getId, Function.identity()));
+
+        for (SetDeckLayoutRequest.NoteTypeLayout layout : layouts) {
+            NoteType type = typeById.get(layout.id());
+            if (type == null) {
+                continue; // ignore ids that aren't this deck's note types
+            }
+            Set<String> valid = new LinkedHashSet<>(Arrays.asList(type.getFieldNames()));
+            if (layout.frontFields() != null) {
+                List<String> front = layout.frontFields().stream().filter(valid::contains).toList();
+                if (!front.isEmpty()) {
+                    type.setFrontFields(front.toArray(String[]::new));
+                }
+            }
+            if (layout.backFields() != null) {
+                List<String> back = layout.backFields().stream().filter(valid::contains).toList();
+                if (!back.isEmpty()) {
+                    type.setBackFields(back.toArray(String[]::new));
+                }
+            }
+            noteTypeRepository.save(type);
+        }
         return buildContents(deck, userId);
     }
 

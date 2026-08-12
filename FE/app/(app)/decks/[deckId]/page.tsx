@@ -10,6 +10,7 @@ import {
   useDeleteDeck,
   useOpenDeck,
   useSaveDeck,
+  useSetDeckLayout,
 } from "@/hooks/useDecks";
 import { useNotes, useToggleStar } from "@/hooks/useNotes";
 import { useStartSession } from "@/hooks/useQuizSession";
@@ -52,6 +53,7 @@ function DeckDetail() {
   const contentsQuery = useDeckContents(deckId);
   const notesQuery = useNotes(deckId);
   const startSession = useStartSession();
+  const setLayout = useSetDeckLayout(deckId);
   const startQuiz = useQuizStore((s) => s.startSession);
   const deleteDeck = useDeleteDeck();
   const cloneDeck = useCloneDeck();
@@ -243,8 +245,14 @@ function DeckDetail() {
               />
             </div>
             <div className="p-6">
-              {/* pr-10 keeps a long title clear of the corner "⋯" menu */}
-              <h1 className="pr-10 font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+              {/* pr-10 keeps a long title clear of the corner "⋯" menu. break-words
+                  wraps a long unbroken name (e.g. underscore_case export names);
+                  line-clamp-2 caps it at two rows with an ellipsis, and title shows
+                  the whole thing on hover. */}
+              <h1
+                title={deckName}
+                className="line-clamp-2 break-words pr-10 font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl"
+              >
                 {deckName}
               </h1>
               <DeckAuthor
@@ -342,6 +350,27 @@ function DeckDetail() {
               hiddenSide={hiddenSide}
               onBack={() => router.push("/home")}
               onStartTest={goToSetup}
+              // Owner-only "show/hide extra fields" control (real note-type UUIDs
+              // from contents), saved to the deck's layout via PUT /decks/{id}/layout.
+              fields={
+                owned
+                  ? {
+                      noteTypes: contentsQuery.data.noteTypes.map((nt) => ({
+                        id: nt.id,
+                        name: nt.name,
+                        fieldNames: nt.fieldNames,
+                        frontFields: nt.frontFields,
+                        backFields: nt.backFields,
+                        cloze: nt.cloze,
+                      })),
+                      saving: setLayout.isPending,
+                      onChange: (typeId, next) =>
+                        setLayout.mutate([
+                          { id: typeId, frontFields: next.frontFields, backFields: next.backFields },
+                        ]),
+                    }
+                  : undefined
+              }
             />
           </div>
 
@@ -418,14 +447,18 @@ function Breadcrumb({ items }: { items: Array<{ label: string; href?: string }> 
         {items.map((item, i) => {
           const last = i === items.length - 1;
           return (
-            <li key={i} className="flex items-center gap-1.5">
+            <li key={i} className="flex min-w-0 items-center gap-1.5">
               {item.href && !last ? (
-                <Link href={item.href} className="transition-colors hover:text-accent">
+                <Link href={item.href} className="whitespace-nowrap transition-colors hover:text-accent">
                   {item.label}
                 </Link>
               ) : (
+                // The current page is the deck name — let a long unbroken name wrap
+                // (break-words) instead of pushing the breadcrumb out of the box;
+                // title shows the full name on hover.
                 <span
-                  className={last ? "font-medium text-ink" : ""}
+                  title={last ? item.label : undefined}
+                  className={last ? "break-words font-medium text-ink" : "whitespace-nowrap"}
                   aria-current={last ? "page" : undefined}
                 >
                   {item.label}

@@ -195,10 +195,11 @@ function ApkgSummary({
         ))}
       </ul>
 
-      <p className="text-xs text-faint">
-        Decks that use an image or audio as the <em>answer</em> may not be supported.
-        {usable.length === 0 && " None of these note types look ready for a text quiz yet."}
-      </p>
+      {usable.length === 0 && (
+        <p className="text-xs text-faint">
+          None of these note types look ready for a text quiz yet.
+        </p>
+      )}
 
       {onContinue && (
         <button

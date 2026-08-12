@@ -36,6 +36,8 @@ export function DeckReviewEditor({
   savingLabel,
   error,
   imageError = false,
+  audioForRow,
+  resolveClip,
   onChange,
   onVisibilityChange,
   onSave,
@@ -49,6 +51,10 @@ export function DeckReviewEditor({
   savingLabel?: string;
   error: boolean;
   imageError?: boolean;
+  // Review-only audio playback: the [sound:] filenames for a row (by its Anki id)
+  // plus a resolver that turns a filename into a playable URL (from the kept .apkg).
+  audioForRow?: (ankiNoteId: string) => { front: string | null; back: string | null } | undefined;
+  resolveClip?: (filename: string) => Promise<string | null>;
   onChange: (next: EditorState) => void;
   onVisibilityChange: (isPublic: boolean) => void;
   onSave: () => void;
@@ -198,19 +204,27 @@ export function DeckReviewEditor({
       )}
 
       <ul className="space-y-3">
-        {shown.map(({ row, index }) => (
-          <li key={row.key} className="space-y-2 rounded-card border border-line bg-surface p-4">
-            <EditableCard
-              row={row}
-              index={index}
-              onField={setField}
-              onSwap={swapRow}
-              onDelete={deleteRow}
-              onLang={setLang}
-              onImage={setImage}
-            />
-          </li>
-        ))}
+        {shown.map(({ row, index }) => {
+          const refs = row.ankiNoteId && audioForRow ? audioForRow(row.ankiNoteId) : undefined;
+          const playAudio =
+            refs && resolveClip && (refs.front || refs.back)
+              ? { front: refs.front, back: refs.back, resolve: resolveClip }
+              : undefined;
+          return (
+            <li key={row.key} className="space-y-2 rounded-card border border-line bg-surface p-4">
+              <EditableCard
+                row={row}
+                index={index}
+                onField={setField}
+                onSwap={swapRow}
+                onDelete={deleteRow}
+                onLang={setLang}
+                onImage={setImage}
+                playAudio={playAudio}
+              />
+            </li>
+          );
+        })}
       </ul>
 
       {remaining > 0 && (

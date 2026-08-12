@@ -4,6 +4,7 @@ import com.ankiquiz.dto.request.ImportAudioRequest;
 import com.ankiquiz.dto.request.ImportDeckRequest;
 import com.ankiquiz.dto.request.SaveDeckRequest;
 import com.ankiquiz.dto.request.SetDeckLanguagesRequest;
+import com.ankiquiz.dto.request.SetDeckLayoutRequest;
 import com.ankiquiz.dto.request.ShareDeckRequest;
 import com.ankiquiz.dto.request.UpdateDeckContentsRequest;
 import com.ankiquiz.dto.request.UpdateDeckRequest;
@@ -183,6 +184,19 @@ public class DeckController {
             @Valid @RequestBody SetDeckLanguagesRequest request
     ) {
         return deckService.setDeckLanguages(jwt.getSubject(), deckId, request.frontLang(), request.backLang());
+    }
+
+    @PutMapping("/{deckId}/layout")
+    @Operation(summary = "Set which fields a deck's cards show, per note type",
+            description = "The \"show/hide extra fields\" control — changes each note type's front/back "
+                    + "field selection (not the notes). Owner-only; drives the flashcard display and the "
+                    + "quiz's default fields. Returns the refreshed deck contents.")
+    public DeckContentsResponse setDeckLayout(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId,
+            @Valid @RequestBody SetDeckLayoutRequest request
+    ) {
+        return deckService.setDeckLayout(jwt.getSubject(), deckId, request.noteTypes());
     }
 
     @PatchMapping("/{deckId}/share")

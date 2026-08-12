@@ -17,6 +17,8 @@ import {
 } from "@/lib/deckEditor";
 import { ImportCardsModal, type ImportMode } from "@/components/deck/ImportCardsModal";
 import { EditableCard, type EditableCardProps } from "@/components/deck/EditableCard";
+import { CardFieldsControl, type FieldNoteType } from "@/components/deck/CardFieldsControl";
+import { hasExtraFields } from "@/lib/cardFields";
 
 export default function DeckEditPage() {
   return (
@@ -110,6 +112,24 @@ function DeckEditor() {
   const addRow = () => patch((d) => ({ ...d, rows: [...d.rows, addBasicRow()] }));
   const handleImport = (rows: EditorRow[], mode: ImportMode) =>
     patch((d) => ({ ...d, rows: mode === "replace" ? rows : [...d.rows, ...rows] }));
+  // "Show / hide extra fields": update a note type's front/back field selection.
+  // Persisted with the deck on save (toPayload sends layoutByType).
+  const setLayout = (typeId: string, next: { frontFields: string[]; backFields: string[] }) =>
+    patch((d) => ({ ...d, layoutByType: { ...d.layoutByType, [typeId]: next } }));
+
+  // Note types with their field names (static, from contents) + the draft's
+  // current front/back selection — what the "Fields shown on cards" control edits.
+  const fieldNoteTypes = useMemo<FieldNoteType[]>(() => {
+    if (!contentsQuery.data || !draft) return [];
+    return contentsQuery.data.noteTypes.map((nt) => ({
+      id: nt.id,
+      name: nt.name,
+      fieldNames: nt.fieldNames,
+      cloze: nt.cloze,
+      frontFields: draft.layoutByType[nt.id]?.frontFields ?? nt.frontFields,
+      backFields: draft.layoutByType[nt.id]?.backFields ?? nt.backFields,
+    }));
+  }, [contentsQuery.data, draft]);
 
   // Live reorder from the drag list: motion hands back the new key order, so we
   // reshuffle the draft rows to match (row objects, with their edits, are kept).
@@ -215,6 +235,19 @@ function DeckEditor() {
           className="focus-ring w-full rounded-input border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink outline-none"
         />
       </label>
+
+      {hasExtraFields(fieldNoteTypes) && (
+        <div className="space-y-3 rounded-card border border-line bg-surface p-4">
+          <div>
+            <h2 className="text-sm font-bold text-ink">Fields shown on cards</h2>
+            <p className="mt-0.5 text-xs text-muted">
+              Your deck has extra fields from the import. Choose which also appear on each card&apos;s
+              definition side.
+            </p>
+          </div>
+          <CardFieldsControl noteTypes={fieldNoteTypes} onChange={setLayout} />
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-3">
         <input

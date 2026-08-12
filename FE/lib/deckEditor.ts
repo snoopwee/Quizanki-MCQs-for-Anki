@@ -15,6 +15,9 @@ export interface EditorRow {
   // Stable local key for React lists — survives reorder/edit (note id may be null).
   key: string;
   id: string | null; // persisted note id; null for a freshly added/imported card
+  // Original Anki note id — kept so an imported row can be matched to its parsed
+  // audio ref (for review-time playback). Null for manual / cloze-split rows.
+  ankiNoteId: string | null;
   noteTypeId: string | null; // null → backend routes to the Basic (Front/Back) type
   cloze: boolean;
   fieldNames: string[];
@@ -74,6 +77,7 @@ export function fromContents(contents: DeckContentsResponse): EditorState {
       rows.push({
         key: nextKey(),
         id: note.id,
+        ankiNoteId: note.ankiNoteId,
         noteTypeId: nt.id,
         cloze: nt.cloze,
         fieldNames: nt.fieldNames,
@@ -217,6 +221,7 @@ function rowWithId(
   return {
     key: nextKey(),
     id,
+    ankiNoteId: null,
     noteTypeId: null,
     cloze: false,
     fieldNames: ["Front", "Back"],

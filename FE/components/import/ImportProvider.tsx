@@ -2,9 +2,10 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { Toast } from "@/components/shared/Toast";
-import { useImportDeck } from "@/hooks/useDecks";
+import { useImportDeck, type ImportAudioPayload, type ImportInput } from "@/hooks/useDecks";
 import { parsedToImportRequest } from "@/lib/parsedToImportRequest";
-import type { ApkgParseResponse, DeckResponse, ImportDeckRequest } from "@/types/api";
+import type { EditorState } from "@/lib/deckEditor";
+import type { ApkgParseResponse, DeckResponse } from "@/types/api";
 
 // Owns the deck-import mutation + its status toast. Mounted in AppShell so the
 // mutation and its UI survive navigation between (app) pages — without this, the
@@ -12,10 +13,16 @@ import type { ApkgParseResponse, DeckResponse, ImportDeckRequest } from "@/types
 // clicks Home, even though the POST is still in flight.
 interface ImportContextValue {
   startImport(parsed: ApkgParseResponse): void;
-  // Save an already-built request — what the import review screen sends once the
-  // user has looked the deck over. `onSaved` runs with the created deck so the
-  // caller can drop its local draft and navigate to it.
-  startImportRequest(request: ImportDeckRequest, onSaved?: (deck: DeckResponse) => void): void;
+  // Save the reviewed draft: the mutation uploads its images, saves the deck, and
+  // imports its .apkg audio — all one operation (one "Saving…" from the first
+  // click). `onSaved` runs with the created deck so the caller can drop its local
+  // draft and navigate to it.
+  startImportRequest(
+    draft: EditorState,
+    options: { isPublic: boolean; sourceFilename: string | null },
+    audio?: ImportAudioPayload | null,
+    onSaved?: (deck: DeckResponse) => void,
+  ): void;
   retryImport(): void;
   status: "idle" | "pending" | "success" | "error";
 }
@@ -33,9 +40,9 @@ export function useImportContext(): ImportContextValue {
 export function ImportProvider({ children }: { children: ReactNode }) {
   const importDeck = useImportDeck();
   const [dismissed, setDismissed] = useState(false);
-  // Held so the error-toast "Retry" can resubmit the same request without
-  // bouncing the user back to /import to re-upload or re-paste.
-  const [lastRequest, setLastRequest] = useState<ImportDeckRequest | null>(null);
+  // Held so the error-toast "Retry" can resubmit the same save (draft + audio)
+  // without bouncing the user back to /import to re-upload or re-paste.
+  const [lastPayload, setLastPayload] = useState<ImportInput | null>(null);
 
   // A new save kicks off → reset the dismiss latch so its outcome toast appears
   // even if the previous one was dismissed.
@@ -43,20 +50,29 @@ export function ImportProvider({ children }: { children: ReactNode }) {
     if (importDeck.status === "pending") setDismissed(false);
   }, [importDeck.status]);
 
-  function startImportRequest(request: ImportDeckRequest, onSaved?: (deck: DeckResponse) => void) {
-    setLastRequest(request);
+  function startImportRequest(
+    draft: EditorState,
+    options: { isPublic: boolean; sourceFilename: string | null },
+    audio?: ImportAudioPayload | null,
+    onSaved?: (deck: DeckResponse) => void,
+  ) {
+    const payload: ImportInput = { draft, options, audio };
+    setLastPayload(payload);
     setDismissed(false);
-    importDeck.mutate(request, onSaved ? { onSuccess: onSaved } : undefined);
+    importDeck.mutate(payload, onSaved ? { onSuccess: onSaved } : undefined);
   }
 
   function startImport(parsed: ApkgParseResponse) {
-    startImportRequest(parsedToImportRequest(parsed));
+    const payload: ImportInput = { request: parsedToImportRequest(parsed) };
+    setLastPayload(payload);
+    setDismissed(false);
+    importDeck.mutate(payload);
   }
 
   function retryImport() {
-    if (!lastRequest) return;
+    if (!lastPayload) return;
     setDismissed(false);
-    importDeck.mutate(lastRequest);
+    importDeck.mutate(lastPayload);
   }
 
   return (

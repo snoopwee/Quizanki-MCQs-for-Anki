@@ -16,9 +16,9 @@ import { Spinner } from "@/components/ui/Spinner";
 import { ConfirmLeaveModal } from "@/components/shared/ConfirmLeaveModal";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { useImportContext } from "@/components/import/ImportProvider";
-import { draftToImportRequest, fromParsed } from "@/lib/deckDraft";
-import { draftHasPendingImages, uploadDraftImages } from "@/lib/cardImageUpload";
-import { buildAudioRefs, importDeckAudio, type AudioRef } from "@/lib/cardAudioImport";
+import { fromParsed } from "@/lib/deckDraft";
+import { buildAudioRefs, type AudioRef } from "@/lib/cardAudioImport";
+import { ApkgMedia } from "@/lib/apkgMedia";
 import { basicRow, type EditorState } from "@/lib/deckEditor";
 import { clearDraft, describeAge, loadDraft, saveDraft } from "@/lib/draftStore";
 import { parsePlainText, type ParsedPair } from "@/lib/parsePlainText";
@@ -64,15 +64,22 @@ function ImportFlow() {
   // restored — the user may well have moved on and want a clean start.
   const [recovered, setRecovered] = useState<Awaited<ReturnType<typeof loadDraft>>>(null);
   const [checkedStorage, setCheckedStorage] = useState(false);
-  // Uploading imported-image data URLs to storage, just before the deck save.
-  const [uploadingImages, setUploadingImages] = useState(false);
-  const [imageError, setImageError] = useState(false);
-  // The original .apkg + its per-note audio refs, kept so we can stream the deck's
-  // audio to storage after the save (see cardAudioImport). Both cleared for a
-  // text-paste import, which has no media.
+  // The original .apkg + its per-note audio refs, sent alongside the save so the
+  // deck's audio is imported as part of the same operation (see useImportDeck).
+  // Both cleared for a text-paste import, which has no media.
   const [apkgFile, setApkgFile] = useState<File | null>(null);
   const [audioRefs, setAudioRefs] = useState<AudioRef[]>([]);
-  const [importingAudio, setImportingAudio] = useState(false);
+
+  // Review-time audio preview: a lazy client-side extractor over the kept .apkg,
+  // plus a lookup from a card's Anki id to its front/back [sound:] filenames. Blob
+  // URLs are freed when the file changes / the page unmounts.
+  const apkgMedia = useMemo(() => (apkgFile ? new ApkgMedia(apkgFile) : null), [apkgFile]);
+  useEffect(() => () => apkgMedia?.revoke(), [apkgMedia]);
+  const audioByAnki = useMemo(() => {
+    const map = new Map<string, { front: string | null; back: string | null }>();
+    for (const r of audioRefs) map.set(r.ankiNoteId, { front: r.front, back: r.back });
+    return map;
+  }, [audioRefs]);
 
   // The save lives in AppShell's ImportProvider so its toast (and Retry)
   // survive navigation — a 5,000-card deck can take a moment to land.
@@ -161,40 +168,16 @@ function ImportFlow() {
     );
   }
 
-  async function handleSave() {
+  function handleSave() {
     if (!draft) return;
-    setImageError(false);
-    let prepared = draft;
-    // Imported .apkg images arrive as data: URLs; upload them to storage first so
-    // the deck saves with real URLs (not megabytes of base64).
-    if (draftHasPendingImages(draft)) {
-      setUploadingImages(true);
-      try {
-        prepared = await uploadDraftImages(draft);
-        setDraft(prepared); // keep the real URLs if the deck save then fails
-      } catch {
-        setUploadingImages(false);
-        setImageError(true);
-        return;
-      }
-      setUploadingImages(false);
-    }
-    startImportRequest(draftToImportRequest(prepared, { isPublic, sourceFilename }), async (deck) => {
-      // Mark saved BEFORE navigating so the leave guard doesn't challenge our
-      // own redirect, and drop the local copy — it's on the server now.
+    // Image upload + deck save + audio import all run inside the one mutation, so
+    // the "Saving…" toast is up from this click (see useImportDeck).
+    const audio = apkgFile && audioRefs.length > 0 ? { file: apkgFile, refs: audioRefs } : null;
+    startImportRequest(draft, { isPublic, sourceFilename }, audio, (deck) => {
+      // Mark saved BEFORE navigating so the leave guard doesn't challenge our own
+      // redirect, and drop the local copy — it's on the server now.
       savedRef.current = true;
       void clearDraft();
-      // Bring the deck's audio onto its cards by re-sending the .apkg — best-effort:
-      // the deck is already saved, so a failure just means no audio (add it manually).
-      if (apkgFile && audioRefs.length > 0) {
-        setImportingAudio(true);
-        try {
-          await importDeckAudio(deck.id, apkgFile, audioRefs);
-        } catch {
-          // Non-fatal — leave the deck audio-less rather than blocking the redirect.
-        }
-        setImportingAudio(false);
-      }
       router.push(`/decks/${deck.id}`);
     });
   }
@@ -249,16 +232,10 @@ function ImportFlow() {
         <DeckReviewEditor
           draft={draft}
           isPublic={isPublic}
-          saving={status === "pending" || uploadingImages || importingAudio}
-          savingLabel={
-            uploadingImages
-              ? "Uploading images…"
-              : importingAudio
-                ? "Importing audio…"
-                : undefined
-          }
+          saving={status === "pending"}
           error={status === "error"}
-          imageError={imageError}
+          audioForRow={(ankiNoteId) => audioByAnki.get(ankiNoteId)}
+          resolveClip={apkgMedia ? (filename) => apkgMedia.clipUrl(filename) : undefined}
           onChange={setDraft}
           onVisibilityChange={setIsPublic}
           onSave={handleSave}

@@ -141,7 +141,7 @@ function Landing() {
               />
             </div>
             <p className="mt-3 text-center text-xs text-faint">
-              We read the cards only — images and audio stay on your device.
+              Preview it instantly — no sign-up needed.
             </p>
           </div>
         </section>

@@ -72,7 +72,10 @@ export default function SharedDeckPage() {
                   <Icon name="link" size={13} />
                   Shared deck
                 </span>
-                <h1 className="font-display mt-3 text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+                <h1
+                  title={deckQuery.data.name}
+                  className="font-display mt-3 line-clamp-2 break-words text-2xl font-bold tracking-tight text-ink sm:text-3xl"
+                >
                   {deckQuery.data.name}
                 </h1>
                 <DeckAuthor

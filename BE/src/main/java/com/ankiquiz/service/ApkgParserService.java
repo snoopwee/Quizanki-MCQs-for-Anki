@@ -41,7 +41,6 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -131,8 +130,9 @@ public class ApkgParserService {
     // ── Media (card image) extraction bounds ─────────────────────────────────
     /** Biggest single media blob we'll pull out of the deck (bigger images are skipped). */
     static final int MAX_IMAGE_BYTES = 1024 * 1024; // 1 MB
-    /** Total media we'll buffer in memory per parse — the memory ceiling for extraction. */
-    static final long MAX_MEDIA_BUFFER_BYTES = 12L * 1024 * 1024; // 12 MB
+    /** Total IMAGE bytes we'll buffer in memory per parse — the memory ceiling for
+     *  extraction. Only images count toward it (audio isn't buffered here). */
+    static final long MAX_MEDIA_BUFFER_BYTES = 24L * 1024 * 1024; // 24 MB
     /** The Anki media manifest is small JSON (number → filename); cap it defensively. */
     static final int MAX_MEDIA_MANIFEST_BYTES = 4 * 1024 * 1024; // 4 MB
 
@@ -534,10 +534,14 @@ public class ApkgParserService {
                 } else if (MEDIA_MANIFEST.equals(name)) {
                     manifest = readEntryBounded(zip, MAX_MEDIA_MANIFEST_BYTES);
                 } else if (NUMBERED_ENTRY.matcher(name).matches() && buffered < MAX_MEDIA_BUFFER_BYTES) {
-                    // Buffer media blobs (bounded) so we can pull out card images
-                    // after parsing the collection. Bigger-than-cap blobs are skipped.
+                    // Buffer only IMAGE blobs (bounded) so we can pull out card images
+                    // after parsing the collection. A deck's audio is often most of its
+                    // media (e.g. a Core-2000 deck is ~25 MB, mostly mp3) — buffering it
+                    // here would starve the image budget and silently drop later images,
+                    // so we sniff each blob and keep it only if it's an image. Audio is
+                    // extracted separately, streamed at save (see streamReferencedMedia).
                     byte[] bytes = readEntryBounded(zip, MAX_IMAGE_BYTES);
-                    if (bytes != null) {
+                    if (bytes != null && AvatarService.sniffImageType(bytes) != null) {
                         numbered.put(name, bytes);
                         buffered += bytes.length;
                     }

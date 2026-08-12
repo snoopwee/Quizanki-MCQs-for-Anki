@@ -43,6 +43,7 @@ function rowsForNoteType(nt: ApkgNoteType, index: number): EditorRow[] {
   return nt.notes.map((note) => ({
     key: nextDraftKey(),
     id: null, // nothing is persisted yet
+    ankiNoteId: note.ankiNoteId,
     noteTypeId: draftNoteTypeKey(index),
     cloze: nt.cloze,
     fieldNames: nt.fieldNames,
@@ -124,7 +125,9 @@ export function draftToImportRequest(
 
   const noteTypes = [...byType.entries()].map(([key, typeRows]) => {
     const notes: NoteRequest[] = typeRows.map((r) => ({
-      ankiNoteId: null,
+      // Keep the original Anki note id — the post-save audio import matches its
+      // clips to the saved notes by it. Cards added in review have none.
+      ankiNoteId: r.ankiNoteId,
       fields: r.fields,
       tags: r.tags,
       frontImageUrl: r.frontImageUrl || null,

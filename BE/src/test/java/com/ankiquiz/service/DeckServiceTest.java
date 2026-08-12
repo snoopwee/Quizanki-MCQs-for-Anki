@@ -1,5 +1,6 @@
 package com.ankiquiz.service;
 
+import com.ankiquiz.dto.request.SetDeckLayoutRequest;
 import com.ankiquiz.dto.request.UpdateDeckContentsRequest;
 import com.ankiquiz.dto.request.UpdateDeckContentsRequest.NoteEntry;
 import com.ankiquiz.dto.request.UpdateDeckContentsRequest.NoteTypeLayout;
@@ -126,6 +127,57 @@ class DeckServiceTest {
         t.setFrontFields(new String[]{"Front"});
         t.setBackFields(new String[]{"Back"});
         return t;
+    }
+
+    private NoteType threeFieldType() {
+        NoteType t = new NoteType();
+        t.setId(typeId);
+        t.setDeckId(deckId);
+        t.setName("Vocab");
+        t.setCloze(false);
+        t.setFieldNames(new String[]{"Front", "Back", "Reading"});
+        t.setFrontFields(new String[]{"Front"});
+        t.setBackFields(new String[]{"Back"});
+        return t;
+    }
+
+    @Test
+    void setDeckLayout_showsAnExtraField_byAddingItToBackFields() {
+        NoteType type = threeFieldType();
+        when(deckRepository.findByIdAndUserId(deckId, USER)).thenReturn(Optional.of(deck()));
+        when(noteTypeRepository.findAllByDeckId(deckId)).thenReturn(List.of(type));
+        when(noteRepository.findAllByDeckIdOrderByPositionAscIdAsc(deckId)).thenReturn(new ArrayList<>());
+
+        service.setDeckLayout(USER, deckId, List.of(
+                new SetDeckLayoutRequest.NoteTypeLayout(typeId, List.of("Front"), List.of("Back", "Reading"))));
+
+        assertThat(type.getFrontFields()).containsExactly("Front");
+        assertThat(type.getBackFields()).containsExactly("Back", "Reading");
+    }
+
+    @Test
+    void setDeckLayout_dropsUnknownFields_andKeepsFrontNonEmpty() {
+        NoteType type = threeFieldType();
+        when(deckRepository.findByIdAndUserId(deckId, USER)).thenReturn(Optional.of(deck()));
+        when(noteTypeRepository.findAllByDeckId(deckId)).thenReturn(List.of(type));
+        when(noteRepository.findAllByDeckIdOrderByPositionAscIdAsc(deckId)).thenReturn(new ArrayList<>());
+
+        // "Bogus" isn't a real field → filtered out; an all-invalid front is ignored
+        // (a card must keep a term), so front stays as it was.
+        service.setDeckLayout(USER, deckId, List.of(
+                new SetDeckLayoutRequest.NoteTypeLayout(typeId, List.of("Bogus"), List.of("Back", "Bogus"))));
+
+        assertThat(type.getFrontFields()).containsExactly("Front"); // unchanged
+        assertThat(type.getBackFields()).containsExactly("Back");   // Bogus dropped
+    }
+
+    @Test
+    void setDeckLayout_throwsNotFound_whenDeckNotOwned() {
+        when(deckRepository.findByIdAndUserId(deckId, USER)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.setDeckLayout(USER, deckId, List.of(
+                new SetDeckLayoutRequest.NoteTypeLayout(typeId, List.of("Front"), List.of("Back")))))
+                .isInstanceOf(NotFoundException.class);
     }
 
     private Note existingNote(UUID id, int position) {

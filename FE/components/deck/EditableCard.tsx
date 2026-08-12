@@ -5,6 +5,7 @@ import { canSwapRow, fieldLabel, type EditorRow } from "@/lib/deckEditor";
 import { TTS_LANGUAGE_OPTIONS } from "@/lib/ttsLanguages";
 import { CardImageSlot } from "@/components/deck/CardImageSlot";
 import { CardAudioSlot } from "@/components/deck/CardAudioSlot";
+import { CardAudioPlayButton } from "@/components/deck/CardAudioPlayButton";
 
 // One card's editable body, shared by the saved-deck editor
 // (app/(app)/decks/[deckId]/edit) and the pre-save import review screen so the
@@ -26,9 +27,17 @@ export interface EditableCardProps {
   onImage?: (key: string, face: "front" | "back", url: string) => void;
   // Set a face's audio URL ("" clears it). Hidden when omitted, same as onImage.
   onAudio?: (key: string, face: "front" | "back", url: string) => void;
+  // Read-only audio playback for a face (import review): the face's clip filename
+  // plus a resolver that produces a playable URL on demand (from the kept .apkg).
+  // Shows a Play button — distinct from the upload slot (onAudio).
+  playAudio?: {
+    front: string | null;
+    back: string | null;
+    resolve: (filename: string) => Promise<string | null>;
+  };
 }
 
-export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, onImage, onAudio }: EditableCardProps) {
+export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, onImage, onAudio, playAudio }: EditableCardProps) {
   const [activeField, setActiveField] = useState<string | null>(null);
   // The field rows that carry the term (front) and definition (back) language.
   const termField = row.frontFields[0] ?? row.fieldNames[0];
@@ -97,25 +106,75 @@ export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, on
                 rows={row.cloze ? 3 : 2}
                 className="nice-scroll focus-ring w-full cursor-text select-text resize-y rounded-input border border-line-strong bg-surface-2 px-3 py-1.5 text-sm text-ink outline-none"
               />
-              {/* Optional per-face image (term face → front, definition → back). */}
-              {onImage && (showTerm || showDef) && (
-                <CardImageSlot
-                  url={showTerm ? row.frontImageUrl : row.backImageUrl}
-                  onChange={(url) => onImage(row.key, showTerm ? "front" : "back", url)}
-                />
-              )}
-              {/* Optional per-face audio (term face → front, definition → back). */}
-              {onAudio && (showTerm || showDef) && (
-                <CardAudioSlot
-                  url={showTerm ? row.frontAudioUrl : row.backAudioUrl}
-                  onChange={(url) => onAudio(row.key, showTerm ? "front" : "back", url)}
-                />
-              )}
             </div>
           );
         })}
       </div>
+
+      {/* Media lives in its own section — an image/audio belongs to the CARD's term
+          or definition side, not to whichever text field happened to hold the
+          <img>/[sound:] (e.g. an imported picture isn't part of "Expression"). */}
+      {(onImage || onAudio || playAudio) && (
+        <div className="mt-3 space-y-3 rounded-input border border-line bg-surface-2/40 p-3">
+          <span className="font-mono text-[11px] font-medium uppercase tracking-wide text-faint">
+            Media
+          </span>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FaceMedia
+              label="Term"
+              imageUrl={row.frontImageUrl}
+              audioUrl={row.frontAudioUrl}
+              onImage={onImage && ((url) => onImage(row.key, "front", url))}
+              onAudio={onAudio && ((url) => onAudio(row.key, "front", url))}
+              playRef={playAudio?.front ?? null}
+              resolve={playAudio?.resolve}
+            />
+            <FaceMedia
+              label="Definition"
+              imageUrl={row.backImageUrl}
+              audioUrl={row.backAudioUrl}
+              onImage={onImage && ((url) => onImage(row.key, "back", url))}
+              onAudio={onAudio && ((url) => onAudio(row.key, "back", url))}
+              playRef={playAudio?.back ?? null}
+              resolve={playAudio?.resolve}
+            />
+          </div>
+        </div>
+      )}
     </>
+  );
+}
+
+// One side's media in the dedicated Media section: the image slot, plus either the
+// audio upload slot (saved-deck editor) or a read-only Play button (import review,
+// where the clip isn't uploaded yet).
+function FaceMedia({
+  label,
+  imageUrl,
+  audioUrl,
+  onImage,
+  onAudio,
+  playRef,
+  resolve,
+}: {
+  label: string;
+  imageUrl: string;
+  audioUrl: string;
+  onImage?: ((url: string) => void) | false;
+  onAudio?: ((url: string) => void) | false;
+  playRef: string | null;
+  resolve?: (filename: string) => Promise<string | null>;
+}) {
+  return (
+    <div className="space-y-2">
+      <span className="text-xs font-medium text-muted">{label}</span>
+      {onImage && <CardImageSlot url={imageUrl} onChange={onImage} />}
+      {onAudio ? (
+        <CardAudioSlot url={audioUrl} onChange={onAudio} />
+      ) : (
+        playRef && resolve && <CardAudioPlayButton resolve={() => resolve(playRef)} />
+      )}
+    </div>
   );
 }
 

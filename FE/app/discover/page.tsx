@@ -138,7 +138,10 @@ function DiscoverContent() {
                 <Card hover className="relative overflow-hidden p-0">
                   <div className="h-1.5 bg-accent" />
                   <div className="space-y-2 p-5">
-                    <p className="truncate font-display text-base font-semibold text-ink">
+                    <p
+                      title={deck.name}
+                      className="truncate font-display text-base font-semibold text-ink"
+                    >
                       {deck.name}
                     </p>
                     {/* Card count and author share a row; DeckAuthor's "·" (dot

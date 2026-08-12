@@ -13,13 +13,16 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -39,6 +42,10 @@ import java.util.stream.Collectors;
 public class ApkgAudioImportService {
 
     private static final Logger log = LoggerFactory.getLogger(ApkgAudioImportService.class);
+    // Storage uploads are network-bound, so a deck's clips upload far faster in
+    // parallel (a Core-2000 deck has ~400) — bounded so we don't flood Storage or
+    // hold too many clips in memory at once.
+    private static final int UPLOAD_CONCURRENCY = 8;
 
     private final ApkgParserService parser;
     private final CardAudioService cardAudioService;
@@ -80,23 +87,44 @@ public class ApkgAudioImportService {
             return new AudioImportResponse(0, 0);
         }
 
-        // Stream just the referenced clips out of the .apkg and upload each; a clip
-        // that isn't real audio, is too big, or fails to upload is simply skipped.
-        Map<String, String> urlByFilename = new HashMap<>();
-        parser.streamReferencedMedia(apkg, wanted, (filename, bytes) -> {
-            if (urlByFilename.containsKey(filename)) {
-                return;
-            }
-            String contentType = CardAudioService.sniffAudioType(bytes);
-            if (contentType == null) {
-                return;
-            }
+        // Stream the referenced clips out of the .apkg and upload them in parallel
+        // (uploads are network-bound). A bounded pool + queue with CallerRuns gives
+        // natural backpressure, so the streaming thread never gets far ahead of the
+        // uploads — memory stays bounded. A clip that isn't real audio, is too big,
+        // or fails to upload is simply skipped.
+        Map<String, String> urlByFilename = new ConcurrentHashMap<>();
+        ThreadPoolExecutor pool = new ThreadPoolExecutor(
+                UPLOAD_CONCURRENCY, UPLOAD_CONCURRENCY, 0L, TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(UPLOAD_CONCURRENCY),
+                new ThreadPoolExecutor.CallerRunsPolicy());
+        try {
+            parser.streamReferencedMedia(apkg, wanted, (filename, bytes) -> {
+                if (urlByFilename.containsKey(filename)) {
+                    return;
+                }
+                String contentType = CardAudioService.sniffAudioType(bytes);
+                if (contentType == null) {
+                    return;
+                }
+                pool.execute(() -> {
+                    try {
+                        urlByFilename.put(filename, cardAudioService.uploadBytes(userId, bytes, contentType));
+                    } catch (RuntimeException e) {
+                        log.warn("Skipping a card-audio clip that failed to upload: {}", e.getMessage());
+                    }
+                });
+            });
+        } finally {
+            pool.shutdown();
             try {
-                urlByFilename.put(filename, cardAudioService.uploadBytes(userId, bytes, contentType));
-            } catch (RuntimeException e) {
-                log.warn("Skipping a card-audio clip that failed to upload: {}", e.getMessage());
+                if (!pool.awaitTermination(5, TimeUnit.MINUTES)) {
+                    pool.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                pool.shutdownNow();
+                Thread.currentThread().interrupt();
             }
-        });
+        }
         if (urlByFilename.isEmpty()) {
             return new AudioImportResponse(0, 0);
         }

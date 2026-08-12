@@ -21,34 +21,53 @@ function dataUrlToFile(dataUrl: string): File {
   return new File([bytes], `card.${ext}`, { type: mime });
 }
 
-async function uploadDataUrl(dataUrl: string, cache: Map<string, string>): Promise<string> {
-  const hit = cache.get(dataUrl);
-  if (hit) return hit;
+async function uploadDataUrl(dataUrl: string): Promise<string> {
   const form = new FormData();
   form.append("file", dataUrlToFile(dataUrl));
   const { data } = await api.post<{ url: string }>("/me/card-image", form, {
     headers: { "Content-Type": "multipart/form-data" },
   });
-  cache.set(dataUrl, data.url);
   return data.url;
 }
 
-// Return a copy of the draft with every `data:` face image replaced by an uploaded
-// URL. Uploads happen once per distinct data URL. Rows with no data-URL images are
-// returned as-is. Throws if any upload fails (caller surfaces it and keeps the draft).
-export async function uploadDraftImages(state: EditorState): Promise<EditorState> {
-  const hasData = state.rows.some(
-    (r) => isDataUrl(r.frontImageUrl) || isDataUrl(r.backImageUrl),
-  );
-  if (!hasData) return state;
+// How many card images to upload at once. A big image deck (a Core-2000 export has
+// ~200 images) uploaded one-at-a-time took the better part of a minute; a bounded
+// pool cuts that to a few seconds without hammering Storage.
+const UPLOAD_CONCURRENCY = 6;
 
-  const cache = new Map<string, string>();
-  const rows: EditorRow[] = [];
-  for (const r of state.rows) {
-    const front = isDataUrl(r.frontImageUrl) ? await uploadDataUrl(r.frontImageUrl, cache) : r.frontImageUrl;
-    const back = isDataUrl(r.backImageUrl) ? await uploadDataUrl(r.backImageUrl, cache) : r.backImageUrl;
-    rows.push(front === r.frontImageUrl && back === r.backImageUrl ? r : { ...r, frontImageUrl: front, backImageUrl: back });
+// Upload every distinct data URL with bounded parallelism → data URL → public URL.
+// Throws on the first failure (Promise.all rejects), which the caller surfaces.
+async function uploadAll(dataUrls: string[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  let next = 0;
+  async function worker() {
+    while (next < dataUrls.length) {
+      const url = dataUrls[next++];
+      map.set(url, await uploadDataUrl(url));
+    }
   }
+  const workers = Array.from({ length: Math.min(UPLOAD_CONCURRENCY, dataUrls.length) }, worker);
+  await Promise.all(workers);
+  return map;
+}
+
+// Return a copy of the draft with every `data:` face image replaced by an uploaded
+// URL. Each distinct data URL is uploaded once, in parallel. Rows with no data-URL
+// images are returned as-is. Throws if any upload fails (caller surfaces it).
+export async function uploadDraftImages(state: EditorState): Promise<EditorState> {
+  const dataUrls = new Set<string>();
+  for (const r of state.rows) {
+    if (isDataUrl(r.frontImageUrl)) dataUrls.add(r.frontImageUrl);
+    if (isDataUrl(r.backImageUrl)) dataUrls.add(r.backImageUrl);
+  }
+  if (dataUrls.size === 0) return state;
+
+  const map = await uploadAll([...dataUrls]);
+  const rows: EditorRow[] = state.rows.map((r) => {
+    const front = isDataUrl(r.frontImageUrl) ? map.get(r.frontImageUrl) ?? r.frontImageUrl : r.frontImageUrl;
+    const back = isDataUrl(r.backImageUrl) ? map.get(r.backImageUrl) ?? r.backImageUrl : r.backImageUrl;
+    return front === r.frontImageUrl && back === r.backImageUrl ? r : { ...r, frontImageUrl: front, backImageUrl: back };
+  });
   return { ...state, rows };
 }
 

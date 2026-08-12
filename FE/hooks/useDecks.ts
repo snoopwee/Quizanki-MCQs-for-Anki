@@ -1,5 +1,9 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/axios";
+import { importDeckAudio, type AudioRef } from "@/lib/cardAudioImport";
+import { uploadDraftImages } from "@/lib/cardImageUpload";
+import { draftToImportRequest } from "@/lib/deckDraft";
+import type { EditorState } from "@/lib/deckEditor";
 import type {
   AuthorPageResponse,
   DeckContentsResponse,
@@ -8,6 +12,24 @@ import type {
   PublicDeckPage,
   UpdateDeckContentsRequest,
 } from "@/types/api";
+
+// The .apkg's audio, imported as part of the same save: the original file plus the
+// per-note [sound:] refs collected at parse. Null / absent for a text-paste import.
+export interface ImportAudioPayload {
+  file: File;
+  refs: AudioRef[];
+}
+
+// What a save needs. The review flow passes the draft (so image upload + the deck
+// save + audio import all run inside the one mutation — one "Saving…" spanning the
+// lot); the legacy no-review path can pass a prebuilt request.
+export type ImportInput =
+  | { request: ImportDeckRequest }
+  | {
+      draft: EditorState;
+      options: { isPublic: boolean; sourceFilename: string | null };
+      audio?: ImportAudioPayload | null;
+    };
 
 const DECKS_KEY = ["decks"] as const;
 
@@ -90,11 +112,36 @@ export function useDeckContents(deckId: string) {
   });
 }
 
+// Save an imported deck — and, in the same operation, bring its .apkg audio across.
+// The two are one save: the mutation stays pending (and the "Saving…" toast stays
+// up) until the audio import finishes too. Audio is best-effort — the deck is
+// already saved, so a failed / absent audio import never fails the save.
 export function useImportDeck() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (request: ImportDeckRequest) => {
+    mutationFn: async (input: ImportInput) => {
+      let request: ImportDeckRequest;
+      let audio: ImportAudioPayload | null | undefined;
+      if ("draft" in input) {
+        // Imported .apkg images arrive as data: URLs — upload them (in parallel)
+        // so the deck saves with real URLs, then build the request. All inside the
+        // mutation, so the "Saving…" toast is up from the first click.
+        const prepared = await uploadDraftImages(input.draft);
+        request = draftToImportRequest(prepared, input.options);
+        audio = input.audio;
+      } else {
+        request = input.request;
+      }
       const { data } = await api.post<DeckResponse>("/decks", request);
+      if (audio && audio.refs.length > 0) {
+        try {
+          await importDeckAudio(data.id, audio.file, audio.refs);
+        } catch (e) {
+          // Non-fatal — leave the deck audio-less rather than failing the save,
+          // but log it so a genuine failure isn't invisible.
+          console.error("Card audio import failed:", e);
+        }
+      }
       return data;
     },
     onSuccess: () => {
@@ -129,6 +176,29 @@ export function useSetDeckLanguages(deckId: string) {
       const { data } = await api.put<DeckContentsResponse>(
         `/decks/${deckId}/languages`,
         { frontLang, backLang },
+      );
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["deck-contents", deckId], data);
+    },
+  });
+}
+
+// Set which fields the deck's cards show, per note type (the "show/hide extra
+// fields" control). Like useSetDeckLanguages, the server returns the refreshed
+// contents and we drop it straight into the cache so the viewer re-renders.
+export function useSetDeckLayout(deckId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (noteTypes: {
+      id: string;
+      frontFields: string[];
+      backFields: string[];
+    }[]) => {
+      const { data } = await api.put<DeckContentsResponse>(
+        `/decks/${deckId}/layout`,
+        { noteTypes },
       );
       return data;
     },

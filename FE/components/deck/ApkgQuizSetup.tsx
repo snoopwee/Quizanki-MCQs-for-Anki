@@ -145,7 +145,7 @@ export function ApkgQuizSetup({
     return (
       <div className="space-y-5">
         {showHeading && <h1 className="font-display text-2xl font-semibold tracking-tight">Set up a quiz</h1>}
-        <p className="rounded-input border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+        <p className="break-words rounded-input border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
           None of the note types in <span className="font-medium">{parsed.filename}</span> have
           enough quizzable content. Decks with only single-field or image-only note types
           aren&apos;t supported.
@@ -201,7 +201,7 @@ export function ApkgQuizSetup({
       {showHeading && (
         <div className="space-y-1">
           <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Set up your quiz</h1>
-          <p className="text-sm text-muted">
+          <p className="break-words text-sm text-muted">
             Build a multiple-choice test from{" "}
             <span className="font-medium text-ink">{parsed.filename}</span>.
           </p>

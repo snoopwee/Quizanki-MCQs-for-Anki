@@ -16,9 +16,18 @@ import {
 } from "@/lib/deckEditor";
 import type { DeckContentsNote, DeckContentsNoteType, DeckContentsResponse } from "@/types/api";
 
-// Test notes may omit the per-face language fields; they default to null (auto).
-type TestNote = Omit<DeckContentsNote, "frontLang" | "backLang" | "frontImageUrl" | "backImageUrl"> &
-  Partial<Pick<DeckContentsNote, "frontLang" | "backLang" | "frontImageUrl" | "backImageUrl">>;
+// Test notes may omit the per-face language / image / audio fields; they default
+// to null.
+type TestNote = Omit<
+  DeckContentsNote,
+  "frontLang" | "backLang" | "frontImageUrl" | "backImageUrl" | "frontAudioUrl" | "backAudioUrl"
+> &
+  Partial<
+    Pick<
+      DeckContentsNote,
+      "frontLang" | "backLang" | "frontImageUrl" | "backImageUrl" | "frontAudioUrl" | "backAudioUrl"
+    >
+  >;
 
 function noteType(
   over: Omit<Partial<DeckContentsNoteType>, "notes"> &
@@ -36,6 +45,8 @@ function noteType(
       backLang: null,
       frontImageUrl: null,
       backImageUrl: null,
+      frontAudioUrl: null,
+      backAudioUrl: null,
       ...n,
     })),
   };

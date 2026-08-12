@@ -36,6 +36,8 @@ export function useUpdateNote(deckId: string) {
       backLang,
       frontImageUrl,
       backImageUrl,
+      frontAudioUrl,
+      backAudioUrl,
     }: {
       noteId: string;
       fields: Record<string, string>;
@@ -47,10 +49,14 @@ export function useUpdateNote(deckId: string) {
       // unchanged.
       frontImageUrl?: string;
       backImageUrl?: string;
+      // Per-face audio URL. "" clears the audio; omit (undefined) to leave it
+      // unchanged.
+      frontAudioUrl?: string;
+      backAudioUrl?: string;
     }) => {
       const { data } = await api.patch<NoteResponse>(
         `/decks/${deckId}/notes/${noteId}`,
-        { fields, frontLang, backLang, frontImageUrl, backImageUrl },
+        { fields, frontLang, backLang, frontImageUrl, backImageUrl, frontAudioUrl, backAudioUrl },
       );
       return data;
     },

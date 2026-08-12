@@ -93,6 +93,15 @@ function DeckEditor() {
           : r,
       ),
     }));
+  const setAudio = (key: string, face: "front" | "back", url: string) =>
+    patch((d) => ({
+      ...d,
+      rows: d.rows.map((r) =>
+        r.key === key
+          ? { ...r, [face === "front" ? "frontAudioUrl" : "backAudioUrl"]: url }
+          : r,
+      ),
+    }));
   const deleteRow = (key: string) =>
     patch((d) => ({ ...d, rows: d.rows.filter((r) => r.key !== key) }));
   const swapRow = (key: string) =>
@@ -250,6 +259,7 @@ function DeckEditor() {
               onDelete={deleteRow}
               onLang={setLang}
               onImage={setImage}
+              onAudio={setAudio}
             />
           ))}
         </Reorder.Group>
@@ -269,6 +279,7 @@ function DeckEditor() {
                   onDelete={deleteRow}
                   onLang={setLang}
                   onImage={setImage}
+                  onAudio={setAudio}
                 />
               </li>
             ),
@@ -296,7 +307,7 @@ function DeckEditor() {
 // the way and springs everything into place when you let go. `dragListener` is
 // off so a press that lands on a textarea/button edits or clicks instead of
 // starting a drag.
-function DraggableCard({ row, index, onField, onSwap, onDelete, onLang, onImage }: EditableCardProps) {
+function DraggableCard({ row, index, onField, onSwap, onDelete, onLang, onImage, onAudio }: EditableCardProps) {
   const controls = useDragControls();
   function startDrag(e: PointerEvent<HTMLLIElement>) {
     if ((e.target as HTMLElement).closest("textarea, input, button, select, a")) return;
@@ -323,6 +334,7 @@ function DraggableCard({ row, index, onField, onSwap, onDelete, onLang, onImage 
         onDelete={onDelete}
         onLang={onLang}
         onImage={onImage}
+        onAudio={onAudio}
       />
     </Reorder.Item>
   );

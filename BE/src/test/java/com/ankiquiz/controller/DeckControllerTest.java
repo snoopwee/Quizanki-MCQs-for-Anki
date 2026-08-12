@@ -13,6 +13,7 @@ import com.ankiquiz.dto.response.DeckResponse;
 import com.ankiquiz.exception.ConflictException;
 import com.ankiquiz.exception.GlobalExceptionHandler;
 import com.ankiquiz.exception.NotFoundException;
+import com.ankiquiz.service.ApkgAudioImportService;
 import com.ankiquiz.service.ApkgExportService;
 import com.ankiquiz.service.Caller;
 import com.ankiquiz.service.DeckService;
@@ -62,6 +63,9 @@ class DeckControllerTest {
     private ApkgExportService apkgExportService;
 
     @MockBean
+    private ApkgAudioImportService apkgAudioImportService;
+
+    @MockBean
     private JwtDecoder jwtDecoder;
 
     // What Caller.from() resolves a bare test JWT to: the subject, and — with no
@@ -93,7 +97,7 @@ class DeckControllerTest {
                         "1234567890",
                         Map.of("Front", "食べる", "Back", "to eat"),
                         List.of("N4", "verb"),
-                        null, null
+                        null, null, null, null
                 )))
         );
 
@@ -116,7 +120,7 @@ class DeckControllerTest {
     void importDeck_returns400_whenNameBlank() throws Exception {
         ImportDeckRequest request = new ImportDeckRequest(
                 "", null, "n4.apkg", null, null, true,
-                List.of(noteType("Basic", new NoteRequest("1", Map.of("Front", "a", "Back", "b"), List.of(), null, null)))
+                List.of(noteType("Basic", new NoteRequest("1", Map.of("Front", "a", "Back", "b"), List.of(), null, null, null, null)))
         );
 
         mockMvc.perform(post("/api/v1/decks")
@@ -166,7 +170,7 @@ class DeckControllerTest {
         UpdateDeckContentsRequest request = new UpdateDeckContentsRequest(
                 "Renamed", List.of(),
                 List.of(new UpdateDeckContentsRequest.NoteEntry(
-                        null, null, Map.of("Front", "q", "Back", "a"), List.of(), null, null, null, null)));
+                        null, null, Map.of("Front", "q", "Back", "a"), List.of(), null, null, null, null, null, null)));
 
         mockMvc.perform(put("/api/v1/decks/{deckId}/contents", deckId)
                         .with(jwt().jwt(j -> j.subject("user-123")))

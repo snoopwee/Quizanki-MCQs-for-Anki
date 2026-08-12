@@ -11,6 +11,7 @@ import { StarButton } from "@/components/shared/StarButton";
 import { SpeakButton } from "@/components/shared/SpeakButton";
 import { useSpeechSupported } from "@/hooks/useSpeech";
 import { cancelSpeech } from "@/lib/tts";
+import { stopClip } from "@/lib/audioClip";
 import { stripLatex } from "@/lib/displayText";
 import { stripFurigana } from "@/lib/furigana";
 import { EditFlashcardModal, type EditableNote } from "./EditFlashcardModal";
@@ -282,6 +283,8 @@ export function FlashcardViewer({
           backLang: note.backLang ?? null,
           frontImageUrl: note.frontImageUrl ?? null,
           backImageUrl: note.backImageUrl ?? null,
+          frontAudioUrl: note.frontAudioUrl ?? null,
+          backAudioUrl: note.backAudioUrl ?? null,
         });
       }
     }
@@ -364,7 +367,7 @@ export function FlashcardViewer({
       } else if (e.key === " ") {
         e.preventDefault();
         setAutoplaying(false);
-        cancelSpeech();
+        stopPlayback();
         setFlipped((f) => !f);
       } else if (e.key === "f" || e.key === "F") {
         e.preventDefault();
@@ -392,7 +395,7 @@ export function FlashcardViewer({
       const onStartSide = flipped === (prefs.startSide === "back");
       const step = nextAutoplayStep(onStartSide, canNextRef.current);
       if (step === "flip") {
-        cancelSpeech();
+        stopPlayback();
         setFlipped((f) => !f);
       } else if (step === "advance") {
         goRef.current(1);
@@ -434,6 +437,10 @@ export function FlashcardViewer({
   const backText = card ? stripFurigana(stripLatex(card.back.join(". "))) : "";
   const frontFaceLang = card ? card.frontLang || effectiveTermLang : "";
   const backFaceLang = card ? card.backLang || effectiveDefLang : "";
+  // A stored clip for the showing face, if any — the in-card speaker prefers it
+  // over TTS (real recording beats synthesis).
+  const frontFaceAudio = card?.frontAudioUrl ?? "";
+  const backFaceAudio = card?.backAudioUrl ?? "";
 
   const sorting = prefs.cardSorting;
   const markedCount = known.size + learn.size;
@@ -446,7 +453,7 @@ export function FlashcardViewer({
     if (total === 0 || !card) return;
     // Nothing to reveal past the ends — don't fling the card into empty space.
     if (delta > 0 ? !canNext : !canPrev) return;
-    cancelSpeech();
+    stopPlayback();
     // Fly the outgoing card away as a blank surface — its text vanishes at once,
     // so only the reveal of the next card (already rendered beneath) draws the eye.
     setLeaving({ card, dir: delta >= 0 ? 1 : -1 });
@@ -459,7 +466,7 @@ export function FlashcardViewer({
   function flip() {
     // A manual flip takes over — stop autoplay so the two don't fight.
     setAutoplaying(false);
-    cancelSpeech();
+    stopPlayback();
     setFlipped((f) => !f);
   }
 
@@ -488,7 +495,7 @@ export function FlashcardViewer({
     if (deckId) {
       saveFlashcardProgress(deckId, { known: [...nextKnown], learn: [...nextLearn] });
     }
-    cancelSpeech();
+    stopPlayback();
     // Fly the card off toward its pile (Know → right, Still-learning → left)
     // carrying a coloured verdict label, instead of the blank plain-nav card.
     if (!willComplete) {
@@ -518,7 +525,7 @@ export function FlashcardViewer({
   }
 
   function restart() {
-    cancelSpeech();
+    stopPlayback();
     setIndex(0);
     setLeaving(null);
     resetSortProgress();
@@ -588,12 +595,13 @@ export function FlashcardViewer({
           className="absolute right-3 top-3 z-10 flex items-center gap-0.5"
           onClick={(e) => e.stopPropagation()}
         >
-          {speechOn && (
+          {(speechOn || (isBack ? backFaceAudio : frontFaceAudio)) && (
             <SpeakButton
               id={`card-face-${side}`}
               text={isBack ? backText : frontText}
               size="md"
               lang={isBack ? backFaceLang : frontFaceLang}
+              audioUrl={(isBack ? backFaceAudio : frontFaceAudio) || undefined}
             />
           )}
           {canEdit && noteIndex.has(card!.id) && (
@@ -1128,6 +1136,14 @@ export function FlashcardViewer({
       )}
     </div>
   );
+}
+
+// Stop whatever is currently sounding — TTS speech and/or a stored audio clip —
+// so the two never overlap. Called at every point that already cancelled speech
+// (flip, nav, advance, mark, restart, keyboard).
+function stopPlayback() {
+  cancelSpeech();
+  stopClip();
 }
 
 // Deterministic Fisher-Yates using a small seeded PRNG (mulberry32), so the

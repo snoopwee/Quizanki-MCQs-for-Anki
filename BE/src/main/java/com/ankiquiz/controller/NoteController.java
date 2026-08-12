@@ -61,7 +61,8 @@ public class NoteController {
     ) {
         return noteService.updateNote(Caller.from(jwt), deckId, noteId,
                 request.fields(), request.frontLang(), request.backLang(),
-                request.frontImageUrl(), request.backImageUrl());
+                request.frontImageUrl(), request.backImageUrl(),
+                request.frontAudioUrl(), request.backAudioUrl());
     }
 
     @PutMapping("/{noteId}/star")

@@ -1,6 +1,8 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { useSpeech } from "@/hooks/useSpeech";
+import { isClipPlaying, playClip, subscribeClip } from "@/lib/audioClip";
 
 // Speaker button that reads `text` aloud via the Web Speech API. The language is
 // auto-detected per segment (a card can mix languages — see lib/ttsLang), so this
@@ -14,6 +16,11 @@ import { useSpeech } from "@/hooks/useSpeech";
 // `id` must be unique among buttons that can speak at the same time — it's the key
 // the shared active state toggles on. Pass `label` to render a wider pill button
 // ("Listen"); omit it for a compact icon-only button.
+//
+// When `audioUrl` is set the button plays that stored clip instead of TTS (the
+// real recording is preferred over synthesis), toggling play/stop on the shared
+// single-clip player. In this mode the button renders even without speech support,
+// since playing a file needs none.
 
 type Size = "sm" | "md";
 
@@ -41,6 +48,7 @@ export function SpeakButton({
   label,
   size = "md",
   lang = "",
+  audioUrl,
 }: {
   id: string;
   text: string;
@@ -50,37 +58,61 @@ export function SpeakButton({
   // Primary-language hint for this text (BCP-47 primary subtag, e.g. "ja"). Steers
   // TTS away from the ambiguous script default (bare kanji → Chinese). "" = auto.
   lang?: string;
+  // When set, play this stored clip instead of synthesizing `text` (real
+  // recording preferred). "" / undefined falls back to TTS.
+  audioUrl?: string;
 }) {
   const { supported, activeKey, activeStatus, toggle } = useSpeech();
-  if (!supported) return null;
+  const clipMode = Boolean(audioUrl);
+  const clipPlaying = useSyncExternalStore(
+    subscribeClip,
+    () => (audioUrl ? isClipPlaying(audioUrl) : false),
+    () => false,
+  );
+  // TTS support only gates the TTS mode; a stored clip needs no speech engine.
+  if (!clipMode && !supported) return null;
 
   const empty = text.trim().length === 0;
   const active = activeKey === id;
-  const loading = active && activeStatus === "loading";
-  const speaking = active && activeStatus === "speaking";
-  const busy = loading || speaking;
+  const loading = !clipMode && active && activeStatus === "loading";
+  const speaking = !clipMode && active && activeStatus === "speaking";
+  const busy = clipMode ? clipPlaying : loading || speaking;
+  // In clip mode there's always something to play, so the button is never disabled.
+  const disabled = clipMode ? false : empty;
 
-  const title = empty ? "Nothing to read" : busy ? "Stop" : "Read aloud";
+  const title = clipMode
+    ? busy
+      ? "Stop"
+      : "Play audio"
+    : empty
+      ? "Nothing to read"
+      : busy
+        ? "Stop"
+        : "Read aloud";
 
   const iconNode = loading ? (
     <Spinner className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"} />
   ) : (
-    <span aria-hidden>{speaking ? "⏹" : "🔊"}</span>
+    <span aria-hidden>{busy ? "⏹" : "🔊"}</span>
   );
 
   const onClick = (e: React.MouseEvent) => {
     // Inside flip cards / clickable rows — don't let the toggle bubble.
     e.stopPropagation();
     e.preventDefault();
-    toggle(id, text, lang);
+    if (clipMode) {
+      playClip(audioUrl as string); // toggles play/stop on the shared player
+    } else {
+      toggle(id, text, lang);
+    }
   };
 
   const common = {
     type: "button" as const,
-    "aria-label": busy ? "Stop audio" : "Read aloud",
+    "aria-label": busy ? "Stop audio" : clipMode ? "Play audio" : "Read aloud",
     "aria-pressed": busy,
     title,
-    disabled: empty,
+    disabled,
     onClick,
   };
 
@@ -96,7 +128,7 @@ export function SpeakButton({
         }`}
       >
         {iconNode}
-        <span>{loading ? "Loading…" : speaking ? "Stop" : label}</span>
+        <span>{loading ? "Loading…" : busy ? "Stop" : label}</span>
       </button>
     );
   }

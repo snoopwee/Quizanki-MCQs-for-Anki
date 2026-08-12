@@ -35,7 +35,8 @@ public record UpdateDeckContentsRequest(
      * {@code frontLang}/{@code backLang} are the per-face TTS language override
      * (BCP-47 primary subtag); blank/null = inherit the deck default.
      * {@code frontImageUrl}/{@code backImageUrl} are the per-face card image URL;
-     * blank/null = no image on that side.
+     * blank/null = no image on that side. {@code frontAudioUrl}/{@code backAudioUrl}
+     * are the per-face audio clip URL; blank/null = no audio on that side.
      */
     public record NoteEntry(
             UUID id,
@@ -45,7 +46,9 @@ public record UpdateDeckContentsRequest(
             @Size(max = 16) String frontLang,
             @Size(max = 16) String backLang,
             @Size(max = 2000) String frontImageUrl,
-            @Size(max = 2000) String backImageUrl
+            @Size(max = 2000) String backImageUrl,
+            @Size(max = 2000) String frontAudioUrl,
+            @Size(max = 2000) String backAudioUrl
     ) {
     }
 }

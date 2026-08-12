@@ -158,8 +158,8 @@ class DeckServiceTest {
                 "New name",
                 List.of(),
                 List.of(
-                        new NoteEntry(keepId, typeId, Map.of("Front", "kept", "Back", "b"), List.of(), null, null, null, null),
-                        new NoteEntry(null, typeId, Map.of("Front", "new", "Back", "b2"), List.of("tag"), null, null, null, null)
+                        new NoteEntry(keepId, typeId, Map.of("Front", "kept", "Back", "b"), List.of(), null, null, null, null, null, null),
+                        new NoteEntry(null, typeId, Map.of("Front", "new", "Back", "b2"), List.of("tag"), null, null, null, null, null, null)
                 ));
 
         service.replaceDeckContents(CALLER, deckId, req);
@@ -189,7 +189,7 @@ class DeckServiceTest {
                 List.of(),
                 // Front override "ja"; a blank back normalises to null (auto).
                 List.of(new NoteEntry(null, typeId, Map.of("Front", "水", "Back", "water"),
-                        List.of(), "ja", "  ", null, null)));
+                        List.of(), "ja", "  ", null, null, null, null)));
 
         service.replaceDeckContents(CALLER, deckId, req);
 
@@ -217,7 +217,7 @@ class DeckServiceTest {
         UpdateDeckContentsRequest req = new UpdateDeckContentsRequest(
                 "Deck",
                 List.of(),
-                List.of(new NoteEntry(null, null, Map.of("Front", "q", "Back", "a"), List.of(), null, null, null, null)));
+                List.of(new NoteEntry(null, null, Map.of("Front", "q", "Back", "a"), List.of(), null, null, null, null, null, null)));
 
         service.replaceDeckContents(CALLER, deckId, req);
 
@@ -437,7 +437,7 @@ class DeckServiceTest {
         return new UpdateDeckContentsRequest(
                 name, List.of(),
                 List.of(new NoteEntry(noteId, typeId, Map.of("Front", "f0", "Back", "b0"),
-                        List.of(), null, null, null, null)));
+                        List.of(), null, null, null, null, null, null)));
     }
 
     private void stubUntouchedCopyWithOneNote(UUID noteId) {
@@ -462,7 +462,7 @@ class DeckServiceTest {
         UpdateDeckContentsRequest req = new UpdateDeckContentsRequest(
                 "Old name", List.of(),
                 List.of(new NoteEntry(noteId, typeId, Map.of("Front", "EDITED", "Back", "b0"),
-                        List.of(), null, null, null, null)));
+                        List.of(), null, null, null, null, null, null)));
         service.replaceDeckContents(OTHER_CALLER, deckId, req);
 
         Deck saved = captureSavedDeck();
@@ -479,8 +479,8 @@ class DeckServiceTest {
 
         UpdateDeckContentsRequest req = new UpdateDeckContentsRequest(
                 "Old name", List.of(),
-                List.of(new NoteEntry(noteId, typeId, Map.of("Front", "f0", "Back", "b0"), List.of(), null, null, null, null),
-                        new NoteEntry(null, typeId, Map.of("Front", "new", "Back", "card"), List.of(), null, null, null, null)));
+                List.of(new NoteEntry(noteId, typeId, Map.of("Front", "f0", "Back", "b0"), List.of(), null, null, null, null, null, null),
+                        new NoteEntry(null, typeId, Map.of("Front", "new", "Back", "card"), List.of(), null, null, null, null, null, null)));
         service.replaceDeckContents(OTHER_CALLER, deckId, req);
 
         assertThat(captureSavedDeck().getAuthorId()).isEqualTo(OTHER_USER);
@@ -535,7 +535,7 @@ class DeckServiceTest {
         service.replaceDeckContents(new Caller(USER, "Alice Renamed", null), deckId,
                 new UpdateDeckContentsRequest("Old name", List.of(),
                         List.of(new NoteEntry(noteId, typeId, Map.of("Front", "EDITED", "Back", "b0"),
-                                List.of(), null, null, null, null))));
+                                List.of(), null, null, null, null, null, null))));
 
         assertThat(captureSavedDeck().getAuthorName()).isEqualTo("Alice Renamed");
     }

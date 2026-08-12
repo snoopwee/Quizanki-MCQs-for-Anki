@@ -41,10 +41,12 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
+import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 
 /**
@@ -74,6 +76,8 @@ public class ApkgParserService {
     private static final String FIELD_SEPARATOR = String.valueOf((char) 0x1F);
 
     private static final Pattern SOUND_TAG = Pattern.compile("\\[sound:[^]]*]");
+    /** Captures the media filename inside a {@code [sound:name.mp3]} tag. */
+    private static final Pattern SOUND_SRC = Pattern.compile("\\[sound:([^]]+)]");
     // Block / line-break tags become a space so adjacent text isn't mashed together
     // (e.g. "...đóng2." from list items, lines joined by <br>); remaining inline
     // tags are then dropped without inserting a space, so words aren't split.
@@ -131,6 +135,12 @@ public class ApkgParserService {
     static final long MAX_MEDIA_BUFFER_BYTES = 12L * 1024 * 1024; // 12 MB
     /** The Anki media manifest is small JSON (number → filename); cap it defensively. */
     static final int MAX_MEDIA_MANIFEST_BYTES = 4 * 1024 * 1024; // 4 MB
+
+    // ── Audio import bounds (streamReferencedMedia) ──────────────────────────
+    /** Biggest single audio clip we'll pull out of the deck (bigger clips are skipped). */
+    static final int MAX_AUDIO_BYTES = 5 * 1024 * 1024; // 5 MB
+    /** Total audio we'll pull from one deck — a ceiling on a single import's Storage cost. */
+    static final long MAX_AUDIO_IMPORT_TOTAL_BYTES = 250L * 1024 * 1024; // 250 MB
     /** Anki's media manifest entry name in the .apkg zip. */
     private static final String MEDIA_MANIFEST = "media";
     /** Media blobs are stored under numeric names ("0", "1", …). */
@@ -178,6 +188,7 @@ public class ApkgParserService {
             int total = 0;
             int skipped = 0;
             int imageOnly = 0;
+            int audioNotes = 0;
             try (Statement st = conn.createStatement();
                  ResultSet rs = st.executeQuery("SELECT id, mid, tags, flds FROM notes")) {
                 while (rs.next()) {
@@ -194,14 +205,21 @@ public class ApkgParserService {
                     }
                     String flds = rs.getString("flds");
                     Map<String, String> fields = mapFields(type.fieldNames(), flds);
+                    // Uncleaned fields, so <img> and [sound:] survive for media extraction
+                    // (mapFields strips both for the display text).
+                    Map<String, String> raw = rawFields(type.fieldNames(), flds);
                     // Pull a card image out of the deck's media for each face. Front
                     // scans the front fields (all fields when the template gave none,
                     // e.g. modern decks); back scans the back fields.
-                    Map<String, String> raw = media.isEmpty() ? Map.of() : rawFields(type.fieldNames(), flds);
                     List<String> frontScan = type.frontFields().isEmpty() ? type.fieldNames() : type.frontFields();
                     String frontImage = firstImageDataUrl(frontScan, raw, media);
                     String backImage = firstImageDataUrl(type.backFields(), raw, media);
                     boolean hasImage = frontImage != null || backImage != null;
+                    // Record the [sound:] filename per face (a lightweight ref, not the
+                    // bytes) — the client re-sends the .apkg after save so the backend
+                    // can stream just these clips to storage (see import-audio).
+                    String frontAudio = firstSoundRef(frontScan, raw);
+                    String backAudio = firstSoundRef(type.backFields(), raw);
                     // Image-occlusion notes can't be quizzed as MCQ, so exclude + count:
                     //   1. Note-type name says "Image Occlusion" (Anki's official IO
                     //      add-on; its text fields are just internal IDs/SVGs)
@@ -218,9 +236,14 @@ public class ApkgParserService {
                             fields,
                             parseTags(rs.getString("tags")),
                             frontImage,
-                            backImage);
+                            backImage,
+                            frontAudio,
+                            backAudio);
                     notesByType.computeIfAbsent(type.id(), k -> new ArrayList<>()).add(note);
                     total++;
+                    if (frontAudio != null || backAudio != null) {
+                        audioNotes++;
+                    }
                     if (total > MAX_NOTES) {
                         throw new ApkgParseException(
                                 "This deck is too large (limit: " + MAX_NOTES
@@ -239,7 +262,7 @@ public class ApkgParserService {
             }
             return new ApkgNotesResponse(
                     file.getOriginalFilename(), col.name(), modern ? "modern" : "legacy",
-                    total, skipped, imageOnly, out);
+                    total, skipped, imageOnly, audioNotes, out);
         } catch (SQLException e) {
             throw new ApkgParseException("Could not read notes from the collection.", e);
         } finally {
@@ -609,6 +632,124 @@ public class ApkgParserService {
             return URLDecoder.decode(s, StandardCharsets.UTF_8);
         } catch (RuntimeException e) {
             return s;
+        }
+    }
+
+    // The first [sound:name] media filename found across the given face's fields, or
+    // null if the face has no sound tag. Only the filename is returned — the bytes are
+    // pulled later (streamReferencedMedia) so a parse never buffers a deck of audio.
+    private static String firstSoundRef(List<String> faceFields, Map<String, String> rawFields) {
+        for (String fieldName : faceFields) {
+            String raw = rawFields.get(fieldName);
+            if (raw == null || raw.isEmpty()) {
+                continue;
+            }
+            Matcher m = SOUND_SRC.matcher(raw);
+            if (m.find()) {
+                String name = m.group(1).trim();
+                if (!name.isEmpty()) {
+                    return name;
+                }
+            }
+        }
+        return null;
+    }
+
+    // ── Audio media streaming (import-audio) ─────────────────────────────────
+
+    /** Receives one extracted audio clip: the filename it was referenced by and its bytes. */
+    @FunctionalInterface
+    public interface MediaSink {
+        void accept(String filename, byte[] bytes);
+    }
+
+    /**
+     * Streams the audio clips named in {@code wanted} out of the .apkg and hands each to
+     * {@code sink}, one at a time — so a whole deck's audio is never held in memory. Opens
+     * the archive with random access ({@link ZipFile}): reads the small {@code media}
+     * manifest (number → filename), then pulls only the referenced numbered blobs, capping
+     * each clip ({@link #MAX_AUDIO_BYTES}) and the total ({@link #MAX_AUDIO_IMPORT_TOTAL_BYTES}).
+     * The sink is keyed by the {@code wanted} filename that matched (so callers can map it
+     * back to the note that referenced it). A missing / non-JSON manifest yields nothing.
+     */
+    public void streamReferencedMedia(MultipartFile file, Set<String> wanted, MediaSink sink) {
+        if (wanted.isEmpty()) {
+            return;
+        }
+        Path temp = copyToTemp(file);
+        long total = 0;
+        try (ZipFile zip = new ZipFile(temp.toFile())) {
+            ZipEntry manifestEntry = zip.getEntry(MEDIA_MANIFEST);
+            if (manifestEntry == null) {
+                return;
+            }
+            byte[] manifestBytes = readEntryBounded(zip, manifestEntry, MAX_MEDIA_MANIFEST_BYTES);
+            if (manifestBytes == null) {
+                return;
+            }
+            JsonNode root = objectMapper.readTree(manifestBytes);
+            Iterator<Map.Entry<String, JsonNode>> it = root.fields();
+            while (it.hasNext()) {
+                if (total >= MAX_AUDIO_IMPORT_TOTAL_BYTES) {
+                    break;
+                }
+                Map.Entry<String, JsonNode> e = it.next();
+                String number = e.getKey();
+                String filename = e.getValue().asText();
+                // The [sound:] ref may be %-encoded relative to the manifest filename.
+                String matched = wanted.contains(filename) ? filename
+                        : wanted.contains(urlDecode(filename)) ? urlDecode(filename)
+                        : null;
+                if (matched == null) {
+                    continue;
+                }
+                ZipEntry blob = zip.getEntry(number);
+                if (blob == null) {
+                    continue;
+                }
+                byte[] bytes = readEntryBounded(zip, blob, MAX_AUDIO_BYTES);
+                if (bytes != null) {
+                    sink.accept(matched, bytes);
+                    total += bytes.length;
+                }
+            }
+        } catch (IOException e) {
+            throw new ApkgParseException("Could not read audio from the uploaded .apkg.", e);
+        } finally {
+            deleteQuietly(temp);
+        }
+    }
+
+    // Reads one ZipFile entry into memory up to maxBytes; null if it exceeds the cap.
+    private static byte[] readEntryBounded(ZipFile zip, ZipEntry entry, int maxBytes) throws IOException {
+        try (InputStream in = zip.getInputStream(entry)) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int read;
+            while ((read = in.read(buf)) != -1) {
+                if (out.size() + read > maxBytes) {
+                    return null;
+                }
+                out.write(buf, 0, read);
+            }
+            return out.toByteArray();
+        }
+    }
+
+    private Path copyToTemp(MultipartFile file) {
+        requireNonEmpty(file);
+        requireApkgFilename(file);
+        try {
+            Path temp = Files.createTempFile("ankiquiz-apkg-audio-", ".apkg");
+            try (InputStream in = file.getInputStream()) {
+                Files.copy(in, temp, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                deleteQuietly(temp);
+                throw e;
+            }
+            return temp;
+        } catch (IOException e) {
+            throw new ApkgParseException("Could not read the uploaded file.", e);
         }
     }
 

@@ -30,6 +30,9 @@ export interface EditorRow {
   // through the bulk save.
   frontImageUrl: string;
   backImageUrl: string;
+  // Per-face card audio URL; "" = no audio. Same lifecycle as the images.
+  frontAudioUrl: string;
+  backAudioUrl: string;
 }
 
 export interface EditorState {
@@ -82,6 +85,8 @@ export function fromContents(contents: DeckContentsResponse): EditorState {
         backLang: note.backLang ?? "",
         frontImageUrl: note.frontImageUrl ?? "",
         backImageUrl: note.backImageUrl ?? "",
+        frontAudioUrl: note.frontAudioUrl ?? "",
+        backAudioUrl: note.backAudioUrl ?? "",
       });
     }
   }
@@ -147,11 +152,13 @@ export function swapValuesForRow(row: EditorRow): EditorRow {
       [front]: row.fields[back] ?? "",
       [back]: row.fields[front] ?? "",
     },
-    // The languages and images follow their text to the other side.
+    // The languages, images and audio follow their text to the other side.
     frontLang: row.backLang,
     backLang: row.frontLang,
     frontImageUrl: row.backImageUrl,
     backImageUrl: row.frontImageUrl,
+    frontAudioUrl: row.backAudioUrl,
+    backAudioUrl: row.frontAudioUrl,
   };
 }
 
@@ -221,6 +228,8 @@ function rowWithId(
     backLang,
     frontImageUrl: "",
     backImageUrl: "",
+    frontAudioUrl: "",
+    backAudioUrl: "",
   };
 }
 
@@ -234,12 +243,18 @@ export function fieldLabel(name: string): string {
   return name;
 }
 
-// A row with no content in any field AND no image — dropped on save so stray
-// empty cards (e.g. an "Add card" the user never filled in) don't persist. A card
-// carrying only an image is NOT blank.
+// A row with no content in any field AND no image AND no audio — dropped on save
+// so stray empty cards (e.g. an "Add card" the user never filled in) don't
+// persist. A card carrying only an image or only audio is NOT blank.
 export function isBlankRow(row: EditorRow): boolean {
   const noText = row.fieldNames.every((f) => !(row.fields[f] ?? "").trim());
-  return noText && !row.frontImageUrl && !row.backImageUrl;
+  return (
+    noText &&
+    !row.frontImageUrl &&
+    !row.backImageUrl &&
+    !row.frontAudioUrl &&
+    !row.backAudioUrl
+  );
 }
 
 export function toPayload(state: EditorState): UpdateDeckContentsRequest {
@@ -259,6 +274,8 @@ export function toPayload(state: EditorState): UpdateDeckContentsRequest {
       backLang: r.backLang,
       frontImageUrl: r.frontImageUrl,
       backImageUrl: r.backImageUrl,
+      frontAudioUrl: r.frontAudioUrl,
+      backAudioUrl: r.backAudioUrl,
     }));
   return { name: state.name.trim(), noteTypes, notes };
 }

@@ -435,7 +435,7 @@ public class DeckService {
     private static NoteTypeRequest toNoteTypeRequest(NoteTypeContents type) {
         List<NoteRequest> notes = type.notes().stream()
                 .map(n -> new NoteRequest(n.ankiNoteId(), new LinkedHashMap<>(n.fields()), n.tags(),
-                        n.frontImageUrl(), n.backImageUrl()))
+                        n.frontImageUrl(), n.backImageUrl(), n.frontAudioUrl(), n.backAudioUrl()))
                 .toList();
         return new NoteTypeRequest(
                 type.ankiModelId(),
@@ -532,6 +532,9 @@ public class DeckService {
             // Per-face image URL travels with the card too (blank = no image).
             note.setFrontImageUrl(blankToNull(entry.frontImageUrl()));
             note.setBackImageUrl(blankToNull(entry.backImageUrl()));
+            // Per-face audio URL travels with the card too (blank = no audio).
+            note.setFrontAudioUrl(blankToNull(entry.frontAudioUrl()));
+            note.setBackAudioUrl(blankToNull(entry.backAudioUrl()));
             note.setPosition(position++);
             toSave.add(note);
         }
@@ -715,6 +718,8 @@ public class DeckService {
             note.setTags(req.tags() == null ? new String[0] : req.tags().toArray(String[]::new));
             note.setFrontImageUrl(blankToNull(req.frontImageUrl()));
             note.setBackImageUrl(blankToNull(req.backImageUrl()));
+            note.setFrontAudioUrl(blankToNull(req.frontAudioUrl()));
+            note.setBackAudioUrl(blankToNull(req.backAudioUrl()));
             note.setPosition(pos++);
             result.add(note);
         }
@@ -730,7 +735,9 @@ public class DeckService {
                 note.getFrontLang(),
                 note.getBackLang(),
                 note.getFrontImageUrl(),
-                note.getBackImageUrl()
+                note.getBackImageUrl(),
+                note.getFrontAudioUrl(),
+                note.getBackAudioUrl()
         );
     }
 

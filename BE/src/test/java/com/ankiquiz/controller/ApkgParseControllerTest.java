@@ -50,7 +50,7 @@ class ApkgParseControllerTest {
     void parseApkg_isReachableWithoutAuth_andReturnsParsedResponse() throws Exception {
         when(rateLimiter.tryAcquire(any())).thenReturn(true);
         when(parserService.parseNotes(any())).thenReturn(
-                new ApkgNotesResponse("deck.apkg", "collection.anki2", "legacy", 0, 0, 0, List.of()));
+                new ApkgNotesResponse("deck.apkg", "collection.anki2", "legacy", 0, 0, 0, 0, List.of()));
 
         MockMultipartFile file =
                 new MockMultipartFile("file", "deck.apkg", "application/octet-stream", new byte[]{1, 2, 3});

@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { canSwapRow, fieldLabel, type EditorRow } from "@/lib/deckEditor";
 import { TTS_LANGUAGE_OPTIONS } from "@/lib/ttsLanguages";
 import { CardImageSlot } from "@/components/deck/CardImageSlot";
+import { CardAudioSlot } from "@/components/deck/CardAudioSlot";
 
 // One card's editable body, shared by the saved-deck editor
 // (app/(app)/decks/[deckId]/edit) and the pre-save import review screen so the
@@ -23,9 +24,11 @@ export interface EditableCardProps {
   // Set a face's image URL ("" clears it). When omitted, the image UI is hidden —
   // e.g. the import-review screen, whose save path doesn't carry images yet.
   onImage?: (key: string, face: "front" | "back", url: string) => void;
+  // Set a face's audio URL ("" clears it). Hidden when omitted, same as onImage.
+  onAudio?: (key: string, face: "front" | "back", url: string) => void;
 }
 
-export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, onImage }: EditableCardProps) {
+export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, onImage, onAudio }: EditableCardProps) {
   const [activeField, setActiveField] = useState<string | null>(null);
   // The field rows that carry the term (front) and definition (back) language.
   const termField = row.frontFields[0] ?? row.fieldNames[0];
@@ -99,6 +102,13 @@ export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, on
                 <CardImageSlot
                   url={showTerm ? row.frontImageUrl : row.backImageUrl}
                   onChange={(url) => onImage(row.key, showTerm ? "front" : "back", url)}
+                />
+              )}
+              {/* Optional per-face audio (term face → front, definition → back). */}
+              {onAudio && (showTerm || showDef) && (
+                <CardAudioSlot
+                  url={showTerm ? row.frontAudioUrl : row.backAudioUrl}
+                  onChange={(url) => onAudio(row.key, showTerm ? "front" : "back", url)}
                 />
               )}
             </div>

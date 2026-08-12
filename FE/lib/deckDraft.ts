@@ -54,6 +54,8 @@ function rowsForNoteType(nt: ApkgNoteType, index: number): EditorRow[] {
     backLang: note.backLang ?? "",
     frontImageUrl: note.frontImageUrl ?? "",
     backImageUrl: note.backImageUrl ?? "",
+    frontAudioUrl: note.frontAudioUrl ?? "",
+    backAudioUrl: note.backAudioUrl ?? "",
   }));
 }
 
@@ -127,6 +129,8 @@ export function draftToImportRequest(
       tags: r.tags,
       frontImageUrl: r.frontImageUrl || null,
       backImageUrl: r.backImageUrl || null,
+      frontAudioUrl: r.frontAudioUrl || null,
+      backAudioUrl: r.backAudioUrl || null,
     }));
     if (key === BASIC_TYPE_KEY) {
       return basicNoteType(notes);

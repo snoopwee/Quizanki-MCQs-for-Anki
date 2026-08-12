@@ -58,6 +58,15 @@ public class Note {
     @Column(name = "back_image_url")
     private String backImageUrl;
 
+    // Per-face audio pronunciation (a Supabase Storage public URL). Null = no
+    // audio. Parallel to front_image_url/back_image_url; set in the card editor,
+    // played by the in-card speaker (preferred over TTS when present).
+    @Column(name = "front_audio_url")
+    private String frontAudioUrl;
+
+    @Column(name = "back_audio_url")
+    private String backAudioUrl;
+
     public UUID getId() {
         return id;
     }
@@ -144,5 +153,21 @@ public class Note {
 
     public void setBackImageUrl(String backImageUrl) {
         this.backImageUrl = backImageUrl;
+    }
+
+    public String getFrontAudioUrl() {
+        return frontAudioUrl;
+    }
+
+    public void setFrontAudioUrl(String frontAudioUrl) {
+        this.frontAudioUrl = frontAudioUrl;
+    }
+
+    public String getBackAudioUrl() {
+        return backAudioUrl;
+    }
+
+    public void setBackAudioUrl(String backAudioUrl) {
+        this.backAudioUrl = backAudioUrl;
     }
 }

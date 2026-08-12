@@ -15,6 +15,9 @@ public record NoteResponse(
         // the change without a refetch.
         String frontImageUrl,
         String backImageUrl,
+        // Per-face audio clip URLs (null = no audio), same rationale as the images.
+        String frontAudioUrl,
+        String backAudioUrl,
         CardStatsResponse cardStats
 ) {
     public static NoteResponse from(Note note, CardStatsResponse cardStats) {
@@ -25,6 +28,8 @@ public record NoteResponse(
                 note.getTags() == null ? List.of() : List.of(note.getTags()),
                 note.getFrontImageUrl(),
                 note.getBackImageUrl(),
+                note.getFrontAudioUrl(),
+                note.getBackAudioUrl(),
                 cardStats
         );
     }

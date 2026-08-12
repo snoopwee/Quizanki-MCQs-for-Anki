@@ -6,6 +6,7 @@ import { fieldLabel } from "@/lib/deckEditor";
 import { useUpdateNote } from "@/hooks/useNotes";
 import { TTS_LANGUAGE_OPTIONS } from "@/lib/ttsLanguages";
 import { CardImageSlot } from "@/components/deck/CardImageSlot";
+import { CardAudioSlot } from "@/components/deck/CardAudioSlot";
 
 export interface EditableNote {
   noteId: string;
@@ -22,6 +23,9 @@ export interface EditableNote {
   // Per-face card image URL, or null when the side has no image.
   frontImageUrl: string | null;
   backImageUrl: string | null;
+  // Per-face card audio URL, or null when the side has no audio.
+  frontAudioUrl: string | null;
+  backAudioUrl: string | null;
 }
 
 // Per-flashcard editor: one textarea per field, seeded from the note's current
@@ -46,11 +50,15 @@ export function EditFlashcardModal({
   // Per-face image URL ("" = no image).
   const [imgFront, setImgFront] = useState(note.frontImageUrl ?? "");
   const [imgBack, setImgBack] = useState(note.backImageUrl ?? "");
+  // Per-face audio URL ("" = no audio).
+  const [audFront, setAudFront] = useState(note.frontAudioUrl ?? "");
+  const [audBack, setAudBack] = useState(note.backAudioUrl ?? "");
 
   const fieldsDirty = note.fieldNames.some((f) => (note.fields[f] ?? "") !== values[f]);
   const langDirty = langFront !== (note.frontLang ?? "") || langBack !== (note.backLang ?? "");
   const imgDirty = imgFront !== (note.frontImageUrl ?? "") || imgBack !== (note.backImageUrl ?? "");
-  const dirty = fieldsDirty || langDirty || imgDirty;
+  const audDirty = audFront !== (note.frontAudioUrl ?? "") || audBack !== (note.backAudioUrl ?? "");
+  const dirty = fieldsDirty || langDirty || imgDirty || audDirty;
 
   const frontField = note.frontFields[0];
   const backField = note.backFields[0];
@@ -70,11 +78,13 @@ export function EditFlashcardModal({
       [frontField]: v[backField] ?? "",
       [backField]: v[frontField] ?? "",
     }));
-    // The languages and images follow their text to the other side.
+    // The languages, images and audio follow their text to the other side.
     setLangFront(langBack);
     setLangBack(langFront);
     setImgFront(imgBack);
     setImgBack(imgFront);
+    setAudFront(audBack);
+    setAudBack(audFront);
   }
 
   function handleSave() {
@@ -86,6 +96,8 @@ export function EditFlashcardModal({
         backLang: langBack,
         frontImageUrl: imgFront,
         backImageUrl: imgBack,
+        frontAudioUrl: audFront,
+        backAudioUrl: audBack,
       },
       { onSuccess: onClose },
     );
@@ -144,6 +156,13 @@ export function EditFlashcardModal({
                 <CardImageSlot
                   url={showTerm ? imgFront : imgBack}
                   onChange={showTerm ? setImgFront : setImgBack}
+                />
+              )}
+              {/* Per-face audio (term face → front, definition → back). */}
+              {(showTerm || showDef) && (
+                <CardAudioSlot
+                  url={showTerm ? audFront : audBack}
+                  onChange={showTerm ? setAudFront : setAudBack}
                 />
               )}
             </div>

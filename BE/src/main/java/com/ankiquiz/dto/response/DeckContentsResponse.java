@@ -67,7 +67,10 @@ public record DeckContentsResponse(
             String backLang,
             // Per-face card image URLs, null when the side has no image.
             String frontImageUrl,
-            String backImageUrl
+            String backImageUrl,
+            // Per-face audio clip URLs, null when the side has no audio.
+            String frontAudioUrl,
+            String backAudioUrl
     ) {
     }
 }

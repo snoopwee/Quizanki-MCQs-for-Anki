@@ -113,6 +113,9 @@ export interface NoteResponse {
   // Per-face card image URLs (null = no image on that side).
   frontImageUrl: string | null;
   backImageUrl: string | null;
+  // Per-face card audio URLs (null = no audio on that side).
+  frontAudioUrl: string | null;
+  backAudioUrl: string | null;
   cardStats: CardStatsResponse | null;
 }
 
@@ -143,6 +146,10 @@ export interface NoteRequest {
   // imported with images keeps them on the cards.
   frontImageUrl?: string | null;
   backImageUrl?: string | null;
+  // Per-face card audio URL (null = none). Carried through import/clone so a
+  // duplicated deck keeps its pronunciations.
+  frontAudioUrl?: string | null;
+  backAudioUrl?: string | null;
 }
 
 export interface NoteTypeRequest {
@@ -211,6 +218,14 @@ export interface ApkgParsedNote {
   // Per-face card image URL, or null when the side has no image.
   frontImageUrl?: string | null;
   backImageUrl?: string | null;
+  // Per-face card audio URL, or null when the side has no audio.
+  frontAudioUrl?: string | null;
+  backAudioUrl?: string | null;
+  // Per-face [sound:] media filename from the .apkg (not the bytes). The client
+  // keeps these keyed by ankiNoteId and re-sends the .apkg after save so the
+  // backend can stream just these clips to storage. Null when the side has none.
+  frontAudioRef?: string | null;
+  backAudioRef?: string | null;
 }
 
 export interface ApkgNoteType {
@@ -236,6 +251,9 @@ export interface ApkgParseResponse {
   // Notes excluded because every field was empty after cleaning — image-occlusion
   // and other media-only cards that can't be quizzed as multiple choice.
   imageOnlyNotes: number;
+  // How many notes carry a [sound:] clip on either face. 0 = skip the post-save
+  // audio import step entirely. Undefined when adapting a saved deck (no .apkg).
+  audioNotes?: number;
   // Deck-level primary TTS language per face. Undefined for a fresh .apkg parse
   // (no deck yet); populated when a saved deck's contents are adapted into this
   // shape. term = front, definition = back.
@@ -256,6 +274,9 @@ export interface DeckContentsNote {
   // Per-face card image URL, or null when the side has no image.
   frontImageUrl: string | null;
   backImageUrl: string | null;
+  // Per-face card audio URL, or null when the side has no audio.
+  frontAudioUrl: string | null;
+  backAudioUrl: string | null;
 }
 
 export interface DeckContentsNoteType {
@@ -290,6 +311,9 @@ export interface UpdateDeckContentsNote {
   // Per-face card image URL; "" / null = no image. Travels with the bulk save.
   frontImageUrl?: string | null;
   backImageUrl?: string | null;
+  // Per-face card audio URL; "" / null = no audio. Travels with the bulk save.
+  frontAudioUrl?: string | null;
+  backAudioUrl?: string | null;
 }
 
 export interface UpdateDeckContentsRequest {

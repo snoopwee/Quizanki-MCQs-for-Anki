@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -125,6 +126,39 @@ class ApkgParserServiceTest {
         var note = resp.noteTypes().get(0).notes().get(0);
         assertNull(note.frontImageUrl());
         assertEquals("hello", note.fields().get("Front"));
+    }
+
+    @Test
+    void extractsAudioRef_fromSoundTagOnAFace() throws Exception {
+        // [sound:...] on the front, none on the back. The parse records the filename
+        // (not the bytes), strips the tag from the display text, and counts the note.
+        byte[] bytes = buildApkg("collection.anki2", BASIC_MODEL,
+                List.of(new NoteRow(1607392319L, "", flds("hello [sound:hi.mp3]", "world"))));
+
+        ApkgNotesResponse resp = service.parseNotes(apkg("deck.apkg", bytes));
+
+        var note = resp.noteTypes().get(0).notes().get(0);
+        assertEquals("hi.mp3", note.frontAudioRef());
+        assertNull(note.backAudioRef());
+        assertEquals("hello", note.fields().get("Front")); // [sound:] stripped from text
+        assertEquals(1, resp.audioNotes());
+    }
+
+    @Test
+    void streamReferencedMedia_pullsOnlyTheRequestedClips() throws Exception {
+        // The importer streams just the referenced media out of the archive — the
+        // wanted clip comes through, an unreferenced one doesn't.
+        byte[] mp3 = new byte[]{'I', 'D', '3', 4, 0, 0, 0, 0, 1, 2, 3};
+        byte[] other = new byte[]{9, 9, 9};
+        byte[] bytes = buildApkg("collection.anki2", BASIC_MODEL,
+                List.of(new NoteRow(1607392319L, "", flds("q [sound:hi.mp3]", "a"))),
+                Map.of("hi.mp3", mp3, "unused.mp3", other));
+
+        Map<String, byte[]> got = new java.util.HashMap<>();
+        service.streamReferencedMedia(apkg("deck.apkg", bytes), java.util.Set.of("hi.mp3"), got::put);
+
+        assertEquals(1, got.size());
+        assertArrayEquals(mp3, got.get("hi.mp3"));
     }
 
     @Test

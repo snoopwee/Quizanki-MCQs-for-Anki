@@ -1,13 +1,16 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.dto.request.ImportAudioRequest;
 import com.ankiquiz.dto.request.ImportDeckRequest;
 import com.ankiquiz.dto.request.SaveDeckRequest;
 import com.ankiquiz.dto.request.SetDeckLanguagesRequest;
 import com.ankiquiz.dto.request.ShareDeckRequest;
 import com.ankiquiz.dto.request.UpdateDeckContentsRequest;
 import com.ankiquiz.dto.request.UpdateDeckRequest;
+import com.ankiquiz.dto.response.AudioImportResponse;
 import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.DeckResponse;
+import com.ankiquiz.service.ApkgAudioImportService;
 import com.ankiquiz.service.ApkgExportService;
 import com.ankiquiz.service.Caller;
 import com.ankiquiz.service.DeckService;
@@ -28,7 +31,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -41,10 +46,14 @@ public class DeckController {
 
     private final DeckService deckService;
     private final ApkgExportService apkgExportService;
+    private final ApkgAudioImportService apkgAudioImportService;
 
-    public DeckController(DeckService deckService, ApkgExportService apkgExportService) {
+    public DeckController(DeckService deckService,
+                          ApkgExportService apkgExportService,
+                          ApkgAudioImportService apkgAudioImportService) {
         this.deckService = deckService;
         this.apkgExportService = apkgExportService;
+        this.apkgAudioImportService = apkgAudioImportService;
     }
 
     @GetMapping
@@ -99,6 +108,21 @@ public class DeckController {
     ) {
         DeckResponse body = deckService.importDeck(Caller.from(jwt), request);
         return ResponseEntity.status(HttpStatus.CREATED).body(body);
+    }
+
+    @PostMapping(value = "/{deckId}/import-audio", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Import an .apkg's audio onto a just-saved deck",
+            description = "Multipart: the original .apkg ('apkg') plus the per-note [sound:] refs "
+                    + "('refs', application/json) collected at parse time. Streams just the referenced "
+                    + "clips to storage and sets each note's front/back audio. Owner-only; best-effort "
+                    + "(missing / oversized / non-audio media is skipped).")
+    public AudioImportResponse importDeckAudio(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId,
+            @RequestPart("apkg") MultipartFile apkg,
+            @RequestPart("refs") ImportAudioRequest refs
+    ) {
+        return apkgAudioImportService.importAudio(jwt.getSubject(), deckId, apkg, refs.notes());
     }
 
     @GetMapping("/{deckId}/contents")

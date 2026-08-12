@@ -32,6 +32,9 @@ public record ApkgNotesResponse(
         int totalNotes,
         int skippedNotes,
         int imageOnlyNotes,
+        // How many notes carry a [sound:] clip on either face. Lets the client decide
+        // whether to run the post-save audio import step at all.
+        int audioNotes,
         List<NoteTypeNotes> noteTypes
 ) {
     public record NoteTypeNotes(
@@ -52,13 +55,21 @@ public record ApkgNotesResponse(
      * an {@code <img>}. Null when the side has no image (or it was too big / missing).
      * The client uploads the data URL to storage and saves the resulting URL on the
      * card (the parse endpoint is stateless, so nothing is stored here).
+     *
+     * <p>{@code frontAudioRef}/{@code backAudioRef} carry the {@code [sound:name]}
+     * media filename on each face (not the bytes — audio can be huge). The client
+     * keeps these keyed by {@code ankiNoteId} and, after saving, re-sends the .apkg
+     * to {@code /decks/{id}/import-audio} so the backend streams just these clips to
+     * storage. Null when the side has no sound.
      */
     public record ParsedNote(
             String ankiNoteId,
             Map<String, String> fields,
             List<String> tags,
             String frontImageUrl,
-            String backImageUrl
+            String backImageUrl,
+            String frontAudioRef,
+            String backAudioRef
     ) {
     }
 }

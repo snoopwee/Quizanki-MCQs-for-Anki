@@ -302,7 +302,7 @@ export function ApkgQuizSetup({
       {/* start bar */}
       <div className="mt-2 flex items-center gap-3 rounded-card border border-line-strong bg-surface p-4 shadow-card">
         <div className="min-w-0">
-          <div className="font-mono text-[11px] uppercase tracking-wide text-faint">Ready</div>
+          <div className="font-mono text-[0.6875rem] uppercase tracking-wide text-faint">Ready</div>
           <div className="mt-0.5 truncate text-sm font-bold text-ink">
             {effCount} question{effCount === 1 ? "" : "s"} · untimed
           </div>
@@ -453,7 +453,7 @@ function SettingCard({
     <Card className="p-5">
       <div className="mb-3.5 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[15px] font-bold text-ink">{title}</div>
+          <div className="text-[0.9375rem] font-bold text-ink">{title}</div>
           {desc && <div className="mt-0.5 text-xs text-muted">{desc}</div>}
         </div>
         {soon && <SoonTag className="mt-0.5 shrink-0" />}

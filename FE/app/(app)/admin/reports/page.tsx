@@ -52,12 +52,12 @@ export default function AdminReportsPage() {
                   <p className="flex items-center gap-2 font-medium text-ink">
                     <span className="truncate">{r.deckName ?? "(deck deleted)"}</span>
                     {r.reason && (
-                      <span className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent-ink">
+                      <span className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[0.6875rem] font-semibold text-accent-ink">
                         {r.reason}
                       </span>
                     )}
                     {r.status !== "open" && (
-                      <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-semibold capitalize text-muted">
+                      <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-[0.6875rem] font-semibold capitalize text-muted">
                         {r.status}
                       </span>
                     )}

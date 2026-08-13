@@ -7,6 +7,7 @@ import { Reorder, useDragControls } from "motion/react";
 import { useDeckContents, useReplaceDeckContents } from "@/hooks/useDecks";
 import {
   addBasicRow,
+  emptyFieldsByType,
   fromContents,
   rowMatches,
   swapAllValues,
@@ -18,7 +19,9 @@ import {
 import { ImportCardsModal, type ImportMode } from "@/components/deck/ImportCardsModal";
 import { EditableCard, type EditableCardProps } from "@/components/deck/EditableCard";
 import { CardFieldsControl, type FieldNoteType } from "@/components/deck/CardFieldsControl";
+import { FieldVisibilityModal } from "@/components/deck/FieldVisibilityModal";
 import { hasExtraFields } from "@/lib/cardFields";
+import { Icon } from "@/components/ui/icons";
 
 export default function DeckEditPage() {
   return (
@@ -131,6 +134,35 @@ function DeckEditor() {
     }));
   }, [contentsQuery.data, draft]);
 
+  // Field visibility: empty-across-the-type fields (media holders like "Audio"/
+  // "Image_URI") are hidden by default; the "Fields" modal lets the user override
+  // any of them. A view preference only — a hidden field still saves.
+  const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [shownFields, setShownFields] = useState<Record<string, boolean>>({});
+  const autoEmpty = useMemo(
+    () => (draft ? emptyFieldsByType(draft.rows) : new Map<string, Set<string>>()),
+    [draft],
+  );
+  const isFieldVisible = (typeId: string, field: string) => {
+    const key = `${typeId}::${field}`;
+    return key in shownFields ? shownFields[key] : !autoEmpty.get(typeId)?.has(field);
+  };
+  const toggleField = (typeId: string, field: string) =>
+    setShownFields((s) => ({ ...s, [`${typeId}::${field}`]: !isFieldVisible(typeId, field) }));
+  const hiddenByType = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const nt of fieldNoteTypes) {
+      const set = new Set<string>();
+      for (const f of nt.fieldNames) {
+        const key = `${nt.id}::${f}`;
+        const visible = key in shownFields ? shownFields[key] : !autoEmpty.get(nt.id)?.has(f);
+        if (!visible) set.add(f);
+      }
+      map.set(nt.id, set);
+    }
+    return map;
+  }, [fieldNoteTypes, autoEmpty, shownFields]);
+
   // Live reorder from the drag list: motion hands back the new key order, so we
   // reshuffle the draft rows to match (row objects, with their edits, are kept).
   const handleReorder = (keys: string[]) =>
@@ -188,6 +220,15 @@ function DeckEditor() {
         </button>
         <h1 className="font-display text-lg font-semibold tracking-tight">Edit flashcards</h1>
         <div className="ml-auto flex gap-2">
+          <button
+            type="button"
+            onClick={() => setFieldsOpen(true)}
+            title="Choose which fields show while editing"
+            className="inline-flex items-center gap-1.5 rounded-input border border-line-strong bg-surface px-2.5 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent"
+          >
+            <Icon name="settings" size={15} />
+            <span className="hidden sm:inline">Fields</span>
+          </button>
           <button
             type="button"
             onClick={swapAll}
@@ -293,6 +334,7 @@ function DeckEditor() {
               onLang={setLang}
               onImage={setImage}
               onAudio={setAudio}
+              hiddenFields={hiddenByType.get(row.noteTypeId ?? "")}
             />
           ))}
         </Reorder.Group>
@@ -313,6 +355,7 @@ function DeckEditor() {
                   onLang={setLang}
                   onImage={setImage}
                   onAudio={setAudio}
+                  hiddenFields={hiddenByType.get(row.noteTypeId ?? "")}
                 />
               </li>
             ),
@@ -331,6 +374,15 @@ function DeckEditor() {
       {importOpen && (
         <ImportCardsModal onClose={() => setImportOpen(false)} onImport={handleImport} />
       )}
+
+      {fieldsOpen && (
+        <FieldVisibilityModal
+          noteTypes={fieldNoteTypes}
+          isVisible={isFieldVisible}
+          onToggle={toggleField}
+          onClose={() => setFieldsOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -340,7 +392,7 @@ function DeckEditor() {
 // the way and springs everything into place when you let go. `dragListener` is
 // off so a press that lands on a textarea/button edits or clicks instead of
 // starting a drag.
-function DraggableCard({ row, index, onField, onSwap, onDelete, onLang, onImage, onAudio }: EditableCardProps) {
+function DraggableCard({ row, index, onField, onSwap, onDelete, onLang, onImage, onAudio, hiddenFields }: EditableCardProps) {
   const controls = useDragControls();
   function startDrag(e: PointerEvent<HTMLLIElement>) {
     if ((e.target as HTMLElement).closest("textarea, input, button, select, a")) return;
@@ -368,6 +420,7 @@ function DraggableCard({ row, index, onField, onSwap, onDelete, onLang, onImage,
         onLang={onLang}
         onImage={onImage}
         onAudio={onAudio}
+        hiddenFields={hiddenFields}
       />
     </Reorder.Item>
   );

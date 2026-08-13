@@ -191,12 +191,15 @@ export type IconName = keyof typeof PATHS;
 export function Icon({
   name,
   size = 20,
+  style,
   ...rest
 }: { name: IconName; size?: number } & Omit<SVGProps<SVGSVGElement>, "name">) {
+  // Size in rem (relative to the root font-size) rather than a fixed px width, so
+  // icons scale together with the Settings → Text size preference and stay in
+  // proportion to the text beside them. Same pixels at the default 100%.
+  const dim = `${size / 16}rem`;
   return (
     <svg
-      width={size}
-      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -204,6 +207,7 @@ export function Icon({
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
+      style={{ width: dim, height: dim, ...style }}
       {...rest}
     >
       {PATHS[name]}

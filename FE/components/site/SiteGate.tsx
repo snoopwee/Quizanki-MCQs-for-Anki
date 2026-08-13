@@ -84,7 +84,7 @@ function MaintenanceScreen({ message }: { message: string | null }) {
 // app's full-height layout.
 function MaintenanceStrip() {
   return (
-    <div className="fixed inset-x-0 top-0 z-[60] flex items-center justify-center gap-2 bg-warning/15 px-4 py-1 text-center text-[11px] font-semibold text-warning">
+    <div className="fixed inset-x-0 top-0 z-[60] flex items-center justify-center gap-2 bg-warning/15 px-4 py-1 text-center text-[0.6875rem] font-semibold text-warning">
       <Icon name="alertTriangle" size={12} />
       Maintenance mode is ON — only admins can see the site.
     </div>

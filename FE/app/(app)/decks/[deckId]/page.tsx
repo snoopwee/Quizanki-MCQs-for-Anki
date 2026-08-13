@@ -628,7 +628,7 @@ function FloatingStudyRail({
             type="button"
             onClick={onSwitchSide}
             aria-label={`Hiding ${hidingLabel} — switch side`}
-            className="grid h-11 w-11 place-items-center rounded-full border border-line bg-surface text-[11px] font-bold uppercase tracking-tight text-ink transition hover:border-line-strong"
+            className="grid h-11 w-11 place-items-center rounded-full border border-line bg-surface text-[0.6875rem] font-bold uppercase tracking-tight text-ink transition hover:border-line-strong"
           >
             {hideSide === "back" ? "Def" : "Term"}
           </button>
@@ -666,7 +666,7 @@ function DeleteConfirm({
       >
         <div>
           <h2 className="font-display text-base font-semibold tracking-tight">Delete this deck?</h2>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-1 break-words text-sm text-muted">
             <span className="font-medium text-ink">{deckName}</span>{" "}
             and all of its progress will be removed. This can&apos;t be undone.
           </p>

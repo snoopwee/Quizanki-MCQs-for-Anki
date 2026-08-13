@@ -155,7 +155,7 @@ export default function ProfilePage() {
         <div className="flex items-center justify-between gap-3 rounded-input border border-line bg-surface-2 px-3 py-2.5">
           <span className="min-w-0 truncate text-sm text-ink">{email}</span>
           <span
-            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold ${
               verified
                 ? "bg-success/10 text-success"
                 : "bg-warning/10 text-warning"

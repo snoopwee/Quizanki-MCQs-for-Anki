@@ -1047,7 +1047,7 @@ export function FlashcardViewer({
       {!focus && player}
 
       {!focus && (
-        <p className="text-center text-[11px] text-faint">
+        <p className="text-center text-[0.6875rem] text-faint">
           Keys: <kbd className="rounded border border-line-strong px-1">←</kbd>
           /<kbd className="rounded border border-line-strong px-1">A</kbd> prev
           · <kbd className="rounded border border-line-strong px-1">→</kbd>

@@ -435,7 +435,7 @@ function SoonNavItem({
       </span>
       <RevealLabel show={expanded} className="flex flex-1 items-center gap-2">
         <span className="flex-1">{label}</span>
-        <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold text-muted">
+        <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[0.625rem] font-semibold text-muted">
           soon
         </span>
       </RevealLabel>

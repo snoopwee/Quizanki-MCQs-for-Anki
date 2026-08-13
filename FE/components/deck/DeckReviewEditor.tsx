@@ -7,6 +7,8 @@ import { Spinner } from "@/components/ui/Spinner";
 import { Icon } from "@/components/ui/icons";
 import {
   addBasicRow,
+  emptyFieldsByType,
+  noteTypesFromRows,
   rowMatches,
   swapAllValues,
   swapValuesForRow,
@@ -14,6 +16,7 @@ import {
   type EditorState,
 } from "@/lib/deckEditor";
 import { draftCardCount } from "@/lib/deckDraft";
+import { FieldVisibilityModal } from "@/components/deck/FieldVisibilityModal";
 
 // How many cards to mount per page. Big enough to review at a glance, small
 // enough that entering the editor is instant even for a 5,000-card deck.
@@ -112,6 +115,35 @@ export function DeckReviewEditor({
   const shown = visible.slice(0, limit);
   const remaining = visible.length - shown.length;
 
+  // Field visibility. By default, fields empty across a whole note type (media
+  // holders like "Audio"/"Image_URI") are hidden — their clip/picture shows in the
+  // Media section instead. The "Fields" modal lets the user override any of these:
+  // `shown[typeId::field] = true/false` wins over the auto-default. Purely a view
+  // preference (nothing is deleted; a hidden field still saves).
+  const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [shownFields, setShownFields] = useState<Record<string, boolean>>({});
+  const autoEmpty = useMemo(() => emptyFieldsByType(draft.rows), [draft.rows]);
+  const noteTypes = useMemo(() => noteTypesFromRows(draft.rows), [draft.rows]);
+  const isFieldVisible = (typeId: string, field: string) => {
+    const key = `${typeId}::${field}`;
+    return key in shownFields ? shownFields[key] : !autoEmpty.get(typeId)?.has(field);
+  };
+  const toggleField = (typeId: string, field: string) =>
+    setShownFields((s) => ({ ...s, [`${typeId}::${field}`]: !isFieldVisible(typeId, field) }));
+  const hiddenByType = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const nt of noteTypes) {
+      const set = new Set<string>();
+      for (const f of nt.fieldNames) {
+        const key = `${nt.id}::${f}`;
+        const visible = key in shownFields ? shownFields[key] : !autoEmpty.get(nt.id)?.has(f);
+        if (!visible) set.add(f);
+      }
+      map.set(nt.id, set);
+    }
+    return map;
+  }, [noteTypes, autoEmpty, shownFields]);
+
   // "Show all" can mount thousands of cards — do it in a transition so the click
   // isn't a freeze, and show a spinner while the extra rows render.
   const [isExpanding, startExpanding] = useTransition();
@@ -133,6 +165,15 @@ export function DeckReviewEditor({
         </button>
         <h1 className="font-display text-lg font-semibold tracking-tight">Review before saving</h1>
         <div className="ml-auto flex gap-2">
+          <button
+            type="button"
+            onClick={() => setFieldsOpen(true)}
+            title="Choose which fields show while editing"
+            className="inline-flex items-center gap-1.5 rounded-input border border-line-strong bg-surface px-2.5 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent"
+          >
+            <Icon name="settings" size={15} />
+            <span className="hidden sm:inline">Fields</span>
+          </button>
           <button
             type="button"
             onClick={swapAll}
@@ -221,6 +262,7 @@ export function DeckReviewEditor({
                 onLang={setLang}
                 onImage={setImage}
                 playAudio={playAudio}
+                hiddenFields={hiddenByType.get(row.noteTypeId ?? "")}
               />
             </li>
           );
@@ -258,6 +300,15 @@ export function DeckReviewEditor({
       >
         + Add a card
       </button>
+
+      {fieldsOpen && (
+        <FieldVisibilityModal
+          noteTypes={noteTypes}
+          isVisible={isFieldVisible}
+          onToggle={toggleField}
+          onClose={() => setFieldsOpen(false)}
+        />
+      )}
     </div>
   );
 }

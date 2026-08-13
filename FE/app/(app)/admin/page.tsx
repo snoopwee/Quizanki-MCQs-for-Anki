@@ -61,7 +61,7 @@ export default function AdminOverviewPage() {
                 <p className="mt-2 font-display text-2xl font-bold tracking-tight text-ink">
                   {t.value.toLocaleString()}
                 </p>
-                {t.hint && <p className="mt-0.5 text-[11px] text-faint">{t.hint}</p>}
+                {t.hint && <p className="mt-0.5 text-[0.6875rem] text-faint">{t.hint}</p>}
               </li>
             ))}
           </ul>

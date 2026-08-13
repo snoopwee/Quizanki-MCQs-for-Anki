@@ -2,19 +2,27 @@
 
 import { useState, type FormEvent } from "react";
 import { useTheme } from "@/hooks/useTheme";
+import { useTextSize } from "@/hooks/useTextSize";
 import { createClient } from "@/lib/supabase/client";
 import { AccountSection, accountInputClasses } from "@/components/account/AccountSection";
 import { Toast } from "@/components/shared/Toast";
-import { Segmented, SoonTag } from "@/components/ui/controls";
+import { Segmented, Slider, SoonTag } from "@/components/ui/controls";
 import { buttonClasses } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/icons";
 import SignOutButton from "../SignOutButton";
 import type { ThemePref } from "@/lib/theme";
+import {
+  TEXT_SIZE_DEFAULT,
+  TEXT_SIZE_MAX,
+  TEXT_SIZE_MIN,
+  TEXT_SIZE_STEP,
+} from "@/lib/textSize";
 
 const MIN_PASSWORD = 8;
 
 export default function SettingsPage() {
   const { pref, resolved, setPref } = useTheme();
+  const { size: textSize, setSize: setTextSize } = useTextSize();
 
   const [pw, setPw] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -66,16 +74,45 @@ export default function SettingsPage() {
             : "Choose how Quizanki looks on this device."
         }
       >
-        <Segmented<ThemePref>
-          value={pref}
-          onChange={setPref}
-          options={[
-            { value: "light", label: "Light" },
-            { value: "dark", label: "Dark" },
-            { value: "system", label: "System" },
-          ]}
-        />
-        <p className="mt-3 flex items-center gap-1.5 text-xs text-faint">
+        <div className="space-y-4">
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted">Theme</p>
+            <Segmented<ThemePref>
+              value={pref}
+              onChange={setPref}
+              options={[
+                { value: "light", label: "Light" },
+                { value: "dark", label: "Dark" },
+                { value: "system", label: "System" },
+              ]}
+            />
+          </div>
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-xs font-medium text-muted">Text size</p>
+              <button
+                type="button"
+                onClick={() => setTextSize(TEXT_SIZE_DEFAULT)}
+                disabled={textSize === TEXT_SIZE_DEFAULT}
+                className="text-xs font-medium text-accent transition hover:opacity-80 disabled:opacity-40"
+              >
+                Reset
+              </button>
+            </div>
+            <Slider
+              value={textSize}
+              min={TEXT_SIZE_MIN}
+              max={TEXT_SIZE_MAX}
+              step={TEXT_SIZE_STEP}
+              onChange={setTextSize}
+              format={(v) => `${v}%`}
+            />
+            <p className="mt-2 text-xs text-faint">
+              Drag to make the text bigger across the whole app.
+            </p>
+          </div>
+        </div>
+        <p className="mt-4 flex items-center gap-1.5 text-xs text-faint">
           <Icon name={resolved === "dark" ? "moon" : "sun"} size={13} />
           Saved to this browser only.
         </p>

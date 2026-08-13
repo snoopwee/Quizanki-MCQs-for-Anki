@@ -66,9 +66,12 @@
   --canvas-2: #fbfaf7; /* near-white landing surface */
   --surface: #fffdf6; /* warm ivory card */
   --surface-2: #ece3d0; /* sunk panel / input bg */
-  --ink: #2a2114; /* warm brown-black text */
-  --muted: #6f6452; /* secondary text */
-  --faint: #9c907a; /* tertiary text / placeholders */
+  /* Text tokens are tuned to clear WCAG AA (>= 4.5:1) on surface / canvas /
+     surface-2 — darker warm browns, NOT cold gray, so labels stay legible without
+     losing the study-desk warmth. Keep the ink > muted > faint order. */
+  --ink: #2a2114; /* warm brown-black text (~15.6:1 on surface) */
+  --muted: #574d3a; /* secondary text (~8:1 on surface) */
+  --faint: #6e6350; /* tertiary text / placeholders (~5.8:1 on surface, AA everywhere) */
   --line: #e6dcc6; /* hairline borders */
   --line-strong: #d4c7ab; /* stronger borders / dividers */
   --dot: rgba(70, 52, 20, 0.05); /* study-paper dot grid */
@@ -101,9 +104,11 @@
   --canvas-2: oklch(0.165 0.007 80);
   --surface: oklch(0.205 0.008 80);
   --surface-2: oklch(0.245 0.01 80);
+  /* Same AA target as light — bump LIGHTNESS only (chroma stays 0.01, or the UI
+     yellow-casts). muted ~8.6:1, faint ~5.4:1 on surface. */
   --ink: oklch(0.945 0.006 85);
-  --muted: oklch(0.715 0.01 80);
-  --faint: oklch(0.515 0.01 80);
+  --muted: oklch(0.77 0.01 80);
+  --faint: oklch(0.645 0.01 80);
   --line: oklch(0.275 0.008 80);
   --line-strong: oklch(0.365 0.01 80);
   --dot: rgba(236, 230, 218, 0.035);

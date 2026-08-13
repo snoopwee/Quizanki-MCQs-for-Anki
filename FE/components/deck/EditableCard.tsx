@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { canSwapRow, fieldLabel, type EditorRow } from "@/lib/deckEditor";
+import { canSwapRow, fieldLabel, groupFields, type EditorRow } from "@/lib/deckEditor";
 import { TTS_LANGUAGE_OPTIONS } from "@/lib/ttsLanguages";
 import { CardImageSlot } from "@/components/deck/CardImageSlot";
 import { CardAudioSlot } from "@/components/deck/CardAudioSlot";
@@ -35,20 +35,72 @@ export interface EditableCardProps {
     back: string | null;
     resolve: (filename: string) => Promise<string | null>;
   };
+  // Field names whose textarea to hide — pure media holders / unused fields that
+  // are empty across the whole note type (see emptyFieldsByType). Purely visual.
+  hiddenFields?: Set<string>;
 }
 
-export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, onImage, onAudio, playAudio }: EditableCardProps) {
+export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, onImage, onAudio, playAudio, hiddenFields }: EditableCardProps) {
   const [activeField, setActiveField] = useState<string | null>(null);
-  // The field rows that carry the term (front) and definition (back) language.
-  const termField = row.frontFields[0] ?? row.fieldNames[0];
-  const defField = row.backFields[0] ?? row.fieldNames.find((f) => f !== termField) ?? termField;
+
+  const visible = row.fieldNames.filter((f) => !hiddenFields?.has(f));
+  const { term, definition, other } = groupFields(visible, row.frontFields, row.backFields);
+  // When the note type has no front/back layout (e.g. cloze), there's no term /
+  // definition split — render the fields flat instead of a lone "Other" group.
+  const hasSides = term.length > 0 || definition.length > 0;
+
+  // One side/group: a small header (with the face's voice picker, revealed on
+  // focus or when set) then each field's textarea. A single-field term/definition
+  // group needs no per-field name — the header ("Term") already says which side it
+  // is; "other" fields and multi-field sides show their names to tell them apart.
+  const renderGroup = (label: string, fields: string[], face: "front" | "back" | null) => {
+    if (fields.length === 0) return null;
+    const showFieldNames = label === "" || face === null || fields.length > 1;
+    const voiceShown =
+      face !== null &&
+      ((activeField !== null && fields.includes(activeField)) ||
+        (face === "front" && row.frontLang !== "") ||
+        (face === "back" && row.backLang !== ""));
+    return (
+      <div className="space-y-1.5">
+        {label !== "" && (
+          <div className="flex min-h-[1.25rem] items-center justify-between gap-2">
+            <span className="font-mono text-[0.6875rem] font-semibold uppercase tracking-wide text-faint">
+              {label}
+            </span>
+            {voiceShown && face && (
+              <LangSelect
+                label={face === "front" ? "Term voice" : "Definition voice"}
+                value={face === "front" ? row.frontLang : row.backLang}
+                onChange={(code) => onLang(row.key, face, code)}
+              />
+            )}
+          </div>
+        )}
+        {fields.map((field) => (
+          <div key={field} className="space-y-1">
+            {showFieldNames && (
+              <span className="font-mono text-xs font-medium text-muted">{fieldLabel(field)}</span>
+            )}
+            <textarea
+              value={row.fields[field] ?? ""}
+              onFocus={() => setActiveField(field)}
+              onChange={(e) => onField(row.key, field, e.target.value)}
+              rows={row.cloze ? 3 : 2}
+              className="nice-scroll focus-ring w-full cursor-text select-text resize-y rounded-input border border-line-strong bg-surface-2 px-3 py-1.5 text-sm text-ink outline-none"
+            />
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <>
       <div className="flex items-center gap-2 font-mono text-xs text-faint">
         <span>#{index + 1}</span>
         {row.cloze && (
-          <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+          <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide">
             Cloze
           </span>
         )}
@@ -59,56 +111,24 @@ export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, on
           <IconBtn label="Delete card" danger onClick={() => onDelete(row.key)}>✕</IconBtn>
         </div>
       </div>
-      {/* Clearing activeField only when focus leaves the whole card keeps the menu
-          open while you're picking a language from its <select>. */}
+      {/* Fields grouped by the side they sit on: Term (front), Definition (back),
+          then any unrelated fields on their own. Clearing activeField only when
+          focus leaves the whole card keeps the voice menu open while you pick. */}
       <div
-        className="space-y-2"
+        className="space-y-3"
         onBlur={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setActiveField(null);
         }}
       >
-        {row.fieldNames.map((field) => {
-          const showTerm = field === termField;
-          const showDef = field === defField;
-          // Reveal the menu when this field is focused, or when its side already
-          // carries an override (so the setting stays visible when unfocused).
-          const showMenu =
-            activeField === field ||
-            (showTerm && row.frontLang !== "") ||
-            (showDef && row.backLang !== "");
-          return (
-            <div key={field} className="space-y-1">
-              <div className="flex min-h-[1.5rem] items-center justify-between gap-2">
-                <span className="font-mono text-xs font-medium text-muted">{fieldLabel(field)}</span>
-                {showMenu && (
-                  <div className="flex items-center gap-1.5">
-                    {showTerm && (
-                      <LangSelect
-                        label="Term voice"
-                        value={row.frontLang}
-                        onChange={(code) => onLang(row.key, "front", code)}
-                      />
-                    )}
-                    {showDef && (
-                      <LangSelect
-                        label="Definition voice"
-                        value={row.backLang}
-                        onChange={(code) => onLang(row.key, "back", code)}
-                      />
-                    )}
-                  </div>
-                )}
-              </div>
-              <textarea
-                value={row.fields[field] ?? ""}
-                onFocus={() => setActiveField(field)}
-                onChange={(e) => onField(row.key, field, e.target.value)}
-                rows={row.cloze ? 3 : 2}
-                className="nice-scroll focus-ring w-full cursor-text select-text resize-y rounded-input border border-line-strong bg-surface-2 px-3 py-1.5 text-sm text-ink outline-none"
-              />
-            </div>
-          );
-        })}
+        {hasSides ? (
+          <>
+            {renderGroup("Term", term, "front")}
+            {renderGroup("Definition", definition, "back")}
+            {renderGroup("Other fields", other, null)}
+          </>
+        ) : (
+          renderGroup("", visible, null)
+        )}
       </div>
 
       {/* Media lives in its own section — an image/audio belongs to the CARD's term
@@ -116,7 +136,7 @@ export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, on
           <img>/[sound:] (e.g. an imported picture isn't part of "Expression"). */}
       {(onImage || onAudio || playAudio) && (
         <div className="mt-3 space-y-3 rounded-input border border-line bg-surface-2/40 p-3">
-          <span className="font-mono text-[11px] font-medium uppercase tracking-wide text-faint">
+          <span className="font-mono text-[0.6875rem] font-medium uppercase tracking-wide text-faint">
             Media
           </span>
           <div className="grid gap-4 sm:grid-cols-2">

@@ -302,7 +302,7 @@ export function QuizSession({
       </div>
 
       {/* footer: instant feedback + next */}
-      <div className="mt-5 flex min-h-[52px] shrink-0 items-center gap-4 border-t border-line pt-4">
+      <div className="mt-5 flex min-h-[3.25rem] shrink-0 items-center gap-4 border-t border-line pt-4">
         {answered ? (
           <div className="flex min-w-0 items-center gap-2.5">
             <span
@@ -366,7 +366,7 @@ function TrueFalseChoice({
   return (
     <div className="space-y-4">
       <div className="rounded-card border border-line-strong bg-surface-2 p-5 text-center">
-        <p className="font-mono text-[11px] uppercase tracking-wide text-faint">Proposed answer</p>
+        <p className="font-mono text-[0.6875rem] uppercase tracking-wide text-faint">Proposed answer</p>
         <p
           dir={textDirection(statement)}
           className="mt-2 font-display text-2xl font-semibold leading-tight break-words text-ink"
@@ -455,7 +455,7 @@ function WrittenAnswer({
               : "border-danger/40 bg-danger/10"
           }`}
         >
-          <p className="font-mono text-[11px] uppercase tracking-wide text-faint">Correct answer</p>
+          <p className="font-mono text-[0.6875rem] uppercase tracking-wide text-faint">Correct answer</p>
           <p dir={textDirection(correct)} className="mt-1 font-display text-xl font-semibold break-words text-ink">
             <RichText text={correct} />
           </p>

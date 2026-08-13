@@ -49,12 +49,12 @@ export default function AdminUsersPage() {
                   <p className="flex items-center gap-2 truncate font-medium text-ink">
                     {u.displayName || u.email || "Unknown"}
                     {u.banned && (
-                      <span className="rounded-full bg-danger/10 px-2 py-0.5 text-[11px] font-semibold text-danger">
+                      <span className="rounded-full bg-danger/10 px-2 py-0.5 text-[0.6875rem] font-semibold text-danger">
                         Banned
                       </span>
                     )}
                     {isSelf && (
-                      <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent-ink">
+                      <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[0.6875rem] font-semibold text-accent-ink">
                         You
                       </span>
                     )}

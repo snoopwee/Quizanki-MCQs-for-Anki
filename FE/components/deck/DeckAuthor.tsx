@@ -87,7 +87,7 @@ export function DeckAuthor({
       <Avatar
         url={authorAvatarUrl}
         initials={initialsFrom(authorName, "")}
-        className="h-5 w-5 text-[9px]"
+        className="h-5 w-5 text-[0.5625rem]"
       />
     );
 

@@ -84,7 +84,7 @@ export function AuthModal({
         aria-modal="true"
         aria-label={heading}
         onClick={(e) => e.stopPropagation()}
-        className="rise relative my-8 w-full max-w-[408px] rounded-[18px] border border-line bg-surface p-7 shadow-card"
+        className="rise relative my-8 w-full max-w-[25.5rem] rounded-[18px] border border-line bg-surface p-7 shadow-card"
       >
         <button
           type="button"

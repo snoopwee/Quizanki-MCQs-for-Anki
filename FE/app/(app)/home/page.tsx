@@ -290,9 +290,9 @@ function QuickAction({
       >
         <Icon name={icon} size={21} />
       </span>
-      <div className="flex items-center gap-2 text-[15px] font-bold tracking-tight text-ink">{title}</div>
-      <p className="mt-1 flex-1 text-[13px] leading-relaxed text-muted">{desc}</p>
-      <div className="mt-3.5 inline-flex items-center gap-1.5 text-[13px] font-semibold" style={{ color }}>
+      <div className="flex items-center gap-2 text-[0.9375rem] font-bold tracking-tight text-ink">{title}</div>
+      <p className="mt-1 flex-1 text-[0.8125rem] leading-relaxed text-muted">{desc}</p>
+      <div className="mt-3.5 inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold" style={{ color }}>
         {cta} <Icon name="chevronRight" size={14} />
       </div>
     </Card>

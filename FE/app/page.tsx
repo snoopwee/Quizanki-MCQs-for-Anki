@@ -96,7 +96,7 @@ function Landing() {
       {step.kind === "import" && (
         <section className="mx-auto max-w-2xl px-6 py-16 text-center lg:py-24">
           <p
-            className="rise inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted shadow-sm"
+            className="rise inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 font-mono text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-muted shadow-sm"
             style={{ animationDelay: "0ms" }}
           >
             <span className="inline-block h-2 w-2 rounded-[2px] bg-accent" />

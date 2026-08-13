@@ -23,7 +23,7 @@ export function OptionButton({
   const showCorrect = answered && isCorrect;
   const showWrong = answered && isSelected && !isCorrect;
 
-  let card = "focus-ring flex w-full items-start gap-3 rounded-card border px-4 py-4 text-left text-[15px] font-medium transition ";
+  let card = "focus-ring flex w-full items-start gap-3 rounded-card border px-4 py-4 text-left text-[0.9375rem] font-medium transition ";
   let badge = "grid h-7 w-7 shrink-0 place-items-center rounded-[8px] border font-mono text-sm font-bold ";
 
   if (showCorrect) {

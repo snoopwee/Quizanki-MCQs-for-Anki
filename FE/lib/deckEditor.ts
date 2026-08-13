@@ -248,6 +248,86 @@ export function fieldLabel(name: string): string {
   return name;
 }
 
+// Field names that are empty across EVERY card of their note type — dedicated
+// media holders (an "Audio" field that was just [sound:...], an "Image_URI" that
+// was just <img>, both cleaned to "") and other unused fields. The editor hides
+// their textareas: they're pure media (already shown in the Media section) or
+// carry no data, so an empty box for them is just noise. Keyed by note type
+// (noteTypeId, "" for the Basic/manual bucket) so a field is hidden for all cards
+// of a type or none — never per-card. Purely visual; the field map is untouched.
+export function emptyFieldsByType(rows: EditorRow[]): Map<string, Set<string>> {
+  const byType = new Map<string, EditorRow[]>();
+  for (const row of rows) {
+    const key = row.noteTypeId ?? "";
+    const group = byType.get(key);
+    if (group) group.push(row);
+    else byType.set(key, [row]);
+  }
+
+  const result = new Map<string, Set<string>>();
+  for (const [key, group] of byType) {
+    const empty = new Set<string>();
+    for (const field of group[0]?.fieldNames ?? []) {
+      if (group.every((r) => !(r.fields[field] ?? "").trim())) empty.add(field);
+    }
+    result.set(key, empty);
+  }
+  return result;
+}
+
+// Split a note type's fields into the card's Term (front) side, its Definition
+// (back) side, and everything else ("other" — fields the card layout doesn't put
+// on either face, e.g. an id / metadata field). Order within each group follows
+// the note type's field order. Used to lay the editor out by side and to group the
+// field-visibility modal.
+export interface FieldGroups {
+  term: string[];
+  definition: string[];
+  other: string[];
+}
+
+// The distinct note types present in a set of editor rows, with each type's fields
+// and front/back layout — enough to drive the field-visibility modal from a draft
+// (which, unlike saved-deck contents, has no separate note-type list).
+export interface RowNoteType {
+  id: string;
+  fieldNames: string[];
+  frontFields: string[];
+  backFields: string[];
+}
+
+export function noteTypesFromRows(rows: EditorRow[]): RowNoteType[] {
+  const byId = new Map<string, RowNoteType>();
+  for (const row of rows) {
+    const id = row.noteTypeId ?? "";
+    if (!byId.has(id)) {
+      byId.set(id, {
+        id,
+        fieldNames: row.fieldNames,
+        frontFields: row.frontFields,
+        backFields: row.backFields,
+      });
+    }
+  }
+  return [...byId.values()];
+}
+
+export function groupFields(
+  fieldNames: string[],
+  frontFields: string[],
+  backFields: string[],
+): FieldGroups {
+  const front = new Set(frontFields);
+  const back = new Set(backFields);
+  const groups: FieldGroups = { term: [], definition: [], other: [] };
+  for (const f of fieldNames) {
+    if (front.has(f)) groups.term.push(f);
+    else if (back.has(f)) groups.definition.push(f);
+    else groups.other.push(f);
+  }
+  return groups;
+}
+
 // A row with no content in any field AND no image AND no audio — dropped on save
 // so stray empty cards (e.g. an "Add card" the user never filled in) don't
 // persist. A card carrying only an image or only audio is NOT blank.

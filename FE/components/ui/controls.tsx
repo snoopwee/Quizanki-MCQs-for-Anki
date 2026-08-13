@@ -6,7 +6,7 @@
 export function SoonTag({ className = "" }: { className?: string }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-faint ${className}`}
+      className={`inline-flex items-center rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[0.625rem] font-semibold uppercase tracking-wide text-faint ${className}`}
     >
       Soon
     </span>
@@ -82,12 +82,15 @@ export function Slider({
   max,
   step = 1,
   onChange,
+  format = String,
 }: {
   value: number;
   min: number;
   max: number;
   step?: number;
   onChange: (v: number) => void;
+  // How the value chip is rendered (e.g. `(v) => `${v}%``). Defaults to the raw number.
+  format?: (v: number) => string;
 }) {
   return (
     <div className="flex items-center gap-4">
@@ -101,7 +104,7 @@ export function Slider({
         className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-surface-2 accent-[var(--accent)]"
       />
       <div className="w-16 rounded-input border border-line bg-surface-2 py-2 text-center font-mono text-base font-bold text-ink">
-        {value}
+        {format(value)}
       </div>
     </div>
   );

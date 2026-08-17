@@ -8,6 +8,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
 
 class CardAudioServiceTest {
 
@@ -22,11 +23,13 @@ class CardAudioServiceTest {
     private static final byte[] WEBM = {(byte) 0x1A, (byte) 0x45, (byte) 0xDF, (byte) 0xA3, 0};
 
     private CardAudioService configured() {
-        return new CardAudioService("https://project.supabase.co", "service-key", "card-audio");
+        return new CardAudioService("https://project.supabase.co", "service-key", "card-audio",
+                mock(MediaObjectService.class));
     }
 
     private CardAudioService unconfigured() {
-        return new CardAudioService("https://replace-me.supabase.co", "", "card-audio");
+        return new CardAudioService("https://replace-me.supabase.co", "", "card-audio",
+                mock(MediaObjectService.class));
     }
 
     @Test

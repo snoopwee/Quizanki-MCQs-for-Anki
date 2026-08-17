@@ -15,43 +15,51 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Stores flashcard images in a public Supabase Storage bucket, written server-side
- * with the service-role key — the same approach as {@link AvatarService}, but many
- * images per user instead of one. Each upload is a fresh object at
- * {@code <userId>/<uuid>}, so cards never overwrite each other; the returned public
- * URL is saved onto the note's {@code front_image_url}/{@code back_image_url}.
+ * with the service-role key. <b>Content-addressed (V18):</b> the object key is the
+ * SHA-256 of the bytes (via {@link MediaObjectService}), so the same image is
+ * stored <em>once</em> no matter how many users import the same deck, and a
+ * re-import uploads nothing. The returned public URL is saved onto the note's
+ * {@code front_image_url}/{@code back_image_url}, and served with a long, immutable
+ * cache header (a content-addressed object never changes meaning).
  *
  * <p>Images are validated by magic bytes (never trusting the client Content-Type),
- * reusing {@link AvatarService#sniffImageType}. The user id comes from the JWT, so a
- * user only ever writes under their own prefix.
+ * reusing {@link AvatarService#sniffImageType}.
  */
 @Service
 public class CardImageService {
 
     private static final Logger log = LoggerFactory.getLogger(CardImageService.class);
     private static final long MAX_BYTES = 5L * 1024 * 1024; // 5 MB per card image
+    // A year, immutable: each object is content-addressed by hash, never
+    // overwritten, so the browser can cache it indefinitely — the main lever on
+    // Storage egress. Mirrors CardAudioService.
+    private static final String CACHE_CONTROL = "public, max-age=31536000, immutable";
 
     private final String supabaseUrl;
     private final String serviceKey;
     private final String bucket;
+    private final MediaObjectService mediaObjects;
     private final RestClient http = RestClient.create();
     private volatile boolean bucketReady = false;
 
     public CardImageService(
             @Value("${supabase.url:}") String supabaseUrl,
             @Value("${supabase.service-key:${tts.supabase.service-key:}}") String serviceKey,
-            @Value("${card-image.bucket:card-images}") String bucket
+            @Value("${card-image.bucket:card-images}") String bucket,
+            MediaObjectService mediaObjects
     ) {
         this.supabaseUrl = supabaseUrl;
         this.serviceKey = serviceKey;
         this.bucket = bucket;
+        this.mediaObjects = mediaObjects;
     }
 
     /**
-     * Upload one card image for the user. Returns a public URL to store on the card.
+     * Upload one card image for the user. Returns a public URL to store on the card
+     * (an existing one if this exact image is already stored).
      * @throws AvatarException 503 if storage isn't configured, 400/413 on a bad
      *         image, 502 if Storage rejects the write.
      */
@@ -74,14 +82,25 @@ public class CardImageService {
         if (contentType == null) {
             throw new AvatarException(HttpStatus.BAD_REQUEST, "Please upload a PNG, JPG, WebP or GIF image.");
         }
-
-        ensureBucket();
-        String path = userId + "/" + UUID.randomUUID();
-        putObject(path, bytes, contentType);
-        return publicUrl(path);
+        return storeDeduped(bytes, contentType);
     }
 
-    // --- helpers (mirrors AvatarService) ------------------------------------
+    /**
+     * Store bytes content-addressed: if this exact image is already in storage,
+     * reuse it (no upload); otherwise upload it at its hash and register it.
+     */
+    private String storeDeduped(byte[] bytes, String contentType) {
+        String hash = MediaObjectService.sha256Hex(bytes);
+        if (mediaObjects.exists(hash)) {
+            return mediaObjects.publicUrl(bucket, hash);
+        }
+        ensureBucket();
+        putObject(hash, bytes, contentType);
+        mediaObjects.record(hash, bucket, contentType, bytes.length);
+        return mediaObjects.publicUrl(bucket, hash);
+    }
+
+    // --- helpers (mirrors AvatarService / CardAudioService) -----------------
 
     private void requireConfigured() {
         boolean urlOk = supabaseUrl != null && !supabaseUrl.isBlank() && !supabaseUrl.contains("replace-me");
@@ -96,10 +115,6 @@ public class CardImageService {
         return supabaseUrl + "/storage/v1/object/" + bucket + "/" + path;
     }
 
-    private String publicUrl(String path) {
-        return supabaseUrl + "/storage/v1/object/public/" + bucket + "/" + path;
-    }
-
     private void putObject(String path, byte[] bytes, String contentType) {
         try {
             http.post()
@@ -107,6 +122,7 @@ public class CardImageService {
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceKey)
                     .header("apikey", serviceKey)
                     .header("x-upsert", "true")
+                    .header(HttpHeaders.CACHE_CONTROL, CACHE_CONTROL)
                     .contentType(MediaType.valueOf(contentType))
                     .body(bytes)
                     .retrieve()

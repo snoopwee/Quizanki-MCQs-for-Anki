@@ -15,20 +15,19 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Stores flashcard audio clips (pronunciations) in a public Supabase Storage
- * bucket, written server-side with the service-role key — the same approach as
- * {@link CardImageService}, but for audio. Each upload is a fresh object at
- * {@code <userId>/<uuid>}, so cards never overwrite each other; the returned public
+ * bucket, written server-side with the service-role key. <b>Content-addressed
+ * (V18):</b> the object key is the SHA-256 of the bytes (via
+ * {@link MediaObjectService}), so a deck's clips are stored <em>once</em> no matter
+ * how many users import it, and a re-import uploads nothing. The returned public
  * URL is saved onto the note's {@code front_audio_url}/{@code back_audio_url}.
  *
  * <p>Clips are validated by magic bytes (never trusting the client Content-Type)
- * and served with a long, immutable cache header — the object is content-addressed
- * by UUID, so a replaced clip is a new URL and this URL never changes meaning. That
- * lets the browser replay a clip from disk cache instead of re-fetching it every
- * study session, which is the main lever on Storage egress for audio-heavy decks.
+ * and served with a long, immutable cache header — a content-addressed object never
+ * changes meaning, so the browser can replay a clip from disk cache instead of
+ * re-fetching it every study session (the main lever on Storage egress for audio).
  */
 @Service
 public class CardAudioService {
@@ -38,29 +37,32 @@ public class CardAudioService {
     // the occasional WAV run larger — 10 MB is generous while still blocking a
     // pathological upload.
     private static final long MAX_BYTES = 10L * 1024 * 1024;
-    // A year, immutable: card audio objects are never overwritten (new UUID each
-    // upload), so the browser can cache them indefinitely.
+    // A year, immutable: content-addressed objects are never overwritten, so the
+    // browser can cache them indefinitely.
     private static final String CACHE_CONTROL = "public, max-age=31536000, immutable";
 
     private final String supabaseUrl;
     private final String serviceKey;
     private final String bucket;
+    private final MediaObjectService mediaObjects;
     private final RestClient http = RestClient.create();
     private volatile boolean bucketReady = false;
 
     public CardAudioService(
             @Value("${supabase.url:}") String supabaseUrl,
             @Value("${supabase.service-key:${tts.supabase.service-key:}}") String serviceKey,
-            @Value("${card-audio.bucket:card-audio}") String bucket
+            @Value("${card-audio.bucket:card-audio}") String bucket,
+            MediaObjectService mediaObjects
     ) {
         this.supabaseUrl = supabaseUrl;
         this.serviceKey = serviceKey;
         this.bucket = bucket;
+        this.mediaObjects = mediaObjects;
     }
 
     /**
      * Upload one card audio clip for the user. Returns a public URL to store on the
-     * card.
+     * card (an existing one if this exact clip is already stored).
      * @throws AvatarException 503 if storage isn't configured, 400/413 on a bad
      *         clip, 502 if Storage rejects the write.
      */
@@ -86,7 +88,7 @@ public class CardAudioService {
     /**
      * Upload already-validated audio bytes with a known content type — used by the
      * .apkg import path, which sniffs each clip as it streams it out of the archive.
-     * Returns a public URL to store on the card.
+     * Returns a public URL to store on the card (deduped by content hash).
      * @throws AvatarException 503 if storage isn't configured, 413 if too large,
      *         502 if Storage rejects the write.
      */
@@ -95,10 +97,22 @@ public class CardAudioService {
         if (bytes.length > MAX_BYTES) {
             throw new AvatarException(HttpStatus.PAYLOAD_TOO_LARGE, "That audio is too large (limit 10 MB).");
         }
+        return storeDeduped(bytes, contentType);
+    }
+
+    /**
+     * Store bytes content-addressed: if this exact clip is already in storage,
+     * reuse it (no upload); otherwise upload it at its hash and register it.
+     */
+    private String storeDeduped(byte[] bytes, String contentType) {
+        String hash = MediaObjectService.sha256Hex(bytes);
+        if (mediaObjects.exists(hash)) {
+            return mediaObjects.publicUrl(bucket, hash);
+        }
         ensureBucket();
-        String path = userId + "/" + UUID.randomUUID();
-        putObject(path, bytes, contentType);
-        return publicUrl(path);
+        putObject(hash, bytes, contentType);
+        mediaObjects.record(hash, bucket, contentType, bytes.length);
+        return mediaObjects.publicUrl(bucket, hash);
     }
 
     /**
@@ -152,10 +166,6 @@ public class CardAudioService {
 
     private String objectApiUrl(String path) {
         return supabaseUrl + "/storage/v1/object/" + bucket + "/" + path;
-    }
-
-    private String publicUrl(String path) {
-        return supabaseUrl + "/storage/v1/object/public/" + bucket + "/" + path;
     }
 
     private void putObject(String path, byte[] bytes, String contentType) {

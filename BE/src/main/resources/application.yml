@@ -90,6 +90,17 @@ avatar:
   # The bucket is auto-created on first upload if it doesn't already exist.
   bucket: ${AVATAR_BUCKET:avatars}
 
+media:
+  gc:
+    # Orphan-media garbage collection (admin: GET /api/v1/admin/media/orphans dry run,
+    # POST /api/v1/admin/media/gc to delete — safe to drive from an external cron).
+    # An object is reclaimable only when NO note references its hash AND it is older
+    # than grace-days: the window protects media uploaded moments before its note is
+    # saved (mid-import) from being reaped. Bounded per run so a large backlog clears
+    # over several runs rather than one long one.
+    grace-days: ${MEDIA_GC_GRACE_DAYS:7}
+    max-per-run: ${MEDIA_GC_MAX_PER_RUN:2000}
+
 app:
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000}

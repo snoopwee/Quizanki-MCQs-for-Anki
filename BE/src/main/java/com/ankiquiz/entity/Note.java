@@ -50,6 +50,23 @@ public class Note {
     @Column(name = "back_lang")
     private String backLang;
 
+    // Per-face image (a Supabase Storage public URL). Null = no image. Parallel to
+    // front_lang/back_lang; set in the card editor, shown in the flashcard viewer.
+    @Column(name = "front_image_url")
+    private String frontImageUrl;
+
+    @Column(name = "back_image_url")
+    private String backImageUrl;
+
+    // Per-face audio pronunciation (a Supabase Storage public URL). Null = no
+    // audio. Parallel to front_image_url/back_image_url; set in the card editor,
+    // played by the in-card speaker (preferred over TTS when present).
+    @Column(name = "front_audio_url")
+    private String frontAudioUrl;
+
+    @Column(name = "back_audio_url")
+    private String backAudioUrl;
+
     public UUID getId() {
         return id;
     }
@@ -120,5 +137,37 @@ public class Note {
 
     public void setBackLang(String backLang) {
         this.backLang = backLang;
+    }
+
+    public String getFrontImageUrl() {
+        return frontImageUrl;
+    }
+
+    public void setFrontImageUrl(String frontImageUrl) {
+        this.frontImageUrl = frontImageUrl;
+    }
+
+    public String getBackImageUrl() {
+        return backImageUrl;
+    }
+
+    public void setBackImageUrl(String backImageUrl) {
+        this.backImageUrl = backImageUrl;
+    }
+
+    public String getFrontAudioUrl() {
+        return frontAudioUrl;
+    }
+
+    public void setFrontAudioUrl(String frontAudioUrl) {
+        this.frontAudioUrl = frontAudioUrl;
+    }
+
+    public String getBackAudioUrl() {
+        return backAudioUrl;
+    }
+
+    public void setBackAudioUrl(String backAudioUrl) {
+        this.backAudioUrl = backAudioUrl;
     }
 }

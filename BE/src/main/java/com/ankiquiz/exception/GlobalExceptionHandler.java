@@ -38,6 +38,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error(HttpStatus.FORBIDDEN, "Forbidden", null));
     }
 
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<Map<String, Object>> handleConflict(ConflictException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error(HttpStatus.CONFLICT, ex.getMessage(), null));
+    }
+
     @ExceptionHandler(ApkgParseException.class)
     public ResponseEntity<Map<String, Object>> handleApkgParse(ApkgParseException ex) {
         return ResponseEntity.badRequest().body(error(HttpStatus.BAD_REQUEST, ex.getMessage(), null));

@@ -3,6 +3,7 @@ package com.ankiquiz.controller;
 import com.ankiquiz.dto.request.SetStarRequest;
 import com.ankiquiz.dto.request.UpdateNoteRequest;
 import com.ankiquiz.dto.response.NoteResponse;
+import com.ankiquiz.service.Caller;
 import com.ankiquiz.service.NoteService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -58,8 +59,10 @@ public class NoteController {
             @PathVariable UUID noteId,
             @Valid @RequestBody UpdateNoteRequest request
     ) {
-        return noteService.updateNote(jwt.getSubject(), deckId, noteId,
-                request.fields(), request.frontLang(), request.backLang());
+        return noteService.updateNote(Caller.from(jwt), deckId, noteId,
+                request.fields(), request.frontLang(), request.backLang(),
+                request.frontImageUrl(), request.backImageUrl(),
+                request.frontAudioUrl(), request.backAudioUrl());
     }
 
     @PutMapping("/{noteId}/star")

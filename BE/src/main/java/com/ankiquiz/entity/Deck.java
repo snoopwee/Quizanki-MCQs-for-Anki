@@ -44,6 +44,41 @@ public class Deck {
     @Column(name = "imported_at")
     private OffsetDateTime importedAt;
 
+    // Sharing (V9). While is_public is true the deck is readable by anyone with
+    // its link, who can clone it into their own account. Off by default.
+    @Column(name = "is_public", nullable = false)
+    private boolean isPublic;
+
+    @Column(name = "shared_at")
+    private OffsetDateTime sharedAt;
+
+    // The deck this one was cloned from, if any. No FK: deleting the original
+    // must not touch the copies.
+    @Column(name = "clone_source_deck_id")
+    private UUID cloneSourceDeckId;
+
+    // Authorship (V10). Who is CREDITED — not the same as userId, who owns the
+    // row: a copy is owned by whoever took it while still crediting the original
+    // author, until they make it theirs by editing it.
+    @Column(name = "author_id", nullable = false)
+    private String authorId;
+
+    // Denormalised display name (there is no user table to join). Snapshotted
+    // from the caller's JWT and re-stamped whenever the author writes the deck.
+    @Column(name = "author_name")
+    private String authorName;
+
+    // Who this was copied from, for the "Original deck by X" line. Also
+    // denormalised so it survives the original deck being deleted.
+    @Column(name = "source_author_name")
+    private String sourceAuthorName;
+
+    // The credited author's profile picture (denormalised like author_name — no
+    // user table to join). Snapshotted at write, refreshed on profile change.
+    // Null = no photo (client shows initials).
+    @Column(name = "author_avatar_url")
+    private String authorAvatarUrl;
+
     public UUID getId() {
         return id;
     }
@@ -114,5 +149,61 @@ public class Deck {
 
     public void setImportedAt(OffsetDateTime importedAt) {
         this.importedAt = importedAt;
+    }
+
+    public boolean isPublic() {
+        return isPublic;
+    }
+
+    public void setPublic(boolean isPublic) {
+        this.isPublic = isPublic;
+    }
+
+    public OffsetDateTime getSharedAt() {
+        return sharedAt;
+    }
+
+    public void setSharedAt(OffsetDateTime sharedAt) {
+        this.sharedAt = sharedAt;
+    }
+
+    public UUID getCloneSourceDeckId() {
+        return cloneSourceDeckId;
+    }
+
+    public void setCloneSourceDeckId(UUID cloneSourceDeckId) {
+        this.cloneSourceDeckId = cloneSourceDeckId;
+    }
+
+    public String getAuthorId() {
+        return authorId;
+    }
+
+    public void setAuthorId(String authorId) {
+        this.authorId = authorId;
+    }
+
+    public String getAuthorName() {
+        return authorName;
+    }
+
+    public void setAuthorName(String authorName) {
+        this.authorName = authorName;
+    }
+
+    public String getSourceAuthorName() {
+        return sourceAuthorName;
+    }
+
+    public void setSourceAuthorName(String sourceAuthorName) {
+        this.sourceAuthorName = sourceAuthorName;
+    }
+
+    public String getAuthorAvatarUrl() {
+        return authorAvatarUrl;
+    }
+
+    public void setAuthorAvatarUrl(String authorAvatarUrl) {
+        this.authorAvatarUrl = authorAvatarUrl;
     }
 }

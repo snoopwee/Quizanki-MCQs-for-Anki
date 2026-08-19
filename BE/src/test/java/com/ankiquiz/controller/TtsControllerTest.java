@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.config.AdminAccess;
 import com.ankiquiz.config.SecurityConfig;
 import com.ankiquiz.dto.response.TtsResponse;
 import com.ankiquiz.exception.GlobalExceptionHandler;
@@ -28,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * and rate-limited cases.
  */
 @WebMvcTest(TtsController.class)
-@Import({SecurityConfig.class, GlobalExceptionHandler.class})
+@Import({SecurityConfig.class, AdminAccess.class, GlobalExceptionHandler.class})
 @TestPropertySource(properties = {
         "supabase.url=https://example.supabase.co",
         "app.cors.allowed-origins=http://localhost:3000"

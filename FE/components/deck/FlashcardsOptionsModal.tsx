@@ -5,6 +5,8 @@ import { Modal } from "@/components/shared/Modal";
 import { Toggle } from "@/components/ui/controls";
 import { AUTOPLAY_SPEEDS, type FlashcardPreferences } from "@/lib/flashcardPreferences";
 import { TTS_LANGUAGE_OPTIONS, languageLabel } from "@/lib/ttsLanguages";
+import { CardFieldsControl, type FieldNoteType } from "@/components/deck/CardFieldsControl";
+import { hasExtraFields } from "@/lib/cardFields";
 
 // Deck-level TTS language controls, shown only for saved decks. `term`/`def` are
 // the current stored overrides ("" = auto-detect); `autoTerm`/`autoDef` are the
@@ -18,6 +20,14 @@ export interface DeckLanguageControls {
   onChange: (face: "front" | "back", code: string) => void;
 }
 
+// "Show / hide extra fields" controls, shown only to a deck's owner. Saving a
+// change persists the deck's layout (and the quiz's default fields).
+export interface DeckFieldControls {
+  noteTypes: FieldNoteType[];
+  saving?: boolean;
+  onChange: (typeId: string, next: { frontFields: string[]; backFields: string[] }) => void;
+}
+
 // The Knowt-style "Flashcards Options" modal for the flashcard study screen.
 // Question Format picks which side shows first; Learning Options toggle the
 // session behaviours. All changes apply live (the player reads the same prefs);
@@ -27,6 +37,7 @@ export function FlashcardsOptionsModal({
   onChange,
   starredAvailable,
   language,
+  fields,
   onSave,
   onRestart,
   onClose,
@@ -37,6 +48,8 @@ export function FlashcardsOptionsModal({
   starredAvailable: boolean;
   // Deck-level TTS language controls; absent for the guest/unsaved flow.
   language?: DeckLanguageControls;
+  // "Show / hide extra fields" controls; present only for a deck's owner.
+  fields?: DeckFieldControls;
   onSave: () => void;
   onRestart: () => void;
   onClose: () => void;
@@ -111,6 +124,23 @@ export function FlashcardsOptionsModal({
             </select>
           </div>
         </Section>
+
+        {fields && hasExtraFields(fields.noteTypes) && (
+          <>
+            <div className="h-px bg-line" />
+            <Section label="Card fields">
+              <p className="-mt-1 text-xs text-muted">
+                Your deck has extra fields from the import. Choose which also appear on each card&apos;s
+                definition side — this also sets the quiz&apos;s default fields.
+              </p>
+              <CardFieldsControl
+                noteTypes={fields.noteTypes}
+                disabled={fields.saving}
+                onChange={fields.onChange}
+              />
+            </Section>
+          </>
+        )}
 
         {language && (
           <>

@@ -3,7 +3,9 @@ import {
   addBasicRow,
   basicRow,
   canSwapRow,
+  emptyFieldsByType,
   fieldLabel,
+  groupFields,
   fromContents,
   isBlankRow,
   move,
@@ -16,9 +18,18 @@ import {
 } from "@/lib/deckEditor";
 import type { DeckContentsNote, DeckContentsNoteType, DeckContentsResponse } from "@/types/api";
 
-// Test notes may omit the per-face language fields; they default to null (auto).
-type TestNote = Omit<DeckContentsNote, "frontLang" | "backLang"> &
-  Partial<Pick<DeckContentsNote, "frontLang" | "backLang">>;
+// Test notes may omit the per-face language / image / audio fields; they default
+// to null.
+type TestNote = Omit<
+  DeckContentsNote,
+  "frontLang" | "backLang" | "frontImageUrl" | "backImageUrl" | "frontAudioUrl" | "backAudioUrl"
+> &
+  Partial<
+    Pick<
+      DeckContentsNote,
+      "frontLang" | "backLang" | "frontImageUrl" | "backImageUrl" | "frontAudioUrl" | "backAudioUrl"
+    >
+  >;
 
 function noteType(
   over: Omit<Partial<DeckContentsNoteType>, "notes"> &
@@ -31,7 +42,15 @@ function noteType(
     backFields: ["Back"],
     noteCount: over.notes.length,
     ...over,
-    notes: over.notes.map((n) => ({ frontLang: null, backLang: null, ...n })),
+    notes: over.notes.map((n) => ({
+      frontLang: null,
+      backLang: null,
+      frontImageUrl: null,
+      backImageUrl: null,
+      frontAudioUrl: null,
+      backAudioUrl: null,
+      ...n,
+    })),
   };
 }
 
@@ -46,6 +65,13 @@ function deck(noteTypes: DeckContentsNoteType[]): DeckContentsResponse {
     completion: 0,
     frontLang: null,
     backLang: null,
+    isPublic: false,
+    authorId: "u1",
+    authorName: "Alice",
+    authorAvatarUrl: null,
+    sourceAuthorName: null,
+    owned: true,
+    saved: false,
     noteTypes,
   };
 }
@@ -270,5 +296,55 @@ describe("per-face TTS language", () => {
     expect(swapped.fields.Back).toBe("水");
     expect(swapped.frontLang).toBe("en");
     expect(swapped.backLang).toBe("ja");
+  });
+});
+
+describe("emptyFieldsByType", () => {
+  // A note type whose "Audio" field is empty on every card (it only held a
+  // [sound:] tag, cleaned away) but "Expression" always has text.
+  const mediaDeck = deck([
+    noteType({
+      id: "t1",
+      name: "iKnow",
+      fieldNames: ["Expression", "Audio"],
+      frontFields: ["Expression"],
+      backFields: ["Audio"],
+      notes: [
+        { id: "n1", ankiNoteId: null, fields: { Expression: "見る", Audio: "" }, tags: [] },
+        { id: "n2", ankiNoteId: null, fields: { Expression: "食べる", Audio: "" }, tags: [] },
+      ],
+    }),
+  ]);
+
+  it("flags a field empty across the whole note type, keyed by note type id", () => {
+    const rows = fromContents(mediaDeck).rows;
+    const map = emptyFieldsByType(rows);
+    expect([...(map.get("t1") ?? [])]).toEqual(["Audio"]);
+  });
+
+  it("does not flag a field that has text on some cards", () => {
+    const rows = fromContents(mediaDeck).rows;
+    expect(emptyFieldsByType(rows).get("t1")?.has("Expression")).toBe(false);
+  });
+});
+
+describe("groupFields", () => {
+  it("splits fields into term (front), definition (back) and other", () => {
+    const groups = groupFields(
+      ["Audio", "Expression", "Reading", "iKnowID"],
+      ["Audio"],
+      ["Expression", "Reading"],
+    );
+    expect(groups.term).toEqual(["Audio"]);
+    expect(groups.definition).toEqual(["Expression", "Reading"]);
+    expect(groups.other).toEqual(["iKnowID"]);
+  });
+
+  it("preserves field order within each group and never double-counts", () => {
+    const groups = groupFields(["A", "B", "C"], ["B"], ["B", "A"]);
+    // B is on the front, so it counts as term only (front wins over back).
+    expect(groups.term).toEqual(["B"]);
+    expect(groups.definition).toEqual(["A"]);
+    expect(groups.other).toEqual(["C"]);
   });
 });

@@ -118,6 +118,11 @@ public class AvatarService {
                 && b[8] == 'W' && b[9] == 'E' && b[10] == 'B' && b[11] == 'P') {
             return "image/webp";
         }
+        // GIF: "GIF87a" or "GIF89a".
+        if (b.length >= 6 && b[0] == 'G' && b[1] == 'I' && b[2] == 'F' && b[3] == '8'
+                && (b[4] == '7' || b[4] == '9') && b[5] == 'a') {
+            return "image/gif";
+        }
         return null;
     }
 

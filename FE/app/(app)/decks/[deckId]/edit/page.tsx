@@ -1,14 +1,13 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState, type PointerEvent, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useState, type PointerEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Reorder, useDragControls } from "motion/react";
 import { useDeckContents, useReplaceDeckContents } from "@/hooks/useDecks";
 import {
   addBasicRow,
-  canSwapRow,
-  fieldLabel,
+  emptyFieldsByType,
   fromContents,
   rowMatches,
   swapAllValues,
@@ -18,7 +17,11 @@ import {
   type EditorState,
 } from "@/lib/deckEditor";
 import { ImportCardsModal, type ImportMode } from "@/components/deck/ImportCardsModal";
-import { TTS_LANGUAGE_OPTIONS } from "@/lib/ttsLanguages";
+import { EditableCard, type EditableCardProps } from "@/components/deck/EditableCard";
+import { CardFieldsControl, type FieldNoteType } from "@/components/deck/CardFieldsControl";
+import { FieldVisibilityModal } from "@/components/deck/FieldVisibilityModal";
+import { hasExtraFields } from "@/lib/cardFields";
+import { Icon } from "@/components/ui/icons";
 
 export default function DeckEditPage() {
   return (
@@ -86,6 +89,24 @@ function DeckEditor() {
           : r,
       ),
     }));
+  const setImage = (key: string, face: "front" | "back", url: string) =>
+    patch((d) => ({
+      ...d,
+      rows: d.rows.map((r) =>
+        r.key === key
+          ? { ...r, [face === "front" ? "frontImageUrl" : "backImageUrl"]: url }
+          : r,
+      ),
+    }));
+  const setAudio = (key: string, face: "front" | "back", url: string) =>
+    patch((d) => ({
+      ...d,
+      rows: d.rows.map((r) =>
+        r.key === key
+          ? { ...r, [face === "front" ? "frontAudioUrl" : "backAudioUrl"]: url }
+          : r,
+      ),
+    }));
   const deleteRow = (key: string) =>
     patch((d) => ({ ...d, rows: d.rows.filter((r) => r.key !== key) }));
   const swapRow = (key: string) =>
@@ -94,6 +115,53 @@ function DeckEditor() {
   const addRow = () => patch((d) => ({ ...d, rows: [...d.rows, addBasicRow()] }));
   const handleImport = (rows: EditorRow[], mode: ImportMode) =>
     patch((d) => ({ ...d, rows: mode === "replace" ? rows : [...d.rows, ...rows] }));
+  // "Show / hide extra fields": update a note type's front/back field selection.
+  // Persisted with the deck on save (toPayload sends layoutByType).
+  const setLayout = (typeId: string, next: { frontFields: string[]; backFields: string[] }) =>
+    patch((d) => ({ ...d, layoutByType: { ...d.layoutByType, [typeId]: next } }));
+
+  // Note types with their field names (static, from contents) + the draft's
+  // current front/back selection — what the "Fields shown on cards" control edits.
+  const fieldNoteTypes = useMemo<FieldNoteType[]>(() => {
+    if (!contentsQuery.data || !draft) return [];
+    return contentsQuery.data.noteTypes.map((nt) => ({
+      id: nt.id,
+      name: nt.name,
+      fieldNames: nt.fieldNames,
+      cloze: nt.cloze,
+      frontFields: draft.layoutByType[nt.id]?.frontFields ?? nt.frontFields,
+      backFields: draft.layoutByType[nt.id]?.backFields ?? nt.backFields,
+    }));
+  }, [contentsQuery.data, draft]);
+
+  // Field visibility: empty-across-the-type fields (media holders like "Audio"/
+  // "Image_URI") are hidden by default; the "Fields" modal lets the user override
+  // any of them. A view preference only — a hidden field still saves.
+  const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [shownFields, setShownFields] = useState<Record<string, boolean>>({});
+  const autoEmpty = useMemo(
+    () => (draft ? emptyFieldsByType(draft.rows) : new Map<string, Set<string>>()),
+    [draft],
+  );
+  const isFieldVisible = (typeId: string, field: string) => {
+    const key = `${typeId}::${field}`;
+    return key in shownFields ? shownFields[key] : !autoEmpty.get(typeId)?.has(field);
+  };
+  const toggleField = (typeId: string, field: string) =>
+    setShownFields((s) => ({ ...s, [`${typeId}::${field}`]: !isFieldVisible(typeId, field) }));
+  const hiddenByType = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const nt of fieldNoteTypes) {
+      const set = new Set<string>();
+      for (const f of nt.fieldNames) {
+        const key = `${nt.id}::${f}`;
+        const visible = key in shownFields ? shownFields[key] : !autoEmpty.get(nt.id)?.has(f);
+        if (!visible) set.add(f);
+      }
+      map.set(nt.id, set);
+    }
+    return map;
+  }, [fieldNoteTypes, autoEmpty, shownFields]);
 
   // Live reorder from the drag list: motion hands back the new key order, so we
   // reshuffle the draft rows to match (row objects, with their edits, are kept).
@@ -128,7 +196,7 @@ function DeckEditor() {
     return (
       <div className="mx-auto max-w-3xl space-y-3">
         <p className="text-sm text-muted">Deck not found.</p>
-        <Link href="/dashboard" className="text-sm font-medium text-accent hover:underline">
+        <Link href="/home" className="text-sm font-medium text-accent hover:underline">
           Back to decks
         </Link>
       </div>
@@ -152,6 +220,15 @@ function DeckEditor() {
         </button>
         <h1 className="font-display text-lg font-semibold tracking-tight">Edit flashcards</h1>
         <div className="ml-auto flex gap-2">
+          <button
+            type="button"
+            onClick={() => setFieldsOpen(true)}
+            title="Choose which fields show while editing"
+            className="inline-flex items-center gap-1.5 rounded-input border border-line-strong bg-surface px-2.5 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent"
+          >
+            <Icon name="settings" size={15} />
+            <span className="hidden sm:inline">Fields</span>
+          </button>
           <button
             type="button"
             onClick={swapAll}
@@ -200,6 +277,19 @@ function DeckEditor() {
         />
       </label>
 
+      {hasExtraFields(fieldNoteTypes) && (
+        <div className="space-y-3 rounded-card border border-line bg-surface p-4">
+          <div>
+            <h2 className="text-sm font-bold text-ink">Fields shown on cards</h2>
+            <p className="mt-0.5 text-xs text-muted">
+              Your deck has extra fields from the import. Choose which also appear on each card&apos;s
+              definition side.
+            </p>
+          </div>
+          <CardFieldsControl noteTypes={fieldNoteTypes} onChange={setLayout} />
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-3">
         <input
           type="search"
@@ -242,6 +332,9 @@ function DeckEditor() {
               onSwap={swapRow}
               onDelete={deleteRow}
               onLang={setLang}
+              onImage={setImage}
+              onAudio={setAudio}
+              hiddenFields={hiddenByType.get(row.noteTypeId ?? "")}
             />
           ))}
         </Reorder.Group>
@@ -253,13 +346,16 @@ function DeckEditor() {
                 key={row.key}
                 className="space-y-2 rounded-card border border-line bg-surface p-4"
               >
-                <CardBody
+                <EditableCard
                   row={row}
                   index={index}
                   onField={setField}
                   onSwap={swapRow}
                   onDelete={deleteRow}
                   onLang={setLang}
+                  onImage={setImage}
+                  onAudio={setAudio}
+                  hiddenFields={hiddenByType.get(row.noteTypeId ?? "")}
                 />
               </li>
             ),
@@ -278,17 +374,17 @@ function DeckEditor() {
       {importOpen && (
         <ImportCardsModal onClose={() => setImportOpen(false)} onImport={handleImport} />
       )}
+
+      {fieldsOpen && (
+        <FieldVisibilityModal
+          noteTypes={fieldNoteTypes}
+          isVisible={isFieldVisible}
+          onToggle={toggleField}
+          onClose={() => setFieldsOpen(false)}
+        />
+      )}
     </div>
   );
-}
-
-interface CardProps {
-  row: EditorRow;
-  index: number;
-  onField: (key: string, field: string, value: string) => void;
-  onSwap: (key: string) => void;
-  onDelete: (key: string) => void;
-  onLang: (key: string, face: "front" | "back", code: string) => void;
 }
 
 // A draggable card. The whole card is the drag surface — press anywhere except
@@ -296,7 +392,7 @@ interface CardProps {
 // the way and springs everything into place when you let go. `dragListener` is
 // off so a press that lands on a textarea/button edits or clicks instead of
 // starting a drag.
-function DraggableCard({ row, index, onField, onSwap, onDelete, onLang }: CardProps) {
+function DraggableCard({ row, index, onField, onSwap, onDelete, onLang, onImage, onAudio, hiddenFields }: EditableCardProps) {
   const controls = useDragControls();
   function startDrag(e: PointerEvent<HTMLLIElement>) {
     if ((e.target as HTMLElement).closest("textarea, input, button, select, a")) return;
@@ -315,148 +411,17 @@ function DraggableCard({ row, index, onField, onSwap, onDelete, onLang }: CardPr
       whileDrag={{ scale: 1.02, boxShadow: "0 12px 28px rgba(0,0,0,0.18)" }}
       className="cursor-grab space-y-2 select-none rounded-card border border-line bg-surface p-4 active:cursor-grabbing"
     >
-      <CardBody
+      <EditableCard
         row={row}
         index={index}
         onField={onField}
         onSwap={onSwap}
         onDelete={onDelete}
         onLang={onLang}
+        onImage={onImage}
+        onAudio={onAudio}
+        hiddenFields={hiddenFields}
       />
     </Reorder.Item>
-  );
-}
-
-// The card's contents — shared by the draggable list and the (static) search
-// results list. Focusing a field reveals a "voice" (TTS language) menu for that
-// side; an already-set override stays visible so it's discoverable at a glance.
-function CardBody({ row, index, onField, onSwap, onDelete, onLang }: CardProps) {
-  const [activeField, setActiveField] = useState<string | null>(null);
-  // The field rows that carry the term (front) and definition (back) language.
-  const termField = row.frontFields[0] ?? row.fieldNames[0];
-  const defField = row.backFields[0] ?? row.fieldNames.find((f) => f !== termField) ?? termField;
-
-  return (
-    <>
-      <div className="flex items-center gap-2 font-mono text-xs text-faint">
-        <span>#{index + 1}</span>
-        <div className="ml-auto flex items-center gap-1">
-          {canSwapRow(row) && (
-            <IconBtn label="Swap front/back" onClick={() => onSwap(row.key)}>⇅</IconBtn>
-          )}
-          <IconBtn label="Delete card" danger onClick={() => onDelete(row.key)}>✕</IconBtn>
-        </div>
-      </div>
-      {/* Clearing activeField only when focus leaves the whole card keeps the menu
-          open while you're picking a language from its <select>. */}
-      <div
-        className="space-y-2"
-        onBlur={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setActiveField(null);
-        }}
-      >
-        {row.fieldNames.map((field) => {
-          const showTerm = field === termField;
-          const showDef = field === defField;
-          // Reveal the menu when this field is focused, or when its side already
-          // carries an override (so the setting stays visible when unfocused).
-          const showMenu =
-            activeField === field ||
-            (showTerm && row.frontLang !== "") ||
-            (showDef && row.backLang !== "");
-          return (
-            <div key={field} className="space-y-1">
-              <div className="flex min-h-[1.5rem] items-center justify-between gap-2">
-                <span className="font-mono text-xs font-medium text-muted">{fieldLabel(field)}</span>
-                {showMenu && (
-                  <div className="flex items-center gap-1.5">
-                    {showTerm && (
-                      <LangSelect
-                        label="Term voice"
-                        value={row.frontLang}
-                        onChange={(code) => onLang(row.key, "front", code)}
-                      />
-                    )}
-                    {showDef && (
-                      <LangSelect
-                        label="Definition voice"
-                        value={row.backLang}
-                        onChange={(code) => onLang(row.key, "back", code)}
-                      />
-                    )}
-                  </div>
-                )}
-              </div>
-              <textarea
-                value={row.fields[field] ?? ""}
-                onFocus={() => setActiveField(field)}
-                onChange={(e) => onField(row.key, field, e.target.value)}
-                rows={row.cloze ? 3 : 2}
-                className="nice-scroll focus-ring w-full cursor-text select-text resize-y rounded-input border border-line-strong bg-surface-2 px-3 py-1.5 text-sm text-ink outline-none"
-              />
-            </div>
-          );
-        })}
-      </div>
-    </>
-  );
-}
-
-// Compact per-face TTS-language picker shown on a field's label row. "" is
-// Auto-detect (inherit the deck default); any other value overrides this card.
-function LangSelect({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (code: string) => void;
-}) {
-  return (
-    <label className="flex items-center gap-1 text-xs text-muted">
-      <span className="hidden sm:inline">{label}</span>
-      <select
-        aria-label={label}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="focus-ring rounded border border-line-strong bg-surface px-1.5 py-0.5 text-xs text-ink outline-none"
-      >
-        {TTS_LANGUAGE_OPTIONS.map((o) => (
-          <option key={o.code || "auto"} value={o.code}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function IconBtn({
-  children,
-  label,
-  onClick,
-  disabled = false,
-  danger = false,
-}: {
-  children: ReactNode;
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-  danger?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      disabled={disabled}
-      className={`cursor-pointer rounded px-1.5 py-0.5 text-sm transition hover:bg-surface-2 disabled:cursor-default disabled:opacity-30 ${
-        danger ? "text-danger" : "text-muted"
-      }`}
-    >
-      {children}
-    </button>
   );
 }

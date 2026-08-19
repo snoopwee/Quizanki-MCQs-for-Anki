@@ -3,6 +3,7 @@ package com.ankiquiz.entity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
 
 import java.time.OffsetDateTime;
@@ -10,7 +11,13 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "card_stats")
+@IdClass(CardStatsId.class)
 public class CardStats {
+
+    // Progress is per (user, note) — see V11. Both columns form the primary key.
+    @Id
+    @Column(name = "user_id")
+    private String userId;
 
     @Id
     @Column(name = "note_id")
@@ -36,6 +43,14 @@ public class CardStats {
 
     @Column(name = "last_seen_at")
     private OffsetDateTime lastSeenAt;
+
+    public String getUserId() {
+        return userId;
+    }
+
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
 
     public UUID getNoteId() {
         return noteId;

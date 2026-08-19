@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { SiteGate } from "@/components/site/SiteGate";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -20,7 +21,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthCacheReset />
-      {children}
+      <SiteGate>{children}</SiteGate>
     </QueryClientProvider>
   );
 }

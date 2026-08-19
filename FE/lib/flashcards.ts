@@ -25,6 +25,13 @@ export interface Flashcard {
   // null. Cloze cards from one note share the note's languages.
   frontLang?: string | null;
   backLang?: string | null;
+  // Per-face card image URL (null = none), shown alongside the text on that face.
+  frontImageUrl?: string | null;
+  backImageUrl?: string | null;
+  // Per-face card audio URL (null = none), played by the in-card speaker (which
+  // prefers a stored clip over TTS when present).
+  frontAudioUrl?: string | null;
+  backAudioUrl?: string | null;
 }
 
 function bundle(fields: Record<string, string>, names: string[]): string[] {
@@ -109,7 +116,20 @@ export function buildFlashcards(noteTypes: ApkgNoteType[]): Flashcard[] {
     nt.notes.forEach((note, i) => {
       const front = bundle(note.fields, frontFields);
       const back = bundle(note.fields, backFields);
-      if (front.length === 0 && back.length === 0) return; // nothing to show
+      const frontImageUrl = note.frontImageUrl ?? null;
+      const backImageUrl = note.backImageUrl ?? null;
+      const frontAudioUrl = note.frontAudioUrl ?? null;
+      const backAudioUrl = note.backAudioUrl ?? null;
+      // Nothing to show only when there's no text AND no image AND no audio.
+      if (
+        front.length === 0 &&
+        back.length === 0 &&
+        !frontImageUrl &&
+        !backImageUrl &&
+        !frontAudioUrl &&
+        !backAudioUrl
+      )
+        return;
       cards.push({
         // Mirror the id scheme ApkgQuizSetup uses for the quiz pool: persisted
         // UUID first (saved decks), then ankiNoteId, then a synthetic key. This
@@ -120,6 +140,10 @@ export function buildFlashcards(noteTypes: ApkgNoteType[]): Flashcard[] {
         noteType: nt.name,
         frontLang: note.frontLang ?? null,
         backLang: note.backLang ?? null,
+        frontImageUrl,
+        backImageUrl,
+        frontAudioUrl,
+        backAudioUrl,
       });
     });
   }

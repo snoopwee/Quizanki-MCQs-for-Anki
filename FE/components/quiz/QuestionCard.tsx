@@ -29,7 +29,7 @@ export function QuestionCard({ prompt }: { prompt: PromptSegment[] }) {
         {prompt.map((seg, i) => (
           <div key={`${seg.label}-${i}`}>
             {multi && (
-              <dt className="font-mono text-[11px] font-medium uppercase tracking-wide text-faint">
+              <dt className="font-mono text-[0.6875rem] font-medium uppercase tracking-wide text-faint">
                 {seg.label}
               </dt>
             )}

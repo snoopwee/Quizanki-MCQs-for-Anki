@@ -7,9 +7,18 @@ import {
 import type { Flashcard } from "@/lib/flashcards";
 import type { DeckContentsNote, DeckContentsNoteType, DeckContentsResponse } from "@/types/api";
 
-// Test notes may omit the per-face language fields; they default to null (auto).
-type TestNote = Omit<DeckContentsNote, "frontLang" | "backLang"> &
-  Partial<Pick<DeckContentsNote, "frontLang" | "backLang">>;
+// Test notes may omit the per-face language / image / audio fields; they default
+// to null.
+type TestNote = Omit<
+  DeckContentsNote,
+  "frontLang" | "backLang" | "frontImageUrl" | "backImageUrl" | "frontAudioUrl" | "backAudioUrl"
+> &
+  Partial<
+    Pick<
+      DeckContentsNote,
+      "frontLang" | "backLang" | "frontImageUrl" | "backImageUrl" | "frontAudioUrl" | "backAudioUrl"
+    >
+  >;
 
 function noteType(
   over: Omit<Partial<DeckContentsNoteType>, "notes"> &
@@ -23,7 +32,15 @@ function noteType(
     backFields: [],
     noteCount: over.notes.length,
     ...over,
-    notes: over.notes.map((n) => ({ frontLang: null, backLang: null, ...n })),
+    notes: over.notes.map((n) => ({
+      frontLang: null,
+      backLang: null,
+      frontImageUrl: null,
+      backImageUrl: null,
+      frontAudioUrl: null,
+      backAudioUrl: null,
+      ...n,
+    })),
   };
 }
 
@@ -38,6 +55,13 @@ function deck(noteTypes: DeckContentsNoteType[]): DeckContentsResponse {
     completion: 0,
     frontLang: null,
     backLang: null,
+    isPublic: false,
+    authorId: "u1",
+    authorName: "Alice",
+    authorAvatarUrl: null,
+    sourceAuthorName: null,
+    owned: true,
+    saved: false,
     noteTypes,
   };
 }

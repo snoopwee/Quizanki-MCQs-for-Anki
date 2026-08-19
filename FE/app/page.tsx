@@ -10,8 +10,8 @@ import { QuizSession } from "@/components/quiz/QuizSession";
 import { Modal } from "@/components/shared/Modal";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { reshuffleQuestions, type Question } from "@/lib/buildQuestions";
-import { parsedToImportRequest } from "@/lib/parsedToImportRequest";
-import { useImportDeck } from "@/hooks/useDecks";
+import { fromParsed } from "@/lib/deckDraft";
+import { saveDraft } from "@/lib/draftStore";
 import { useSession } from "@/hooks/useSession";
 import { useQuizStore } from "@/stores/quizStore";
 import { useGuestMastery } from "@/stores/guestMasteryStore";
@@ -19,7 +19,7 @@ import { useGuestStars } from "@/stores/guestStarStore";
 import type { ApkgParseResponse } from "@/types/api";
 
 // The landing page IS the product trial: a guest can upload a deck and study /
-// quiz it immediately. Logged-in users see a "Dashboard" link instead of Log in.
+// quiz it immediately. Logged-in users see a "Home" link instead of Log in.
 type Step =
   | { kind: "import" }
   | { kind: "flashcards"; parsed: ApkgParseResponse }
@@ -46,7 +46,6 @@ function Landing() {
   const [saveOpen, setSaveOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(Boolean(next));
   const startSession = useQuizStore((s) => s.startSession);
-  const importDeck = useImportDeck();
   // Trial stars DO subscribe (toggling one should re-render the ★ immediately),
   // unlike mastery which is read via getState() so answering a question doesn't
   // force a re-render every time.
@@ -71,10 +70,10 @@ function Landing() {
     <span className="h-9 w-24" aria-hidden />
   ) : user ? (
     <Link
-      href="/dashboard"
+      href="/home"
       className="rounded-full bg-ink px-4 py-1.5 text-sm font-semibold text-canvas transition hover:opacity-90"
     >
-      Dashboard →
+      Home →
     </Link>
   ) : (
     <button
@@ -97,7 +96,7 @@ function Landing() {
       {step.kind === "import" && (
         <section className="mx-auto max-w-2xl px-6 py-16 text-center lg:py-24">
           <p
-            className="rise inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted shadow-sm"
+            className="rise inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 font-mono text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-muted shadow-sm"
             style={{ animationDelay: "0ms" }}
           >
             <span className="inline-block h-2 w-2 rounded-[2px] bg-accent" />
@@ -142,7 +141,7 @@ function Landing() {
               />
             </div>
             <p className="mt-3 text-center text-xs text-faint">
-              We read the cards only — images and audio stay on your device.
+              Preview it instantly — no sign-up needed.
             </p>
           </div>
         </section>
@@ -208,13 +207,21 @@ function Landing() {
               {saveOpen && (
                 <AuthModal
                   title="Save your deck"
-                  description="Nice work! Create an account (or log in) to save this deck to your library and keep studying."
-                  loginLabel="Log in & save"
-                  signupLabel="Sign up & save"
+                  description="Nice work! Create an account (or log in) to review this deck and save it to your library."
+                  loginLabel="Log in & continue"
+                  signupLabel="Sign up & continue"
                   onClose={() => setSaveOpen(false)}
                   onAuthed={async () => {
-                    const deck = await importDeck.mutateAsync(parsedToImportRequest(step.parsed));
-                    router.push(`/decks/${deck.id}`);
+                    // Hand the parsed deck to the import review screen rather than
+                    // saving it here, so a guest gets the same look-it-over-and-
+                    // choose-public-or-private step every other import gets.
+                    await saveDraft({
+                      savedAt: Date.now(),
+                      state: fromParsed(step.parsed),
+                      isPublic: true,
+                      sourceFilename: step.parsed.filename,
+                    });
+                    router.push("/import?draft=1");
                     router.refresh();
                   }}
                 />
@@ -229,7 +236,7 @@ function Landing() {
           initialMode="login"
           onClose={() => setAuthOpen(false)}
           onAuthed={() => {
-            router.push(next ?? "/dashboard");
+            router.push(next ?? "/home");
             router.refresh();
           }}
         />

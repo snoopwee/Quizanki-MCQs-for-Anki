@@ -15,6 +15,7 @@ class AvatarServiceTest {
     private static final byte[] PNG =
             {(byte) 0x89, 'P', 'N', 'G', (byte) 0x0D, (byte) 0x0A, (byte) 0x1A, (byte) 0x0A, 0, 0};
     private static final byte[] WEBP = {'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P', 0};
+    private static final byte[] GIF = {'G', 'I', 'F', '8', '9', 'a', 0, 0};
 
     // A "configured" service still validates the image before ever calling Storage,
     // so these tests exercise the guard paths without any HTTP.
@@ -31,6 +32,7 @@ class AvatarServiceTest {
         assertEquals("image/jpeg", AvatarService.sniffImageType(JPEG));
         assertEquals("image/png", AvatarService.sniffImageType(PNG));
         assertEquals("image/webp", AvatarService.sniffImageType(WEBP));
+        assertEquals("image/gif", AvatarService.sniffImageType(GIF));
     }
 
     @Test

@@ -203,7 +203,7 @@ export function AccuracyChart({ points }: { points: DeckHistoryPoint[] }) {
           <div className="font-mono text-sm font-bold text-ink">
             {Math.round(hoverPoint.accuracy * 100)}%
           </div>
-          <div className="text-[11px] text-muted">
+          <div className="text-[0.6875rem] text-muted">
             {shortDate(hoverPoint.at)}, {shortTime(hoverPoint.at)} · {hoverPoint.correct}/
             {hoverPoint.answered}
           </div>

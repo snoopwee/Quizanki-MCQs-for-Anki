@@ -3,6 +3,7 @@ package com.ankiquiz.service;
 import com.ankiquiz.dto.response.CardStatsResponse;
 import com.ankiquiz.dto.response.NoteResponse;
 import com.ankiquiz.entity.CardStats;
+import com.ankiquiz.entity.Deck;
 import com.ankiquiz.entity.Note;
 import com.ankiquiz.entity.NoteType;
 import com.ankiquiz.exception.NotFoundException;
@@ -47,7 +48,9 @@ public class NoteService {
     @Transactional(readOnly = true)
     public List<NoteResponse> getNotes(String userId, UUID deckId, List<String> tags,
                                        boolean weakOnly, boolean starredOnly, Integer limit) {
-        deckRepository.findByIdAndUserId(deckId, userId)
+        // Studiable (owned or public): a visitor of a shared deck sees its cards
+        // paired with THEIR own progress.
+        deckRepository.findStudiable(deckId, userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
 
         String tagsCsv = (tags == null || tags.isEmpty()) ? "" : String.join(",", tags);
@@ -58,8 +61,10 @@ public class NoteService {
             return List.of();
         }
 
+        // The caller's OWN progress for these notes — someone else studying the
+        // same (shared) deck has separate rows.
         Map<UUID, CardStats> statsByNoteId = cardStatsRepository
-                .findAllById(notes.stream().map(Note::getId).toList()).stream()
+                .findByUserIdAndNoteIdIn(userId, notes.stream().map(Note::getId).toList()).stream()
                 .collect(Collectors.toMap(CardStats::getNoteId, Function.identity()));
 
         return notes.stream()
@@ -76,22 +81,34 @@ public class NoteService {
      * belong to the note's type are accepted; incoming values are merged over the
      * existing field map, so an empty or partial form can't drop other fields or
      * inject unknown ones. Cloze markup ({{c1::...}}) is stored verbatim.
+     *
+     * <p>Changing a card is real work, so it also claims authorship of the deck —
+     * this is how a copy of someone else's deck becomes the editor's own (see
+     * {@code DeckService.claimAuthorship}).
      */
     @Transactional
-    public NoteResponse updateNote(String userId, UUID deckId, UUID noteId, Map<String, String> incoming,
-                                   String frontLang, String backLang) {
-        deckRepository.findByIdAndUserId(deckId, userId)
+    public NoteResponse updateNote(Caller caller, UUID deckId, UUID noteId, Map<String, String> incoming,
+                                   String frontLang, String backLang,
+                                   String frontImageUrl, String backImageUrl,
+                                   String frontAudioUrl, String backAudioUrl) {
+        Deck deck = deckRepository.findByIdAndUserId(deckId, caller.id())
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
         Note note = noteRepository.findByIdAndDeckId(noteId, deckId)
                 .orElseThrow(() -> new NotFoundException("Note not found: " + noteId));
 
         Set<String> allowed = allowedFieldKeys(note);
-        Map<String, String> merged = new LinkedHashMap<>(
-                note.getFields() == null ? Map.of() : note.getFields());
+        Map<String, String> existing = note.getFields() == null ? Map.of() : note.getFields();
+        Map<String, String> merged = new LinkedHashMap<>(existing);
         for (Map.Entry<String, String> e : incoming.entrySet()) {
             if (allowed.isEmpty() || allowed.contains(e.getKey())) {
                 merged.put(e.getKey(), e.getValue() == null ? "" : e.getValue());
             }
+        }
+        if (!merged.equals(existing)) {
+            deck.setAuthorId(caller.id());
+            deck.setAuthorName(caller.displayName());
+            deck.setAuthorAvatarUrl(caller.avatarUrl());
+            deckRepository.save(deck);
         }
         note.setFields(merged);
         // Per-face language override: a present value (including a blank one, which
@@ -102,28 +119,46 @@ public class NoteService {
         if (backLang != null) {
             note.setBackLang(normalizeLang(backLang));
         }
+        // Per-face image URL: same rule — a present value (blank clears the image)
+        // is applied; an absent (null) value leaves it unchanged.
+        if (frontImageUrl != null) {
+            note.setFrontImageUrl(normalizeLang(frontImageUrl));
+        }
+        if (backImageUrl != null) {
+            note.setBackImageUrl(normalizeLang(backImageUrl));
+        }
+        // Per-face audio URL: identical present/blank/absent rule as the image.
+        if (frontAudioUrl != null) {
+            note.setFrontAudioUrl(normalizeLang(frontAudioUrl));
+        }
+        if (backAudioUrl != null) {
+            note.setBackAudioUrl(normalizeLang(backAudioUrl));
+        }
         Note saved = noteRepository.save(note);
 
-        CardStats stats = cardStatsRepository.findById(saved.getId()).orElse(null);
+        CardStats stats = cardStatsRepository.findByUserIdAndNoteId(caller.id(), saved.getId()).orElse(null);
         return NoteResponse.from(saved, stats == null ? null : CardStatsResponse.from(stats));
     }
 
     /**
-     * Star / unstar a flashcard (a user focus flag). Scoped by deck ownership,
-     * then note→deck. The star lives on card_stats, which may not have a row yet
-     * for a card the user has never answered — in that case we insert a fresh row
-     * with default counters and only `starred` set, mirroring the column defaults
-     * (record_answer takes over the counters on the first answer).
+     * Star / unstar a flashcard (a per-user focus flag). Starring is a personal
+     * annotation, so it's allowed on any studiable deck (owned or public) — the
+     * star lives on the caller's own card_stats row, never the author's. That row
+     * may not exist yet for a never-answered card; we insert a fresh one with
+     * default counters and only `starred` set (record_answer takes over the
+     * counters on the first answer).
      */
     @Transactional
     public NoteResponse setStarred(String userId, UUID deckId, UUID noteId, boolean starred) {
-        deckRepository.findByIdAndUserId(deckId, userId)
+        deckRepository.findStudiable(deckId, userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
         Note note = noteRepository.findByIdAndDeckId(noteId, deckId)
                 .orElseThrow(() -> new NotFoundException("Note not found: " + noteId));
 
-        CardStats stats = cardStatsRepository.findById(note.getId())
-                .orElseGet(() -> newStatsRow(note.getId()));
+        // The star is the caller's own (per-user card_stats), so it never touches
+        // another user's row for the same shared note.
+        CardStats stats = cardStatsRepository.findByUserIdAndNoteId(userId, note.getId())
+                .orElseGet(() -> newStatsRow(userId, note.getId()));
         stats.setStarred(starred);
         CardStats saved = cardStatsRepository.save(stats);
 
@@ -133,8 +168,9 @@ public class NoteService {
     // A fresh card_stats row for a never-answered note. JPA includes every column
     // in the INSERT, so DB-level defaults wouldn't apply — set them explicitly to
     // match the V1/V3/V5 column defaults.
-    private static CardStats newStatsRow(UUID noteId) {
+    private static CardStats newStatsRow(String userId, UUID noteId) {
         CardStats stats = new CardStats();
+        stats.setUserId(userId);
         stats.setNoteId(noteId);
         stats.setTimesSeen(0);
         stats.setTimesCorrect(0);

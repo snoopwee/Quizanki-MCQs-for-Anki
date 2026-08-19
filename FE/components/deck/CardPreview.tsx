@@ -61,12 +61,23 @@ export function StageBadge({ info }: { info: StageInfo }) {
 export function CardPreviewRow({
   front,
   back,
+  frontImageUrl = null,
+  backImageUrl = null,
+  frontAudioUrl = null,
+  backAudioUrl = null,
   stats,
   action,
   hiddenSide = null,
 }: {
   front: string[];
   back: string[];
+  // Per-face image URL, shown as a thumbnail above that column's text.
+  frontImageUrl?: string | null;
+  backImageUrl?: string | null;
+  // Per-face audio URL — an audio-only face (no text, no image) shows a Play
+  // button instead of an empty cell (e.g. a listening card's front).
+  frontAudioUrl?: string | null;
+  backAudioUrl?: string | null;
   stats?: { mastery?: number; timesSeen?: number };
   action?: ReactNode;
   hiddenSide?: "front" | "back" | null;
@@ -88,18 +99,47 @@ export function CardPreviewRow({
         </div>
       )}
       <div className="grid grid-cols-[1fr_2fr] gap-4">
-        <div className="relative space-y-0.5 font-medium text-ink">
-          <Lines values={front} />
+        <div className="relative space-y-1 font-medium text-ink">
+          {frontImageUrl && <Thumb url={frontImageUrl} />}
+          <FaceContent values={front} audioUrl={frontAudioUrl} hasImage={Boolean(frontImageUrl)} />
           {hideFront && <Cover onReveal={() => setRevealed(true)} />}
         </div>
         <div className="relative border-l border-line">
-          <div className="nice-scroll absolute inset-0 space-y-0.5 overflow-y-auto pl-4 text-muted">
-            <Lines values={back} />
+          <div className="nice-scroll absolute inset-0 space-y-1 overflow-y-auto pl-4 text-muted">
+            {backImageUrl && <Thumb url={backImageUrl} />}
+            <FaceContent values={back} audioUrl={backAudioUrl} hasImage={Boolean(backImageUrl)} />
           </div>
           {hideBack && <Cover onReveal={() => setRevealed(true)} />}
         </div>
       </div>
     </li>
+  );
+}
+
+// A face's content in the preview list: the text, or — for an audio-only face
+// with no text and no image (a listening card's front) — a Play button so the row
+// isn't just "(empty)". The clip's play/stop state is keyed by its URL, so the id
+// here only needs to be stable-ish.
+function FaceContent({
+  values,
+  audioUrl,
+  hasImage,
+}: {
+  values: string[];
+  audioUrl: string | null;
+  hasImage: boolean;
+}) {
+  if (values.length === 0 && audioUrl && !hasImage) {
+    return <audio controls preload="none" src={audioUrl} className="h-8 w-full max-w-[220px]" />;
+  }
+  return <Lines values={values} />;
+}
+
+// A card face's image in the preview list — small, so a row stays scannable.
+function Thumb({ url }: { url: string }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- arbitrary Supabase Storage host; next/image would need remotePatterns config
+    <img src={url} alt="" className="max-h-20 rounded object-contain" />
   );
 }
 

@@ -3,32 +3,45 @@ package com.ankiquiz.service;
 import com.ankiquiz.dto.request.ImportDeckRequest;
 import com.ankiquiz.dto.request.NoteRequest;
 import com.ankiquiz.dto.request.NoteTypeRequest;
+import com.ankiquiz.dto.request.SetDeckLayoutRequest;
 import com.ankiquiz.dto.request.UpdateDeckContentsRequest;
 import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.DeckContentsResponse.NoteContents;
 import com.ankiquiz.dto.response.DeckContentsResponse.NoteTypeContents;
+import com.ankiquiz.dto.response.AuthorPageResponse;
 import com.ankiquiz.dto.response.DeckResponse;
+import com.ankiquiz.dto.response.PublicDeckPage;
+import com.ankiquiz.dto.response.PublicDeckSummary;
 import com.ankiquiz.entity.Deck;
 import com.ankiquiz.entity.Note;
 import com.ankiquiz.entity.NoteType;
 import com.ankiquiz.exception.ApkgParseException;
+import com.ankiquiz.exception.ConflictException;
 import com.ankiquiz.exception.NotFoundException;
+import com.ankiquiz.entity.UserDeck;
 import com.ankiquiz.repository.DeckRepository;
 import com.ankiquiz.repository.NoteRepository;
 import com.ankiquiz.repository.NoteTypeRepository;
+import com.ankiquiz.repository.UserDeckRepository;
 import jakarta.persistence.EntityManager;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,17 +50,23 @@ public class DeckService {
     private final DeckRepository deckRepository;
     private final NoteTypeRepository noteTypeRepository;
     private final NoteRepository noteRepository;
+    private final UserDeckRepository userDeckRepository;
     private final EntityManager entityManager;
 
     public DeckService(DeckRepository deckRepository,
                        NoteTypeRepository noteTypeRepository,
                        NoteRepository noteRepository,
+                       UserDeckRepository userDeckRepository,
                        EntityManager entityManager) {
         this.deckRepository = deckRepository;
         this.noteTypeRepository = noteTypeRepository;
         this.noteRepository = noteRepository;
+        this.userDeckRepository = userDeckRepository;
         this.entityManager = entityManager;
     }
+
+    // How far back the Recent tab reaches.
+    private static final int RECENT_WINDOW_DAYS = 30;
 
     @Transactional(readOnly = true)
     public List<DeckResponse> getDecksForUser(String userId) {
@@ -61,13 +80,111 @@ public class DeckService {
                 .toList();
     }
 
+    /**
+     * Propagate the user's current profile (display name + avatar) onto every deck
+     * they author, so the credited name and picture stay current after a profile
+     * change. Prefers the values the caller just set (passed from the client, robust
+     * against JWT-refresh lag): a blank name falls back to the JWT-resolved name (a
+     * cleared name → the same email-local default a fresh deck gets); a blank avatar
+     * means "no photo" (null → initials). Returns the rows updated.
+     */
+    @Transactional
+    public int syncAuthorProfile(Caller caller, String rawName, String rawAvatarUrl) {
+        String name = (rawName != null && !rawName.isBlank()) ? rawName.trim() : caller.displayName();
+        // Blank avatar → fall back to the (refreshed) JWT's avatar, symmetric with
+        // the name. This is what makes "remove custom photo" reveal an OAuth default
+        // rather than wiping the credit to initials — the caller cleared the custom
+        // key and refreshed before this call, so caller.avatarUrl() is now the
+        // effective one (OAuth photo, or null when there's none).
+        String avatar = (rawAvatarUrl != null && !rawAvatarUrl.isBlank()) ? rawAvatarUrl.trim() : caller.avatarUrl();
+        return deckRepository.updateAuthorProfile(caller.id(), name, avatar);
+    }
+
+    /** The Saved tab: decks the user has bookmarked but doesn't own. */
+    @Transactional(readOnly = true)
+    public List<DeckResponse> getSavedDecks(String userId) {
+        return withViewerCompletion(userId, deckRepository.findSavedByUser(userId));
+    }
+
+    /** The Recent tab: decks the user opened in the last {@value #RECENT_WINDOW_DAYS} days. */
+    @Transactional(readOnly = true)
+    public List<DeckResponse> getRecentDecks(String userId) {
+        OffsetDateTime since = OffsetDateTime.now().minusDays(RECENT_WINDOW_DAYS);
+        return withViewerCompletion(userId, deckRepository.findRecentByUser(userId, since));
+    }
+
+    // Mark a deck opened (upsert last_opened_at) so it shows in Recent. Gated on
+    // studiable, so opening a link to a deck you can't access still 404s.
+    @Transactional
+    public void openDeck(String userId, UUID deckId) {
+        deckRepository.findStudiable(deckId, userId)
+                .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
+        UserDeck ud = userDeckRepository.findByUserIdAndDeckId(userId, deckId)
+                .orElseGet(() -> newUserDeck(userId, deckId));
+        ud.setLastOpenedAt(OffsetDateTime.now());
+        userDeckRepository.save(ud);
+    }
+
+    // Bookmark a deck to Home ("Save to Home") or remove it — a reference, no copy.
+    // Gated on studiable so you can only save something you can currently access.
+    @Transactional
+    public void setSaved(String userId, UUID deckId, boolean saved) {
+        deckRepository.findStudiable(deckId, userId)
+                .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
+        UserDeck ud = userDeckRepository.findByUserIdAndDeckId(userId, deckId)
+                .orElseGet(() -> newUserDeck(userId, deckId));
+        ud.setSaved(saved);
+        userDeckRepository.save(ud);
+    }
+
+    private static UserDeck newUserDeck(String userId, UUID deckId) {
+        UserDeck ud = new UserDeck();
+        ud.setUserId(userId);
+        ud.setDeckId(deckId);
+        ud.setSaved(false);
+        return ud;
+    }
+
+    // Attach each deck's completion for THIS viewer (their own per-user mastery),
+    // in one round trip. Used by the Saved/Recent lists, where a deck may not be owned.
+    private List<DeckResponse> withViewerCompletion(String userId, List<Deck> decks) {
+        if (decks.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, Double> completion = completionForDecks(userId,
+                decks.stream().map(Deck::getId).toList());
+        return decks.stream()
+                .map(d -> DeckResponse.from(d, completion.getOrDefault(d.getId(), 0.0)))
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<UUID, Double> completionForDecks(String userId, List<UUID> deckIds) {
+        List<Object[]> rows = entityManager.createNativeQuery("""
+                SELECT d.id, COALESCE(AVG(COALESCE(cs.mastery, 0)), 0)
+                FROM decks d
+                LEFT JOIN notes n ON n.deck_id = d.id
+                LEFT JOIN card_stats cs ON cs.note_id = n.id AND cs.user_id = :userId
+                WHERE d.id IN (:deckIds)
+                GROUP BY d.id
+                """)
+                .setParameter("userId", userId)
+                .setParameter("deckIds", deckIds)
+                .getResultList();
+        Map<UUID, Double> result = new HashMap<>(rows.size());
+        for (Object[] row : rows) {
+            result.put((UUID) row[0], row[1] == null ? 0.0 : ((Number) row[1]).doubleValue());
+        }
+        return result;
+    }
+
     @Transactional
     public DeckResponse renameDeck(String userId, UUID deckId, String name) {
         Deck deck = deckRepository.findByIdAndUserId(deckId, userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
         deck.setName(name.trim());
         Deck saved = deckRepository.save(deck);
-        return DeckResponse.from(saved, completionForDeck(deckId));
+        return DeckResponse.from(saved, completionForDeck(userId, deckId));
     }
 
     @Transactional
@@ -77,8 +194,57 @@ public class DeckService {
         deckRepository.delete(deck);
     }
 
+    // ── Admin moderation ─────────────────────────────────────────────────────
+    // These bypass owner scoping on purpose: access is gated to admins by
+    // SecurityConfig (/api/v1/admin/**), so there is no per-user check here.
+
+    /** Take a deck off Discover without deleting it — the owner keeps their deck,
+     *  it just stops being public. The gentle moderation action. */
     @Transactional
-    public DeckResponse importDeck(String userId, ImportDeckRequest request) {
+    public void adminUnpublishDeck(UUID deckId) {
+        Deck deck = deckRepository.findById(deckId)
+                .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
+        deck.setPublic(false);
+        deck.setSharedAt(null);
+        deckRepository.save(deck);
+    }
+
+    /** Remove a deck entirely (spam / abuse). Cascades to its notes and everyone's
+     *  progress on it — the same blast radius as an owner delete (per-user-progress
+     *  model), which is why it's the heavier action. */
+    @Transactional
+    public void adminDeleteDeck(UUID deckId) {
+        Deck deck = deckRepository.findById(deckId)
+                .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
+        deckRepository.delete(deck);
+    }
+
+    @Transactional
+    public DeckResponse importDeck(Caller caller, ImportDeckRequest request) {
+        // A freshly-imported deck has no card_stats yet, so completion is 0.
+        return DeckResponse.from(persistImport(caller.id(), request, Provenance.ownWork(caller)), 0.0);
+    }
+
+    /**
+     * Where a deck came from and who gets the credit. Bundled because import and
+     * clone differ only in these four values — an import credits the importer; a
+     * copy keeps crediting the deck it came from until its new owner edits it.
+     */
+    private record Provenance(String authorId, String authorName, String authorAvatarUrl,
+                              String sourceAuthorName, UUID cloneSourceDeckId) {
+
+        static Provenance ownWork(Caller caller) {
+            return new Provenance(caller.id(), caller.displayName(), caller.avatarUrl(), null, null);
+        }
+
+        static Provenance copyOf(Deck source) {
+            return new Provenance(source.getAuthorId(), source.getAuthorName(),
+                    source.getAuthorAvatarUrl(), source.getAuthorName(), source.getId());
+        }
+    }
+
+    // Shared by import and clone: writes the deck, its note types and its notes.
+    private Deck persistImport(String userId, ImportDeckRequest request, Provenance provenance) {
         int totalNotes = request.noteTypes().stream()
                 .mapToInt(t -> t.notes().size())
                 .sum();
@@ -93,6 +259,16 @@ public class DeckService {
         deck.setFrontLang(normalizeLang(request.frontLang()));
         deck.setBackLang(normalizeLang(request.backLang()));
         deck.setImportedAt(OffsetDateTime.now());
+        deck.setAuthorId(provenance.authorId());
+        deck.setAuthorName(provenance.authorName());
+        deck.setAuthorAvatarUrl(provenance.authorAvatarUrl());
+        deck.setSourceAuthorName(provenance.sourceAuthorName());
+        deck.setCloneSourceDeckId(provenance.cloneSourceDeckId());
+        // A MISSING isPublic means private. The review screen defaults its control
+        // to public, but omission must never publish someone's deck by accident.
+        boolean isPublic = Boolean.TRUE.equals(request.isPublic());
+        deck.setPublic(isPublic);
+        deck.setSharedAt(isPublic ? OffsetDateTime.now() : null);
         Deck savedDeck = deckRepository.save(deck);
 
         int position = 0;
@@ -113,11 +289,174 @@ public class DeckService {
             noteRepository.saveAll(notes);
         }
 
-        // A freshly-imported deck has no card_stats yet, so completion is 0.
-        return DeckResponse.from(savedDeck, 0.0);
+        return savedDeck;
+    }
+
+    /**
+     * Turn the deck's public share link on or off (owner only). While it's on,
+     * anyone holding {@code /shared/{deckId}} can preview the deck and clone it.
+     * {@code shared_at} tracks when the link went live and is cleared when it's
+     * switched off, so it reads as "shared since".
+     */
+    @Transactional
+    public DeckResponse setDeckSharing(String userId, UUID deckId, boolean isPublic) {
+        Deck deck = deckRepository.findByIdAndUserId(deckId, userId)
+                .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
+        // You may only publish a deck you're credited for. An untouched copy still
+        // credits its original author, so republishing it would just put a second
+        // identical deck in Discover — edit it first and the credit (and this
+        // permission) become yours. Un-sharing is always allowed.
+        if (isPublic && !userId.equals(deck.getAuthorId())) {
+            throw new ConflictException(
+                    "This is a copy of someone else's deck. Edit it to make it your own before sharing it.");
+        }
+        deck.setPublic(isPublic);
+        deck.setSharedAt(isPublic ? OffsetDateTime.now() : null);
+        Deck saved = deckRepository.save(deck);
+        return DeckResponse.from(saved, completionForDeck(userId, deckId));
+    }
+
+    /**
+     * Read a shared deck's contents with no authentication — this backs the public
+     * share page. Gated on {@code is_public}: a private (or missing) deck is a 404,
+     * never a 403, so the link can't be used to probe for a deck's existence.
+     *
+     * <p>Unauthenticated, so there's no viewer to report completion for — it comes
+     * back 0. The share page ignores it anyway (a signed-in visitor sees their own
+     * progress through the studiable-deck read instead).
+     */
+    @Transactional(readOnly = true)
+    public DeckContentsResponse getPublicDeckContents(UUID deckId) {
+        Deck deck = deckRepository.findById(deckId)
+                .filter(Deck::isPublic)
+                .orElseThrow(() -> new NotFoundException("Shared deck not found: " + deckId));
+        return buildContents(deck, null);
+    }
+
+    /**
+     * The public Discover directory: every deck whose owner has shared it, newest
+     * first, optionally narrowed by a name fragment. No authentication — browsing
+     * is open to guests; only copying a deck requires an account.
+     */
+    @Transactional(readOnly = true)
+    public PublicDeckPage getPublicDecks(String query, Integer minCards, Integer maxCards,
+                                         int limit, int offset) {
+        int size = Math.max(1, Math.min(limit, MAX_DISCOVER_PAGE));
+        // Spring Data pages by page number, so translate the caller's row offset.
+        // Snapping to a page boundary keeps the contract honest for the paging the
+        // client actually does (offset always a multiple of limit).
+        Pageable pageable = PageRequest.of(Math.max(0, offset) / size, size);
+        String q = query == null ? "" : query.trim();
+
+        Page<Deck> page = deckRepository.findPublicDecks(q, minCards, maxCards, pageable);
+        List<PublicDeckSummary> items = page.getContent().stream()
+                .map(DeckService::toSummary)
+                .toList();
+        return new PublicDeckPage(items, page.getNumber(), size,
+                page.getTotalElements(), page.getTotalPages());
+    }
+
+    private static PublicDeckSummary toSummary(Deck d) {
+        return new PublicDeckSummary(
+                d.getId(),
+                d.getName(),
+                d.getCardCount(),
+                d.getAuthorId(),
+                d.getAuthorName(),
+                d.getAuthorAvatarUrl(),
+                d.getSourceAuthorName(),
+                d.getSharedAt());
+    }
+
+    /**
+     * A public author page: an author's published decks + their current name. No
+     * user table, so the name comes off their decks' denormalised author_name
+     * (kept current by the profile-rename propagation). Public decks only — you
+     * can't expose an author's private decks to other viewers. An author with no
+     * public decks yields a null name + empty list (the page reads as empty).
+     */
+    @Transactional(readOnly = true)
+    public AuthorPageResponse getAuthorPage(String authorId) {
+        List<Deck> decks = deckRepository.findPublicByAuthor(authorId);
+        List<PublicDeckSummary> summaries = decks.stream().map(DeckService::toSummary).toList();
+        String authorName = decks.isEmpty() ? null : decks.get(0).getAuthorName();
+        String avatarUrl = decks.isEmpty() ? null : decks.get(0).getAuthorAvatarUrl();
+        return new AuthorPageResponse(authorId, authorName, avatarUrl, summaries.size(), summaries);
+    }
+
+    /** How many people have taken a copy of this deck — shown on the deck page,
+     *  so it's readable by anyone who may study the deck (owner or public). */
+    @Transactional(readOnly = true)
+    public long countCopies(String userId, UUID deckId) {
+        deckRepository.findStudiable(deckId, userId)
+                .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
+        return deckRepository.countByCloneSourceDeckId(deckId);
+    }
+
+    /**
+     * Copy a shared deck into the caller's own account: a brand-new deck with its
+     * own notes and therefore its own progress (no card_stats are copied). The
+     * source deck is left completely untouched.
+     *
+     * <p>Readable if the deck is shared, or if the caller already owns it (which
+     * makes this a plain "duplicate"). Anything else 404s rather than 403 so a
+     * private deck's existence isn't leaked by the status code.
+     *
+     * <p>The copy keeps crediting the source's author — taking a deck isn't
+     * authorship. Credit moves to the new owner the first time they change a card.
+     */
+    @Transactional
+    public DeckResponse cloneDeck(Caller caller, UUID sourceDeckId) {
+        // Duplicable if it's studiable to the caller — owned, public, or saved. The
+        // saved grant is why a deck you bookmarked stays duplicable even after its
+        // owner makes it private.
+        Deck source = deckRepository.findStudiable(sourceDeckId, caller.id())
+                .orElseThrow(() -> new NotFoundException("Shared deck not found: " + sourceDeckId));
+
+        // Completion is irrelevant here (we only map fields into the copy), so no
+        // viewer is needed.
+        DeckContentsResponse contents = buildContents(source, null);
+        ImportDeckRequest request = new ImportDeckRequest(
+                contents.name(),
+                contents.subdeckPath(),
+                contents.sourceFilename(),
+                contents.frontLang(),
+                contents.backLang(),
+                // A copy always starts private — see setDeckSharing.
+                false,
+                contents.noteTypes().stream().map(DeckService::toNoteTypeRequest).toList()
+        );
+        Deck clone = persistImport(caller.id(), request, Provenance.copyOf(source));
+        // No card_stats are copied, so the copy starts at zero progress.
+        return DeckResponse.from(clone, 0.0);
+    }
+
+    // DeckContentsResponse -> ImportDeckRequest, so a clone can reuse the import
+    // writer. The field map is defensively copied: the source's is the live entity
+    // map, and the two decks' notes must not share one instance.
+    // Fidelity note: NoteRequest carries no per-card TTS language override (V6), so
+    // a clone keeps the deck-level frontLang/backLang and drops per-card overrides.
+    private static NoteTypeRequest toNoteTypeRequest(NoteTypeContents type) {
+        List<NoteRequest> notes = type.notes().stream()
+                .map(n -> new NoteRequest(n.ankiNoteId(), new LinkedHashMap<>(n.fields()), n.tags(),
+                        n.frontImageUrl(), n.backImageUrl(), n.frontAudioUrl(), n.backAudioUrl()))
+                .toList();
+        return new NoteTypeRequest(
+                type.ankiModelId(),
+                type.name(),
+                type.cloze(),
+                type.fieldNames(),
+                type.frontFields(),
+                type.backFields(),
+                notes
+        );
     }
 
     private static final int MAX_NOTES = 5_000;
+
+    // Ceiling on a single Discover page, so a hand-crafted ?limit= can't ask the
+    // public endpoint to serialise the whole directory.
+    private static final int MAX_DISCOVER_PAGE = 60;
 
     /**
      * Commit the flashcard editor's whole working set in one transaction
@@ -128,7 +467,8 @@ public class DeckService {
      * its index in the payload. New/unrouted cards go to a Basic (Front/Back) type.
      */
     @Transactional
-    public DeckContentsResponse replaceDeckContents(String userId, UUID deckId, UpdateDeckContentsRequest req) {
+    public DeckContentsResponse replaceDeckContents(Caller caller, UUID deckId, UpdateDeckContentsRequest req) {
+        String userId = caller.id();
         Deck deck = deckRepository.findByIdAndUserId(deckId, userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
         if (req.notes().size() > MAX_NOTES) {
@@ -163,15 +503,21 @@ public class DeckService {
         Set<UUID> keptIds = new HashSet<>();
         UUID[] basicTypeId = {null}; // resolved lazily, only if a new/unrouted card appears
         List<Note> toSave = new ArrayList<>(req.notes().size());
+        // Tracks whether this save actually altered the CARDS (not the deck name).
+        // It's what decides whether a copied deck becomes the editor's own work —
+        // see claimAuthorship below.
+        boolean contentChanged = false;
         int position = 0;
         for (UpdateDeckContentsRequest.NoteEntry entry : req.notes()) {
             Note note;
             if (entry.id() != null && existingById.containsKey(entry.id())) {
                 note = existingById.get(entry.id());
                 keptIds.add(note.getId());
+                contentChanged |= !entry.fields().equals(note.getFields());
             } else {
                 note = new Note();
                 note.setDeckId(deckId);
+                contentChanged = true; // a card was added
             }
 
             UUID typeId = entry.noteTypeId();
@@ -187,6 +533,12 @@ public class DeckService {
             // Per-face TTS language override travels with the card (blank = inherit).
             note.setFrontLang(normalizeLang(entry.frontLang()));
             note.setBackLang(normalizeLang(entry.backLang()));
+            // Per-face image URL travels with the card too (blank = no image).
+            note.setFrontImageUrl(blankToNull(entry.frontImageUrl()));
+            note.setBackImageUrl(blankToNull(entry.backImageUrl()));
+            // Per-face audio URL travels with the card too (blank = no audio).
+            note.setFrontAudioUrl(blankToNull(entry.frontAudioUrl()));
+            note.setBackAudioUrl(blankToNull(entry.backAudioUrl()));
             note.setPosition(position++);
             toSave.add(note);
         }
@@ -197,12 +549,35 @@ public class DeckService {
                 .toList();
         if (!toDelete.isEmpty()) {
             noteRepository.deleteAll(toDelete);
+            contentChanged = true; // a card was removed
         }
 
         deck.setCardCount(req.notes().size());
+        if (contentChanged) {
+            claimAuthorship(deck, caller);
+        }
         deckRepository.save(deck);
 
-        return getDeckContents(userId, deckId);
+        // The owner-verified deck is already loaded — build the response from it
+        // directly rather than re-loading through the studiable read.
+        return buildContents(deck, userId);
+    }
+
+    /**
+     * Editing a deck's cards is what turns a copy into your own work, so the
+     * credit moves to whoever made the change. Deliberately driven by a real
+     * content change: re-saving without touching a card, or only renaming the
+     * deck, is not authorship.
+     *
+     * <p>For a deck you already author this just refreshes the stored display
+     * name, so a later profile rename propagates on the next save.
+     */
+    private static void claimAuthorship(Deck deck, Caller caller) {
+        if (!caller.id().equals(deck.getAuthorId())) {
+            deck.setAuthorId(caller.id());
+        }
+        deck.setAuthorName(caller.displayName());
+        deck.setAuthorAvatarUrl(caller.avatarUrl());
     }
 
     // The note type new/imported Front-Back cards land in. Reuse a non-cloze type
@@ -228,10 +603,22 @@ public class DeckService {
         return saved.getId();
     }
 
+    // Studiable, not owner-scoped: a signed-in visitor can open a shared deck and
+    // see it with their OWN progress (completion). Owner mutations don't route
+    // through here — they build their response from the already-loaded deck.
     @Transactional(readOnly = true)
     public DeckContentsResponse getDeckContents(String userId, UUID deckId) {
-        Deck deck = deckRepository.findByIdAndUserId(deckId, userId)
+        Deck deck = deckRepository.findStudiable(deckId, userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
+        return buildContents(deck, userId);
+    }
+
+    // Assemble a loaded deck's note types + notes. Access control belongs to the
+    // caller — this is reached owner-scoped, for shared decks unauthenticated
+    // (viewer == null), and (Phase 2) for a signed-in visitor of a shared deck.
+    // `viewerUserId` scopes the reported completion to that user's own progress.
+    private DeckContentsResponse buildContents(Deck deck, String viewerUserId) {
+        UUID deckId = deck.getId();
 
         List<NoteType> types = noteTypeRepository.findAllByDeckId(deckId);
         Map<UUID, List<Note>> notesByType = noteRepository.findAllByDeckIdOrderByPositionAscIdAsc(deckId).stream()
@@ -264,24 +651,36 @@ public class DeckService {
                 deck.getSourceFilename(),
                 deck.getCardCount(),
                 deck.getImportedAt(),
-                completionForDeck(deckId),
+                completionForDeck(viewerUserId, deckId),
                 deck.getFrontLang(),
                 deck.getBackLang(),
+                deck.isPublic(),
+                deck.getAuthorId(),
+                deck.getAuthorName(),
+                deck.getAuthorAvatarUrl(),
+                deck.getSourceAuthorName(),
+                viewerUserId != null && viewerUserId.equals(deck.getUserId()),
+                viewerUserId != null && userDeckRepository.existsByUserIdAndDeckIdAndSavedTrue(viewerUserId, deckId),
                 typeContents
         );
     }
 
-    // Mean mastery across every note in the deck, with unseen notes counted as 0
-    // (inner COALESCE turns a missing card_stats row into 0 instead of NULL,
-    // which AVG would otherwise skip). Returned as 0-100, matching the column.
-    private double completionForDeck(UUID deckId) {
+    // Mean of the VIEWER's mastery across every note in the deck, unseen notes
+    // counted as 0 (inner COALESCE turns a missing card_stats row into 0 instead of
+    // NULL, which AVG would otherwise skip). Returned as 0-100, matching the column.
+    // A null viewer (an unauthenticated public read) has no progress → 0.
+    private double completionForDeck(String viewerUserId, UUID deckId) {
+        if (viewerUserId == null) {
+            return 0.0;
+        }
         Object value = entityManager.createNativeQuery("""
                 SELECT COALESCE(AVG(COALESCE(cs.mastery, 0)), 0)
                 FROM notes n
-                LEFT JOIN card_stats cs ON cs.note_id = n.id
+                LEFT JOIN card_stats cs ON cs.note_id = n.id AND cs.user_id = :userId
                 WHERE n.deck_id = :deckId
                 """)
                 .setParameter("deckId", deckId)
+                .setParameter("userId", viewerUserId)
                 .getSingleResult();
         return value == null ? 0.0 : ((Number) value).doubleValue();
     }
@@ -294,7 +693,7 @@ public class DeckService {
                 SELECT d.id, COALESCE(AVG(COALESCE(cs.mastery, 0)), 0)
                 FROM decks d
                 LEFT JOIN notes n ON n.deck_id = d.id
-                LEFT JOIN card_stats cs ON cs.note_id = n.id
+                LEFT JOIN card_stats cs ON cs.note_id = n.id AND cs.user_id = :userId
                 WHERE d.user_id = :userId
                 GROUP BY d.id
                 """)
@@ -321,6 +720,10 @@ public class DeckService {
             note.setAnkiNoteId(req.ankiNoteId());
             note.setFields(req.fields());
             note.setTags(req.tags() == null ? new String[0] : req.tags().toArray(String[]::new));
+            note.setFrontImageUrl(blankToNull(req.frontImageUrl()));
+            note.setBackImageUrl(blankToNull(req.backImageUrl()));
+            note.setFrontAudioUrl(blankToNull(req.frontAudioUrl()));
+            note.setBackAudioUrl(blankToNull(req.backAudioUrl()));
             note.setPosition(pos++);
             result.add(note);
         }
@@ -334,7 +737,11 @@ public class DeckService {
                 note.getFields(),
                 toList(note.getTags()),
                 note.getFrontLang(),
-                note.getBackLang()
+                note.getBackLang(),
+                note.getFrontImageUrl(),
+                note.getBackImageUrl(),
+                note.getFrontAudioUrl(),
+                note.getBackAudioUrl()
         );
     }
 
@@ -350,7 +757,45 @@ public class DeckService {
         deck.setFrontLang(normalizeLang(frontLang));
         deck.setBackLang(normalizeLang(backLang));
         deckRepository.save(deck);
-        return getDeckContents(userId, deckId);
+        // Owner-verified deck already in hand — build from it directly.
+        return buildContents(deck, userId);
+    }
+
+    /**
+     * Change which fields each note type shows on the card front/back — the
+     * "show/hide extra fields" control. Only known field names are kept, and a
+     * front that would end up empty is left as-is (a card must have a term). Scoped
+     * by deck ownership; returns the refreshed contents.
+     */
+    @Transactional
+    public DeckContentsResponse setDeckLayout(String userId, UUID deckId,
+                                              List<SetDeckLayoutRequest.NoteTypeLayout> layouts) {
+        Deck deck = deckRepository.findByIdAndUserId(deckId, userId)
+                .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
+        Map<UUID, NoteType> typeById = noteTypeRepository.findAllByDeckId(deckId).stream()
+                .collect(Collectors.toMap(NoteType::getId, Function.identity()));
+
+        for (SetDeckLayoutRequest.NoteTypeLayout layout : layouts) {
+            NoteType type = typeById.get(layout.id());
+            if (type == null) {
+                continue; // ignore ids that aren't this deck's note types
+            }
+            Set<String> valid = new LinkedHashSet<>(Arrays.asList(type.getFieldNames()));
+            if (layout.frontFields() != null) {
+                List<String> front = layout.frontFields().stream().filter(valid::contains).toList();
+                if (!front.isEmpty()) {
+                    type.setFrontFields(front.toArray(String[]::new));
+                }
+            }
+            if (layout.backFields() != null) {
+                List<String> back = layout.backFields().stream().filter(valid::contains).toList();
+                if (!back.isEmpty()) {
+                    type.setBackFields(back.toArray(String[]::new));
+                }
+            }
+            noteTypeRepository.save(type);
+        }
+        return buildContents(deck, userId);
     }
 
     // A blank / whitespace-only language code means "auto-detect" — store it as
@@ -360,6 +805,15 @@ public class DeckService {
             return null;
         }
         String trimmed = lang.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    // Blank/whitespace image URL → NULL (no image); trimmed otherwise.
+    private static String blankToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
     }
 

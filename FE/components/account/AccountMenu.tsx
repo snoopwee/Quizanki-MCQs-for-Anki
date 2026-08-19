@@ -99,7 +99,7 @@ export function AccountMenu({
           }`}
         >
           <span className="truncate text-sm font-semibold text-ink">{name}</span>
-          <span className="truncate font-mono text-[11px] text-faint">{email}</span>
+          <span className="truncate font-mono text-[0.6875rem] text-faint">{email}</span>
         </span>
       </button>
 

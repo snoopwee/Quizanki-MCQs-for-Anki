@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/hooks/useSession";
 import { useDecks } from "@/hooks/useDecks";
 import { createClient } from "@/lib/supabase/client";
 import { avatarUrlOf, displayNameOf, hasCustomAvatar, initialsFrom } from "@/lib/userDisplay";
+import { propagateAuthorProfile } from "@/lib/authorProfile";
 import { AccountSection, accountInputClasses } from "@/components/account/AccountSection";
 import { AvatarUploadModal } from "@/components/account/AvatarUploadModal";
 import { Avatar } from "@/components/ui/Avatar";
@@ -22,6 +24,7 @@ function formatJoined(iso?: string): string | null {
 export default function ProfilePage() {
   const { user, loading } = useSession();
   const decksQuery = useDecks();
+  const queryClient = useQueryClient();
 
   const storedName = displayNameOf(user);
   const email = user?.email ?? "";
@@ -51,11 +54,20 @@ export default function ProfilePage() {
     setToast(null);
     const supabase = createClient();
     const { error } = await supabase.auth.updateUser({ data: { display_name: next } });
-    setSaving(false);
     if (error) {
+      setSaving(false);
       setToast({ kind: "error", message: error.message || "Couldn't save your name." });
       return;
     }
+
+    // Deck author name/avatar are stored snapshots (there's no user table), so a
+    // rename must be pushed onto the decks this user authored — otherwise old decks
+    // (and Discover / shared / author / Home pages) keep showing the old name. The
+    // avatar is unchanged here; we re-stamp the current one so name + avatar stay
+    // consistent on the deck rows.
+    await propagateAuthorProfile(supabase, queryClient, { name: next, avatarUrl: avatarUrl || null });
+
+    setSaving(false);
     setToast({ kind: "success", message: "Profile updated." });
   }
 
@@ -143,7 +155,7 @@ export default function ProfilePage() {
         <div className="flex items-center justify-between gap-3 rounded-input border border-line bg-surface-2 px-3 py-2.5">
           <span className="min-w-0 truncate text-sm text-ink">{email}</span>
           <span
-            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold ${
               verified
                 ? "bg-success/10 text-success"
                 : "bg-warning/10 text-warning"
@@ -159,6 +171,7 @@ export default function ProfilePage() {
         <AvatarUploadModal
           currentUrl={avatarUrl}
           initials={avatar}
+          displayName={storedName}
           canRemove={hasUploadedAvatar}
           onClose={() => setPhotoOpen(false)}
           onResult={(kind, message) => setToast({ kind, message })}

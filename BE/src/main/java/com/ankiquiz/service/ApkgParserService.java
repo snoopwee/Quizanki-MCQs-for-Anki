@@ -14,11 +14,16 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Base64;
+import java.util.HashMap;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -40,6 +45,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
+import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 
 /**
@@ -69,6 +75,8 @@ public class ApkgParserService {
     private static final String FIELD_SEPARATOR = String.valueOf((char) 0x1F);
 
     private static final Pattern SOUND_TAG = Pattern.compile("\\[sound:[^]]*]");
+    /** Captures the media filename inside a {@code [sound:name.mp3]} tag. */
+    private static final Pattern SOUND_SRC = Pattern.compile("\\[sound:([^]]+)]");
     // Block / line-break tags become a space so adjacent text isn't mashed together
     // (e.g. "...đóng2." from list items, lines joined by <br>); remaining inline
     // tags are then dropped without inserting a space, so words aren't split.
@@ -119,6 +127,28 @@ public class ApkgParserService {
      */
     static final long PARSE_TIMEOUT_SECONDS = 20L;
 
+    // ── Media (card image) extraction bounds ─────────────────────────────────
+    /** Biggest single media blob we'll pull out of the deck (bigger images are skipped). */
+    static final int MAX_IMAGE_BYTES = 1024 * 1024; // 1 MB
+    /** Total IMAGE bytes we'll buffer in memory per parse — the memory ceiling for
+     *  extraction. Only images count toward it (audio isn't buffered here). */
+    static final long MAX_MEDIA_BUFFER_BYTES = 24L * 1024 * 1024; // 24 MB
+    /** The Anki media manifest is small JSON (number → filename); cap it defensively. */
+    static final int MAX_MEDIA_MANIFEST_BYTES = 4 * 1024 * 1024; // 4 MB
+
+    // ── Audio import bounds (streamReferencedMedia) ──────────────────────────
+    /** Biggest single audio clip we'll pull out of the deck (bigger clips are skipped). */
+    static final int MAX_AUDIO_BYTES = 5 * 1024 * 1024; // 5 MB
+    /** Total audio we'll pull from one deck — a ceiling on a single import's Storage cost. */
+    static final long MAX_AUDIO_IMPORT_TOTAL_BYTES = 250L * 1024 * 1024; // 250 MB
+    /** Anki's media manifest entry name in the .apkg zip. */
+    private static final String MEDIA_MANIFEST = "media";
+    /** Media blobs are stored under numeric names ("0", "1", …). */
+    private static final Pattern NUMBERED_ENTRY = Pattern.compile("\\d+");
+    /** First {@code <img src="…">} in a field value (either quote style). */
+    private static final Pattern IMG_SRC =
+            Pattern.compile("<img\\b[^>]*?\\bsrc\\s*=\\s*[\"']([^\"']+)[\"']", Pattern.CASE_INSENSITIVE);
+
     private final ObjectMapper objectMapper;
 
     public ApkgParserService(ObjectMapper objectMapper) {
@@ -146,7 +176,9 @@ public class ApkgParserService {
     /** Extracts the collection and returns its notes grouped by note type. */
     public ApkgNotesResponse parseNotes(MultipartFile file) {
         long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(PARSE_TIMEOUT_SECONDS);
-        ExtractedCollection col = extractCollection(file);
+        ExtractedApkg apkg = extractApkg(file);
+        ExtractedCollection col = apkg.collection();
+        Map<String, byte[]> media = apkg.mediaByName();
         try (Connection conn = openReadOnly(col.dbFile())) {
             checkDeadline(deadlineNanos);
             boolean modern = tableExists(conn, "notetypes") && tableExists(conn, "fields");
@@ -156,6 +188,7 @@ public class ApkgParserService {
             int total = 0;
             int skipped = 0;
             int imageOnly = 0;
+            int audioNotes = 0;
             try (Statement st = conn.createStatement();
                  ResultSet rs = st.executeQuery("SELECT id, mid, tags, flds FROM notes")) {
                 while (rs.next()) {
@@ -170,23 +203,47 @@ public class ApkgParserService {
                         skipped++; // note references a model we couldn't resolve
                         continue;
                     }
-                    Map<String, String> fields = mapFields(type.fieldNames(), rs.getString("flds"));
+                    String flds = rs.getString("flds");
+                    Map<String, String> fields = mapFields(type.fieldNames(), flds);
+                    // Uncleaned fields, so <img> and [sound:] survive for media extraction
+                    // (mapFields strips both for the display text).
+                    Map<String, String> raw = rawFields(type.fieldNames(), flds);
+                    // Pull a card image out of the deck's media for each face. Front
+                    // scans the front fields (all fields when the template gave none,
+                    // e.g. modern decks); back scans the back fields.
+                    List<String> frontScan = type.frontFields().isEmpty() ? type.fieldNames() : type.frontFields();
+                    String frontImage = firstImageDataUrl(frontScan, raw, media);
+                    String backImage = firstImageDataUrl(type.backFields(), raw, media);
+                    boolean hasImage = frontImage != null || backImage != null;
+                    // Record the [sound:] filename per face (a lightweight ref, not the
+                    // bytes) — the client re-sends the .apkg after save so the backend
+                    // can stream just these clips to storage (see import-audio).
+                    String frontAudio = firstSoundRef(frontScan, raw);
+                    String backAudio = firstSoundRef(type.backFields(), raw);
                     // Image-occlusion notes can't be quizzed as MCQ, so exclude + count:
                     //   1. Note-type name says "Image Occlusion" (Anki's official IO
                     //      add-on; its text fields are just internal IDs/SVGs)
                     //   2. Any field contains the IO Enhanced cloze marker
                     //      {{c1::image-occlusion:rect:...}}
-                    //   3. Every field is empty after cleaning (naive <img>-only cards)
-                    if (isImageOcclusion(type, fields) || isAllEmpty(fields)) {
+                    //   3. Every field is empty after cleaning AND there's no extracted
+                    //      image (a plain <img>-only card is now kept, with its picture)
+                    if (isImageOcclusion(type, fields) || (isAllEmpty(fields) && !hasImage)) {
                         imageOnly++;
                         continue;
                     }
                     ParsedNote note = new ParsedNote(
                             String.valueOf(rs.getLong("id")),
                             fields,
-                            parseTags(rs.getString("tags")));
+                            parseTags(rs.getString("tags")),
+                            frontImage,
+                            backImage,
+                            frontAudio,
+                            backAudio);
                     notesByType.computeIfAbsent(type.id(), k -> new ArrayList<>()).add(note);
                     total++;
+                    if (frontAudio != null || backAudio != null) {
+                        audioNotes++;
+                    }
                     if (total > MAX_NOTES) {
                         throw new ApkgParseException(
                                 "This deck is too large (limit: " + MAX_NOTES
@@ -205,7 +262,7 @@ public class ApkgParserService {
             }
             return new ApkgNotesResponse(
                     file.getOriginalFilename(), col.name(), modern ? "modern" : "legacy",
-                    total, skipped, imageOnly, out);
+                    total, skipped, imageOnly, audioNotes, out);
         } catch (SQLException e) {
             throw new ApkgParseException("Could not read notes from the collection.", e);
         } finally {
@@ -450,9 +507,18 @@ public class ApkgParserService {
 
     // ── Extraction ──────────────────────────────────────────────────────────
 
-    private ExtractedCollection extractCollection(MultipartFile file) {
+    /** Collection extracted to a temp file, plus card-image media buffered in memory. */
+    private record ExtractedApkg(ExtractedCollection collection, Map<String, byte[]> mediaByName) {
+    }
+
+    private ExtractedApkg extractApkg(MultipartFile file) {
         requireNonEmpty(file);
         requireApkgFilename(file);
+
+        ExtractedCollection collection = null;
+        byte[] manifest = null;
+        Map<String, byte[]> numbered = new HashMap<>();
+        long buffered = 0;
 
         try (InputStream in = new BufferedInputStream(file.getInputStream());
              ZipInputStream zip = new ZipInputStream(in)) {
@@ -462,19 +528,244 @@ public class ApkgParserService {
                 if (++count > MAX_ENTRIES) {
                     throw new ApkgParseException("Archive has too many entries (> " + MAX_ENTRIES + ").");
                 }
-                if (COLLECTION_NAMES.contains(entry.getName())) {
-                    // Early-stop: grab the collection and ignore the rest (media).
-                    return extractEntry(zip, entry.getName());
+                String name = entry.getName();
+                if (COLLECTION_NAMES.contains(name)) {
+                    collection = extractEntry(zip, name);
+                } else if (MEDIA_MANIFEST.equals(name)) {
+                    manifest = readEntryBounded(zip, MAX_MEDIA_MANIFEST_BYTES);
+                } else if (NUMBERED_ENTRY.matcher(name).matches() && buffered < MAX_MEDIA_BUFFER_BYTES) {
+                    // Buffer only IMAGE blobs (bounded) so we can pull out card images
+                    // after parsing the collection. A deck's audio is often most of its
+                    // media (e.g. a Core-2000 deck is ~25 MB, mostly mp3) — buffering it
+                    // here would starve the image budget and silently drop later images,
+                    // so we sniff each blob and keep it only if it's an image. Audio is
+                    // extracted separately, streamed at save (see streamReferencedMedia).
+                    byte[] bytes = readEntryBounded(zip, MAX_IMAGE_BYTES);
+                    if (bytes != null && AvatarService.sniffImageType(bytes) != null) {
+                        numbered.put(name, bytes);
+                        buffered += bytes.length;
+                    }
                 }
-                zip.closeEntry();
+                // Any other entry (or an over-cap blob) is ignored; getNextEntry advances past it.
             }
         } catch (ZipException e) {
             throw new ApkgParseException("The uploaded file is not a valid .apkg (zip) archive.", e);
         } catch (IOException e) {
             throw new ApkgParseException("Could not read the uploaded file.", e);
         }
-        throw new ApkgParseException(
-                "No Anki collection (collection.anki2/anki21/anki21b) found — not a valid .apkg deck.");
+        if (collection == null) {
+            throw new ApkgParseException(
+                    "No Anki collection (collection.anki2/anki21/anki21b) found — not a valid .apkg deck.");
+        }
+        return new ExtractedApkg(collection, buildMediaMap(manifest, numbered));
+    }
+
+    // Reads the current zip entry into memory up to maxBytes; null if it exceeds
+    // (skip — we won't hold a single huge blob) or the entry runs long.
+    private static byte[] readEntryBounded(ZipInputStream zip, int maxBytes) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buf = new byte[8192];
+        int read;
+        while ((read = zip.read(buf)) != -1) {
+            if (out.size() + read > maxBytes) {
+                return null;
+            }
+            out.write(buf, 0, read);
+        }
+        return out.toByteArray();
+    }
+
+    // Anki's media manifest is JSON mapping a numeric key to the real filename
+    // ({@code {"0":"cat.jpg", ...}}). Combined with the numbered blobs we buffered,
+    // this yields filename -> bytes. A missing / non-JSON manifest (e.g. the newest
+    // protobuf format) yields no media — images just aren't extracted, cards keep
+    // their text.
+    private Map<String, byte[]> buildMediaMap(byte[] manifest, Map<String, byte[]> numbered) {
+        if (manifest == null || numbered.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            JsonNode root = objectMapper.readTree(manifest);
+            Map<String, byte[]> byName = new HashMap<>();
+            Iterator<Map.Entry<String, JsonNode>> it = root.fields();
+            while (it.hasNext()) {
+                Map.Entry<String, JsonNode> e = it.next();
+                byte[] bytes = numbered.get(e.getKey());
+                if (bytes != null) {
+                    byName.put(e.getValue().asText(), bytes);
+                }
+            }
+            return byName;
+        } catch (IOException e) {
+            return Map.of();
+        }
+    }
+
+    // The first <img>'s image, as a data URL, found across the given face's fields —
+    // or null if none resolves to a known, supported image blob.
+    private static String firstImageDataUrl(List<String> faceFields, Map<String, String> rawFields,
+                                            Map<String, byte[]> media) {
+        if (media.isEmpty()) {
+            return null;
+        }
+        for (String fieldName : faceFields) {
+            String raw = rawFields.get(fieldName);
+            if (raw == null || raw.isEmpty()) {
+                continue;
+            }
+            Matcher m = IMG_SRC.matcher(raw);
+            while (m.find()) {
+                String src = m.group(1);
+                byte[] bytes = media.get(src);
+                if (bytes == null) {
+                    bytes = media.get(urlDecode(src)); // filenames may be %20-encoded
+                }
+                if (bytes != null) {
+                    String mime = AvatarService.sniffImageType(bytes);
+                    if (mime != null) {
+                        return "data:" + mime + ";base64," + Base64.getEncoder().encodeToString(bytes);
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String urlDecode(String s) {
+        try {
+            return URLDecoder.decode(s, StandardCharsets.UTF_8);
+        } catch (RuntimeException e) {
+            return s;
+        }
+    }
+
+    // The first [sound:name] media filename found across the given face's fields, or
+    // null if the face has no sound tag. Only the filename is returned — the bytes are
+    // pulled later (streamReferencedMedia) so a parse never buffers a deck of audio.
+    private static String firstSoundRef(List<String> faceFields, Map<String, String> rawFields) {
+        for (String fieldName : faceFields) {
+            String raw = rawFields.get(fieldName);
+            if (raw == null || raw.isEmpty()) {
+                continue;
+            }
+            Matcher m = SOUND_SRC.matcher(raw);
+            if (m.find()) {
+                String name = m.group(1).trim();
+                if (!name.isEmpty()) {
+                    return name;
+                }
+            }
+        }
+        return null;
+    }
+
+    // ── Audio media streaming (import-audio) ─────────────────────────────────
+
+    /** Receives one extracted audio clip: the filename it was referenced by and its bytes. */
+    @FunctionalInterface
+    public interface MediaSink {
+        void accept(String filename, byte[] bytes);
+    }
+
+    /**
+     * Streams the audio clips named in {@code wanted} out of the .apkg and hands each to
+     * {@code sink}, one at a time — so a whole deck's audio is never held in memory. Opens
+     * the archive with random access ({@link ZipFile}): reads the small {@code media}
+     * manifest (number → filename), then pulls only the referenced numbered blobs, capping
+     * each clip ({@link #MAX_AUDIO_BYTES}) and the total ({@link #MAX_AUDIO_IMPORT_TOTAL_BYTES}).
+     * The sink is keyed by the {@code wanted} filename that matched (so callers can map it
+     * back to the note that referenced it). A missing / non-JSON manifest yields nothing.
+     */
+    public void streamReferencedMedia(MultipartFile file, Set<String> wanted, MediaSink sink) {
+        if (wanted.isEmpty()) {
+            return;
+        }
+        Path temp = copyToTemp(file);
+        long total = 0;
+        try (ZipFile zip = new ZipFile(temp.toFile())) {
+            ZipEntry manifestEntry = zip.getEntry(MEDIA_MANIFEST);
+            if (manifestEntry == null) {
+                return;
+            }
+            byte[] manifestBytes = readEntryBounded(zip, manifestEntry, MAX_MEDIA_MANIFEST_BYTES);
+            if (manifestBytes == null) {
+                return;
+            }
+            JsonNode root = objectMapper.readTree(manifestBytes);
+            Iterator<Map.Entry<String, JsonNode>> it = root.fields();
+            while (it.hasNext()) {
+                if (total >= MAX_AUDIO_IMPORT_TOTAL_BYTES) {
+                    break;
+                }
+                Map.Entry<String, JsonNode> e = it.next();
+                String number = e.getKey();
+                String filename = e.getValue().asText();
+                // The [sound:] ref may be %-encoded relative to the manifest filename.
+                String matched = wanted.contains(filename) ? filename
+                        : wanted.contains(urlDecode(filename)) ? urlDecode(filename)
+                        : null;
+                if (matched == null) {
+                    continue;
+                }
+                ZipEntry blob = zip.getEntry(number);
+                if (blob == null) {
+                    continue;
+                }
+                byte[] bytes = readEntryBounded(zip, blob, MAX_AUDIO_BYTES);
+                if (bytes != null) {
+                    sink.accept(matched, bytes);
+                    total += bytes.length;
+                }
+            }
+        } catch (IOException e) {
+            throw new ApkgParseException("Could not read audio from the uploaded .apkg.", e);
+        } finally {
+            deleteQuietly(temp);
+        }
+    }
+
+    // Reads one ZipFile entry into memory up to maxBytes; null if it exceeds the cap.
+    private static byte[] readEntryBounded(ZipFile zip, ZipEntry entry, int maxBytes) throws IOException {
+        try (InputStream in = zip.getInputStream(entry)) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int read;
+            while ((read = in.read(buf)) != -1) {
+                if (out.size() + read > maxBytes) {
+                    return null;
+                }
+                out.write(buf, 0, read);
+            }
+            return out.toByteArray();
+        }
+    }
+
+    private Path copyToTemp(MultipartFile file) {
+        requireNonEmpty(file);
+        requireApkgFilename(file);
+        try {
+            Path temp = Files.createTempFile("ankiquiz-apkg-audio-", ".apkg");
+            try (InputStream in = file.getInputStream()) {
+                Files.copy(in, temp, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                deleteQuietly(temp);
+                throw e;
+            }
+            return temp;
+        } catch (IOException e) {
+            throw new ApkgParseException("Could not read the uploaded file.", e);
+        }
+    }
+
+    // Split a note's flds blob onto its field names WITHOUT cleaning — so <img> tags
+    // survive for image extraction (mapFields strips them for the display text).
+    private static Map<String, String> rawFields(List<String> fieldNames, String flds) {
+        String[] values = (flds == null ? "" : flds).split(FIELD_SEPARATOR, -1);
+        Map<String, String> raw = new LinkedHashMap<>();
+        for (int i = 0; i < fieldNames.size(); i++) {
+            raw.put(fieldNames.get(i), i < values.length ? values[i] : "");
+        }
+        return raw;
     }
 
     /** Copies the current zip entry to a temp file, decompressing zstd if needed. */

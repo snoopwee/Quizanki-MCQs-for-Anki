@@ -108,7 +108,7 @@ export function DeckSearch() {
             </p>
           ) : (
             <div className="py-1">
-              <p className="px-3 pb-1 pt-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-faint">
+              <p className="px-3 pb-1 pt-2 font-mono text-[0.625rem] font-semibold uppercase tracking-[0.08em] text-faint">
                 Your decks
               </p>
               <ul id="deck-search-list" role="listbox" className="max-h-80 overflow-y-auto">

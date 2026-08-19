@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.config.AdminAccess;
 import com.ankiquiz.config.SecurityConfig;
 import com.ankiquiz.dto.response.ApkgNotesResponse;
 import com.ankiquiz.exception.ApkgParseException;
@@ -29,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * guest "try-before-signup" flow.
  */
 @WebMvcTest(ApkgParseController.class)
-@Import({SecurityConfig.class, GlobalExceptionHandler.class})
+@Import({SecurityConfig.class, AdminAccess.class, GlobalExceptionHandler.class})
 @TestPropertySource(properties = {
         "supabase.url=https://example.supabase.co",
         "app.cors.allowed-origins=http://localhost:3000"
@@ -49,7 +50,7 @@ class ApkgParseControllerTest {
     void parseApkg_isReachableWithoutAuth_andReturnsParsedResponse() throws Exception {
         when(rateLimiter.tryAcquire(any())).thenReturn(true);
         when(parserService.parseNotes(any())).thenReturn(
-                new ApkgNotesResponse("deck.apkg", "collection.anki2", "legacy", 0, 0, 0, List.of()));
+                new ApkgNotesResponse("deck.apkg", "collection.anki2", "legacy", 0, 0, 0, 0, List.of()));
 
         MockMultipartFile file =
                 new MockMultipartFile("file", "deck.apkg", "application/octet-stream", new byte[]{1, 2, 3});

@@ -25,6 +25,24 @@ public record DeckContentsResponse(
         Double completion,
         String frontLang,
         String backLang,
+        // True while the deck's share link is live. Always true on the public
+        // shared-deck read (that read is gated on it).
+        boolean isPublic,
+        // Credit. `authorId` lets the client tell whether the viewer is the
+        // credited author (which gates the share toggle); `sourceAuthorName` is
+        // the "Original deck by X" line, null when this deck isn't a copy.
+        String authorId,
+        String authorName,
+        // The author's profile picture (denormalised, kept current on rename), so
+        // the deck page can show it next to the name. Null → the client shows initials.
+        String authorAvatarUrl,
+        String sourceAuthorName,
+        // The VIEWER's relationship to the deck, so the client can pick the right
+        // controls: `owned` = they own it (owner kebab: edit/share/export/delete);
+        // otherwise `saved` drives the Save-to-Home toggle state. Both false on the
+        // unauthenticated public read.
+        boolean owned,
+        boolean saved,
         List<NoteTypeContents> noteTypes
 ) {
     public record NoteTypeContents(
@@ -46,7 +64,13 @@ public record DeckContentsResponse(
             Map<String, String> fields,
             List<String> tags,
             String frontLang,
-            String backLang
+            String backLang,
+            // Per-face card image URLs, null when the side has no image.
+            String frontImageUrl,
+            String backImageUrl,
+            // Per-face audio clip URLs, null when the side has no audio.
+            String frontAudioUrl,
+            String backAudioUrl
     ) {
     }
 }

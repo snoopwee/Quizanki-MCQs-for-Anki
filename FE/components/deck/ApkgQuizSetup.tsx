@@ -145,7 +145,7 @@ export function ApkgQuizSetup({
     return (
       <div className="space-y-5">
         {showHeading && <h1 className="font-display text-2xl font-semibold tracking-tight">Set up a quiz</h1>}
-        <p className="rounded-input border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+        <p className="break-words rounded-input border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
           None of the note types in <span className="font-medium">{parsed.filename}</span> have
           enough quizzable content. Decks with only single-field or image-only note types
           aren&apos;t supported.
@@ -201,7 +201,7 @@ export function ApkgQuizSetup({
       {showHeading && (
         <div className="space-y-1">
           <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Set up your quiz</h1>
-          <p className="text-sm text-muted">
+          <p className="break-words text-sm text-muted">
             Build a multiple-choice test from{" "}
             <span className="font-medium text-ink">{parsed.filename}</span>.
           </p>
@@ -302,7 +302,7 @@ export function ApkgQuizSetup({
       {/* start bar */}
       <div className="mt-2 flex items-center gap-3 rounded-card border border-line-strong bg-surface p-4 shadow-card">
         <div className="min-w-0">
-          <div className="font-mono text-[11px] uppercase tracking-wide text-faint">Ready</div>
+          <div className="font-mono text-[0.6875rem] uppercase tracking-wide text-faint">Ready</div>
           <div className="mt-0.5 truncate text-sm font-bold text-ink">
             {effCount} question{effCount === 1 ? "" : "s"} · untimed
           </div>
@@ -453,7 +453,7 @@ function SettingCard({
     <Card className="p-5">
       <div className="mb-3.5 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[15px] font-bold text-ink">{title}</div>
+          <div className="text-[0.9375rem] font-bold text-ink">{title}</div>
           {desc && <div className="mt-0.5 text-xs text-muted">{desc}</div>}
         </div>
         {soon && <SoonTag className="mt-0.5 shrink-0" />}

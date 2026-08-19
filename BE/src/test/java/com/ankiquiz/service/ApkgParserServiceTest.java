@@ -17,10 +17,14 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -72,6 +76,89 @@ class ApkgParserServiceTest {
         // Front/back derived from the card template (qfmt/afmt).
         assertEquals(List.of("Front"), type.frontFields());
         assertEquals(List.of("Back"), type.backFields());
+    }
+
+    @Test
+    void extractsCardImage_fromMediaReferencedByAnImgTag() throws Exception {
+        // A card whose Front field embeds an image; the deck's media provides the
+        // bytes. The image comes back as a data URL on the front face, the text is
+        // still cleaned, and the back (no <img>) has no image.
+        byte[] png = new byte[]{(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3};
+        byte[] bytes = buildApkg("collection.anki2", BASIC_MODEL,
+                List.of(new NoteRow(1607392319L, "", flds("<img src=\"cat.png\"> a cat", "neko"))),
+                Map.of("cat.png", png));
+
+        ApkgNotesResponse resp = service.parseNotes(apkg("deck.apkg", bytes));
+
+        var note = resp.noteTypes().get(0).notes().get(0);
+        assertNotNull(note.frontImageUrl());
+        assertTrue(note.frontImageUrl().startsWith("data:image/png;base64,"));
+        assertNull(note.backImageUrl());
+        assertEquals("a cat", note.fields().get("Front")); // <img> stripped from text
+    }
+
+    @Test
+    void keepsAnImageOnlyCard_thatWouldOtherwiseBeDroppedAsEmpty() throws Exception {
+        // Front is just an image (no text). Previously dropped as "image-only"; now
+        // kept because we extracted its picture.
+        byte[] png = new byte[]{(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 9, 9};
+        byte[] bytes = buildApkg("collection.anki2", BASIC_MODEL,
+                List.of(new NoteRow(1607392319L, "", flds("<img src=\"only.png\">", "answer"))),
+                Map.of("only.png", png));
+
+        ApkgNotesResponse resp = service.parseNotes(apkg("deck.apkg", bytes));
+
+        assertEquals(1, resp.totalNotes());
+        assertEquals(0, resp.imageOnlyNotes());
+        assertTrue(resp.noteTypes().get(0).notes().get(0).frontImageUrl().startsWith("data:image/png"));
+    }
+
+    @Test
+    void ignoresAnImgWhoseMediaIsMissingOrUnsupported() throws Exception {
+        // The <img> references a file the media manifest doesn't provide → no image,
+        // but the card is still kept for its text.
+        byte[] bytes = buildApkg("collection.anki2", BASIC_MODEL,
+                List.of(new NoteRow(1607392319L, "", flds("<img src=\"ghost.png\"> hello", "world"))),
+                Map.of()); // no media
+
+        ApkgNotesResponse resp = service.parseNotes(apkg("deck.apkg", bytes));
+
+        var note = resp.noteTypes().get(0).notes().get(0);
+        assertNull(note.frontImageUrl());
+        assertEquals("hello", note.fields().get("Front"));
+    }
+
+    @Test
+    void extractsAudioRef_fromSoundTagOnAFace() throws Exception {
+        // [sound:...] on the front, none on the back. The parse records the filename
+        // (not the bytes), strips the tag from the display text, and counts the note.
+        byte[] bytes = buildApkg("collection.anki2", BASIC_MODEL,
+                List.of(new NoteRow(1607392319L, "", flds("hello [sound:hi.mp3]", "world"))));
+
+        ApkgNotesResponse resp = service.parseNotes(apkg("deck.apkg", bytes));
+
+        var note = resp.noteTypes().get(0).notes().get(0);
+        assertEquals("hi.mp3", note.frontAudioRef());
+        assertNull(note.backAudioRef());
+        assertEquals("hello", note.fields().get("Front")); // [sound:] stripped from text
+        assertEquals(1, resp.audioNotes());
+    }
+
+    @Test
+    void streamReferencedMedia_pullsOnlyTheRequestedClips() throws Exception {
+        // The importer streams just the referenced media out of the archive — the
+        // wanted clip comes through, an unreferenced one doesn't.
+        byte[] mp3 = new byte[]{'I', 'D', '3', 4, 0, 0, 0, 0, 1, 2, 3};
+        byte[] other = new byte[]{9, 9, 9};
+        byte[] bytes = buildApkg("collection.anki2", BASIC_MODEL,
+                List.of(new NoteRow(1607392319L, "", flds("q [sound:hi.mp3]", "a"))),
+                Map.of("hi.mp3", mp3, "unused.mp3", other));
+
+        Map<String, byte[]> got = new java.util.HashMap<>();
+        service.streamReferencedMedia(apkg("deck.apkg", bytes), java.util.Set.of("hi.mp3"), got::put);
+
+        assertEquals(1, got.size());
+        assertArrayEquals(mp3, got.get("hi.mp3"));
     }
 
     @Test
@@ -303,6 +390,13 @@ class ApkgParserServiceTest {
      */
     private static byte[] buildApkg(String entryName, String modelsJson, List<NoteRow> notes)
             throws Exception {
+        return buildApkg(entryName, modelsJson, notes, Map.of());
+    }
+
+    // As above, but also writes real media: each (filename → bytes) becomes a
+    // numbered blob entry plus a manifest line, exactly like a real .apkg.
+    private static byte[] buildApkg(String entryName, String modelsJson, List<NoteRow> notes,
+                                    Map<String, byte[]> media) throws Exception {
         Path db = Files.createTempFile("fixture-", ".sqlite");
         try {
             try (Connection c = DriverManager.getConnection("jdbc:sqlite:" + db.toAbsolutePath())) {
@@ -340,8 +434,21 @@ class ApkgParserServiceTest {
                 zos.putNextEntry(new ZipEntry(entryName));
                 zos.write(dbBytes);
                 zos.closeEntry();
+
+                // Numbered blob per media file + a manifest mapping number → filename.
+                StringBuilder manifest = new StringBuilder("{");
+                int i = 0;
+                for (Map.Entry<String, byte[]> m : media.entrySet()) {
+                    zos.putNextEntry(new ZipEntry(String.valueOf(i)));
+                    zos.write(m.getValue());
+                    zos.closeEntry();
+                    if (i > 0) manifest.append(",");
+                    manifest.append("\"").append(i).append("\":\"").append(m.getKey()).append("\"");
+                    i++;
+                }
+                manifest.append("}");
                 zos.putNextEntry(new ZipEntry("media"));
-                zos.write("{}".getBytes(StandardCharsets.UTF_8));
+                zos.write(manifest.toString().getBytes(StandardCharsets.UTF_8));
                 zos.closeEntry();
             }
             return baos.toByteArray();

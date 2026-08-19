@@ -5,6 +5,8 @@ import { Modal } from "@/components/shared/Modal";
 import { fieldLabel } from "@/lib/deckEditor";
 import { useUpdateNote } from "@/hooks/useNotes";
 import { TTS_LANGUAGE_OPTIONS } from "@/lib/ttsLanguages";
+import { CardImageSlot } from "@/components/deck/CardImageSlot";
+import { CardAudioSlot } from "@/components/deck/CardAudioSlot";
 
 export interface EditableNote {
   noteId: string;
@@ -18,6 +20,12 @@ export interface EditableNote {
   // the deck default. Edited via the per-field "voice" selects below.
   frontLang: string | null;
   backLang: string | null;
+  // Per-face card image URL, or null when the side has no image.
+  frontImageUrl: string | null;
+  backImageUrl: string | null;
+  // Per-face card audio URL, or null when the side has no audio.
+  frontAudioUrl: string | null;
+  backAudioUrl: string | null;
 }
 
 // Per-flashcard editor: one textarea per field, seeded from the note's current
@@ -39,10 +47,18 @@ export function EditFlashcardModal({
   // Per-face TTS language override ("" = inherit the deck default / auto).
   const [langFront, setLangFront] = useState(note.frontLang ?? "");
   const [langBack, setLangBack] = useState(note.backLang ?? "");
+  // Per-face image URL ("" = no image).
+  const [imgFront, setImgFront] = useState(note.frontImageUrl ?? "");
+  const [imgBack, setImgBack] = useState(note.backImageUrl ?? "");
+  // Per-face audio URL ("" = no audio).
+  const [audFront, setAudFront] = useState(note.frontAudioUrl ?? "");
+  const [audBack, setAudBack] = useState(note.backAudioUrl ?? "");
 
   const fieldsDirty = note.fieldNames.some((f) => (note.fields[f] ?? "") !== values[f]);
   const langDirty = langFront !== (note.frontLang ?? "") || langBack !== (note.backLang ?? "");
-  const dirty = fieldsDirty || langDirty;
+  const imgDirty = imgFront !== (note.frontImageUrl ?? "") || imgBack !== (note.backImageUrl ?? "");
+  const audDirty = audFront !== (note.frontAudioUrl ?? "") || audBack !== (note.backAudioUrl ?? "");
+  const dirty = fieldsDirty || langDirty || imgDirty || audDirty;
 
   const frontField = note.frontFields[0];
   const backField = note.backFields[0];
@@ -62,14 +78,27 @@ export function EditFlashcardModal({
       [frontField]: v[backField] ?? "",
       [backField]: v[frontField] ?? "",
     }));
-    // The languages follow their text to the other side.
+    // The languages, images and audio follow their text to the other side.
     setLangFront(langBack);
     setLangBack(langFront);
+    setImgFront(imgBack);
+    setImgBack(imgFront);
+    setAudFront(audBack);
+    setAudBack(audFront);
   }
 
   function handleSave() {
     updateNote.mutate(
-      { noteId: note.noteId, fields: values, frontLang: langFront, backLang: langBack },
+      {
+        noteId: note.noteId,
+        fields: values,
+        frontLang: langFront,
+        backLang: langBack,
+        frontImageUrl: imgFront,
+        backImageUrl: imgBack,
+        frontAudioUrl: audFront,
+        backAudioUrl: audBack,
+      },
       { onSuccess: onClose },
     );
   }
@@ -122,6 +151,20 @@ export function EditFlashcardModal({
                 rows={field.toLowerCase().includes("back") || note.cloze ? 4 : 2}
                 className="nice-scroll focus-ring w-full resize-y rounded-input border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink outline-none"
               />
+              {/* Per-face image (term face → front, definition → back). */}
+              {(showTerm || showDef) && (
+                <CardImageSlot
+                  url={showTerm ? imgFront : imgBack}
+                  onChange={showTerm ? setImgFront : setImgBack}
+                />
+              )}
+              {/* Per-face audio (term face → front, definition → back). */}
+              {(showTerm || showDef) && (
+                <CardAudioSlot
+                  url={showTerm ? audFront : audBack}
+                  onChange={showTerm ? setAudFront : setAudBack}
+                />
+              )}
             </div>
           );
         })}

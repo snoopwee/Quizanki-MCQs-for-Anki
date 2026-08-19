@@ -3,6 +3,67 @@
 
 export type QuizDirection = "FRONT_TO_BACK" | "BACK_TO_FRONT";
 
+// GET /api/v1/me — who the signed-in user is + whether they're an admin. The
+// client uses isAdmin to show/hide the admin area; the backend enforces it too.
+export interface MeResponse {
+  userId: string;
+  email: string;
+  isAdmin: boolean;
+}
+
+// GET /api/v1/admin/reports — one row of the deck-report moderation queue.
+export interface AdminReport {
+  id: string;
+  deckId: string;
+  deckName: string | null;
+  authorName: string | null;
+  reporterId: string;
+  reason: string | null;
+  details: string | null;
+  status: string; // open | resolved | dismissed
+  createdAt: string;
+}
+
+// GET /api/v1/admin/users — a page of Supabase users (from the Admin API). No user
+// table locally, so this is fetched live. `banned` = an active ban.
+export interface AdminUser {
+  id: string;
+  email: string | null;
+  displayName: string | null;
+  createdAt: string | null;
+  lastSignInAt: string | null;
+  banned: boolean;
+}
+
+export interface AdminUsersPage {
+  users: AdminUser[];
+  page: number; // 1-based (GoTrue)
+  perPage: number;
+  hasMore: boolean;
+}
+
+// GET /api/v1/public/config — live site settings every client applies on load.
+// PUT /api/v1/admin/config updates them. Messages are null when unset.
+export interface SiteConfig {
+  maintenanceMode: boolean;
+  maintenanceMessage: string | null;
+  announcement: string | null;
+}
+
+// GET /api/v1/admin/stats — site-wide totals for the admin overview. `creators`
+// (users with ≥1 deck) and `learners` (users who've studied) are the honest user
+// numbers we can measure without the Supabase Admin API (no user table).
+export interface AdminStatsResponse {
+  decks: number;
+  publicDecks: number;
+  notes: number;
+  creators: number;
+  learners: number;
+  answers: number;
+  decksLast30Days: number;
+  answersLast7Days: number;
+}
+
 export interface CardStatsResponse {
   timesSeen: number;
   timesCorrect: number;
@@ -29,6 +90,19 @@ export interface DeckResponse {
   // auto-detect. term = front, definition = back.
   frontLang: string | null;
   backLang: string | null;
+  // True while the deck's share link is live: anyone holding /shared/{id} can
+  // preview it and clone it into their own account.
+  isPublic: boolean;
+  // Who is CREDITED for the deck — not necessarily who owns it. A copy is owned
+  // by whoever took it but keeps crediting the original author until they edit
+  // it. `sourceAuthorName` drives the "Original deck by X" line (null if this
+  // deck isn't a copy).
+  authorId: string;
+  authorName: string | null;
+  // The author's profile picture (denormalised, kept current on rename), shown on
+  // Home / deck cards next to the name. Null → the client renders initials.
+  authorAvatarUrl: string | null;
+  sourceAuthorName: string | null;
 }
 
 export interface NoteResponse {
@@ -36,6 +110,12 @@ export interface NoteResponse {
   deckId: string;
   fields: Record<string, string>;
   tags: string[];
+  // Per-face card image URLs (null = no image on that side).
+  frontImageUrl: string | null;
+  backImageUrl: string | null;
+  // Per-face card audio URLs (null = no audio on that side).
+  frontAudioUrl: string | null;
+  backAudioUrl: string | null;
   cardStats: CardStatsResponse | null;
 }
 
@@ -62,6 +142,14 @@ export interface NoteRequest {
   ankiNoteId?: string | null;
   fields: Record<string, string>;
   tags: string[];
+  // Per-face card image URL (null = none). Carried through import so a deck
+  // imported with images keeps them on the cards.
+  frontImageUrl?: string | null;
+  backImageUrl?: string | null;
+  // Per-face card audio URL (null = none). Carried through import/clone so a
+  // duplicated deck keeps its pronunciations.
+  frontAudioUrl?: string | null;
+  backAudioUrl?: string | null;
 }
 
 export interface NoteTypeRequest {
@@ -85,6 +173,9 @@ export interface ImportDeckRequest {
   // language of each face. Null / omitted = auto-detect.
   frontLang?: string | null;
   backLang?: string | null;
+  // Publish the deck to Discover on save. Chosen in the import review step
+  // (which defaults to public); omitting it saves the deck private.
+  isPublic?: boolean;
   noteTypes: NoteTypeRequest[];
 }
 
@@ -124,6 +215,17 @@ export interface ApkgParsedNote {
   // fall back to the deck default. Only present for saved decks.
   frontLang?: string | null;
   backLang?: string | null;
+  // Per-face card image URL, or null when the side has no image.
+  frontImageUrl?: string | null;
+  backImageUrl?: string | null;
+  // Per-face card audio URL, or null when the side has no audio.
+  frontAudioUrl?: string | null;
+  backAudioUrl?: string | null;
+  // Per-face [sound:] media filename from the .apkg (not the bytes). The client
+  // keeps these keyed by ankiNoteId and re-sends the .apkg after save so the
+  // backend can stream just these clips to storage. Null when the side has none.
+  frontAudioRef?: string | null;
+  backAudioRef?: string | null;
 }
 
 export interface ApkgNoteType {
@@ -149,6 +251,9 @@ export interface ApkgParseResponse {
   // Notes excluded because every field was empty after cleaning — image-occlusion
   // and other media-only cards that can't be quizzed as multiple choice.
   imageOnlyNotes: number;
+  // How many notes carry a [sound:] clip on either face. 0 = skip the post-save
+  // audio import step entirely. Undefined when adapting a saved deck (no .apkg).
+  audioNotes?: number;
   // Deck-level primary TTS language per face. Undefined for a fresh .apkg parse
   // (no deck yet); populated when a saved deck's contents are adapted into this
   // shape. term = front, definition = back.
@@ -166,6 +271,12 @@ export interface DeckContentsNote {
   // Per-card TTS language override per face, or null to inherit the deck default.
   frontLang: string | null;
   backLang: string | null;
+  // Per-face card image URL, or null when the side has no image.
+  frontImageUrl: string | null;
+  backImageUrl: string | null;
+  // Per-face card audio URL, or null when the side has no audio.
+  frontAudioUrl: string | null;
+  backAudioUrl: string | null;
 }
 
 export interface DeckContentsNoteType {
@@ -197,6 +308,12 @@ export interface UpdateDeckContentsNote {
   // the deck default. Travels with the card through the bulk editor save.
   frontLang?: string | null;
   backLang?: string | null;
+  // Per-face card image URL; "" / null = no image. Travels with the bulk save.
+  frontImageUrl?: string | null;
+  backImageUrl?: string | null;
+  // Per-face card audio URL; "" / null = no audio. Travels with the bulk save.
+  frontAudioUrl?: string | null;
+  backAudioUrl?: string | null;
 }
 
 export interface UpdateDeckContentsRequest {
@@ -216,5 +333,55 @@ export interface DeckContentsResponse {
   // Deck-level primary TTS language per face, or null to auto-detect.
   frontLang: string | null;
   backLang: string | null;
+  // True while the deck's share link is live. Always true on the public read
+  // (GET /public/shared/{id}), which is gated on it.
+  isPublic: boolean;
+  // Credit. Compare `authorId` against the signed-in user to tell whether they
+  // may share this deck (only the credited author can).
+  authorId: string;
+  authorName: string | null;
+  // The author's profile picture (denormalised, kept current on rename), shown
+  // next to their name. Null → the client renders initials.
+  authorAvatarUrl: string | null;
+  sourceAuthorName: string | null;
+  // The viewer's relationship to the deck: `owned` picks the deck-options kebab
+  // (owned = edit/share/export/delete; otherwise Save to Home + Duplicate);
+  // `saved` is the Save-to-Home toggle state. Both false on the public read.
+  owned: boolean;
+  saved: boolean;
   noteTypes: DeckContentsNoteType[];
+}
+
+// One row of the public deck directory.
+export interface PublicDeckSummary {
+  id: string;
+  name: string;
+  cardCount: number | null;
+  // The credited author's id — lets the author name link to their author page.
+  authorId: string;
+  authorName: string | null;
+  // The author's profile picture (null → initials).
+  authorAvatarUrl: string | null;
+  sourceAuthorName: string | null;
+  sharedAt: string | null;
+}
+
+// GET /api/v1/public/authors/{authorId} — an author's public decks + who they are.
+export interface AuthorPageResponse {
+  authorId: string;
+  authorName: string | null;
+  // The author's profile picture for the page header (null → initials).
+  authorAvatarUrl: string | null;
+  deckCount: number;
+  decks: PublicDeckSummary[];
+}
+
+// GET /api/v1/public/discover — one page of the directory plus the counts the
+// pager needs (page is zero-based, matching the offset the client sends).
+export interface PublicDeckPage {
+  items: PublicDeckSummary[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
 }

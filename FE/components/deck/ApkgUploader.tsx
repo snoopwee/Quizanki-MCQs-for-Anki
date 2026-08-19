@@ -23,17 +23,22 @@ export function ApkgUploader({
   onContinue,
   hideHeading = false,
 }: {
-  onContinue?: (result: ApkgParseResponse) => void;
+  // The parsed deck, plus the original File — kept so the import flow can re-send
+  // it after save to bring the deck's audio clips onto the cards.
+  onContinue?: (result: ApkgParseResponse, file: File | null) => void;
   hideHeading?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  // The last file we parsed, handed to onContinue so audio can be imported later.
+  const [pickedFile, setPickedFile] = useState<File | null>(null);
   const parse = useParseApkg();
 
   function handleFile(file: File | undefined) {
     setValidationError(null);
     parse.reset();
+    setPickedFile(null);
     if (!file) return;
     if (!file.name.toLowerCase().endsWith(".apkg")) {
       setValidationError("Please choose a .apkg file (an Anki deck export).");
@@ -45,6 +50,7 @@ export function ApkgUploader({
       );
       return;
     }
+    setPickedFile(file);
     parse.mutate(file);
   }
 
@@ -54,8 +60,8 @@ export function ApkgUploader({
         <div>
           <h2 className="font-display text-lg font-semibold tracking-tight">Import from an .apkg file</h2>
           <p className="mt-1 text-sm text-muted">
-            Upload an Anki deck export (.apkg). We read the cards only — images and audio in your
-            deck aren&apos;t uploaded.
+            Upload an Anki deck export (.apkg). Cards, pictures, and audio pronunciations all
+            come across.
           </p>
         </div>
       )}
@@ -118,17 +124,34 @@ export function ApkgUploader({
       {validationError && <p className="text-sm text-danger">{validationError}</p>}
       {parse.isError && <p className="text-sm text-danger">{errorMessage(parse.error)}</p>}
 
-      {parse.data && <ApkgSummary result={parse.data} onContinue={onContinue} />}
+      {/* AnkiWeb only lets you download shared decks from its own site, so we point
+          there rather than fetching for you — grab the .apkg, then drop it above. */}
+      <p className="text-xs text-muted">
+        Need a deck?{" "}
+        <a
+          href="https://ankiweb.net/shared/decks"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-accent underline-offset-2 hover:underline"
+        >
+          Browse AnkiWeb shared decks ↗
+        </a>{" "}
+        — download the .apkg from AnkiWeb, then upload it here.
+      </p>
+
+      {parse.data && <ApkgSummary result={parse.data} file={pickedFile} onContinue={onContinue} />}
     </div>
   );
 }
 
 function ApkgSummary({
   result,
+  file,
   onContinue,
 }: {
   result: ApkgParseResponse;
-  onContinue?: (result: ApkgParseResponse) => void;
+  file: File | null;
+  onContinue?: (result: ApkgParseResponse, file: File | null) => void;
 }) {
   // A note type can drive a quiz if it's a cloze type (each {{c<n>::...}} is a
   // card) OR a basic type with ≥2 text fields (prompt + answer).
@@ -145,6 +168,7 @@ function ApkgSummary({
           `, ${result.imageOnlyNotes} image-occlusion excluded`}{" "}
         across {result.noteTypes.length} note type
         {result.noteTypes.length === 1 ? "" : "s"}.
+        {result.audioNotes ? ` ${result.audioNotes} with audio.` : ""}
       </p>
       {result.imageOnlyNotes > 0 && (
         <p className="rounded-input border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
@@ -171,16 +195,17 @@ function ApkgSummary({
         ))}
       </ul>
 
-      <p className="text-xs text-faint">
-        Decks that use an image or audio as the <em>answer</em> may not be supported.
-        {usable.length === 0 && " None of these note types look ready for a text quiz yet."}
-      </p>
+      {usable.length === 0 && (
+        <p className="text-xs text-faint">
+          None of these note types look ready for a text quiz yet.
+        </p>
+      )}
 
       {onContinue && (
         <button
           type="button"
           disabled={usable.length === 0}
-          onClick={() => onContinue(result)}
+          onClick={() => onContinue(result, file)}
           className="focus-ring w-full rounded-input bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-50"
         >
           Continue →

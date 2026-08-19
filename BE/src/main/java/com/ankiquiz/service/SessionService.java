@@ -36,7 +36,8 @@ public class SessionService {
 
     @Transactional(readOnly = true)
     public StartSessionResponse startSession(String userId, StartSessionRequest request) {
-        deckRepository.findByIdAndUserId(request.deckId(), userId)
+        // Studiable (owned or public) — a visitor can quiz themselves on a shared deck.
+        deckRepository.findStudiable(request.deckId(), userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + request.deckId()));
         return new StartSessionResponse(UUID.randomUUID());
     }
@@ -45,20 +46,25 @@ public class SessionService {
     public RecordAnswerResponse recordAnswer(String userId, UUID sessionId, RecordAnswerRequest request) {
         Note note = noteRepository.findById(request.noteId())
                 .orElseThrow(() -> new NotFoundException("Note not found: " + request.noteId()));
-        deckRepository.findByIdAndUserId(note.getDeckId(), userId)
+        // The note's deck must be one the caller may study (owned or public) — this
+        // is what lets progress be recorded on a shared deck, and blocks recording
+        // against a private deck that isn't theirs.
+        deckRepository.findStudiable(note.getDeckId(), userId)
                 .orElseThrow(() -> new NotFoundException("Note not found: " + request.noteId()));
 
-        // sessionId is logged on the answer_events row so the stats chart can plot
-        // one point per test (see V8). It's not otherwise validated — a bogus id
-        // only fragments that user's own history.
-        entityManager.createNativeQuery("SELECT record_answer(:noteId, :correct, :sessionId)")
+        // Progress is per-user (V11): record_answer upserts the caller's own
+        // (user_id, note_id) row. sessionId is logged on the answer_events row so
+        // the stats chart can plot one point per test (see V8); it's not otherwise
+        // validated — a bogus id only fragments that user's own history.
+        entityManager.createNativeQuery("SELECT record_answer(:userId, :noteId, :correct, :sessionId)")
+                .setParameter("userId", userId)
                 .setParameter("noteId", request.noteId())
                 .setParameter("correct", request.correct())
                 .setParameter("sessionId", sessionId)
                 .getSingleResult();
         entityManager.clear();
 
-        CardStats stats = cardStatsRepository.findById(request.noteId())
+        CardStats stats = cardStatsRepository.findByUserIdAndNoteId(userId, request.noteId())
                 .orElseThrow(() -> new NotFoundException("Card stats not found after recording answer"));
         return new RecordAnswerResponse(stats.getAccuracy(), stats.getStreak(), stats.getMastery());
     }

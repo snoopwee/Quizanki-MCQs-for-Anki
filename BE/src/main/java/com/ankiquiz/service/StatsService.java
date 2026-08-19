@@ -27,7 +27,8 @@ public class StatsService {
 
     @Transactional(readOnly = true)
     public DeckStatsResponse getDeckStats(String userId, UUID deckId) {
-        deckRepository.findByIdAndUserId(deckId, userId)
+        // Studiable (owned or public): a visitor sees their own stats on a shared deck.
+        deckRepository.findStudiable(deckId, userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
 
         // Two-step query: first compute the card_stats aggregates over the deck's
@@ -44,8 +45,10 @@ public class StatsService {
                 FROM card_stats cs
                 JOIN notes n ON n.id = cs.note_id
                 WHERE n.deck_id = :deckId
+                  AND cs.user_id = :userId
                 """)
                 .setParameter("deckId", deckId)
+                .setParameter("userId", userId)
                 .getSingleResult();
 
         long total = ((Number) row[0]).longValue();
@@ -73,7 +76,7 @@ public class StatsService {
      */
     @Transactional(readOnly = true)
     public List<DeckHistoryPoint> getDeckHistory(String userId, UUID deckId, int days) {
-        deckRepository.findByIdAndUserId(deckId, userId)
+        deckRepository.findStudiable(deckId, userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
 
         int window = Math.max(1, Math.min(days, MAX_HISTORY_DAYS));
@@ -96,6 +99,7 @@ public class StatsService {
                 FROM answer_events ae
                 JOIN notes n ON n.id = ae.note_id
                 WHERE n.deck_id = :deckId
+                  AND ae.user_id = :userId
                   AND ae.answered_at >= :since
                 GROUP BY
                     CASE WHEN ae.session_id IS NOT NULL
@@ -105,6 +109,7 @@ public class StatsService {
                 ORDER BY at_ms
                 """)
                 .setParameter("deckId", deckId)
+                .setParameter("userId", userId)
                 .setParameter("since", since)
                 .getResultList();
 

@@ -3,7 +3,15 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useDeckContents, useDeleteDeck } from "@/hooks/useDecks";
+import {
+  useCloneDeck,
+  useDeckContents,
+  useDeckCopies,
+  useDeleteDeck,
+  useOpenDeck,
+  useSaveDeck,
+  useSetDeckLayout,
+} from "@/hooks/useDecks";
 import { useNotes, useToggleStar } from "@/hooks/useNotes";
 import { useStartSession } from "@/hooks/useQuizSession";
 import { deckContentsToParsed } from "@/lib/deckContents";
@@ -14,6 +22,9 @@ import { ApkgQuizSetup, type NoteStatsLookup } from "@/components/deck/ApkgQuizS
 import { DeckStatsPanel } from "@/components/deck/DeckStatsPanel";
 import { KebabMenu } from "@/components/shared/KebabMenu";
 import { ExportDeckModal } from "@/components/deck/ExportDeckModal";
+import { ShareDeckModal } from "@/components/deck/ShareDeckModal";
+import { ReportDeckModal } from "@/components/deck/ReportDeckModal";
+import { DeckAuthor } from "@/components/deck/DeckAuthor";
 import { Card } from "@/components/ui/Card";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { SoonTag } from "@/components/ui/controls";
@@ -42,12 +53,39 @@ function DeckDetail() {
   const contentsQuery = useDeckContents(deckId);
   const notesQuery = useNotes(deckId);
   const startSession = useStartSession();
+  const setLayout = useSetDeckLayout(deckId);
   const startQuiz = useQuizStore((s) => s.startSession);
   const deleteDeck = useDeleteDeck();
+  const cloneDeck = useCloneDeck();
+  const saveDeck = useSaveDeck(deckId);
+  const openDeck = useOpenDeck();
+  const copies = useDeckCopies(deckId).data ?? 0;
   const toggleStar = useToggleStar(deckId);
+
+  // The viewer's relationship to this deck (from the studiable read). A non-owner
+  // studying a shared deck gets the Save/Duplicate controls instead of edit/delete.
+  const owned = contentsQuery.data?.owned ?? false;
+  const saved = contentsQuery.data?.saved ?? false;
+
+  // Mark the deck opened once it loads, so it shows in Home ▸ Recent. Fire-and-
+  // forget; a failure (e.g. lost access) is harmless.
+  const openedRef = useRef(false);
+  const openMutate = openDeck.mutate;
+  useEffect(() => {
+    if (contentsQuery.data && !openedRef.current) {
+      openedRef.current = true;
+      openMutate(deckId);
+    }
+  }, [contentsQuery.data, deckId, openMutate]);
+
+  function handleDuplicate() {
+    cloneDeck.mutate(deckId, { onSuccess: (deck) => router.push(`/decks/${deck.id}`) });
+  }
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   // Anchor for the "Flashcards" study mode — scrolls to the flashcard player.
   const cardsRef = useRef<HTMLDivElement>(null);
   const scrollToCards = () => cardsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -131,7 +169,7 @@ function DeckDetail() {
 
   function confirmDelete() {
     deleteDeck.mutate(deckId, {
-      onSuccess: () => router.push("/dashboard"),
+      onSuccess: () => router.push("/home"),
     });
   }
 
@@ -147,7 +185,7 @@ function DeckDetail() {
     return (
       <div className="mx-auto max-w-3xl space-y-3">
         <p className="text-sm text-muted">Deck not found.</p>
-        <Link href="/dashboard" className="text-sm font-medium text-accent hover:underline">
+        <Link href="/home" className="text-sm font-medium text-accent hover:underline">
           Back to decks
         </Link>
       </div>
@@ -163,7 +201,7 @@ function DeckDetail() {
     <div className="mx-auto max-w-3xl space-y-6">
       <Breadcrumb
         items={[
-          { label: "Dashboard", href: "/dashboard" },
+          { label: "Home", href: "/home" },
           // When on the setup step, the deck name becomes a link back to the
           // flashcard view; on the flashcard view it's the current page (no href).
           step === "setup"
@@ -185,18 +223,47 @@ function DeckDetail() {
             <div className="absolute right-3 top-4">
               <KebabMenu
                 label="Deck options"
-                items={[
-                  { label: "Edit flashcards", onClick: () => router.push(`/decks/${deckId}/edit`) },
-                  { label: "Export deck", onClick: () => setExportOpen(true) },
-                  { label: "Delete deck", onClick: () => setDeleteOpen(true), danger: true },
-                ]}
+                items={
+                  owned
+                    ? [
+                        { label: "Edit flashcards", onClick: () => router.push(`/decks/${deckId}/edit`) },
+                        { label: "Share deck", onClick: () => setShareOpen(true) },
+                        { label: "Export deck", onClick: () => setExportOpen(true) },
+                        { label: "Delete deck", onClick: () => setDeleteOpen(true), danger: true },
+                      ]
+                    : [
+                        // Not the owner: they can keep it in their library or fork
+                        // an editable copy — but never edit/delete the original.
+                        {
+                          label: saved ? "Remove from Home" : "Save to Home",
+                          onClick: () => saveDeck.mutate(!saved),
+                        },
+                        { label: "Duplicate", onClick: handleDuplicate },
+                        { label: "Report deck", onClick: () => setReportOpen(true), danger: true },
+                      ]
+                }
               />
             </div>
             <div className="p-6">
-              {/* pr-10 keeps a long title clear of the corner "⋯" menu */}
-              <h1 className="pr-10 font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+              {/* pr-10 keeps a long title clear of the corner "⋯" menu. break-words
+                  wraps a long unbroken name (e.g. underscore_case export names);
+                  line-clamp-2 caps it at two rows with an ellipsis, and title shows
+                  the whole thing on hover. */}
+              <h1
+                title={deckName}
+                className="line-clamp-2 break-words pr-10 font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl"
+              >
                 {deckName}
               </h1>
+              <DeckAuthor
+                authorId={contentsQuery.data.authorId}
+                authorName={contentsQuery.data.authorName}
+                authorAvatarUrl={contentsQuery.data.authorAvatarUrl}
+                sourceAuthorName={contentsQuery.data.sourceAuthorName}
+                variant="detailed"
+                createdAt={contentsQuery.data.importedAt}
+                className="mt-3"
+              />
               <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted">
                 <span className="inline-flex items-center gap-1.5">
                   <Icon name="layers" size={15} />
@@ -206,10 +273,31 @@ function DeckDetail() {
                   <Icon name="cards" size={15} />
                   {noteTypeCount} note type{noteTypeCount === 1 ? "" : "s"}
                 </span>
-                <span className="inline-flex items-center gap-1.5 opacity-70">
-                  <Icon name="flame" size={15} />
-                  Learners <SoonTag />
-                </span>
+                {/* Real "N copies" now that clone provenance is tracked — this
+                    replaced the old placeholder "Learners · Soon" chip. */}
+                {copies > 0 && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Icon name="copy" size={15} />
+                    {copies} cop{copies === 1 ? "y" : "ies"}
+                  </span>
+                )}
+                {owned && contentsQuery.data.isPublic && (
+                  <button
+                    type="button"
+                    onClick={() => setShareOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent-ink transition hover:opacity-90"
+                  >
+                    <Icon name="link" size={13} />
+                    Shared
+                  </button>
+                )}
+                {/* Non-owners see their library state at a glance. */}
+                {!owned && saved && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent-ink">
+                    <Icon name="check" size={13} />
+                    Saved
+                  </span>
+                )}
               </div>
             </div>
           </Card>
@@ -256,12 +344,33 @@ function DeckDetail() {
               onToggleStar={onToggleStar}
               hideActions
               hideHeader
-              editable
+              editable={owned}
               deckId={deckId}
               previewSlot={previewSlot}
               hiddenSide={hiddenSide}
-              onBack={() => router.push("/dashboard")}
+              onBack={() => router.push("/home")}
               onStartTest={goToSetup}
+              // Owner-only "show/hide extra fields" control (real note-type UUIDs
+              // from contents), saved to the deck's layout via PUT /decks/{id}/layout.
+              fields={
+                owned
+                  ? {
+                      noteTypes: contentsQuery.data.noteTypes.map((nt) => ({
+                        id: nt.id,
+                        name: nt.name,
+                        fieldNames: nt.fieldNames,
+                        frontFields: nt.frontFields,
+                        backFields: nt.backFields,
+                        cloze: nt.cloze,
+                      })),
+                      saving: setLayout.isPending,
+                      onChange: (typeId, next) =>
+                        setLayout.mutate([
+                          { id: typeId, frontFields: next.frontFields, backFields: next.backFields },
+                        ]),
+                    }
+                  : undefined
+              }
             />
           </div>
 
@@ -297,10 +406,25 @@ function DeckDetail() {
         />
       )}
 
+      {shareOpen && (
+        <ShareDeckModal
+          contents={contentsQuery.data}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
+
       {exportOpen && (
         <ExportDeckModal
           contents={contentsQuery.data}
           onClose={() => setExportOpen(false)}
+        />
+      )}
+
+      {reportOpen && (
+        <ReportDeckModal
+          deckId={deckId}
+          deckName={deckName}
+          onClose={() => setReportOpen(false)}
         />
       )}
 
@@ -323,14 +447,18 @@ function Breadcrumb({ items }: { items: Array<{ label: string; href?: string }> 
         {items.map((item, i) => {
           const last = i === items.length - 1;
           return (
-            <li key={i} className="flex items-center gap-1.5">
+            <li key={i} className="flex min-w-0 items-center gap-1.5">
               {item.href && !last ? (
-                <Link href={item.href} className="transition-colors hover:text-accent">
+                <Link href={item.href} className="whitespace-nowrap transition-colors hover:text-accent">
                   {item.label}
                 </Link>
               ) : (
+                // The current page is the deck name — let a long unbroken name wrap
+                // (break-words) instead of pushing the breadcrumb out of the box;
+                // title shows the full name on hover.
                 <span
-                  className={last ? "font-medium text-ink" : ""}
+                  title={last ? item.label : undefined}
+                  className={last ? "break-words font-medium text-ink" : "whitespace-nowrap"}
                   aria-current={last ? "page" : undefined}
                 >
                   {item.label}
@@ -500,7 +628,7 @@ function FloatingStudyRail({
             type="button"
             onClick={onSwitchSide}
             aria-label={`Hiding ${hidingLabel} — switch side`}
-            className="grid h-11 w-11 place-items-center rounded-full border border-line bg-surface text-[11px] font-bold uppercase tracking-tight text-ink transition hover:border-line-strong"
+            className="grid h-11 w-11 place-items-center rounded-full border border-line bg-surface text-[0.6875rem] font-bold uppercase tracking-tight text-ink transition hover:border-line-strong"
           >
             {hideSide === "back" ? "Def" : "Term"}
           </button>
@@ -538,7 +666,7 @@ function DeleteConfirm({
       >
         <div>
           <h2 className="font-display text-base font-semibold tracking-tight">Delete this deck?</h2>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-1 break-words text-sm text-muted">
             <span className="font-medium text-ink">{deckName}</span>{" "}
             and all of its progress will be removed. This can&apos;t be undone.
           </p>

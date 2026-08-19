@@ -33,6 +33,10 @@ export function deckContentsToParsed(contents: DeckContentsResponse): ApkgParseR
         tags: n.tags,
         frontLang: n.frontLang,
         backLang: n.backLang,
+        frontImageUrl: n.frontImageUrl,
+        backImageUrl: n.backImageUrl,
+        frontAudioUrl: n.frontAudioUrl,
+        backAudioUrl: n.backAudioUrl,
       })),
     })),
   };

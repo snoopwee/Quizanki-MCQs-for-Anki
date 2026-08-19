@@ -1,12 +1,19 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.dto.request.ImportAudioRequest;
 import com.ankiquiz.dto.request.ImportDeckRequest;
+import com.ankiquiz.dto.request.SaveDeckRequest;
 import com.ankiquiz.dto.request.SetDeckLanguagesRequest;
+import com.ankiquiz.dto.request.SetDeckLayoutRequest;
+import com.ankiquiz.dto.request.ShareDeckRequest;
 import com.ankiquiz.dto.request.UpdateDeckContentsRequest;
 import com.ankiquiz.dto.request.UpdateDeckRequest;
+import com.ankiquiz.dto.response.AudioImportResponse;
 import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.DeckResponse;
+import com.ankiquiz.service.ApkgAudioImportService;
 import com.ankiquiz.service.ApkgExportService;
+import com.ankiquiz.service.Caller;
 import com.ankiquiz.service.DeckService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -25,9 +32,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -37,16 +47,57 @@ public class DeckController {
 
     private final DeckService deckService;
     private final ApkgExportService apkgExportService;
+    private final ApkgAudioImportService apkgAudioImportService;
 
-    public DeckController(DeckService deckService, ApkgExportService apkgExportService) {
+    public DeckController(DeckService deckService,
+                          ApkgExportService apkgExportService,
+                          ApkgAudioImportService apkgAudioImportService) {
         this.deckService = deckService;
         this.apkgExportService = apkgExportService;
+        this.apkgAudioImportService = apkgAudioImportService;
     }
 
     @GetMapping
     @Operation(summary = "List the authenticated user's decks")
     public List<DeckResponse> getDecks(@AuthenticationPrincipal Jwt jwt) {
         return deckService.getDecksForUser(jwt.getSubject());
+    }
+
+    @GetMapping("/saved")
+    @Operation(summary = "The user's Saved tab: decks they bookmarked but don't own")
+    public List<DeckResponse> getSaved(@AuthenticationPrincipal Jwt jwt) {
+        return deckService.getSavedDecks(jwt.getSubject());
+    }
+
+    @GetMapping("/recent")
+    @Operation(summary = "The user's Recent tab: decks opened in the last 30 days")
+    public List<DeckResponse> getRecent(@AuthenticationPrincipal Jwt jwt) {
+        return deckService.getRecentDecks(jwt.getSubject());
+    }
+
+    @PostMapping("/{deckId}/open")
+    @Operation(summary = "Mark a deck opened (adds it to Recent)",
+            description = "Called when the deck page loads. Studiable decks only (owned, public, or "
+                    + "saved); anything else 404s.")
+    public ResponseEntity<Void> openDeck(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId
+    ) {
+        deckService.openDeck(jwt.getSubject(), deckId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{deckId}/save")
+    @Operation(summary = "Bookmark a deck to Home, or remove it",
+            description = "\"Save to Home\" — a reference, not a copy. A saved deck stays "
+                    + "accessible even if its owner later makes it private.")
+    public ResponseEntity<Void> setSaved(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId,
+            @Valid @RequestBody SaveDeckRequest request
+    ) {
+        deckService.setSaved(jwt.getSubject(), deckId, request.saved());
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping
@@ -56,8 +107,23 @@ public class DeckController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody ImportDeckRequest request
     ) {
-        DeckResponse body = deckService.importDeck(jwt.getSubject(), request);
+        DeckResponse body = deckService.importDeck(Caller.from(jwt), request);
         return ResponseEntity.status(HttpStatus.CREATED).body(body);
+    }
+
+    @PostMapping(value = "/{deckId}/import-audio", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Import an .apkg's audio onto a just-saved deck",
+            description = "Multipart: the original .apkg ('apkg') plus the per-note [sound:] refs "
+                    + "('refs', application/json) collected at parse time. Streams just the referenced "
+                    + "clips to storage and sets each note's front/back audio. Owner-only; best-effort "
+                    + "(missing / oversized / non-audio media is skipped).")
+    public AudioImportResponse importDeckAudio(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId,
+            @RequestPart("apkg") MultipartFile apkg,
+            @RequestPart("refs") ImportAudioRequest refs
+    ) {
+        return apkgAudioImportService.importAudio(jwt.getSubject(), deckId, apkg, refs.notes());
     }
 
     @GetMapping("/{deckId}/contents")
@@ -94,7 +160,7 @@ public class DeckController {
             @PathVariable UUID deckId,
             @Valid @RequestBody UpdateDeckContentsRequest request
     ) {
-        return deckService.replaceDeckContents(jwt.getSubject(), deckId, request);
+        return deckService.replaceDeckContents(Caller.from(jwt), deckId, request);
     }
 
     @PatchMapping("/{deckId}")
@@ -118,6 +184,54 @@ public class DeckController {
             @Valid @RequestBody SetDeckLanguagesRequest request
     ) {
         return deckService.setDeckLanguages(jwt.getSubject(), deckId, request.frontLang(), request.backLang());
+    }
+
+    @PutMapping("/{deckId}/layout")
+    @Operation(summary = "Set which fields a deck's cards show, per note type",
+            description = "The \"show/hide extra fields\" control — changes each note type's front/back "
+                    + "field selection (not the notes). Owner-only; drives the flashcard display and the "
+                    + "quiz's default fields. Returns the refreshed deck contents.")
+    public DeckContentsResponse setDeckLayout(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId,
+            @Valid @RequestBody SetDeckLayoutRequest request
+    ) {
+        return deckService.setDeckLayout(jwt.getSubject(), deckId, request.noteTypes());
+    }
+
+    @PatchMapping("/{deckId}/share")
+    @Operation(summary = "Turn a deck's public share link on or off",
+            description = "While shared, anyone holding /shared/{deckId} can preview the deck "
+                    + "and clone it into their own account. The owner's deck and progress are "
+                    + "never modified by a clone. Off by default.")
+    public DeckResponse setDeckSharing(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId,
+            @Valid @RequestBody ShareDeckRequest request
+    ) {
+        return deckService.setDeckSharing(jwt.getSubject(), deckId, request.isPublic());
+    }
+
+    @PostMapping("/{deckId}/clone")
+    @Operation(summary = "Copy a shared deck into the caller's account",
+            description = "Creates an independent deck with its own notes — and therefore its own "
+                    + "progress. No card stats are copied. Allowed when the source is shared, or "
+                    + "when the caller already owns it (a plain duplicate); otherwise 404.")
+    public ResponseEntity<DeckResponse> cloneDeck(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId
+    ) {
+        DeckResponse body = deckService.cloneDeck(Caller.from(jwt), deckId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(body);
+    }
+
+    @GetMapping("/{deckId}/copies")
+    @Operation(summary = "How many copies people have taken of this deck")
+    public Map<String, Long> countCopies(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId
+    ) {
+        return Map.of("copies", deckService.countCopies(jwt.getSubject(), deckId));
     }
 
     @DeleteMapping("/{deckId}")

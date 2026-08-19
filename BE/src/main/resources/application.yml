@@ -92,8 +92,14 @@ avatar:
 
 media:
   gc:
-    # Orphan-media garbage collection (admin: GET /api/v1/admin/media/orphans dry run,
-    # POST /api/v1/admin/media/gc to delete — safe to drive from an external cron).
+    # Orphan-media garbage collection. Runs automatically on a schedule when enabled
+    # (default OFF — turn on only after the read-only dry run
+    # GET /api/v1/admin/media/orphans looks right on the live DB). Still callable
+    # manually: GET /orphans (dry run) and POST /gc (delete); an external cron can
+    # drive POST /gc too — its request also wakes a sleeping free-tier instance.
+    enabled: ${MEDIA_GC_ENABLED:false}
+    # Sweep schedule when enabled (Spring cron, UTC). Default: daily at 03:30.
+    cron: ${MEDIA_GC_CRON:0 30 3 * * *}
     # An object is reclaimable only when NO note references its hash AND it is older
     # than grace-days: the window protects media uploaded moments before its note is
     # saved (mid-import) from being reaped. Bounded per run so a large backlog clears

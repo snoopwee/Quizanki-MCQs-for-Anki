@@ -22,6 +22,11 @@ import { ApkgMedia } from "@/lib/apkgMedia";
 import { basicRow, type EditorState } from "@/lib/deckEditor";
 import { clearDraft, describeAge, loadDraft, saveDraft } from "@/lib/draftStore";
 import { parsePlainText, type ParsedPair } from "@/lib/parsePlainText";
+import {
+  APP_MSG_SOURCE,
+  isExtensionImportMessage,
+  normalizePairs,
+} from "@/lib/extensionImport";
 import type { ApkgParseResponse } from "@/types/api";
 
 // /import is "bring in a deck, look it over, then save it". Importing used to
@@ -167,6 +172,37 @@ function ImportFlow() {
       null,
     );
   }
+
+  // Hand-off from the browser extension (quizlet.com / knowt.com → here). The
+  // extension opens `/import?from=extension`; its content script on our origin
+  // posts the extracted {front,back} pairs once we signal we're listening. We feed
+  // them into the SAME review path as a text paste. A ref keeps the effect's deps
+  // empty while still calling the latest handlePasted (stable setters, but no
+  // stale closure). Accept only same-origin, same-window, well-formed messages.
+  const handlePastedRef = useRef(handlePasted);
+  handlePastedRef.current = handlePasted;
+  const extHandledRef = useRef(false);
+  useEffect(() => {
+    if (params.get("from") !== "extension") return;
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin || e.source !== window) return;
+      if (!isExtensionImportMessage(e.data)) return;
+      // The extension posts once immediately and again on our "ready" ping to beat
+      // the mount race — handle only the first that arrives.
+      if (extHandledRef.current) return;
+      const pairs = normalizePairs(e.data.pairs);
+      if (pairs.length === 0) return;
+      extHandledRef.current = true;
+      handlePastedRef.current(e.data.name?.trim() || "Imported set", pairs);
+    };
+    window.addEventListener("message", onMessage);
+    // Tell the extension's on-page content script we're mounted and listening, so
+    // it posts the pairs now (avoids a race where it posts before we're ready).
+    window.postMessage({ source: APP_MSG_SOURCE, type: "ready" }, window.location.origin);
+    return () => window.removeEventListener("message", onMessage);
+    // Empty deps: setters are stable and handlePasted is read via the ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleSave() {
     if (!draft) return;

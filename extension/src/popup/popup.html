@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      :root { color-scheme: light; }
+      body {
+        font: 13px system-ui, sans-serif;
+        width: 360px;
+        margin: 0;
+        color: #2a2114;
+        background: #fffdf6;
+      }
+      header {
+        padding: 13px 15px;
+        border-bottom: 1px solid #e6dcc6;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .title { font-weight: 700; font-size: 14px; }
+      .gear {
+        border: none; background: transparent; cursor: pointer; font-size: 16px; padding: 2px 4px;
+        color: #6e6350;
+      }
+      .status { padding: 12px 15px; color: #574d3a; line-height: 1.5; }
+      .setname { font-weight: 600; color: #2a2114; }
+      .list { max-height: 360px; overflow-y: auto; border-top: 1px solid #f0e9d8; }
+      .row {
+        display: grid; grid-template-columns: 26px 1fr 1fr; gap: 8px;
+        padding: 7px 15px; border-bottom: 1px solid #f0e9d8; align-items: start;
+      }
+      .num { color: #9c907a; font-variant-numeric: tabular-nums; }
+      .front { font-weight: 600; word-break: break-word; }
+      .back { color: #574d3a; word-break: break-word; }
+      em { color: #9c907a; }
+      footer { padding: 12px 15px; border-top: 1px solid #e6dcc6; }
+      .note { color: #6e6350; font-size: 12px; margin-bottom: 8px; }
+      button.import {
+        width: 100%; padding: 10px; border: none; border-radius: 9px;
+        background: #d97757; color: #fff; font: 600 14px system-ui; cursor: pointer;
+      }
+      button.import:disabled { opacity: .55; cursor: default; }
+      /* settings */
+      .settings { padding: 12px 15px; border-top: 1px solid #e6dcc6; background: #f7f2e6; }
+      .settings[hidden] { display: none; }
+      label { display: block; font-weight: 600; margin-bottom: 4px; }
+      input {
+        width: 100%; box-sizing: border-box; padding: 7px 9px;
+        border: 1px solid #d4c7ab; border-radius: 8px; font: inherit;
+      }
+      .hint { font-size: 12px; color: #6e6350; margin-top: 4px; }
+      .save { margin-top: 8px; padding: 7px 12px; border: none; border-radius: 8px;
+        background: #2a2114; color: #fff; font: 600 13px system-ui; cursor: pointer; }
+      .saved { color: #2f8f6f; font-weight: 600; margin-left: 8px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span class="title">Import to Quizanki</span>
+      <button class="gear" id="gear" title="Settings">⚙</button>
+    </header>
+
+    <div class="settings" id="settings" hidden>
+      <label for="appUrl">Quizanki address</label>
+      <input id="appUrl" type="url" placeholder="http://localhost:3000" />
+      <div class="hint">Your site URL in production, or localhost while testing.</div>
+      <button class="save" id="save">Save</button><span class="saved" id="saved"></span>
+    </div>
+
+    <div class="status" id="status">Scanning…</div>
+    <div class="list" id="list"></div>
+
+    <footer id="footer" hidden>
+      <div class="note">Text only for now — images &amp; audio coming soon.</div>
+      <button class="import" id="import"></button>
+    </footer>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

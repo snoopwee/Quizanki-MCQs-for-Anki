@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Import to Quizanki",
+  "version": "0.1.0",
+  "description": "Import a Quizlet or Knowt flashcard set into Quizanki — reads the cards shown on the page and opens them in Quizanki's review-and-save screen.",
+  "permissions": ["scripting", "storage", "tabs"],
+  "host_permissions": [
+    "https://quizlet.com/*",
+    "https://knowt.com/*",
+    "http://localhost:3000/*",
+    "https://*.vercel.app/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://quizlet.com/*", "https://knowt.com/*"],
+      "js": ["src/content/extract.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": { "default_popup": "src/popup/popup.html", "default_title": "Import to Quizanki" }
+}

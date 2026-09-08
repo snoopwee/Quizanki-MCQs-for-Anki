@@ -569,9 +569,6 @@ export function FlashcardViewer({
     const faceText = isBack ? card!.back : card!.front;
     const faceImage = isBack ? card!.backImageUrl : card!.frontImageUrl;
     const faceAudio = isBack ? backFaceAudio : frontFaceAudio;
-    // A listening card's face is audio-only (its front template is "Listen.
-    // {{Audio}}") — show the audio player in place of an empty face.
-    const audioOnly = faceText.length === 0 && !faceImage && Boolean(faceAudio);
     return (
       <div
         inert={hidden}
@@ -597,10 +594,13 @@ export function FlashcardViewer({
                 className="mx-auto max-h-48 max-w-full rounded-input object-contain"
               />
             )}
-            {audioOnly ? (
-              // Full audio player (scrubber, duration, volume) — a tap on it must
-              // not flip the card.
-              <div className="flex justify-center py-4" onClick={(e) => e.stopPropagation()}>
+            {faceText.length > 0 && <Lines values={faceText} className="text-4xl font-medium" />}
+            {/* A dedicated audio player for any face that carries an imported clip —
+                so a listening deck plays like one (Anki shows a ▶ on the card), even
+                when the face also has text/image. Scrubber + duration + volume; a tap
+                on it must not flip the card. Audio-only faces just show the player. */}
+            {faceAudio && (
+              <div className="flex justify-center py-2" onClick={(e) => e.stopPropagation()}>
                 <audio
                   controls
                   preload="none"
@@ -608,8 +608,6 @@ export function FlashcardViewer({
                   className="h-11 w-full max-w-sm"
                 />
               </div>
-            ) : (
-              <Lines values={faceText} className="text-4xl font-medium" />
             )}
           </div>
         </div>
@@ -621,15 +619,14 @@ export function FlashcardViewer({
           className="absolute right-3 top-3 z-10 flex items-center gap-0.5"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Audio-only faces show the full <audio> player in the centre, so the
-              top-right speaker would be a duplicate — skip it there. */}
-          {!audioOnly && (speechOn || faceAudio) && (
+          {/* A face with an imported clip shows its own player in the body (above),
+              so the corner speaker is TTS only — offered when there's no recording. */}
+          {!faceAudio && speechOn && (
             <SpeakButton
               id={`card-face-${side}`}
               text={isBack ? backText : frontText}
               size="md"
               lang={isBack ? backFaceLang : frontFaceLang}
-              audioUrl={faceAudio || undefined}
             />
           )}
           {canEdit && noteIndex.has(card!.id) && (

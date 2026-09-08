@@ -8,6 +8,7 @@ import com.github.luben.zstd.ZstdOutputStream;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -19,10 +20,12 @@ import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -76,6 +79,89 @@ class ApkgParserServiceTest {
         // Front/back derived from the card template (qfmt/afmt).
         assertEquals(List.of("Front"), type.frontFields());
         assertEquals(List.of("Back"), type.backFields());
+        // Every field a template renders (both are on the one card template).
+        assertEquals(List.of("Front", "Back"), type.templateFields());
+    }
+
+    @Test
+    void templateFields_unionAcrossTemplates_excludesMetadataFields() throws Exception {
+        // iKnow-style model: 7 fields, but the templates only render 5 of them —
+        // Reading via a {{furigana:...}} filter, Image_URI via a {{#...}} conditional.
+        // iKnowID / iKnowType appear in NO template → metadata → not in templateFields.
+        String model = """
+                {"999":{"id":999,"name":"iKnow! Vocabulary","type":0,
+                  "flds":[{"name":"Expression","ord":0},{"name":"Meaning","ord":1},
+                          {"name":"Reading","ord":2},{"name":"Audio","ord":3},
+                          {"name":"Image_URI","ord":4},{"name":"iKnowID","ord":5},
+                          {"name":"iKnowType","ord":6}],
+                  "tmpls":[
+                    {"name":"Listening","ord":0,"qfmt":"{{Audio}}",
+                     "afmt":"{{Expression}}{{furigana:Reading}}{{Meaning}}{{#Image_URI}}{{Image_URI}}{{/Image_URI}}"},
+                    {"name":"Production","ord":1,"qfmt":"{{Meaning}}","afmt":"{{Expression}}{{Audio}}"}
+                  ]}}
+                """;
+        byte[] bytes = buildApkg("collection.anki2", model,
+                List.of(new NoteRow(999L, "",
+                        flds("見る", "to look", "みる", "[sound:a.mp3]", "", "42", "vocab"))));
+
+        ApkgNotesResponse resp = service.parseNotes(apkg("deck.apkg", bytes));
+        NoteTypeNotes type = resp.noteTypes().get(0);
+
+        assertEquals(
+                java.util.Set.of("Audio", "Expression", "Reading", "Meaning", "Image_URI"),
+                new java.util.HashSet<>(type.templateFields()));
+        assertFalse(type.templateFields().contains("iKnowID"));
+        assertFalse(type.templateFields().contains("iKnowType"));
+    }
+
+    @Test
+    void collectionPriority_prefersNewestFormat() {
+        assertTrue(ApkgParserService.collectionPriority("collection.anki21b")
+                > ApkgParserService.collectionPriority("collection.anki21"));
+        assertTrue(ApkgParserService.collectionPriority("collection.anki21")
+                > ApkgParserService.collectionPriority("collection.anki2"));
+    }
+
+    @Test
+    void readsRealAnki21_notThePlaceholderAnki2() throws Exception {
+        // Newer Anki puts the real deck in collection.anki21 and leaves a placeholder
+        // collection.anki2 ("Please update…") — often AFTER it in the zip, which used
+        // to overwrite the real data. We must read the .anki21 collection instead.
+        byte[] realDb = collectionEntry(
+                buildApkg("collection.anki21", BASIC_MODEL,
+                        List.of(new NoteRow(1607392319L, "", flds("本", "book")))),
+                "collection.anki21");
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            zos.putNextEntry(new ZipEntry("collection.anki21"));
+            zos.write(realDb);
+            zos.closeEntry();
+            // Placeholder AFTER the real collection — the exact ordering that broke it.
+            zos.putNextEntry(new ZipEntry("collection.anki2"));
+            zos.write("not a real anki collection".getBytes(StandardCharsets.UTF_8));
+            zos.closeEntry();
+            zos.putNextEntry(new ZipEntry("media"));
+            zos.write("{}".getBytes(StandardCharsets.UTF_8));
+            zos.closeEntry();
+        }
+
+        ApkgNotesResponse resp = service.parseNotes(apkg("deck.apkg", baos.toByteArray()));
+        assertEquals(1, resp.totalNotes());
+        assertEquals("本", resp.noteTypes().get(0).notes().get(0).fields().get("Front"));
+    }
+
+    /** Pulls one entry's bytes out of a built .apkg zip (for two-collection fixtures). */
+    private static byte[] collectionEntry(byte[] apkgZip, String name) throws Exception {
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(apkgZip))) {
+            ZipEntry e;
+            while ((e = zip.getNextEntry()) != null) {
+                if (e.getName().equals(name)) {
+                    return zip.readAllBytes();
+                }
+            }
+        }
+        throw new IllegalStateException("entry not found: " + name);
     }
 
     @Test

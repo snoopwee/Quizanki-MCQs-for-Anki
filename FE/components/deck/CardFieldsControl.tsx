@@ -1,6 +1,6 @@
 "use client";
 
-import { extraFields, isFieldShown, withExtraField } from "@/lib/cardFields";
+import { extraFields, isFieldShown, mergeIdenticalNoteTypes, withExtraField } from "@/lib/cardFields";
 
 // One note type's field layout, in the shape both the deck page (from deck
 // contents) and the edit page (from its layout state) can supply.
@@ -27,7 +27,9 @@ export function CardFieldsControl({
   disabled?: boolean;
   onChange: (typeId: string, next: { frontFields: string[]; backFields: string[] }) => void;
 }) {
-  const withExtras = noteTypes.filter(
+  // Collapse structurally-identical note types (e.g. two "Basic" models from one
+  // import) into a single row; a toggle then applies to every id it covers.
+  const withExtras = mergeIdenticalNoteTypes(noteTypes).filter(
     (nt) => !nt.cloze && extraFields(nt.fieldNames, nt.frontFields, nt.backFields).length > 0,
   );
   if (withExtras.length === 0) return null;
@@ -37,9 +39,9 @@ export function CardFieldsControl({
       {withExtras.map((nt) => {
         const extras = extraFields(nt.fieldNames, nt.frontFields, nt.backFields);
         return (
-          <div key={nt.id} className="space-y-2">
+          <div key={nt.ids.join(",")} className="space-y-2">
             {withExtras.length > 1 && (
-              <div className="font-mono text-xs font-medium text-muted">{nt.name}</div>
+              <div className="font-mono text-xs font-medium text-muted">{nt.name || "Cards"}</div>
             )}
             <p className="text-xs text-muted">
               Always shown:{" "}
@@ -59,12 +61,13 @@ export function CardFieldsControl({
                     type="checkbox"
                     checked={isFieldShown(f, nt.backFields)}
                     disabled={disabled}
-                    onChange={(e) =>
-                      onChange(
-                        nt.id,
-                        withExtraField(f, nt.fieldNames, nt.frontFields, nt.backFields, e.target.checked),
-                      )
-                    }
+                    onChange={(e) => {
+                      const next = withExtraField(
+                        f, nt.fieldNames, nt.frontFields, nt.backFields, e.target.checked,
+                      );
+                      // Apply to every note type this merged row stands for.
+                      nt.ids.forEach((id) => onChange(id, next));
+                    }}
                     className="h-4 w-4 accent-[var(--accent)]"
                   />
                   <span className="font-medium">{f}</span>

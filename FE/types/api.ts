@@ -159,6 +159,8 @@ export interface NoteTypeRequest {
   fieldNames: string[];
   frontFields: string[];
   backFields: string[];
+  // Fields any card template renders (what Anki shows); omitted/[] = show every field.
+  templateFields?: string[];
   notes: NoteRequest[];
 }
 
@@ -238,6 +240,9 @@ export interface ApkgNoteType {
   // modern decks); the client then falls back to its detection heuristic.
   frontFields: string[];
   backFields: string[];
+  // Fields any card template renders (what Anki shows); omitted/[] when no template
+  // info. Fields not in this set are metadata the editor hides by default.
+  templateFields?: string[];
   noteCount: number;
   notes: ApkgParsedNote[];
 }
@@ -287,6 +292,9 @@ export interface DeckContentsNoteType {
   fieldNames: string[];
   frontFields: string[];
   backFields: string[];
+  // Fields any card template renders (what Anki shows); omitted/[] for
+  // pre-V19/template-less decks. Fields not in it are metadata hidden by default.
+  templateFields?: string[];
   noteCount: number;
   notes: DeckContentsNote[];
 }

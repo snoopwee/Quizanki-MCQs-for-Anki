@@ -3,6 +3,7 @@ import {
   extraFields,
   hasExtraFields,
   isFieldShown,
+  mergeIdenticalNoteTypes,
   withExtraField,
 } from "@/lib/cardFields";
 
@@ -36,6 +37,25 @@ describe("cardFields", () => {
   it("removes an extra without dropping the primary definition", () => {
     const next = withExtraField("Reading", FIELDS, FRONT, ["Meaning", "Reading"], false);
     expect(next.backFields).toEqual(["Meaning"]);
+  });
+
+  describe("mergeIdenticalNoteTypes", () => {
+    it("collapses structurally-identical note types into one, keeping all ids", () => {
+      const a = { id: "t1", name: "Basic", fieldNames: FIELDS, frontFields: FRONT, backFields: BACK };
+      const b = { id: "t2", name: "Basic", fieldNames: FIELDS, frontFields: FRONT, backFields: BACK };
+      const merged = mergeIdenticalNoteTypes([a, b]);
+      expect(merged).toHaveLength(1);
+      expect(merged[0].ids).toEqual(["t1", "t2"]);
+      expect(merged[0].fieldNames).toEqual(FIELDS);
+    });
+
+    it("keeps note types that differ in fields or layout separate", () => {
+      const a = { id: "t1", name: "Basic", fieldNames: FIELDS, frontFields: FRONT, backFields: BACK };
+      const c = { id: "t3", name: "Other", fieldNames: ["Front", "Back"], frontFields: ["Front"], backFields: ["Back"] };
+      const d = { id: "t4", name: "Basic", fieldNames: FIELDS, frontFields: FRONT, backFields: ["Reading"] };
+      const merged = mergeIdenticalNoteTypes([a, c, d]);
+      expect(merged.map((m) => m.ids)).toEqual([["t1"], ["t3"], ["t4"]]);
+    });
   });
 
   it("reports whether any note type has a toggleable field", () => {

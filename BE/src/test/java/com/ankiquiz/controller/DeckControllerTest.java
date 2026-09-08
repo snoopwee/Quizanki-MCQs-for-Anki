@@ -77,7 +77,7 @@ class DeckControllerTest {
     private static NoteTypeRequest noteType(String name, NoteRequest... notes) {
         return new NoteTypeRequest(
                 1234567890L, name, false,
-                List.of("Front", "Back"), List.of("Front"), List.of("Back"),
+                List.of("Front", "Back"), List.of("Front"), List.of("Back"), List.of("Front", "Back"),
                 List.of(notes)
         );
     }

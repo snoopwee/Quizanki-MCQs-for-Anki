@@ -53,6 +53,9 @@ public record DeckContentsResponse(
             List<String> fieldNames,
             List<String> frontFields,
             List<String> backFields,
+            // Fields any card template renders (what Anki shows); fields in none are
+            // metadata the editor hides by default. Empty for pre-V19 / template-less decks.
+            List<String> templateFields,
             int noteCount,
             List<NoteContents> notes
     ) {

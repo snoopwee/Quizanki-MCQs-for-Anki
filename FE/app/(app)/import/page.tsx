@@ -13,13 +13,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ApkgUploader } from "@/components/deck/ApkgUploader";
 import { DeckReviewEditor } from "@/components/deck/DeckReviewEditor";
 import { Spinner } from "@/components/ui/Spinner";
+import { Icon } from "@/components/ui/icons";
 import { ConfirmLeaveModal } from "@/components/shared/ConfirmLeaveModal";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { useImportContext } from "@/components/import/ImportProvider";
 import { fromParsed } from "@/lib/deckDraft";
 import { buildAudioRefs, type AudioRef } from "@/lib/cardAudioImport";
 import { ApkgMedia } from "@/lib/apkgMedia";
-import { basicRow, type EditorState } from "@/lib/deckEditor";
+import { addBasicRow, basicRow, type EditorState } from "@/lib/deckEditor";
 import { clearDraft, describeAge, loadDraft, saveDraft } from "@/lib/draftStore";
 import { parsePlainText, type ParsedPair } from "@/lib/parsePlainText";
 import {
@@ -41,7 +42,7 @@ type Step =
   | { kind: "import" }
   | { kind: "review" };
 
-type Source = "file" | "text";
+type Source = "file" | "text" | "scratch";
 
 const AUTOSAVE_DELAY_MS = 600;
 
@@ -173,6 +174,21 @@ function ImportFlow() {
     );
   }
 
+  // Build a deck by hand: start with a few blank cards and drop straight into the
+  // same review editor the imports use, then Save through the same path.
+  function handleCreateScratch() {
+    setApkgFile(null);
+    setAudioRefs([]);
+    startDraft(
+      () => ({
+        name: "Untitled deck",
+        rows: [addBasicRow(), addBasicRow(), addBasicRow()],
+        layoutByType: {},
+      }),
+      null,
+    );
+  }
+
   // Hand-off from the browser extension (quizlet.com / knowt.com → here). The
   // extension opens `/import?from=extension`; its content script on our origin
   // posts the extracted {front,back} pairs once we signal we're listening. We feed
@@ -236,7 +252,7 @@ function ImportFlow() {
   );
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-3xl">
       {step.kind === "import" && isPreparing && <PreparingPanel />}
 
       {step.kind === "import" && !isPreparing && (
@@ -257,10 +273,12 @@ function ImportFlow() {
           <div className="inline-flex rounded-input border border-line bg-surface p-0.5 text-sm">
             <SourceTab label="Upload .apkg" active={source === "file"} onClick={() => setSource("file")} />
             <SourceTab label="Paste text" active={source === "text"} onClick={() => setSource("text")} />
+            <SourceTab label="Create from scratch" active={source === "scratch"} onClick={() => setSource("scratch")} />
           </div>
 
           {source === "file" && <ApkgUploader onContinue={handleParsed} />}
           {source === "text" && <PasteTextImport onImport={handlePasted} />}
+          {source === "scratch" && <CreateScratchPanel onStart={handleCreateScratch} />}
         </div>
       )}
 
@@ -368,6 +386,29 @@ function SourceTab({
     >
       {label}
     </button>
+  );
+}
+
+// Build a deck by hand — no import. Starts a blank draft in the same review editor
+// the imports use, so hand-made and imported decks are edited identically.
+function CreateScratchPanel({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="space-y-4 rounded-card border border-line bg-surface p-6 text-center">
+      <div className="space-y-1">
+        <h2 className="font-display text-lg font-semibold tracking-tight">Create a deck from scratch</h2>
+        <p className="mx-auto max-w-sm text-sm text-muted">
+          Start with a few blank cards and fill in the term, definition, and any images or audio
+          yourself — then save it like any other deck.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onStart}
+        className="focus-ring inline-flex items-center gap-2 rounded-input bg-accent px-4 py-2 text-sm font-semibold text-white shadow-btn transition hover:opacity-95"
+      >
+        <Icon name="plus" size={16} /> Start a blank deck
+      </button>
+    </div>
   );
 }
 

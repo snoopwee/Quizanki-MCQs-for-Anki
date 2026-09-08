@@ -49,6 +49,7 @@ function rowsForNoteType(nt: ApkgNoteType, index: number): EditorRow[] {
     fieldNames: nt.fieldNames,
     frontFields,
     backFields,
+    templateFields: nt.templateFields ?? [],
     fields: { ...note.fields },
     tags: [...note.tags],
     frontLang: note.frontLang ?? "",
@@ -94,6 +95,7 @@ function basicNoteType(notes: NoteRequest[]): ImportDeckRequest["noteTypes"][num
     fieldNames: ["Front", "Back"],
     frontFields: ["Front"],
     backFields: ["Back"],
+    templateFields: [],
     notes,
   };
 }
@@ -147,6 +149,7 @@ export function draftToImportRequest(
       fieldNames: first.fieldNames,
       frontFields: layout?.frontFields ?? first.frontFields,
       backFields: layout?.backFields ?? first.backFields,
+      templateFields: first.templateFields,
       notes,
     };
   });

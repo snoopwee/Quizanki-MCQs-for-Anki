@@ -8,6 +8,8 @@ import {
   groupFields,
   fromContents,
   isBlankRow,
+  metadataFieldsByType,
+  mergeHiddenFields,
   move,
   rowMatches,
   swapAllValues,
@@ -346,5 +348,44 @@ describe("groupFields", () => {
     expect(groups.term).toEqual(["B"]);
     expect(groups.definition).toEqual(["A"]);
     expect(groups.other).toEqual(["C"]);
+  });
+});
+
+describe("metadataFieldsByType", () => {
+  const row = (noteTypeId: string, fieldNames: string[], templateFields: string[]): EditorRow => ({
+    ...basicRow("", ""),
+    noteTypeId,
+    fieldNames,
+    templateFields,
+  });
+
+  it("flags fields no template renders as metadata, keyed by note type", () => {
+    const rows = [
+      row("t1", ["Expression", "Meaning", "iKnowID", "iKnowType"], ["Expression", "Meaning"]),
+    ];
+    expect([...(metadataFieldsByType(rows).get("t1") ?? [])]).toEqual(["iKnowID", "iKnowType"]);
+  });
+
+  it("hides nothing when a note type has no template info (empty templateFields)", () => {
+    const rows = [row("t1", ["Front", "Back", "Extra"], [])];
+    expect(metadataFieldsByType(rows).get("t1")?.size).toBe(0);
+  });
+
+  it("keys manual/null note types under the empty string", () => {
+    const rows = [{ ...basicRow("a", "b"), templateFields: [] }];
+    expect(metadataFieldsByType(rows).get("")?.size).toBe(0);
+  });
+});
+
+describe("mergeHiddenFields", () => {
+  it("unions two per-type hidden maps", () => {
+    const a = new Map([["t1", new Set(["Audio"])]]);
+    const b = new Map([
+      ["t1", new Set(["iKnowID"])],
+      ["t2", new Set(["X"])],
+    ]);
+    const merged = mergeHiddenFields(a, b);
+    expect([...(merged.get("t1") ?? [])].sort()).toEqual(["Audio", "iKnowID"]);
+    expect([...(merged.get("t2") ?? [])]).toEqual(["X"]);
   });
 });

@@ -23,6 +23,10 @@ export interface EditorRow {
   fieldNames: string[];
   frontFields: string[];
   backFields: string[];
+  // Fields any of this note type's card templates renders (what Anki shows). Fields
+  // in none are metadata the editor hides by default. [] = show every field (a
+  // manual deck, or a pre-V19 / template-less import).
+  templateFields: string[];
   fields: Record<string, string>;
   tags: string[];
   // Per-face TTS language override (BCP-47 primary subtag); "" = inherit the deck
@@ -83,6 +87,7 @@ export function fromContents(contents: DeckContentsResponse): EditorState {
         fieldNames: nt.fieldNames,
         frontFields: nt.frontFields,
         backFields: nt.backFields,
+        templateFields: nt.templateFields ?? [],
         fields: { ...note.fields },
         tags: [...note.tags],
         frontLang: note.frontLang ?? "",
@@ -227,6 +232,7 @@ function rowWithId(
     fieldNames: ["Front", "Back"],
     frontFields: ["Front"],
     backFields: ["Back"],
+    templateFields: [], // manual Basic card — no hidden metadata, show both fields
     fields: { Front: front, Back: back },
     tags: [...tags],
     frontLang,
@@ -273,6 +279,43 @@ export function emptyFieldsByType(rows: EditorRow[]): Map<string, Set<string>> {
     result.set(key, empty);
   }
   return result;
+}
+
+// Metadata fields: those a note type's card templates never render (e.g. iKnowID /
+// iKnowType). Anki hides them, so the editor does too — by default, overridably.
+// Keyed by note type ("" for the manual/Basic bucket). Only applied when the type
+// HAS template info (templateFields non-empty); an empty set means "no template
+// info" → hide nothing (show every field, as before). Never deletes data.
+export function metadataFieldsByType(rows: EditorRow[]): Map<string, Set<string>> {
+  const result = new Map<string, Set<string>>();
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const key = row.noteTypeId ?? "";
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const meta = new Set<string>();
+    if (row.templateFields.length > 0) {
+      const shown = new Set(row.templateFields);
+      for (const field of row.fieldNames) {
+        if (!shown.has(field)) meta.add(field);
+      }
+    }
+    result.set(key, meta);
+  }
+  return result;
+}
+
+// Union two per-note-type hidden-field maps (empty-media + metadata) into one, so
+// the editor hides a field that either rule flags. Keyed by note type.
+export function mergeHiddenFields(
+  a: Map<string, Set<string>>,
+  b: Map<string, Set<string>>,
+): Map<string, Set<string>> {
+  const merged = new Map<string, Set<string>>();
+  for (const key of new Set([...a.keys(), ...b.keys()])) {
+    merged.set(key, new Set([...(a.get(key) ?? []), ...(b.get(key) ?? [])]));
+  }
+  return merged;
 }
 
 // Split a note type's fields into the card's Term (front) side, its Definition

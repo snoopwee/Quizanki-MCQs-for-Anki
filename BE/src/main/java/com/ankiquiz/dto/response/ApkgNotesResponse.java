@@ -44,6 +44,9 @@ public record ApkgNotesResponse(
             List<String> fieldNames,
             List<String> frontFields,
             List<String> backFields,
+            // Fields any card template renders (what Anki shows). Fields in none are
+            // metadata the client hides by default. Empty for modern/template-less decks.
+            List<String> templateFields,
             int noteCount,
             List<ParsedNote> notes
     ) {

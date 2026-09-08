@@ -8,12 +8,16 @@ import { CardAudioSlot } from "@/components/deck/CardAudioSlot";
 import { CardAudioPlayButton } from "@/components/deck/CardAudioPlayButton";
 
 // One card's editable body, shared by the saved-deck editor
-// (app/(app)/decks/[deckId]/edit) and the pre-save import review screen so the
-// two feel like the same tool. Each page keeps its own list/toolbar around it —
-// only the saved-deck editor has note ids, layout swaps and drag reorder.
+// (app/(app)/decks/[deckId]/edit), the pre-save import review screen, and the
+// create-from-scratch flow, so the three feel like the same tool. Each page keeps
+// its own list/toolbar around it — only the saved-deck editor has note ids, layout
+// swaps and drag reorder.
 //
-// Focusing a field reveals a "voice" (TTS language) menu for that side; an
-// already-set override stays visible so it's discoverable at a glance.
+// Layout: Term and Definition sit side by side as two columns, and EACH column
+// carries its own text field(s) plus its own media (image + audio) directly beneath
+// them — so a picture/clip visibly belongs to that side. Unrelated ("Other") fields
+// span full width below; cloze / no-sided cards fall back to a single flat column.
+// Focusing a field reveals a "voice" (TTS language) menu for that side.
 
 export interface EditableCardProps {
   row: EditorRow;
@@ -22,8 +26,7 @@ export interface EditableCardProps {
   onSwap: (key: string) => void;
   onDelete: (key: string) => void;
   onLang: (key: string, face: "front" | "back", code: string) => void;
-  // Set a face's image URL ("" clears it). When omitted, the image UI is hidden —
-  // e.g. the import-review screen, whose save path doesn't carry images yet.
+  // Set a face's image URL ("" clears it). When omitted, the image UI is hidden.
   onImage?: (key: string, face: "front" | "back", url: string) => void;
   // Set a face's audio URL ("" clears it). Hidden when omitted, same as onImage.
   onAudio?: (key: string, face: "front" | "back", url: string) => void;
@@ -44,53 +47,96 @@ export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, on
   const [activeField, setActiveField] = useState<string | null>(null);
 
   const visible = row.fieldNames.filter((f) => !hiddenFields?.has(f));
-  const { term, definition, other } = groupFields(visible, row.frontFields, row.backFields);
+  // A field shows only on the side it belongs to (Term / Definition). Anything not
+  // on either side isn't rendered on the card — extras join the definition via the
+  // "Fields shown on cards" control, which moves them onto the back side.
+  const { term, definition } = groupFields(visible, row.frontFields, row.backFields);
   // When the note type has no front/back layout (e.g. cloze), there's no term /
-  // definition split — render the fields flat instead of a lone "Other" group.
+  // definition split — render the fields flat instead of two columns.
   const hasSides = term.length > 0 || definition.length > 0;
+  const hasMedia = Boolean(onImage || onAudio || playAudio);
 
-  // One side/group: a small header (with the face's voice picker, revealed on
-  // focus or when set) then each field's textarea. A single-field term/definition
-  // group needs no per-field name — the header ("Term") already says which side it
-  // is; "other" fields and multi-field sides show their names to tell them apart.
-  const renderGroup = (label: string, fields: string[], face: "front" | "back" | null) => {
-    if (fields.length === 0) return null;
-    const showFieldNames = label === "" || face === null || fields.length > 1;
+  const fieldTextarea = (field: string, showName: boolean) => (
+    <div key={field} className="space-y-1">
+      {showName && (
+        <span className="font-mono text-xs font-medium text-muted">{fieldLabel(field)}</span>
+      )}
+      <textarea
+        value={row.fields[field] ?? ""}
+        onFocus={() => setActiveField(field)}
+        onChange={(e) => onField(row.key, field, e.target.value)}
+        rows={row.cloze ? 3 : 2}
+        className="nice-scroll focus-ring w-full cursor-text select-text resize-y rounded-input border border-line-strong bg-surface-2 px-3 py-1.5 text-sm text-ink outline-none"
+      />
+    </div>
+  );
+
+  // The image + audio controls for one face. Upload slots when the page passes the
+  // setters; otherwise the review-only Play button (clip not uploaded yet). Hidden
+  // entirely when the page wires no media at all.
+  const faceMedia = (face: "front" | "back") => {
+    if (!hasMedia) return null;
+    const imageUrl = face === "front" ? row.frontImageUrl : row.backImageUrl;
+    const audioUrl = face === "front" ? row.frontAudioUrl : row.backAudioUrl;
+    const playRef = playAudio ? playAudio[face] : null;
+    return (
+      <div className="space-y-2 border-t border-line pt-2.5">
+        {onImage && (
+          <CardImageSlot url={imageUrl} onChange={(url) => onImage(row.key, face, url)} />
+        )}
+        {/* An imported .apkg clip previews with a read-only Play button; otherwise
+            (paste / create-from-scratch, or a face with no imported clip) the upload
+            slot, when the page allows audio upload. */}
+        {playRef && playAudio ? (
+          <CardAudioPlayButton resolve={() => playAudio.resolve(playRef)} />
+        ) : onAudio ? (
+          <CardAudioSlot url={audioUrl} onChange={(url) => onAudio(row.key, face, url)} />
+        ) : null}
+      </div>
+    );
+  };
+
+  // One side as a column: header (label + voice picker, revealed on focus or when
+  // set), the side's text field(s), then that side's media. A single-field side
+  // needs no per-field name — the header already says which side it is.
+  const sideColumn = (label: string, fields: string[], face: "front" | "back") => {
+    const showFieldNames = fields.length > 1;
     const voiceShown =
-      face !== null &&
-      ((activeField !== null && fields.includes(activeField)) ||
-        (face === "front" && row.frontLang !== "") ||
-        (face === "back" && row.backLang !== ""));
+      (activeField !== null && fields.includes(activeField)) ||
+      (face === "front" && row.frontLang !== "") ||
+      (face === "back" && row.backLang !== "");
+    return (
+      <div className="space-y-1.5 rounded-input border border-line bg-surface-2/40 p-3">
+        <div className="flex min-h-[1.25rem] items-center justify-between gap-2">
+          <span className="font-mono text-[0.6875rem] font-semibold uppercase tracking-wide text-faint">
+            {label}
+          </span>
+          {voiceShown && (
+            <LangSelect
+              label={face === "front" ? "Term voice" : "Definition voice"}
+              value={face === "front" ? row.frontLang : row.backLang}
+              onChange={(code) => onLang(row.key, face, code)}
+            />
+          )}
+        </div>
+        {fields.map((field) => fieldTextarea(field, showFieldNames))}
+        {faceMedia(face)}
+      </div>
+    );
+  };
+
+  // "Other" (non-front/back) fields, or the flat fallback for cloze/no-sided cards.
+  // These have no side, so no per-side media.
+  const flatGroup = (label: string, fields: string[]) => {
+    if (fields.length === 0) return null;
     return (
       <div className="space-y-1.5">
         {label !== "" && (
-          <div className="flex min-h-[1.25rem] items-center justify-between gap-2">
-            <span className="font-mono text-[0.6875rem] font-semibold uppercase tracking-wide text-faint">
-              {label}
-            </span>
-            {voiceShown && face && (
-              <LangSelect
-                label={face === "front" ? "Term voice" : "Definition voice"}
-                value={face === "front" ? row.frontLang : row.backLang}
-                onChange={(code) => onLang(row.key, face, code)}
-              />
-            )}
-          </div>
+          <span className="font-mono text-[0.6875rem] font-semibold uppercase tracking-wide text-faint">
+            {label}
+          </span>
         )}
-        {fields.map((field) => (
-          <div key={field} className="space-y-1">
-            {showFieldNames && (
-              <span className="font-mono text-xs font-medium text-muted">{fieldLabel(field)}</span>
-            )}
-            <textarea
-              value={row.fields[field] ?? ""}
-              onFocus={() => setActiveField(field)}
-              onChange={(e) => onField(row.key, field, e.target.value)}
-              rows={row.cloze ? 3 : 2}
-              className="nice-scroll focus-ring w-full cursor-text select-text resize-y rounded-input border border-line-strong bg-surface-2 px-3 py-1.5 text-sm text-ink outline-none"
-            />
-          </div>
-        ))}
+        {fields.map((field) => fieldTextarea(field, true))}
       </div>
     );
   };
@@ -111,9 +157,7 @@ export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, on
           <IconBtn label="Delete card" danger onClick={() => onDelete(row.key)}>✕</IconBtn>
         </div>
       </div>
-      {/* Fields grouped by the side they sit on: Term (front), Definition (back),
-          then any unrelated fields on their own. Clearing activeField only when
-          focus leaves the whole card keeps the voice menu open while you pick. */}
+
       <div
         className="space-y-3"
         onBlur={(e) => {
@@ -122,83 +166,36 @@ export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, on
       >
         {hasSides ? (
           <>
-            {renderGroup("Term", term, "front")}
-            {renderGroup("Definition", definition, "back")}
-            {renderGroup("Other fields", other, null)}
+            {/* Term | Definition side by side, each with its own text + media. */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {sideColumn("Term", term, "front")}
+              {sideColumn("Definition", definition, "back")}
+            </div>
           </>
         ) : (
-          renderGroup("", visible, null)
+          <>
+            {flatGroup("", visible)}
+            {/* Cloze / no-sided cards still get their media, as a two-up row. */}
+            {hasMedia && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <span className="text-xs font-medium text-muted">Term</span>
+                  {faceMedia("front")}
+                </div>
+                <div className="space-y-2">
+                  <span className="text-xs font-medium text-muted">Definition</span>
+                  {faceMedia("back")}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
-
-      {/* Media lives in its own section — an image/audio belongs to the CARD's term
-          or definition side, not to whichever text field happened to hold the
-          <img>/[sound:] (e.g. an imported picture isn't part of "Expression"). */}
-      {(onImage || onAudio || playAudio) && (
-        <div className="mt-3 space-y-3 rounded-input border border-line bg-surface-2/40 p-3">
-          <span className="font-mono text-[0.6875rem] font-medium uppercase tracking-wide text-faint">
-            Media
-          </span>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FaceMedia
-              label="Term"
-              imageUrl={row.frontImageUrl}
-              audioUrl={row.frontAudioUrl}
-              onImage={onImage && ((url) => onImage(row.key, "front", url))}
-              onAudio={onAudio && ((url) => onAudio(row.key, "front", url))}
-              playRef={playAudio?.front ?? null}
-              resolve={playAudio?.resolve}
-            />
-            <FaceMedia
-              label="Definition"
-              imageUrl={row.backImageUrl}
-              audioUrl={row.backAudioUrl}
-              onImage={onImage && ((url) => onImage(row.key, "back", url))}
-              onAudio={onAudio && ((url) => onAudio(row.key, "back", url))}
-              playRef={playAudio?.back ?? null}
-              resolve={playAudio?.resolve}
-            />
-          </div>
-        </div>
-      )}
     </>
   );
 }
 
-// One side's media in the dedicated Media section: the image slot, plus either the
-// audio upload slot (saved-deck editor) or a read-only Play button (import review,
-// where the clip isn't uploaded yet).
-function FaceMedia({
-  label,
-  imageUrl,
-  audioUrl,
-  onImage,
-  onAudio,
-  playRef,
-  resolve,
-}: {
-  label: string;
-  imageUrl: string;
-  audioUrl: string;
-  onImage?: ((url: string) => void) | false;
-  onAudio?: ((url: string) => void) | false;
-  playRef: string | null;
-  resolve?: (filename: string) => Promise<string | null>;
-}) {
-  return (
-    <div className="space-y-2">
-      <span className="text-xs font-medium text-muted">{label}</span>
-      {onImage && <CardImageSlot url={imageUrl} onChange={onImage} />}
-      {onAudio ? (
-        <CardAudioSlot url={audioUrl} onChange={onAudio} />
-      ) : (
-        playRef && resolve && <CardAudioPlayButton resolve={() => resolve(playRef)} />
-      )}
-    </div>
-  );
-}
-
-// Compact per-face TTS-language picker shown on a field's label row. "" is
+// Compact per-face TTS-language picker shown on a side's header row. "" is
 // Auto-detect (inherit the deck default); any other value overrides this card.
 function LangSelect({
   label,

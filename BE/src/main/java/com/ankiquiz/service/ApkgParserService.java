@@ -159,6 +159,19 @@ public class ApkgParserService {
     private record ExtractedCollection(String name, Path dbFile, boolean zstd) {
     }
 
+    /**
+     * Preference among the collection files a .apkg may contain: the newest format
+     * wins. {@code collection.anki21b} (zstd) &gt; {@code .anki21} &gt; {@code .anki2}
+     * — the last being a legacy/placeholder copy for old Anki clients.
+     */
+    static int collectionPriority(String name) {
+        return switch (name) {
+            case "collection.anki21b" -> 3;
+            case "collection.anki21" -> 2;
+            default -> 1; // collection.anki2
+        };
+    }
+
     /** A field's position and name within a note type. */
     private record FieldRef(int ord, String name) {
     }
@@ -170,7 +183,7 @@ public class ApkgParserService {
      * when no template is available (modern decks).
      */
     private record NoteTypeInfo(long id, String name, boolean cloze, List<String> fieldNames,
-            List<String> frontFields, List<String> backFields) {
+            List<String> frontFields, List<String> backFields, List<String> templateFields) {
     }
 
     /** Extracts the collection and returns its notes grouped by note type. */
@@ -257,7 +270,7 @@ public class ApkgParserService {
                 List<ParsedNote> notes = notesByType.getOrDefault(type.id(), List.of());
                 out.add(new NoteTypeNotes(
                         type.id(), type.name(), type.cloze(), type.fieldNames(),
-                        type.frontFields(), type.backFields(),
+                        type.frontFields(), type.backFields(), type.templateFields(),
                         notes.size(), notes));
             }
             return new ApkgNotesResponse(
@@ -397,7 +410,17 @@ public class ApkgParserService {
                 // the front (afmt usually re-renders the front via {{FrontSide}}).
                 List<String> back = backAll.stream().filter(f -> !front.contains(f)).toList();
 
-                result.put(id, new NoteTypeInfo(id, name, cloze, fieldNames, front, back));
+                // Every field ANY of this note type's card templates renders — the set
+                // Anki actually shows. Fields in none of them (e.g. iKnowID) are metadata
+                // the client hides by default. Empty for modern decks (no template here).
+                LinkedHashSet<String> templateFields = new LinkedHashSet<>();
+                for (JsonNode tmpl : model.path("tmpls")) {
+                    templateFields.addAll(templateFieldRefs(tmpl.path("qfmt").asText(""), valid));
+                    templateFields.addAll(templateFieldRefs(tmpl.path("afmt").asText(""), valid));
+                }
+
+                result.put(id, new NoteTypeInfo(id, name, cloze, fieldNames, front, back,
+                        List.copyOf(templateFields)));
             }
         } catch (JsonProcessingException e) {
             throw new ApkgParseException("Could not parse note-type definitions (col.models JSON).", e);
@@ -433,7 +456,7 @@ public class ApkgParserService {
             // are left empty so the client falls back to its detection heuristic.
             result.put(e.getKey(), new NoteTypeInfo(e.getKey(), e.getValue(), false,
                     orderedNames(fieldsByType.getOrDefault(e.getKey(), List.of())),
-                    List.of(), List.of()));
+                    List.of(), List.of(), List.of()));
         }
         return result;
     }
@@ -530,7 +553,24 @@ public class ApkgParserService {
                 }
                 String name = entry.getName();
                 if (COLLECTION_NAMES.contains(name)) {
-                    collection = extractEntry(zip, name);
+                    // A .apkg can hold several collection files: newer Anki writes the
+                    // real data to collection.anki21b/.anki21 and leaves a PLACEHOLDER
+                    // collection.anki2 ("Please update to the latest Anki version…") for
+                    // old clients. Keep only the newest — otherwise the placeholder, if
+                    // it appears last, overwrites the real deck.
+                    if (collection == null
+                            || collectionPriority(name) > collectionPriority(collection.name())) {
+                        ExtractedCollection superseded = collection;
+                        collection = extractEntry(zip, name);
+                        if (superseded != null) {
+                            try {
+                                Files.deleteIfExists(superseded.dbFile());
+                            } catch (IOException ignore) {
+                                // best-effort temp cleanup; the finally in parseNotes also sweeps
+                            }
+                        }
+                    }
+                    // A lower-priority collection (the anki2 placeholder) is skipped.
                 } else if (MEDIA_MANIFEST.equals(name)) {
                     manifest = readEntryBounded(zip, MAX_MEDIA_MANIFEST_BYTES);
                 } else if (NUMBERED_ENTRY.matcher(name).matches() && buffered < MAX_MEDIA_BUFFER_BYTES) {

@@ -8,6 +8,8 @@ import { useDeckContents, useReplaceDeckContents } from "@/hooks/useDecks";
 import {
   addBasicRow,
   emptyFieldsByType,
+  metadataFieldsByType,
+  mergeHiddenFields,
   fromContents,
   rowMatches,
   swapAllValues,
@@ -19,9 +21,7 @@ import {
 import { ImportCardsModal, type ImportMode } from "@/components/deck/ImportCardsModal";
 import { EditableCard, type EditableCardProps } from "@/components/deck/EditableCard";
 import { CardFieldsControl, type FieldNoteType } from "@/components/deck/CardFieldsControl";
-import { FieldVisibilityModal } from "@/components/deck/FieldVisibilityModal";
 import { hasExtraFields } from "@/lib/cardFields";
-import { Icon } from "@/components/ui/icons";
 
 export default function DeckEditPage() {
   return (
@@ -115,10 +115,20 @@ function DeckEditor() {
   const addRow = () => patch((d) => ({ ...d, rows: [...d.rows, addBasicRow()] }));
   const handleImport = (rows: EditorRow[], mode: ImportMode) =>
     patch((d) => ({ ...d, rows: mode === "replace" ? rows : [...d.rows, ...rows] }));
-  // "Show / hide extra fields": update a note type's front/back field selection.
-  // Persisted with the deck on save (toPayload sends layoutByType).
+  // "Fields shown on cards": update a note type's front/back field selection AND
+  // every row of that type, so the card preview reflects the change immediately
+  // (EditableCard groups by each row's front/back fields). Persisted on save
+  // (toPayload sends layoutByType).
   const setLayout = (typeId: string, next: { frontFields: string[]; backFields: string[] }) =>
-    patch((d) => ({ ...d, layoutByType: { ...d.layoutByType, [typeId]: next } }));
+    patch((d) => ({
+      ...d,
+      layoutByType: { ...d.layoutByType, [typeId]: next },
+      rows: d.rows.map((r) =>
+        r.noteTypeId === typeId
+          ? { ...r, frontFields: next.frontFields, backFields: next.backFields }
+          : r,
+      ),
+    }));
 
   // Note types with their field names (static, from contents) + the draft's
   // current front/back selection — what the "Fields shown on cards" control edits.
@@ -134,34 +144,36 @@ function DeckEditor() {
     }));
   }, [contentsQuery.data, draft]);
 
-  // Field visibility: empty-across-the-type fields (media holders like "Audio"/
-  // "Image_URI") are hidden by default; the "Fields" modal lets the user override
-  // any of them. A view preference only — a hidden field still saves.
-  const [fieldsOpen, setFieldsOpen] = useState(false);
-  const [shownFields, setShownFields] = useState<Record<string, boolean>>({});
-  const autoEmpty = useMemo(
-    () => (draft ? emptyFieldsByType(draft.rows) : new Map<string, Set<string>>()),
+  // Fields hidden by default: empty media-holders (e.g. "Audio"/"Image_URI", shown
+  // as slots) + metadata a card template never renders (e.g. "iKnowID" — Anki hides
+  // it, so we do too). Nothing is deleted; "Show all fields" reveals everything.
+  const [showAllFields, setShowAllFields] = useState(false);
+  const naturallyHidden = useMemo(
+    () =>
+      draft
+        ? mergeHiddenFields(emptyFieldsByType(draft.rows), metadataFieldsByType(draft.rows))
+        : new Map<string, Set<string>>(),
     [draft],
   );
-  const isFieldVisible = (typeId: string, field: string) => {
-    const key = `${typeId}::${field}`;
-    return key in shownFields ? shownFields[key] : !autoEmpty.get(typeId)?.has(field);
-  };
-  const toggleField = (typeId: string, field: string) =>
-    setShownFields((s) => ({ ...s, [`${typeId}::${field}`]: !isFieldVisible(typeId, field) }));
-  const hiddenByType = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    for (const nt of fieldNoteTypes) {
-      const set = new Set<string>();
-      for (const f of nt.fieldNames) {
-        const key = `${nt.id}::${f}`;
-        const visible = key in shownFields ? shownFields[key] : !autoEmpty.get(nt.id)?.has(f);
-        if (!visible) set.add(f);
-      }
-      map.set(nt.id, set);
-    }
-    return map;
-  }, [fieldNoteTypes, autoEmpty, shownFields]);
+  const hasHiddenFields = useMemo(
+    () => [...naturallyHidden.values()].some((s) => s.size > 0),
+    [naturallyHidden],
+  );
+  const hiddenByType = useMemo(
+    () => (showAllFields ? new Map<string, Set<string>>() : naturallyHidden),
+    [showAllFields, naturallyHidden],
+  );
+
+  // For the "Fields shown on cards" control, drop hidden (metadata) fields so they
+  // aren't even offered as toggles — only real, template-rendered extras remain.
+  const controlNoteTypes = useMemo<FieldNoteType[]>(
+    () =>
+      fieldNoteTypes.map((nt) => ({
+        ...nt,
+        fieldNames: nt.fieldNames.filter((f) => !hiddenByType.get(nt.id)?.has(f)),
+      })),
+    [fieldNoteTypes, hiddenByType],
+  );
 
   // Live reorder from the drag list: motion hands back the new key order, so we
   // reshuffle the draft rows to match (row objects, with their edits, are kept).
@@ -222,15 +234,6 @@ function DeckEditor() {
         <div className="ml-auto flex gap-2">
           <button
             type="button"
-            onClick={() => setFieldsOpen(true)}
-            title="Choose which fields show while editing"
-            className="inline-flex items-center gap-1.5 rounded-input border border-line-strong bg-surface px-2.5 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent"
-          >
-            <Icon name="settings" size={15} />
-            <span className="hidden sm:inline">Fields</span>
-          </button>
-          <button
-            type="button"
             onClick={swapAll}
             aria-label="Swap term and definition for all cards"
             title="Swap the term and definition of all cards"
@@ -277,7 +280,7 @@ function DeckEditor() {
         />
       </label>
 
-      {hasExtraFields(fieldNoteTypes) && (
+      {(hasExtraFields(controlNoteTypes) || hasHiddenFields) && (
         <div className="space-y-3 rounded-card border border-line bg-surface p-4">
           <div>
             <h2 className="text-sm font-bold text-ink">Fields shown on cards</h2>
@@ -286,7 +289,18 @@ function DeckEditor() {
               definition side.
             </p>
           </div>
-          <CardFieldsControl noteTypes={fieldNoteTypes} onChange={setLayout} />
+          <CardFieldsControl noteTypes={controlNoteTypes} onChange={setLayout} />
+          {hasHiddenFields && (
+            <label className="flex cursor-pointer items-center gap-2 border-t border-line pt-3 text-xs text-muted">
+              <input
+                type="checkbox"
+                checked={showAllFields}
+                onChange={(e) => setShowAllFields(e.target.checked)}
+                className="h-4 w-4 accent-[var(--accent)]"
+              />
+              Show all fields (including ones Anki hides, like IDs)
+            </label>
+          )}
         </div>
       )}
 
@@ -373,15 +387,6 @@ function DeckEditor() {
 
       {importOpen && (
         <ImportCardsModal onClose={() => setImportOpen(false)} onImport={handleImport} />
-      )}
-
-      {fieldsOpen && (
-        <FieldVisibilityModal
-          noteTypes={fieldNoteTypes}
-          isVisible={isFieldVisible}
-          onToggle={toggleField}
-          onClose={() => setFieldsOpen(false)}
-        />
       )}
     </div>
   );

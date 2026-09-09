@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Modal } from "@/components/shared/Modal";
 import { fieldLabel } from "@/lib/deckEditor";
 import { useUpdateNote } from "@/hooks/useNotes";
@@ -15,6 +15,10 @@ export interface EditableNote {
   fieldNames: string[];
   frontFields: string[];
   backFields: string[];
+  // Fields folded into the per-side media slots (empty [sound:]/<img> holders) — not
+  // shown as text boxes, matching the deck editor. Off/unticked fields (on neither
+  // side) are hidden too. Both keep their stored value; only the UI omits them.
+  hiddenFields?: string[];
   fields: Record<string, string>;
   // Per-face TTS language override (BCP-47 primary subtag), or null to inherit
   // the deck default. Edited via the per-field "voice" selects below.
@@ -60,19 +64,32 @@ export function EditFlashcardModal({
   const audDirty = audFront !== (note.frontAudioUrl ?? "") || audBack !== (note.backAudioUrl ?? "");
   const dirty = fieldsDirty || langDirty || imgDirty || audDirty;
 
-  const frontField = note.frontFields[0];
-  const backField = note.backFields[0];
+  const folded = new Set(note.hiddenFields ?? []);
+  // Non-cloze cards render Term + Definition groups showing only the fields actually
+  // on the card (folded media holders + off/unticked fields omitted). Cloze /
+  // layout-less notes fall back to a flat list of their (non-folded) fields.
+  const visibleFront = note.frontFields.filter((f) => !folded.has(f));
+  const visibleBack = note.backFields.filter((f) => !folded.has(f));
+  const hasSides = !note.cloze && (visibleFront.length > 0 || visibleBack.length > 0);
+  const flatFields = note.cloze
+    ? note.fieldNames
+    : note.fieldNames.filter((f) => !folded.has(f));
+  // The flat fallback keeps the old per-field voice placement (term on the first
+  // field, definition on the second).
+  const flatTerm = flatFields[0];
+  const flatDef = flatFields.find((f) => f !== flatTerm) ?? flatTerm;
+
+  // Swap exchanges the primary visible term / definition field values.
+  const frontField = visibleFront[0];
+  const backField = visibleBack[0];
   const canSwap =
     !note.cloze && Boolean(frontField) && Boolean(backField) && frontField !== backField;
 
-  // Which field row carries the term (front) vs definition (back) language select.
-  // Falls back so both are always settable even for single-field / cloze notes.
-  const termField = frontField ?? note.fieldNames[0];
-  const defField =
-    backField ?? note.fieldNames.find((f) => f !== termField) ?? termField;
+  const setField = (field: string, value: string) =>
+    setValues((v) => ({ ...v, [field]: value }));
 
   function handleSwap() {
-    if (!canSwap) return;
+    if (!canSwap || !frontField || !backField) return;
     setValues((v) => ({
       ...v,
       [frontField]: v[backField] ?? "",
@@ -125,49 +142,70 @@ export function EditFlashcardModal({
           </button>
         )}
 
-        {note.fieldNames.map((field) => {
-          // Term select on the front field's row, definition select on the back
-          // field's row; both land on the same row for single-field / cloze notes.
-          const showTerm = field === termField;
-          const showDef = field === defField;
-          return (
-            <div key={field} className="space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium">{fieldLabel(field)}</span>
-                <div className="flex items-center gap-2">
-                  {showTerm && (
-                    <LangSelect label="Term voice" value={langFront} onChange={setLangFront} />
-                  )}
-                  {showDef && (
-                    <LangSelect label="Definition voice" value={langBack} onChange={setLangBack} />
-                  )}
+        {hasSides ? (
+          <>
+            <FieldSide
+              label="Term"
+              voice={<LangSelect label="Term voice" value={langFront} onChange={setLangFront} />}
+              fields={visibleFront}
+              values={values}
+              onField={setField}
+              imageUrl={imgFront}
+              onImage={setImgFront}
+              audioUrl={audFront}
+              onAudio={setAudFront}
+            />
+            <FieldSide
+              label="Definition"
+              voice={<LangSelect label="Definition voice" value={langBack} onChange={setLangBack} />}
+              fields={visibleBack}
+              values={values}
+              onField={setField}
+              imageUrl={imgBack}
+              onImage={setImgBack}
+              audioUrl={audBack}
+              onAudio={setAudBack}
+            />
+          </>
+        ) : (
+          flatFields.map((field) => {
+            const showTerm = field === flatTerm;
+            const showDef = field === flatDef;
+            return (
+              <div key={field} className="space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium">{fieldLabel(field)}</span>
+                  <div className="flex items-center gap-2">
+                    {showTerm && (
+                      <LangSelect label="Term voice" value={langFront} onChange={setLangFront} />
+                    )}
+                    {showDef && (
+                      <LangSelect label="Definition voice" value={langBack} onChange={setLangBack} />
+                    )}
+                  </div>
                 </div>
+                <textarea
+                  value={values[field]}
+                  onChange={(e) => setField(field, e.target.value)}
+                  rows={note.cloze ? 4 : 2}
+                  className="nice-scroll focus-ring w-full resize-y rounded-input border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink outline-none"
+                />
+                {(showTerm || showDef) && (
+                  <CardImageSlot
+                    url={showTerm ? imgFront : imgBack}
+                    onChange={showTerm ? setImgFront : setImgBack}
+                  />
+                )}
+                {(showTerm || showDef) && (
+                  <CardAudioSlot
+                    url={showTerm ? audFront : audBack}
+                    onChange={showTerm ? setAudFront : setAudBack}
+                  />
+                )}
               </div>
-              <textarea
-                value={values[field]}
-                onChange={(e) =>
-                  setValues((v) => ({ ...v, [field]: e.target.value }))
-                }
-                rows={field.toLowerCase().includes("back") || note.cloze ? 4 : 2}
-                className="nice-scroll focus-ring w-full resize-y rounded-input border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink outline-none"
-              />
-              {/* Per-face image (term face → front, definition → back). */}
-              {(showTerm || showDef) && (
-                <CardImageSlot
-                  url={showTerm ? imgFront : imgBack}
-                  onChange={showTerm ? setImgFront : setImgBack}
-                />
-              )}
-              {/* Per-face audio (term face → front, definition → back). */}
-              {(showTerm || showDef) && (
-                <CardAudioSlot
-                  url={showTerm ? audFront : audBack}
-                  onChange={showTerm ? setAudFront : setAudBack}
-                />
-              )}
-            </div>
-          );
-        })}
+            );
+          })
+        )}
 
         {updateNote.isError && (
           <p className="text-sm text-danger">
@@ -200,6 +238,55 @@ export function EditFlashcardModal({
         </div>
       </div>
     </Modal>
+  );
+}
+
+// One side of the card (Term or Definition): a header with the side's voice picker,
+// a textarea per field on that side, then the side's image + audio slots. A side
+// with no visible text field (e.g. an audio-only term) still shows its media slots.
+function FieldSide({
+  label,
+  voice,
+  fields,
+  values,
+  onField,
+  imageUrl,
+  onImage,
+  audioUrl,
+  onAudio,
+}: {
+  label: string;
+  voice: ReactNode;
+  fields: string[];
+  values: Record<string, string>;
+  onField: (field: string, value: string) => void;
+  imageUrl: string;
+  onImage: (url: string) => void;
+  audioUrl: string;
+  onAudio: (url: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-semibold text-ink">{label}</span>
+        {voice}
+      </div>
+      {fields.map((field) => (
+        <div key={field} className="space-y-1">
+          {fields.length > 1 && (
+            <span className="font-mono text-xs font-medium text-muted">{fieldLabel(field)}</span>
+          )}
+          <textarea
+            value={values[field] ?? ""}
+            onChange={(e) => onField(field, e.target.value)}
+            rows={2}
+            className="nice-scroll focus-ring w-full resize-y rounded-input border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink outline-none"
+          />
+        </div>
+      ))}
+      <CardImageSlot url={imageUrl} onChange={onImage} />
+      <CardAudioSlot url={audioUrl} onChange={onAudio} />
+    </div>
   );
 }
 

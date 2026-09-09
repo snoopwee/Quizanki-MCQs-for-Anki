@@ -25,6 +25,9 @@ export function deckContentsToParsed(contents: DeckContentsResponse): ApkgParseR
       fieldNames: nt.fieldNames,
       frontFields: nt.frontFields,
       backFields: nt.backFields,
+      // Carried through so the flashcard viewer / edit modal can fold the same
+      // media-holder fields the editor does (empty [sound:]/<img> boxes).
+      templateFields: nt.templateFields,
       noteCount: nt.noteCount,
       notes: nt.notes.map((n) => ({
         id: n.id,

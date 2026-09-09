@@ -326,6 +326,31 @@ export function emptyFieldsByType(rows: EditorRow[]): Map<string, Set<string>> {
 // field the user adds and hasn't filled yet is never hidden). This is the stable
 // set stored on EditorState.mediaFields at load; the editor never recomputes it as
 // the user types. Nothing is deleted — the field's data (if any) stays in the map.
+// The fold set for ONE note type: fields whose content is media we lifted into the
+// per-side image/audio slots ([sound:]/<img> cleaned to empty), or an all-but-unused
+// field the deck's template happens to list on a side. Only IMPORTED types fold
+// (templateFields non-empty) — a manual/scratch deck keeps its blank boxes to type
+// into. A field folds when it holds text on almost no card: the tolerance is 0 for
+// decks under 200 and grows slowly (0.5%), so a genuinely used field is never
+// folded — e.g. of 894 cards it folds a field with text on ≤4 (FrontAudio 0,
+// Image 1, BackAudio 3) but keeps one with text on 62. Shared by the editor and the
+// study-page edit modal so both hide the same fields.
+export function foldedFields(
+  fieldNames: string[],
+  templateFields: string[],
+  notes: { fields: Record<string, string> }[],
+): string[] {
+  if (templateFields.length === 0 || notes.length === 0) return [];
+  const tolerance = Math.floor(notes.length * 0.005);
+  const out: string[] = [];
+  for (const field of fieldNames) {
+    let textCount = 0;
+    for (const n of notes) if ((n.fields[field] ?? "").trim()) textCount++;
+    if (textCount <= tolerance) out.push(field);
+  }
+  return out;
+}
+
 export function mediaFieldsFromRows(rows: EditorRow[]): Record<string, string[]> {
   const byType = new Map<string, EditorRow[]>();
   for (const r of rows) {
@@ -336,25 +361,7 @@ export function mediaFieldsFromRows(rows: EditorRow[]): Record<string, string[]>
   }
   const out: Record<string, string[]> = {};
   for (const [typeId, group] of byType) {
-    // Only imported note types fold (a manual/scratch deck keeps its blank boxes to
-    // type into). A field folds when it holds text on almost no card — its content
-    // is media we lifted into the per-side slot ([sound:]/<img> cleaned to empty),
-    // or it's an all-but-unused field the deck's template happens to list on a side.
-    // The tolerance is 0 for small decks and grows slowly (0.5%), so a genuinely
-    // used field is never folded; e.g. of 894 cards it folds a field with text on
-    // ≤4 (FrontAudio 0, Image 1, BackAudio 3) but keeps one with text on 62.
-    if (!(group[0]?.templateFields.length > 0)) {
-      out[typeId] = [];
-      continue;
-    }
-    const tolerance = Math.floor(group.length * 0.005);
-    const folded: string[] = [];
-    for (const field of group[0].fieldNames) {
-      let textCount = 0;
-      for (const r of group) if ((r.fields[field] ?? "").trim()) textCount++;
-      if (textCount <= tolerance) folded.push(field);
-    }
-    out[typeId] = folded;
+    out[typeId] = foldedFields(group[0].fieldNames, group[0].templateFields, group);
   }
   return out;
 }

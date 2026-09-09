@@ -87,8 +87,10 @@ export function SpeakButton({
     : empty
       ? "Nothing to read"
       : busy
-        ? "Stop"
-        : "Read aloud";
+        ? "Stop reading"
+        : // Distinguish this from a card's own audio clip (its own player): the
+          // speaker reads the text aloud with text-to-speech.
+          "Read the text aloud (text-to-speech)";
 
   const iconNode = loading ? (
     <Spinner className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"} />
@@ -109,7 +111,7 @@ export function SpeakButton({
 
   const common = {
     type: "button" as const,
-    "aria-label": busy ? "Stop audio" : clipMode ? "Play audio" : "Read aloud",
+    "aria-label": busy ? "Stop audio" : clipMode ? "Play audio" : "Read the text aloud (text-to-speech)",
     "aria-pressed": busy,
     title,
     disabled,

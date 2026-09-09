@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { buildFlashcards, type Flashcard } from "@/lib/flashcards";
+import { foldedFields } from "@/lib/deckEditor";
 import { classifyMastery, type MasteryStage } from "@/lib/masteryStage";
 import { cardMatchesQuery, nextAutoplayStep } from "@/lib/flashcardStudy";
 import { CardPreviewRow, Lines, StageBadge } from "./CardPreview";
@@ -274,6 +275,10 @@ export function FlashcardViewer({
   const noteIndex = useMemo(() => {
     const map = new Map<string, EditableNote>();
     for (const nt of parsed.noteTypes) {
+      // Fields folded into the per-side media slots (empty [sound:]/<img> holders) —
+      // the same ones the deck editor hides, so the edit modal doesn't show them as
+      // empty boxes.
+      const hidden = foldedFields(nt.fieldNames, nt.templateFields ?? [], nt.notes);
       for (const note of nt.notes) {
         if (!note.id) continue; // only persisted notes can be edited
         map.set(note.id, {
@@ -283,6 +288,7 @@ export function FlashcardViewer({
           fieldNames: nt.fieldNames,
           frontFields: nt.frontFields,
           backFields: nt.backFields,
+          hiddenFields: hidden,
           fields: note.fields,
           frontLang: note.frontLang ?? null,
           backLang: note.backLang ?? null,

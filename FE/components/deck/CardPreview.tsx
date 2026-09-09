@@ -129,10 +129,24 @@ function FaceContent({
   audioUrl: string | null;
   hasImage: boolean;
 }) {
-  if (values.length === 0 && audioUrl && !hasImage) {
-    return <audio controls preload="none" src={audioUrl} className="h-8 w-full max-w-[220px]" />;
-  }
-  return <Lines values={values} />;
+  // Show the imported/added clip as its own player on ANY face that has one (not
+  // only an audio-only face), so a listening deck plays like one here too. The text
+  // (or an "(empty)" placeholder when there's nothing else) still renders above it.
+  const showText = values.length > 0 || (!audioUrl && !hasImage);
+  return (
+    <>
+      {showText && <Lines values={values} />}
+      {audioUrl && (
+        <audio
+          controls
+          preload="none"
+          src={audioUrl}
+          onClick={(e) => e.stopPropagation()}
+          className="h-8 w-full max-w-[220px]"
+        />
+      )}
+    </>
+  );
 }
 
 // A card face's image in the preview list — small, so a row stays scannable.

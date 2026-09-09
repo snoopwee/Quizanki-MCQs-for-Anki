@@ -5,7 +5,8 @@ import { Modal } from "@/components/shared/Modal";
 import { Toggle } from "@/components/ui/controls";
 import { AUTOPLAY_SPEEDS, type FlashcardPreferences } from "@/lib/flashcardPreferences";
 import { TTS_LANGUAGE_OPTIONS, languageLabel } from "@/lib/ttsLanguages";
-import { CardFieldsControl, type FieldNoteType } from "@/components/deck/CardFieldsControl";
+import { type FieldNoteType } from "@/components/deck/CardFieldsControl";
+import { FieldToggleControl } from "@/components/deck/FieldToggleControl";
 import { hasExtraFields } from "@/lib/cardFields";
 
 // Deck-level TTS language controls, shown only for saved decks. `term`/`def` are
@@ -133,7 +134,7 @@ export function FlashcardsOptionsModal({
                 Your deck has extra fields from the import. Choose which also appear on each card&apos;s
                 definition side — this also sets the quiz&apos;s default fields.
               </p>
-              <CardFieldsControl
+              <FieldToggleControl
                 noteTypes={fields.noteTypes}
                 disabled={fields.saving}
                 onChange={fields.onChange}

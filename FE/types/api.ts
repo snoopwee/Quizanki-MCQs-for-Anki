@@ -304,6 +304,9 @@ export interface UpdateDeckContentsNoteType {
   id: string;
   frontFields: string[];
   backFields: string[];
+  // The note type's full field list, so a field added/removed in the editor
+  // persists on the type. Null/omitted → leave the stored field list unchanged.
+  fieldNames?: string[] | null;
 }
 
 export interface UpdateDeckContentsNote {

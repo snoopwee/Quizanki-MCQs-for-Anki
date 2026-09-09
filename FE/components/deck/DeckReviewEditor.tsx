@@ -6,19 +6,21 @@ import { Segmented } from "@/components/ui/controls";
 import { Spinner } from "@/components/ui/Spinner";
 import { Icon } from "@/components/ui/icons";
 import {
-  addBasicRow,
-  emptyFieldsByType,
-  metadataFieldsByType,
-  mergeHiddenFields,
+  addFieldToType,
+  addRowLike,
+  deleteFieldFromType,
+  fieldHasData,
+  mediaFieldsMap,
+  moveFieldToSide,
   rowMatches,
   swapAllValues,
   swapValuesForRow,
   type EditorRow,
   type EditorState,
+  type FieldSide,
 } from "@/lib/deckEditor";
 import { draftCardCount } from "@/lib/deckDraft";
 import { CardFieldsControl, type FieldNoteType } from "@/components/deck/CardFieldsControl";
-import { hasExtraFields } from "@/lib/cardFields";
 
 // How many cards to mount per page. Big enough to review at a glance, small
 // enough that entering the editor is instant even for a 5,000-card deck.
@@ -108,19 +110,16 @@ export function DeckReviewEditor({
   const swapRow = (key: string) =>
     patch((d) => ({ ...d, rows: d.rows.map((r) => (r.key === key ? swapValuesForRow(r) : r)) }));
   const swapAll = () => patch((d) => swapAllValues(d));
-  const addRow = () => patch((d) => ({ ...d, rows: [...d.rows, addBasicRow()] }));
-  // "Fields shown on cards": add/remove an extra field on a note type's definition
-  // side, syncing every row of that type so the card reflects it at once.
-  const setLayout = (typeId: string, next: { frontFields: string[]; backFields: string[] }) =>
-    patch((d) => ({
-      ...d,
-      layoutByType: { ...d.layoutByType, [typeId]: next },
-      rows: d.rows.map((r) =>
-        (r.noteTypeId ?? "") === typeId
-          ? { ...r, frontFields: next.frontFields, backFields: next.backFields }
-          : r,
-      ),
-    }));
+  const addRow = () => patch((d) => ({ ...d, rows: [...d.rows, addRowLike(d.rows)] }));
+  // "Fields shown on card": move a field to Term / Definition / Off, add a new
+  // field, or delete an (empty) one — applied to every id of a merged note-type
+  // group so structurally-identical types stay in lockstep.
+  const moveField = (typeIds: string[], field: string, side: FieldSide) =>
+    patch((d) => typeIds.reduce((s, id) => moveFieldToSide(s, id, field, side), d));
+  const addField = (typeIds: string[], name: string, side: "term" | "definition") =>
+    patch((d) => typeIds.reduce((s, id) => addFieldToType(s, id, name, side), d));
+  const deleteField = (typeIds: string[], field: string) =>
+    patch((d) => typeIds.reduce((s, id) => deleteFieldFromType(s, id, field), d));
 
   const query = search.trim().toLowerCase();
   // Each visible row keeps its position in the FULL deck, so the "#12" label
@@ -136,25 +135,12 @@ export function DeckReviewEditor({
   const shown = visible.slice(0, limit);
   const remaining = visible.length - shown.length;
 
-  // Fields hidden by default: empty media-holders (shown as slots) + metadata a card
-  // template never renders (e.g. "iKnowID" — Anki hides it, so we do too). Nothing is
-  // deleted; "Show all fields" reveals everything.
-  const [showAllFields, setShowAllFields] = useState(false);
-  const naturallyHidden = useMemo(
-    () => mergeHiddenFields(emptyFieldsByType(draft.rows), metadataFieldsByType(draft.rows)),
-    [draft.rows],
-  );
-  const hasHiddenFields = useMemo(
-    () => [...naturallyHidden.values()].some((s) => s.size > 0),
-    [naturallyHidden],
-  );
-  const hiddenByType = useMemo(
-    () => (showAllFields ? new Map<string, Set<string>>() : naturallyHidden),
-    [showAllFields, naturallyHidden],
-  );
+  // Fields whose content is media we lifted into the per-side slots — folded out of
+  // the card (no empty text box) and the fields panel. Stable set computed at load.
+  const hiddenByType = useMemo(() => mediaFieldsMap(draft), [draft]);
 
-  // Note types (with their current front/back layout) for the "Fields shown on
-  // cards" control — derived from the rows since a draft has no saved note types.
+  // Note types (with their current front/back layout) for the fields panel — derived
+  // from the rows since a draft has no saved note-type list.
   const fieldNoteTypes = useMemo<FieldNoteType[]>(() => {
     const byId = new Map<string, FieldNoteType>();
     for (const r of draft.rows) {
@@ -172,15 +158,7 @@ export function DeckReviewEditor({
     }
     return [...byId.values()];
   }, [draft.rows]);
-  // Drop hidden (metadata) fields so they aren't offered as toggles in the control.
-  const controlNoteTypes = useMemo<FieldNoteType[]>(
-    () =>
-      fieldNoteTypes.map((nt) => ({
-        ...nt,
-        fieldNames: nt.fieldNames.filter((f) => !hiddenByType.get(nt.id)?.has(f)),
-      })),
-    [fieldNoteTypes, hiddenByType],
-  );
+  const hasFieldPanel = fieldNoteTypes.some((nt) => !nt.cloze);
 
   // "Show all" can mount thousands of cards — do it in a transition so the click
   // isn't a freeze, and show a spinner while the extra rows render.
@@ -254,27 +232,22 @@ export function DeckReviewEditor({
 
       <VisibilityChoice isPublic={isPublic} onChange={onVisibilityChange} />
 
-      {(hasExtraFields(controlNoteTypes) || hasHiddenFields) && (
+      {hasFieldPanel && (
         <div className="space-y-3 rounded-card border border-line bg-surface p-4">
           <div>
-            <h2 className="text-sm font-bold text-ink">Fields shown on cards</h2>
+            <h2 className="text-sm font-bold text-ink">Fields shown on card</h2>
             <p className="mt-0.5 text-xs text-muted">
-              This deck has extra fields from the import. Choose which also appear on each card&apos;s
-              definition side.
+              Put each field on the Term or Definition side (or Off), or add your own.
             </p>
           </div>
-          <CardFieldsControl noteTypes={controlNoteTypes} onChange={setLayout} />
-          {hasHiddenFields && (
-            <label className="flex cursor-pointer items-center gap-2 border-t border-line pt-3 text-xs text-muted">
-              <input
-                type="checkbox"
-                checked={showAllFields}
-                onChange={(e) => setShowAllFields(e.target.checked)}
-                className="h-4 w-4 accent-[var(--accent)]"
-              />
-              Show all fields (including ones Anki hides, like IDs)
-            </label>
-          )}
+          <CardFieldsControl
+            noteTypes={fieldNoteTypes}
+            mediaFields={hiddenByType}
+            hasData={(typeId, field) => fieldHasData(draft.rows, typeId, field)}
+            onMove={moveField}
+            onAddField={addField}
+            onDeleteField={deleteField}
+          />
         </div>
       )}
 

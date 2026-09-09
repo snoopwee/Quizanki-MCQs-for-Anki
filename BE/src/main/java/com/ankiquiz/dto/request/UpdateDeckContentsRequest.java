@@ -21,11 +21,16 @@ public record UpdateDeckContentsRequest(
         @Valid List<NoteTypeLayout> noteTypes,
         @NotNull @Valid List<NoteEntry> notes
 ) {
-    /** A note type whose front/back card layout may have changed (bulk swap). */
+    /**
+     * A note type whose front/back card layout may have changed (bulk swap), and
+     * optionally its field list — when the editor added or removed a field.
+     * {@code fieldNames} null leaves the stored field list unchanged.
+     */
     public record NoteTypeLayout(
             @NotNull UUID id,
             List<String> frontFields,
-            List<String> backFields
+            List<String> backFields,
+            List<String> fieldNames
     ) {
     }
 

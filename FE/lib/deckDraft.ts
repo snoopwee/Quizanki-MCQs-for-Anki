@@ -19,7 +19,7 @@ import type {
   ImportDeckRequest,
   NoteRequest,
 } from "@/types/api";
-import { isBlankRow, type EditorRow, type EditorState } from "@/lib/deckEditor";
+import { isBlankRow, mediaFieldsFromRows, type EditorRow, type EditorState } from "@/lib/deckEditor";
 import { buildFlashcards } from "@/lib/flashcards";
 import { majorityFaceLang } from "@/lib/faceLanguage";
 
@@ -80,25 +80,15 @@ export function fromParsed(parsed: ApkgParseResponse): EditorState {
     name: parsed.filename.replace(/\.apkg$/i, "") || parsed.filename,
     rows,
     layoutByType,
+    mediaFields: mediaFieldsFromRows(rows),
   };
 }
 
-// Cards the user added in the review step have no note type of their own; they
-// all land in one Basic (Front/Back) type, matching what the backend editor does.
+// Cards with no note type of their own (create-from-scratch, paste, or a card added
+// in review) all land in one Basic (Front/Back) type. Its shape is taken from the
+// actual rows — not hardcoded — so a field the user added (via the fields panel)
+// survives the save.
 const BASIC_TYPE_KEY = "draft-basic";
-
-function basicNoteType(notes: NoteRequest[]): ImportDeckRequest["noteTypes"][number] {
-  return {
-    ankiModelId: null,
-    name: "Basic",
-    cloze: false,
-    fieldNames: ["Front", "Back"],
-    frontFields: ["Front"],
-    backFields: ["Back"],
-    templateFields: [],
-    notes,
-  };
-}
 
 /**
  * The draft, as the payload `POST /decks` expects. Rows are regrouped by their
@@ -137,11 +127,10 @@ export function draftToImportRequest(
       frontAudioUrl: r.frontAudioUrl || null,
       backAudioUrl: r.backAudioUrl || null,
     }));
-    if (key === BASIC_TYPE_KEY) {
-      return basicNoteType(notes);
-    }
+    // The manual bucket keys its layout under "" (row.noteTypeId is null there);
+    // named types key under their id.
     const first = typeRows[0];
-    const layout = state.layoutByType[key];
+    const layout = state.layoutByType[key === BASIC_TYPE_KEY ? "" : key];
     return {
       ankiModelId: null,
       name: first.cloze ? "Cloze" : "Basic",

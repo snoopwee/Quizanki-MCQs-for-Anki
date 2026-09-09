@@ -1,15 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
   addBasicRow,
+  addFieldToType,
+  addRowLike,
   basicRow,
   canSwapRow,
+  deleteFieldFromType,
   emptyFieldsByType,
+  fieldHasData,
   fieldLabel,
   groupFields,
   fromContents,
   isBlankRow,
-  metadataFieldsByType,
-  mergeHiddenFields,
+  mediaFieldsFromRows,
+  moveFieldToSide,
   move,
   rowMatches,
   swapAllValues,
@@ -103,7 +107,9 @@ describe("fromContents / toPayload", () => {
     const payload = toPayload(state);
     expect(payload.name).toBe("Deck");
     expect(payload.notes.map((n) => n.id)).toEqual(["n1", "n2"]);
-    expect(payload.noteTypes).toEqual([{ id: "t1", frontFields: ["Front"], backFields: ["Back"] }]);
+    expect(payload.noteTypes).toEqual([
+      { id: "t1", frontFields: ["Front"], backFields: ["Back"], fieldNames: ["Front", "Back"] },
+    ]);
   });
 
   it("drops blank rows on save", () => {
@@ -351,41 +357,114 @@ describe("groupFields", () => {
   });
 });
 
-describe("metadataFieldsByType", () => {
-  const row = (noteTypeId: string, fieldNames: string[], templateFields: string[]): EditorRow => ({
+describe("mediaFieldsFromRows", () => {
+  // An imported note type row with the given fields/values and template info.
+  const importedRow = (
+    fields: Record<string, string>,
+    templateFields: string[],
+  ): EditorRow => ({
     ...basicRow("", ""),
-    noteTypeId,
-    fieldNames,
+    noteTypeId: "t1",
+    fieldNames: Object.keys(fields),
+    frontFields: [Object.keys(fields)[0]],
+    backFields: [Object.keys(fields)[1] ?? Object.keys(fields)[0]],
     templateFields,
+    fields,
   });
 
-  it("flags fields no template renders as metadata, keyed by note type", () => {
+  it("folds fields empty across every card of an IMPORTED note type", () => {
     const rows = [
-      row("t1", ["Expression", "Meaning", "iKnowID", "iKnowType"], ["Expression", "Meaning"]),
+      importedRow({ Audio: "", Term: "犬", Def: "dog" }, ["Audio", "Term", "Def"]),
+      importedRow({ Audio: "", Term: "猫", Def: "cat" }, ["Audio", "Term", "Def"]),
     ];
-    expect([...(metadataFieldsByType(rows).get("t1") ?? [])]).toEqual(["iKnowID", "iKnowType"]);
+    expect(mediaFieldsFromRows(rows)["t1"]).toEqual(["Audio"]);
   });
 
-  it("hides nothing when a note type has no template info (empty templateFields)", () => {
-    const rows = [row("t1", ["Front", "Back", "Extra"], [])];
-    expect(metadataFieldsByType(rows).get("t1")?.size).toBe(0);
+  it("folds nothing for a manual/scratch deck (no template info)", () => {
+    // Two blank Basic cards — Front/Back empty everywhere, but NOT imported.
+    const rows = [addBasicRow(), addBasicRow()];
+    expect(mediaFieldsFromRows(rows)[""]).toEqual([]);
   });
 
-  it("keys manual/null note types under the empty string", () => {
-    const rows = [{ ...basicRow("a", "b"), templateFields: [] }];
-    expect(metadataFieldsByType(rows).get("")?.size).toBe(0);
+  it("folds near-empty fields (media holders with a few stray cells), not used ones", () => {
+    // 500 imported cards: Media has text on 2 (≤ 0.5% = 2 → folds); Sparse on 3
+    // (> tolerance → kept); Term/Def always filled.
+    const rows = Array.from({ length: 500 }, (_, i) => ({
+      ...basicRow("", ""),
+      noteTypeId: "t1",
+      fieldNames: ["Term", "Def", "Media", "Sparse"],
+      frontFields: ["Term"],
+      backFields: ["Def", "Media", "Sparse"],
+      templateFields: ["Term", "Def", "Media", "Sparse"],
+      fields: {
+        Term: `t${i}`,
+        Def: `d${i}`,
+        Media: i < 2 ? "x" : "",
+        Sparse: i < 3 ? "y" : "",
+      },
+    }));
+    const folded = mediaFieldsFromRows(rows)["t1"];
+    expect(folded).toContain("Media");
+    expect(folded).not.toContain("Sparse");
+    expect(folded).not.toContain("Term");
+    expect(folded).not.toContain("Def");
   });
 });
 
-describe("mergeHiddenFields", () => {
-  it("unions two per-type hidden maps", () => {
-    const a = new Map([["t1", new Set(["Audio"])]]);
-    const b = new Map([
-      ["t1", new Set(["iKnowID"])],
-      ["t2", new Set(["X"])],
-    ]);
-    const merged = mergeHiddenFields(a, b);
-    expect([...(merged.get("t1") ?? [])].sort()).toEqual(["Audio", "iKnowID"]);
-    expect([...(merged.get("t2") ?? [])]).toEqual(["X"]);
+describe("field panel ops", () => {
+  // A tiny two-card scratch deck (one Basic note type, bucket "").
+  const scratch = (): EditorState => ({
+    name: "D",
+    rows: [basicRow("a", "1"), basicRow("b", "2")],
+    layoutByType: { "": { frontFields: ["Front"], backFields: ["Back"] } },
+  });
+
+  it("addFieldToType appends the field to every card + the chosen side", () => {
+    const next = addFieldToType(scratch(), "", "Example", "definition");
+    expect(next.rows.every((r) => r.fieldNames.includes("Example"))).toBe(true);
+    expect(next.rows.every((r) => r.fields.Example === "")).toBe(true);
+    expect(next.rows[0].backFields).toEqual(["Back", "Example"]);
+    expect(next.layoutByType[""].backFields).toEqual(["Back", "Example"]);
+  });
+
+  it("addFieldToType is a no-op for a blank or duplicate name", () => {
+    const s = scratch();
+    expect(addFieldToType(s, "", "  ", "term")).toBe(s); // blank
+    expect(addFieldToType(s, "", "front", "term")).toBe(s); // duplicate (case-insensitive)
+    expect(addFieldToType(s, "", "Front", "term")).toBe(s);
+  });
+
+  it("moveFieldToSide moves a field between Term / Definition / Off, keeping field order", () => {
+    let s = addFieldToType(scratch(), "", "Example", "definition");
+    s = moveFieldToSide(s, "", "Example", "term");
+    expect(s.rows[0].frontFields).toEqual(["Front", "Example"]);
+    expect(s.rows[0].backFields).toEqual(["Back"]);
+    s = moveFieldToSide(s, "", "Example", "off");
+    expect(s.rows[0].frontFields).toEqual(["Front"]);
+    expect(s.rows[0].backFields).toEqual(["Back"]);
+    expect(s.rows[0].fieldNames).toContain("Example"); // still a field, just off the card
+  });
+
+  it("deleteFieldFromType removes the field from names, values and both sides", () => {
+    let s = addFieldToType(scratch(), "", "Example", "definition");
+    s = deleteFieldFromType(s, "", "Example");
+    expect(s.rows.every((r) => !r.fieldNames.includes("Example"))).toBe(true);
+    expect(s.rows.every((r) => !("Example" in r.fields))).toBe(true);
+    expect(s.layoutByType[""].backFields).toEqual(["Back"]);
+  });
+
+  it("fieldHasData reports whether any card fills the field", () => {
+    const s = scratch();
+    expect(fieldHasData(s.rows, "", "Front")).toBe(true);
+    const empty = addFieldToType(s, "", "Example", "definition");
+    expect(fieldHasData(empty.rows, "", "Example")).toBe(false);
+  });
+
+  it("addRowLike clones the deck's note-type shape (incl. added fields), blank", () => {
+    const s = addFieldToType(scratch(), "", "Example", "term");
+    const row = addRowLike(s.rows);
+    expect(row.fieldNames).toEqual(["Front", "Back", "Example"]);
+    expect(row.frontFields).toEqual(["Front", "Example"]);
+    expect(row.fields).toEqual({ Front: "", Back: "", Example: "" });
   });
 });

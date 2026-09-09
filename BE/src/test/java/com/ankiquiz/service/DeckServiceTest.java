@@ -293,7 +293,7 @@ class DeckServiceTest {
 
         UpdateDeckContentsRequest req = new UpdateDeckContentsRequest(
                 "Deck",
-                List.of(new NoteTypeLayout(typeId, List.of("Back"), List.of("Front"))),
+                List.of(new NoteTypeLayout(typeId, List.of("Back"), List.of("Front"), null)),
                 List.of());
 
         service.replaceDeckContents(CALLER, deckId, req);
@@ -304,6 +304,28 @@ class DeckServiceTest {
         assertThat(swapped.getFrontFields()).containsExactly("Back");
         assertThat(swapped.getBackFields()).containsExactly("Front");
         verify(noteRepository, never()).deleteAll(any());
+    }
+
+    @Test
+    void replace_persistsAddedFieldName_whenFieldNamesProvided() {
+        when(deckRepository.findByIdAndUserId(deckId, USER)).thenReturn(Optional.of(deck()));
+        when(noteTypeRepository.findAllByDeckId(deckId)).thenReturn(new ArrayList<>(List.of(basicType())));
+        when(noteRepository.findAllByDeckIdOrderByPositionAscIdAsc(deckId)).thenReturn(new ArrayList<>());
+
+        // The editor added an "Example" field on the definition side.
+        UpdateDeckContentsRequest req = new UpdateDeckContentsRequest(
+                "Deck",
+                List.of(new NoteTypeLayout(typeId, List.of("Front"), List.of("Back", "Example"),
+                        List.of("Front", "Back", "Example"))),
+                List.of());
+
+        service.replaceDeckContents(CALLER, deckId, req);
+
+        ArgumentCaptor<NoteType> typeCaptor = ArgumentCaptor.forClass(NoteType.class);
+        verify(noteTypeRepository).save(typeCaptor.capture());
+        NoteType saved = typeCaptor.getValue();
+        assertThat(saved.getFieldNames()).containsExactly("Front", "Back", "Example");
+        assertThat(saved.getBackFields()).containsExactly("Back", "Example");
     }
 
     @Test

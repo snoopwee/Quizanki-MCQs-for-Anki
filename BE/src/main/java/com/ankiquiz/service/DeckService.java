@@ -494,6 +494,10 @@ public class DeckService {
                 if (layout.backFields() != null) {
                     type.setBackFields(layout.backFields().toArray(String[]::new));
                 }
+                // A field added / removed in the editor changes the type's field list.
+                if (layout.fieldNames() != null && !layout.fieldNames().isEmpty()) {
+                    type.setFieldNames(layout.fieldNames().toArray(String[]::new));
+                }
                 noteTypeRepository.save(type);
             }
         }

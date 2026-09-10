@@ -18,3 +18,14 @@ management:
       # Base config uses "always" (handy in dev). In prod don't expose which
       # component/DB is DOWN to anonymous callers — just UP/DOWN.
       show-details: never
+
+# Swagger UI + the OpenAPI spec are dev tooling. Left enabled in prod they hand any
+# anonymous caller the complete API map — every route, parameter and schema,
+# including /api/v1/admin/** — which is free reconnaissance for an attacker.
+# Disable both here; SecurityConfig still permits the paths, but with springdoc off
+# nothing is served there (404). Dev/local keeps Swagger via application.yml.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

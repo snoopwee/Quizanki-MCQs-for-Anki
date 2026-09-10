@@ -7,9 +7,9 @@
   "host_permissions": [
     "https://quizlet.com/*",
     "https://knowt.com/*",
-    "http://localhost:3000/*",
-    "https://*.vercel.app/*"
+    "http://localhost:3000/*"
   ],
+  "optional_host_permissions": ["https://*/*"],
   "background": { "service_worker": "background.js" },
   "content_scripts": [
     {

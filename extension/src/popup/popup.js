@@ -68,6 +68,9 @@ importBtn.addEventListener("click", async () => {
     if (res && res.ok) {
       importBtn.textContent = "Opened ✓";
       setTimeout(() => window.close(), 800);
+    } else if (res && res.error === "no-permission") {
+      importBtn.textContent = "Open ⚙ and re-save your address";
+      importBtn.disabled = false;
     } else {
       importBtn.textContent = "Couldn't open — check Settings";
       importBtn.disabled = false;
@@ -86,8 +89,36 @@ $("gear").addEventListener("click", () => {
 chrome.storage.local.get("appUrl").then(({ appUrl }) => {
   $("appUrl").value = appUrl || DEFAULT_APP_URL;
 });
+// The manifest asks for NO blanket site access. Instead we request permission for
+// exactly the origin the user typed, at the moment they save it (a click is the
+// user gesture chrome.permissions.request requires). localhost is already in
+// host_permissions, so it grants silently.
+function originPattern(url) {
+  try {
+    return new URL(url).origin + "/*";
+  } catch {
+    return null;
+  }
+}
+
 $("save").addEventListener("click", async () => {
   const appUrl = ($("appUrl").value || DEFAULT_APP_URL).trim().replace(/\/+$/, "");
+  const pattern = originPattern(appUrl);
+  if (!pattern) {
+    $("saved").textContent = "Invalid URL";
+    setTimeout(() => ($("saved").textContent = ""), 2000);
+    return;
+  }
+  try {
+    const already = await chrome.permissions.contains({ origins: [pattern] });
+    if (!already && !(await chrome.permissions.request({ origins: [pattern] }))) {
+      $("saved").textContent = "Access denied";
+      setTimeout(() => ($("saved").textContent = ""), 2500);
+      return;
+    }
+  } catch (e) {
+    console.error("[Quizanki] permission request failed", e);
+  }
   await chrome.storage.local.set({ appUrl });
   $("saved").textContent = "Saved ✓";
   setTimeout(() => ($("saved").textContent = ""), 1500);

@@ -65,6 +65,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
       try {
         const appUrl = await getAppUrl();
+        // We hold no blanket host access — injecting into the Quizanki tab needs
+        // permission for that exact origin, granted when the user saved the
+        // address in the popup. Fail loudly rather than opening a tab that then
+        // silently never receives the cards.
+        let pattern = null;
+        try {
+          pattern = new URL(appUrl).origin + "/*";
+        } catch {
+          /* malformed stored URL */
+        }
+        if (!pattern || !(await chrome.permissions.contains({ origins: [pattern] }))) {
+          sendResponse({ ok: false, error: "no-permission" });
+          return;
+        }
         const tab = await chrome.tabs.create({ url: `${appUrl}/import?from=extension` });
         injectWhenLoaded(tab.id, { name: msg.name, pairs: msg.pairs });
         sendResponse({ ok: true });

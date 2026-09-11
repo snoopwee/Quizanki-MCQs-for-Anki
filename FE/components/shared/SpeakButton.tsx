@@ -3,6 +3,8 @@
 import { useSyncExternalStore } from "react";
 import { useSpeech } from "@/hooks/useSpeech";
 import { isClipPlaying, playClip, subscribeClip } from "@/lib/audioClip";
+import { IconButton, iconButtonIconSize } from "@/components/ui/IconButton";
+import { Icon } from "@/components/ui/icons";
 
 // Speaker button that reads `text` aloud via the Web Speech API. The language is
 // auto-detected per segment (a card can mix languages — see lib/ttsLang), so this
@@ -23,11 +25,6 @@ import { isClipPlaying, playClip, subscribeClip } from "@/lib/audioClip";
 // since playing a file needs none.
 
 type Size = "sm" | "md";
-
-const ICON_SIZE: Record<Size, string> = {
-  sm: "h-7 w-7 text-sm",
-  md: "h-9 w-9 text-lg",
-};
 
 function Spinner({ className = "h-4 w-4" }: { className?: string }) {
   return (
@@ -95,7 +92,10 @@ export function SpeakButton({
   const iconNode = loading ? (
     <Spinner className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"} />
   ) : (
-    <span aria-hidden>{busy ? "⏹" : "🔊"}</span>
+    // Stroke icons from the shared set, NOT the "🔊"/"⏹" emoji this used to render:
+    // the OS emoji font draws them in full colour with shading, so the button read as a
+    // glossy 2.5D sticker beside the flat line icons next to it.
+    <Icon name={busy ? "stop" : "sound"} size={iconButtonIconSize(size)} />
   );
 
   const onClick = (e: React.MouseEvent) => {
@@ -135,15 +135,19 @@ export function SpeakButton({
     );
   }
 
-  // Compact icon-only variant.
+  // Compact icon-only variant — the shared equal-size circular container, so it
+  // keeps an even beat beside the star and the ⋯ menu next to it.
   return (
-    <button
-      {...common}
-      className={`focus-ring inline-flex shrink-0 items-center justify-center rounded-full leading-none transition-colors disabled:opacity-40 ${
-        ICON_SIZE[size]
-      } ${busy ? "text-accent hover:opacity-80" : "text-faint hover:text-accent"}`}
+    <IconButton
+      label={common["aria-label"]}
+      title={title}
+      ariaPressed={busy}
+      disabled={disabled}
+      onClick={onClick}
+      size={size}
+      className={busy ? "text-accent hover:opacity-80" : "text-faint hover:text-accent"}
     >
       {iconNode}
-    </button>
+    </IconButton>
   );
 }

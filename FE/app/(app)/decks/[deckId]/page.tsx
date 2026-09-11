@@ -21,6 +21,7 @@ import { FlashcardViewer } from "@/components/deck/FlashcardViewer";
 import { ApkgQuizSetup, type NoteStatsLookup } from "@/components/deck/ApkgQuizSetup";
 import { DeckStatsPanel } from "@/components/deck/DeckStatsPanel";
 import { KebabMenu } from "@/components/shared/KebabMenu";
+import { IconButton, iconButtonIconSize } from "@/components/ui/IconButton";
 import { ExportDeckModal } from "@/components/deck/ExportDeckModal";
 import { ShareDeckModal } from "@/components/deck/ShareDeckModal";
 import { ReportDeckModal } from "@/components/deck/ReportDeckModal";
@@ -214,47 +215,99 @@ function DeckDetail() {
       {step === "flashcards" && (
         <>
           {/* deck header */}
-          <Card className="relative p-0">
-            {/* No overflow-hidden (it would clip the "⋯" dropdown); the accent bar
-                gets a rounded top so it still fits the card's corners. */}
-            <div className="h-1.5 rounded-t-card bg-accent" />
-            {/* deck-options menu (Edit / Export / Delete), pinned to the top-right
-                corner — the header no longer carries a separate action bar. */}
-            <div className="absolute right-3 top-4">
-              <KebabMenu
-                label="Deck options"
-                items={
-                  owned
-                    ? [
-                        { label: "Edit flashcards", onClick: () => router.push(`/decks/${deckId}/edit`) },
-                        { label: "Share deck", onClick: () => setShareOpen(true) },
-                        { label: "Export deck", onClick: () => setExportOpen(true) },
-                        { label: "Delete deck", onClick: () => setDeleteOpen(true), danger: true },
-                      ]
-                    : [
-                        // Not the owner: they can keep it in their library or fork
-                        // an editable copy — but never edit/delete the original.
-                        {
-                          label: saved ? "Remove from Home" : "Save to Home",
-                          onClick: () => saveDeck.mutate(!saved),
-                        },
-                        { label: "Duplicate", onClick: handleDuplicate },
-                        { label: "Report deck", onClick: () => setReportOpen(true), danger: true },
-                      ]
-                }
-              />
-            </div>
+          {/* `accent-top` paints the accent strip as the CARD'S OWN BACKGROUND, so the
+              card's radius clips it exactly. As a child <div> it drew its own corner
+              arc next to the border's, which read as two rounded edges stacked up.
+              (The Card can't use overflow-hidden — it would clip the ⋯ dropdown.) */}
+          <Card className="accent-top relative p-0">
+            <div className="h-1.5" aria-hidden />
             <div className="p-6">
-              {/* pr-10 keeps a long title clear of the corner "⋯" menu. break-words
-                  wraps a long unbroken name (e.g. underscore_case export names);
-                  line-clamp-2 caps it at two rows with an ellipsis, and title shows
-                  the whole thing on hover. */}
-              <h1
-                title={deckName}
-                className="line-clamp-2 break-words pr-10 font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl"
-              >
-                {deckName}
-              </h1>
+              {/* deck-options menu (Edit / Export / Delete), in FLOW beside the title
+                  so the two actually line up — an absolute `top-4` bore no relation to
+                  the heading. Unbordered: it's a lone control, not a peer cluster. */}
+              <div className="flex items-start justify-between gap-3">
+                <h1
+                  title={deckName}
+                  className="line-clamp-2 break-words font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl"
+                >
+                  {deckName}
+                </h1>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {/* Three peer actions, so they take the bordered circle (a lone
+                      control wouldn't) — see DESIGN_SYSTEM → Equal containers.
+                      Share: owners only; the modal carries the private → public
+                      switch, so this is also how a private deck gets published. */}
+                  {owned && (
+                    <IconButton
+                      label={
+                        contentsQuery.data.isPublic
+                          ? "Shared — manage the link"
+                          : "Private — share this deck"
+                      }
+                      onClick={() => setShareOpen(true)}
+                      className={
+                        contentsQuery.data.isPublic
+                          ? "text-accent hover:opacity-80"
+                          : "text-muted hover:text-ink"
+                      }
+                    >
+                      <Icon name="link" size={iconButtonIconSize("md")} />
+                    </IconButton>
+                  )}
+                  {/* Save = bookmark to Home. Not owner-gated: the backend gates it on
+                      "studiable", which includes your own decks, so you can pin one of
+                      your own to Home too. Filled when saved, like the ★ convention. */}
+                  <IconButton
+                    label={saved ? "Saved to Home — remove" : "Save to Home"}
+                    ariaPressed={saved}
+                    disabled={saveDeck.isPending}
+                    onClick={() => saveDeck.mutate(!saved)}
+                    className={saved ? "text-accent hover:opacity-80" : "text-muted hover:text-ink"}
+                  >
+                    <Icon
+                      name="bookmark"
+                      size={iconButtonIconSize("md")}
+                      fill={saved ? "currentColor" : "none"}
+                    />
+                  </IconButton>
+                  {/* `bordered`: this ⋯ is one of three peer actions here, not the
+                      lone control KebabMenu defaults to. */}
+                  <KebabMenu
+                    bordered
+                    label="Deck options"
+                    items={
+                      owned
+                        ? [
+                            // One word each: this menu is already the deck's, so
+                            // "… deck" / "… flashcards" only repeated that and wrapped.
+                            {
+                              label: "Edit",
+                              icon: "pencil",
+                              onClick: () => router.push(`/decks/${deckId}/edit`),
+                            },
+                            { label: "Export", icon: "download", onClick: () => setExportOpen(true) },
+                            {
+                              label: "Delete",
+                              icon: "trash",
+                              onClick: () => setDeleteOpen(true),
+                              danger: true,
+                            },
+                          ]
+                        : [
+                            // Not the owner: they can keep it in their library or fork
+                            // an editable copy — but never edit/delete the original.
+                            { label: "Duplicate", icon: "copy", onClick: handleDuplicate },
+                            {
+                              label: "Report",
+                              icon: "alertTriangle",
+                              onClick: () => setReportOpen(true),
+                              danger: true,
+                            },
+                          ]
+                    }
+                  />
+                </div>
+              </div>
               <DeckAuthor
                 authorId={contentsQuery.data.authorId}
                 authorName={contentsQuery.data.authorName}
@@ -279,23 +332,6 @@ function DeckDetail() {
                   <span className="inline-flex items-center gap-1.5">
                     <Icon name="copy" size={15} />
                     {copies} cop{copies === 1 ? "y" : "ies"}
-                  </span>
-                )}
-                {owned && contentsQuery.data.isPublic && (
-                  <button
-                    type="button"
-                    onClick={() => setShareOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent-ink transition hover:opacity-90"
-                  >
-                    <Icon name="link" size={13} />
-                    Shared
-                  </button>
-                )}
-                {/* Non-owners see their library state at a glance. */}
-                {!owned && saved && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent-ink">
-                    <Icon name="check" size={13} />
-                    Saved
                   </span>
                 )}
               </div>

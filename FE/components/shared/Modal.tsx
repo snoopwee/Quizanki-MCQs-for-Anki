@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
+import { Icon } from "@/components/ui/icons";
+import { IconButton, iconButtonIconSize } from "@/components/ui/IconButton";
 
 // A simple centered modal: closes on backdrop click or Escape. The overlay
 // scrolls so a tall panel (e.g. the quiz settings form) stays reachable.
@@ -32,14 +34,16 @@ export function Modal({
       >
         <div className="mb-4 flex items-center justify-between">
           {title && <h2 className="font-display text-lg font-semibold tracking-tight">{title}</h2>}
-          <button
-            type="button"
+          {/* A lone control, so no border — but the same circle and size as every
+              other icon button, per DESIGN_SYSTEM → Alignment. */}
+          <IconButton
+            label="Close"
             onClick={onClose}
-            aria-label="Close"
-            className="ml-auto grid h-8 w-8 place-items-center rounded-input text-muted transition hover:bg-surface-2 hover:text-ink"
+            bordered={false}
+            className="ml-auto text-muted hover:bg-surface-2 hover:text-ink"
           >
-            ✕
-          </button>
+            <Icon name="x" size={iconButtonIconSize("md")} />
+          </IconButton>
         </div>
         {children}
       </div>

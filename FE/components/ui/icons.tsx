@@ -87,6 +87,21 @@ const PATHS = {
       <circle cx="19" cy="12" r="1.4" />
     </>
   ),
+  // Swap front/back: two arrows, one up one down. Drawn on the same 24 grid at the
+  // same 1.8 stroke as the rest of the set, replacing the "⇅" text glyph that
+  // rendered in the system font.
+  swap: (
+    <>
+      <path d="M9 20V5M6 8l3-3 3 3" />
+      <path d="M15 4v15M18 16l-3 3-3-3" />
+    </>
+  ),
+  // Stop (halt playback) — the counterpart to play/pause.
+  stop: <rect x="6" y="6" width="12" height="12" rx="2" />,
+  minus: <path d="M5 12h14" />,
+  // Bookmark ("Save to Home"). Fills with `fill="currentColor"` when saved, the
+  // same on/off convention as `star`.
+  bookmark: <path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1z" />,
   play: <path d="M7 4v16l13-8z" />,
   pause: <path d="M9 5v14M15 5v14" />,
   eye: (
@@ -109,13 +124,23 @@ const PATHS = {
     </>
   ),
   star: <path d="M12 3.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 17l-5.3 2.6 1-5.8-4.2-4.1 5.9-.9z" />,
+  // Gear. The previous path was a mangled cog whose teeth collapsed into each
+  // other — it rendered as a dense blob at every size, worst on the 28px SiteGate.
+  // This is a well-formed 8-tooth cog: each tooth is a rounded tab hung off the
+  // body, so the outline stays open at a 1.8 stroke.
   settings: (
     <>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 13.5a1.7 1.7 0 0 0 .34 1.87l.03.03a2 2 0 1 1-2.83 2.83l-.03-.03a1.7 1.7 0 0 0-2.88 1.2V21a2 2 0 0 1-4 0v-.09a1.7 1.7 0 0 0-2.88-1.2l-.03.03a2 2 0 1 1-2.83-2.83l.03-.03A1.7 1.7 0 0 0 4.6 13.5H4.5a2 2 0 0 1 0-4h.09a1.7 1.7 0 0 0 1.2-2.88l-.03-.03a2 2 0 1 1 2.83-2.83l.03.03A1.7 1.7 0 0 0 11.5 4.6V4.5a2 2 0 0 1 4 0v.09a1.7 1.7 0 0 0 2.88 1.2l.03-.03a2 2 0 1 1 2.83 2.83l-.03.03a1.7 1.7 0 0 0-.31 1.88H21a2 2 0 0 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z" />
+      <circle cx="12" cy="12" r="3.2" />
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
     </>
   ),
-  expand: <path d="M9 3H5a2 2 0 0 0-2 2v4M15 3h4a2 2 0 0 1 2 2v4M9 21H5a2 2 0 0 1-2-2v-4M15 21h4a2 2 0 0 1 2-2v-4" />,
+  // Four corner brackets. The bottom-right arc had sweep-flag 1, which bowed it
+  // the wrong way and made that one corner point inward while the other three
+  // pointed out. From (19,21) to (21,19) around centre (19,19) the angle DECREASES
+  // (down → right), so in SVG's y-down coordinates that is sweep 0.
+  expand: (
+    <path d="M9 3H5a2 2 0 0 0-2 2v4M15 3h4a2 2 0 0 1 2 2v4M9 21H5a2 2 0 0 1-2-2v-4M15 21h4a2 2 0 0 0 2-2v-4" />
+  ),
   minimize: <path d="M9 3v4a2 2 0 0 1-2 2H3M21 9h-4a2 2 0 0 1-2-2V3M3 15h4a2 2 0 0 1 2 2v4M15 21v-4a2 2 0 0 1 2-2h4" />,
   user: (
     <>

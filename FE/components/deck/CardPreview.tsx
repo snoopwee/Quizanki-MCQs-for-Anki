@@ -8,6 +8,7 @@ import { classifyMastery, type StageInfo } from "@/lib/masteryStage";
 import { textDirection } from "@/lib/displayText";
 import { RichText } from "@/components/shared/RichText";
 import { ZoomableImage } from "@/components/shared/ImageLightbox";
+import { AudioPlayer } from "@/components/shared/AudioPlayer";
 
 // Renders each field value on its own line, or a muted placeholder when empty.
 // Per line we set `dir` so Arabic/Hebrew fields lay out RTL, and placeholder any
@@ -95,8 +96,12 @@ export function CardPreviewRow({
 
   return (
     <li className="space-y-2 rounded-input border border-line bg-surface p-4 text-sm">
+      {/* `items-center`, not `items-start`: the stage pill is taller than the bare
+          icons opposite it (it carries padding + a border), so top-aligning them
+          left the two sitting on different lines. Centring puts everything on one
+          shared horizontal axis regardless of each item's own height. */}
       {(info || action) && (
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center justify-between gap-2">
           {info ? <StageBadge info={info} /> : <span />}
           {action}
         </div>
@@ -140,15 +145,7 @@ function FaceContent({
   return (
     <>
       {showText && <Lines values={values} />}
-      {audioUrl && (
-        <audio
-          controls
-          preload="none"
-          src={audioUrl}
-          onClick={(e) => e.stopPropagation()}
-          className="h-8 w-full max-w-[220px]"
-        />
-      )}
+      {audioUrl && <AudioPlayer src={audioUrl} size="sm" className="max-w-[240px]" />}
     </>
   );
 }

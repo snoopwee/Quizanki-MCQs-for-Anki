@@ -15,6 +15,7 @@ import {
   cropToSourceRect,
   drawRegionToBlob,
 } from "@/lib/image";
+import { Icon } from "@/components/ui/icons";
 
 // The blank canvas the image floats on, and the fixed circular crop guide.
 const STAGE_W = 320;
@@ -191,8 +192,8 @@ export const AvatarCropper = forwardRef<AvatarCropperHandle, { file: File; onRea
         </div>
 
         <div className="flex w-full max-w-xs items-center gap-3">
-          <span aria-hidden className="text-xs font-semibold text-faint">
-            −
+          <span aria-hidden className="text-faint">
+            <Icon name="minus" size={14} />
           </span>
           <input
             type="range"

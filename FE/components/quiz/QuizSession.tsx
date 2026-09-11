@@ -245,9 +245,9 @@ export function QuizSession({
             onClick={onOpenSettings}
             title="Quiz settings"
             aria-label="Quiz settings"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-input border border-line bg-surface text-base leading-none text-muted transition hover:text-ink"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-input border border-line bg-surface leading-none text-muted transition hover:text-ink"
           >
-            ⚙
+            <Icon name="settings" size={17} />
           </button>
         )}
       </div>

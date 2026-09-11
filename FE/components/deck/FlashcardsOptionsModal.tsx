@@ -8,6 +8,7 @@ import { TTS_LANGUAGE_OPTIONS, languageLabel } from "@/lib/ttsLanguages";
 import { type FieldNoteType } from "@/components/deck/CardFieldsControl";
 import { FieldToggleControl } from "@/components/deck/FieldToggleControl";
 import { hasExtraFields } from "@/lib/cardFields";
+import { Select } from "@/components/ui/Select";
 
 // Deck-level TTS language controls, shown only for saved decks. `term`/`def` are
 // the current stored overrides ("" = auto-detect); `autoTerm`/`autoDef` are the
@@ -112,17 +113,14 @@ export function FlashcardsOptionsModal({
                 How long each side is held before autoplay flips / advances.
               </div>
             </div>
-            <select
+            <Select
               value={prefs.autoplaySeconds}
-              onChange={(e) => onChange({ autoplaySeconds: Number(e.target.value) })}
-              className="focus-ring shrink-0 rounded-input border border-line-strong bg-surface-2 px-2 py-1.5 text-sm text-ink outline-none"
-            >
-              {AUTOPLAY_SPEEDS.map((s) => (
-                <option key={s.seconds} value={s.seconds}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
+              options={AUTOPLAY_SPEEDS.map((s) => ({ value: s.seconds, label: s.label }))}
+              onChange={(autoplaySeconds) => onChange({ autoplaySeconds })}
+              ariaLabel="Autoplay speed"
+              size="sm"
+              align="right"
+            />
           </div>
         </Section>
 
@@ -251,20 +249,21 @@ function LanguageRow({
         <div className="text-sm font-medium text-ink">{title}</div>
         {help && <div className="mt-0.5 text-xs text-muted">{help}</div>}
       </div>
-      <select
+      <Select
         value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        className="focus-ring shrink-0 rounded-input border border-line-strong bg-surface-2 px-2 py-1.5 text-sm text-ink outline-none disabled:opacity-50"
-      >
-        {TTS_LANGUAGE_OPTIONS.map((o) => (
-          <option key={o.code || "auto"} value={o.code}>
-            {o.code === "" && autoDetected
+        options={TTS_LANGUAGE_OPTIONS.map((o) => ({
+          value: o.code,
+          label:
+            o.code === "" && autoDetected
               ? `Auto-detect (${languageLabel(autoDetected)})`
-              : o.label}
-          </option>
-        ))}
-      </select>
+              : o.label,
+        }))}
+        onChange={onChange}
+        disabled={disabled}
+        ariaLabel={title}
+        size="sm"
+        align="right"
+      />
     </div>
   );
 }

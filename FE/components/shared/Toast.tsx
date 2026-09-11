@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Icon } from "@/components/ui/icons";
 
 // Fixed-position, dismissable status toast. Designed for the import auto-save:
 // the page passes its mutation status, the toast picks the matching variant,
@@ -58,7 +59,7 @@ export function Toast({
           className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent opacity-60"
         />
       )}
-      {kind === "success" && <span aria-hidden>✓</span>}
+      {kind === "success" && <Icon name="check" size={15} />}
       {kind === "error" && <span aria-hidden>!</span>}
       <span>{message}</span>
       {actionLabel && onAction && (
@@ -70,9 +71,9 @@ export function Toast({
         type="button"
         aria-label="Dismiss"
         onClick={onDismiss}
-        className="ml-1 rounded px-1 opacity-70 transition hover:bg-ink/10 hover:opacity-100"
+        className="ml-1 inline-flex items-center rounded px-1 opacity-70 transition hover:bg-ink/10 hover:opacity-100"
       >
-        ✕
+        <Icon name="x" size={14} />
       </button>
     </div>
   );

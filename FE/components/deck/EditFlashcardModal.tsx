@@ -7,6 +7,8 @@ import { useUpdateNote } from "@/hooks/useNotes";
 import { TTS_LANGUAGE_OPTIONS } from "@/lib/ttsLanguages";
 import { CardImageSlot } from "@/components/deck/CardImageSlot";
 import { CardAudioSlot } from "@/components/deck/CardAudioSlot";
+import { Select } from "@/components/ui/Select";
+import { Icon } from "@/components/ui/icons";
 
 export interface EditableNote {
   noteId: string;
@@ -136,9 +138,10 @@ export function EditFlashcardModal({
           <button
             type="button"
             onClick={handleSwap}
-            className="rounded-input border border-line-strong bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-accent hover:text-accent"
+            className="inline-flex items-center gap-1.5 rounded-input border border-line-strong bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-accent hover:text-accent"
           >
-            ⇅ Swap front and back
+            <Icon name="swap" size={14} />
+            Swap front and back
           </button>
         )}
 
@@ -302,20 +305,16 @@ function LangSelect({
   onChange: (code: string) => void;
 }) {
   return (
-    <label className="flex items-center gap-1 text-xs text-muted">
+    <div className="flex items-center gap-1 text-xs text-muted">
       <span className="hidden sm:inline">{label}</span>
-      <select
-        aria-label={label}
+      <Select
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="focus-ring rounded border border-line-strong bg-surface px-1.5 py-1 text-xs text-ink outline-none"
-      >
-        {TTS_LANGUAGE_OPTIONS.map((o) => (
-          <option key={o.code || "auto"} value={o.code}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
+        options={TTS_LANGUAGE_OPTIONS.map((o) => ({ value: o.code, label: o.label }))}
+        onChange={onChange}
+        ariaLabel={label}
+        size="sm"
+        align="right"
+      />
+    </div>
   );
 }

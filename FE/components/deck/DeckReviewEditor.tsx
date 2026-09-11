@@ -186,9 +186,9 @@ export function DeckReviewEditor({
             onClick={swapAll}
             aria-label="Swap term and definition for all cards"
             title="Swap the term and definition of all cards"
-            className="rounded-input border border-line-strong bg-surface px-2.5 py-1.5 text-base leading-none transition hover:border-accent hover:text-accent"
+            className="inline-flex items-center justify-center rounded-input border border-line-strong bg-surface px-2.5 py-2 leading-none transition hover:border-accent hover:text-accent"
           >
-            ⇅
+            <Icon name="swap" size={16} />
           </button>
           <button
             type="button"

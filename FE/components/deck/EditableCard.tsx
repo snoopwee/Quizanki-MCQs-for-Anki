@@ -6,6 +6,7 @@ import { TTS_LANGUAGE_OPTIONS } from "@/lib/ttsLanguages";
 import { CardImageSlot } from "@/components/deck/CardImageSlot";
 import { CardAudioSlot } from "@/components/deck/CardAudioSlot";
 import { CardAudioPlayButton } from "@/components/deck/CardAudioPlayButton";
+import { Icon } from "@/components/ui/icons";
 
 // One card's editable body, shared by the saved-deck editor
 // (app/(app)/decks/[deckId]/edit), the pre-save import review screen, and the
@@ -152,9 +153,13 @@ export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, on
         )}
         <div className="ml-auto flex items-center gap-1">
           {canSwapRow(row) && (
-            <IconBtn label="Swap front/back" onClick={() => onSwap(row.key)}>⇅</IconBtn>
+            <IconBtn label="Swap front/back" onClick={() => onSwap(row.key)}>
+              <Icon name="swap" size={15} />
+            </IconBtn>
           )}
-          <IconBtn label="Delete card" danger onClick={() => onDelete(row.key)}>✕</IconBtn>
+          <IconBtn label="Delete card" danger onClick={() => onDelete(row.key)}>
+            <Icon name="x" size={15} />
+          </IconBtn>
         </div>
       </div>
 
@@ -245,7 +250,7 @@ export function IconBtn({
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className={`cursor-pointer rounded px-1.5 py-0.5 text-sm transition hover:bg-surface-2 disabled:cursor-default disabled:opacity-30 ${
+      className={`inline-flex cursor-pointer items-center justify-center rounded px-1.5 py-1 text-sm transition hover:bg-surface-2 disabled:cursor-default disabled:opacity-30 ${
         danger ? "text-danger" : "text-muted"
       }`}
     >

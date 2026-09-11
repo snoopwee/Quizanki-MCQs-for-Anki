@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Modal } from "@/components/shared/Modal";
+import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
 import { useReportDeck } from "@/hooks/useReports";
 
@@ -25,6 +26,7 @@ export function ReportDeckModal({
   const [details, setDetails] = useState("");
   const [done, setDone] = useState(false);
   const report = useReportDeck(deckId);
+  const reasonLabelId = useId();
 
   function submit() {
     report.mutate({ reason, details }, { onSuccess: () => setDone(true) });
@@ -56,16 +58,18 @@ export function ReportDeckModal({
             and reviewed by an admin.
           </p>
           <div className="mt-4 space-y-3">
-            <label className="block space-y-1">
-              <span className="text-xs font-medium text-muted">Reason</span>
-              <select value={reason} onChange={(e) => setReason(e.target.value)} className={fieldClasses}>
-                {REASONS.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="space-y-1">
+              <span id={reasonLabelId} className="block text-xs font-medium text-muted">
+                Reason
+              </span>
+              <Select
+                value={reason}
+                options={REASONS.map((r) => ({ value: r, label: r }))}
+                onChange={setReason}
+                ariaLabelledBy={reasonLabelId}
+                fullWidth
+              />
+            </div>
             <label className="block space-y-1">
               <span className="text-xs font-medium text-muted">Details (optional)</span>
               <textarea

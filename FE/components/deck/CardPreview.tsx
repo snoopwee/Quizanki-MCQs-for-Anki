@@ -7,6 +7,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { classifyMastery, type StageInfo } from "@/lib/masteryStage";
 import { textDirection } from "@/lib/displayText";
 import { RichText } from "@/components/shared/RichText";
+import { ZoomableImage } from "@/components/shared/ImageLightbox";
 
 // Renders each field value on its own line, or a muted placeholder when empty.
 // Per line we set `dir` so Arabic/Hebrew fields lay out RTL, and placeholder any
@@ -45,9 +46,11 @@ export function StageBadge({ info }: { info: StageInfo }) {
   );
 }
 
-// A single front/back row. Grid so the row height is driven by the FRONT column;
-// the back cell stretches to that height and its content scrolls (the absolute
-// child has no intrinsic height, so a long back can't push the row taller).
+// A single front/back row. Both columns are ordinary grid children, so the row
+// grows to fit whichever side is taller and the whole card is readable at a
+// glance. (It used to pin the back cell with `absolute inset-0` + `overflow-y-auto`
+// so the FRONT column alone drove the height — which meant any long definition was
+// stuck behind its own scrollbar.)
 //
 // `stats`, when present, surfaces a colour-coded mastery badge above the row so
 // the learner sees per-card progress as they scan the deck.
@@ -99,16 +102,17 @@ export function CardPreviewRow({
         </div>
       )}
       <div className="grid grid-cols-[1fr_2fr] gap-4">
+        {/* Each cell reads text → audio → image (FaceContent supplies the first two):
+            the words are what you scan the list for, so they lead, and the picture
+            sits last as support material. */}
         <div className="relative space-y-1 font-medium text-ink">
-          {frontImageUrl && <Thumb url={frontImageUrl} />}
           <FaceContent values={front} audioUrl={frontAudioUrl} hasImage={Boolean(frontImageUrl)} />
+          {frontImageUrl && <Thumb url={frontImageUrl} />}
           {hideFront && <Cover onReveal={() => setRevealed(true)} />}
         </div>
-        <div className="relative border-l border-line">
-          <div className="nice-scroll absolute inset-0 space-y-1 overflow-y-auto pl-4 text-muted">
-            {backImageUrl && <Thumb url={backImageUrl} />}
-            <FaceContent values={back} audioUrl={backAudioUrl} hasImage={Boolean(backImageUrl)} />
-          </div>
+        <div className="relative space-y-1 border-l border-line pl-4 text-muted">
+          <FaceContent values={back} audioUrl={backAudioUrl} hasImage={Boolean(backImageUrl)} />
+          {backImageUrl && <Thumb url={backImageUrl} />}
           {hideBack && <Cover onReveal={() => setRevealed(true)} />}
         </div>
       </div>
@@ -149,12 +153,10 @@ function FaceContent({
   );
 }
 
-// A card face's image in the preview list — small, so a row stays scannable.
+// A card face's image in the preview list — kept small so a row stays scannable;
+// click it to read it properly in the zoomable lightbox.
 function Thumb({ url }: { url: string }) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element -- arbitrary Supabase Storage host; next/image would need remotePatterns config
-    <img src={url} alt="" className="max-h-20 rounded object-contain" />
-  );
+  return <ZoomableImage url={url} className="max-h-20 rounded object-contain" />;
 }
 
 // The tap-to-reveal blanking overlay. Sits over its (relative) column, so the

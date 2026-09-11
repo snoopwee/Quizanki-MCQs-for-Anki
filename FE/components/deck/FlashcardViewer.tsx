@@ -18,6 +18,7 @@ import { stripFurigana } from "@/lib/furigana";
 import { EditFlashcardModal, type EditableNote } from "./EditFlashcardModal";
 import { FlashcardsOptionsModal, type DeckFieldControls } from "./FlashcardsOptionsModal";
 import { Icon } from "@/components/ui/icons";
+import { ZoomableImage } from "@/components/shared/ImageLightbox";
 import { Toggle } from "@/components/ui/controls";
 import {
   DEFAULT_FLASHCARD_PREFS,
@@ -591,15 +592,9 @@ export function FlashcardViewer({
         <div className="nice-scroll flex flex-1 flex-col items-center overflow-y-auto py-3">
           {/* my-auto centers content when it fits, but collapses so the top stays
               scrollable when content overflows (justify-center would clip it). */}
+          {/* Reading order is word → audio → image: the term is what you're being
+              tested on, so it leads; the picture is support material and sits last. */}
           <div className="my-auto w-full space-y-3">
-            {faceImage && (
-              // eslint-disable-next-line @next/next/no-img-element -- arbitrary Supabase Storage host; next/image would need remotePatterns config
-              <img
-                src={faceImage as string}
-                alt=""
-                className="mx-auto max-h-48 max-w-full rounded-input object-contain"
-              />
-            )}
             {faceText.length > 0 && <Lines values={faceText} className="text-4xl font-medium" />}
             {/* A dedicated audio player for any face that carries an imported clip —
                 so a listening deck plays like one (Anki shows a ▶ on the card), even
@@ -612,6 +607,17 @@ export function FlashcardViewer({
                   preload="none"
                   src={faceAudio}
                   className="h-11 w-full max-w-sm"
+                />
+              </div>
+            )}
+            {faceImage && (
+              // Capped so the text still fits on the face; click opens it full size
+              // in the lightbox (ZoomableImage stops the click, so the card doesn't
+              // flip out from under the viewer).
+              <div className="flex justify-center">
+                <ZoomableImage
+                  url={faceImage as string}
+                  className="max-h-48 max-w-full rounded-input object-contain"
                 />
               </div>
             )}

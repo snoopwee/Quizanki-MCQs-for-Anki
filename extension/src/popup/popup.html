@@ -35,6 +35,11 @@
       .front { font-weight: 600; word-break: break-word; }
       .back { color: #574d3a; word-break: break-word; }
       em { color: #9c907a; }
+      /* Card picture preview. Capped so a tall image cannot stretch the row. */
+      .thumb {
+        display: block; max-width: 100%; max-height: 46px; width: auto;
+        border-radius: 4px; margin-bottom: 4px; background: #f0e9d8;
+      }
       footer { padding: 12px 15px; border-top: 1px solid #e6dcc6; }
       .note { color: #6e6350; font-size: 12px; margin-bottom: 8px; }
       button.import {
@@ -73,7 +78,7 @@
     <div class="list" id="list"></div>
 
     <footer id="footer" hidden>
-      <div class="note">Text only for now — images &amp; audio coming soon.</div>
+      <div class="note" id="note"></div>
       <button class="import" id="import"></button>
     </footer>
 

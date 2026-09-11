@@ -3,7 +3,9 @@
 //    toolbar icon with the count so the user sees the page is ready to import.
 //  - "quizanki-import": the popup asked to import → open Quizanki's review screen
 //    and inject the pairs via a same-origin postMessage the app listens for
-//    (see FE/lib/extensionImport.ts).
+//    (see FE/lib/extensionImport.ts). Pairs may carry a picture per face, already
+//    inlined as a data: URL by the content script, so this worker stays a pure
+//    pass-through and never touches the source CDN itself.
 
 const DEFAULT_APP_URL = "http://localhost:3000";
 

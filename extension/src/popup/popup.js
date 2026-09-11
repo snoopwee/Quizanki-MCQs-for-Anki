@@ -1,21 +1,42 @@
 // Popup: when the user clicks the extension icon, ask the active tab's content
 // script for the cards it scanned, show a preview, and let the user import them.
+//
+// Pictures are previewed straight from the source CDN (cheap — no download). The
+// bytes are only pulled when the user commits to the import, by asking the content
+// script to "materialize" them into data: URLs; see src/content/extract.js for why
+// the download has to happen in the content script rather than here.
 
 const DEFAULT_APP_URL = "http://localhost:3000";
 const $ = (id) => document.getElementById(id);
 const statusEl = $("status");
 const listEl = $("list");
 const footerEl = $("footer");
+const noteEl = $("note");
 const importBtn = $("import");
 
-let current = { name: "", pairs: [] };
+let current = { name: "", pairs: [], imageCount: 0 };
+let sourceTabId = null;
 
 function esc(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 }
 
-function renderCards(name, pairs) {
-  current = { name, pairs };
+// Only ever render a plain http(s) URL into the preview's src attribute.
+function safeUrl(u) {
+  return typeof u === "string" && /^https?:\/\//i.test(u) ? u : "";
+}
+
+function thumb(url) {
+  const safe = safeUrl(url);
+  return safe ? `<img class="thumb" src="${esc(safe)}" alt="" loading="lazy">` : "";
+}
+
+function plural(n, word) {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
+function renderCards(name, pairs, imageCount) {
+  current = { name, pairs, imageCount };
   if (!pairs.length) {
     statusEl.innerHTML =
       "No cards found here. Open a <b>Quizlet</b> or <b>Knowt</b> flashcard set (logged in), then click the icon again.";
@@ -23,15 +44,20 @@ function renderCards(name, pairs) {
     footerEl.hidden = true;
     return;
   }
-  statusEl.innerHTML = `<span class="setname">${esc(name)}</span> — ${pairs.length} card${pairs.length === 1 ? "" : "s"} ready`;
+  const imgNote = imageCount > 0 ? ` · ${plural(imageCount, "picture")}` : "";
+  statusEl.innerHTML = `<span class="setname">${esc(name)}</span> — ${plural(pairs.length, "card")} ready${imgNote}`;
   listEl.innerHTML = pairs
     .map(
       (p, i) => `<div class="row"><span class="num">${i + 1}</span>` +
-        `<span class="front">${esc(p.front) || "<em>(no text)</em>"}</span>` +
-        `<span class="back">${esc(p.back) || "<em>(no text)</em>"}</span></div>`,
+        `<span class="front">${thumb(p.frontImage)}${esc(p.front) || "<em>(no text)</em>"}</span>` +
+        `<span class="back">${thumb(p.backImage)}${esc(p.back) || "<em>(no text)</em>"}</span></div>`,
     )
     .join("");
-  importBtn.textContent = `Import ${pairs.length} card${pairs.length === 1 ? "" : "s"}`;
+  noteEl.textContent =
+    imageCount > 0
+      ? `Pictures and GIFs are downloaded when you import. Audio is still skipped.`
+      : `This set has no pictures. Audio is still skipped.`;
+  importBtn.textContent = `Import ${plural(pairs.length, "card")}`;
   importBtn.disabled = false;
   footerEl.hidden = false;
 }
@@ -47,27 +73,51 @@ async function loadCards() {
     statusEl.innerHTML = "Open a <b>Quizlet</b> or <b>Knowt</b> flashcard set page, then click this icon.";
     return;
   }
+  sourceTabId = tab.id;
   try {
     const res = await chrome.tabs.sendMessage(tab.id, { type: "quizanki-get-cards" });
-    renderCards(res?.name || "Imported set", res?.pairs || []);
+    renderCards(res?.name || "Imported set", res?.pairs || [], res?.imageCount || 0);
   } catch {
     // Content script not ready (e.g. page opened before install) — ask for a reload.
     statusEl.innerHTML = "Couldn't read this page. Reload the set page, then click the icon again.";
   }
 }
 
+// The content script reports download progress while materializing pictures.
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg && msg.type === "quizanki-image-progress") {
+    importBtn.textContent = `Downloading pictures… ${msg.done}/${msg.total}`;
+  }
+});
+
+// Pull the picture bytes for this set. Falls back to the text-only pairs if the
+// content script is gone or errors — a set still imports, just without pictures.
+async function withImages() {
+  if (!current.imageCount || sourceTabId == null) return { pairs: current.pairs, failed: 0 };
+  importBtn.textContent = "Downloading pictures…";
+  try {
+    const r = await chrome.tabs.sendMessage(sourceTabId, { type: "quizanki-materialize-images" });
+    if (r && r.ok && Array.isArray(r.pairs)) return { pairs: r.pairs, failed: r.failed || 0 };
+  } catch (e) {
+    console.error("[Quizanki] image download failed", e);
+  }
+  return { pairs: current.pairs, failed: current.imageCount };
+}
+
 importBtn.addEventListener("click", async () => {
   importBtn.disabled = true;
-  importBtn.textContent = "Opening Quizanki…";
   try {
+    const { pairs, failed } = await withImages();
+    importBtn.textContent = "Opening Quizanki…";
     const res = await chrome.runtime.sendMessage({
       type: "quizanki-import",
       name: current.name,
-      pairs: current.pairs,
+      pairs,
     });
     if (res && res.ok) {
-      importBtn.textContent = "Opened ✓";
-      setTimeout(() => window.close(), 800);
+      // Say so when some pictures couldn't be fetched — the cards still import.
+      importBtn.textContent = failed > 0 ? `Opened ✓ (${failed} picture(s) skipped)` : "Opened ✓";
+      setTimeout(() => window.close(), failed > 0 ? 2200 : 800);
     } else if (res && res.error === "no-permission") {
       importBtn.textContent = "Open ⚙ and re-save your address";
       importBtn.disabled = false;

@@ -245,8 +245,16 @@ export function addRowLike(rows: EditorRow[]): EditorRow {
   };
 }
 
-export function basicRow(front: string, back: string): EditorRow {
-  return rowWithId(null, front, back, []);
+// `frontImage`/`backImage` accept either a stored public URL or a `data:` URL not
+// yet uploaded — the browser-extension import supplies the latter, and the save
+// path (lib/cardImageUpload.ts) turns any data URL into a stored one.
+export function basicRow(
+  front: string,
+  back: string,
+  frontImage = "",
+  backImage = "",
+): EditorRow {
+  return rowWithId(null, front, back, [], "", "", frontImage, backImage);
 }
 
 // A Basic (Front/Back) row carrying an explicit note id and tags — used when
@@ -258,6 +266,8 @@ function rowWithId(
   tags: string[],
   frontLang = "",
   backLang = "",
+  frontImage = "",
+  backImage = "",
 ): EditorRow {
   return {
     key: nextKey(),
@@ -273,8 +283,8 @@ function rowWithId(
     tags: [...tags],
     frontLang,
     backLang,
-    frontImageUrl: "",
-    backImageUrl: "",
+    frontImageUrl: frontImage,
+    backImageUrl: backImage,
     frontAudioUrl: "",
     backAudioUrl: "",
   };

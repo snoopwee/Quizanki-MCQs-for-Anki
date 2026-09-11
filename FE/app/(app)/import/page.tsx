@@ -161,13 +161,19 @@ function ImportFlow() {
     startDraft(() => fromParsed(parsed), parsed.filename);
   }
 
-  function handlePasted(name: string, pairs: ParsedPair[]) {
+  // Pairs come either from a text paste (no pictures) or from the browser
+  // extension, where a face may carry an inlined `data:` picture — the save path
+  // uploads those, so they can go straight into the row.
+  function handlePasted(
+    name: string,
+    pairs: (ParsedPair & { frontImage?: string; backImage?: string })[],
+  ) {
     setApkgFile(null);
     setAudioRefs([]);
     startDraft(
       () => ({
         name: name.trim() || "Untitled deck",
-        rows: pairs.map((p) => basicRow(p.front, p.back)),
+        rows: pairs.map((p) => basicRow(p.front, p.back, p.frontImage, p.backImage)),
         layoutByType: {},
       }),
       null,

@@ -191,9 +191,42 @@ export interface StartSessionResponse {
   sessionId: string;
 }
 
+// Which study surface produced an answer — mirrors answer_events.source (V21). Only the
+// quiz and study mode record; deck-page flashcards are preview only and never do.
+export type AnswerSource = "quiz" | "learn";
+
 export interface RecordAnswerRequest {
   noteId: string;
   correct: boolean;
+  // Omitted = a quiz answer (the backend's default).
+  source?: AnswerSource;
+  // The browser's IANA timezone, so the streak files today under the user's own date.
+  timezone?: string;
+}
+
+// ── Daily study streak (Phase 7) ──────────────────────────────────────────────
+// What can mark a study day. Wider than AnswerSource: deck-page flashcards keep a streak
+// going without ever touching mastery.
+export type StudyActivitySource = "quiz" | "learn" | "flashcards";
+
+export interface StudyActivityRequest {
+  source: StudyActivitySource;
+  timezone?: string;
+}
+
+export interface StreakDay {
+  // "YYYY-MM-DD", the user's LOCAL calendar date. Read it with parseLocalDate
+  // (lib/streakDisplay) — never new Date(), which parses it as midnight UTC.
+  date: string;
+  studied: boolean;
+}
+
+export interface StreakResponse {
+  current: number;
+  longest: number;
+  studiedToday: boolean;
+  // Today and the six days before it, oldest first.
+  last7Days: StreakDay[];
 }
 
 export interface RecordAnswerResponse {

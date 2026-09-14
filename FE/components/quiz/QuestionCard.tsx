@@ -12,16 +12,26 @@ import { RichText } from "@/components/shared/RichText";
 // available a speaker reads the prompt aloud, language auto-detected. Its id is
 // fixed since only one question shows at a time; QuizSession cancels playback
 // when the question changes.
+// The key the question speaker speaks under. Learn's "read question aloud" uses it too,
+// so the button shows the narration it started.
+export const QUESTION_SPEECH_ID = "quiz-question";
+
+// The prompt as one string for text-to-speech: segments read as sentences, with
+// furigana and LaTeX markup stripped.
+export function promptSpeechText(prompt: PromptSegment[]): string {
+  return stripFurigana(stripLatex(prompt.map((seg) => seg.value).join(". ")));
+}
+
 export function QuestionCard({ prompt }: { prompt: PromptSegment[] }) {
   const speechOn = useSpeechSupported();
-  const text = stripFurigana(stripLatex(prompt.map((seg) => seg.value).join(". ")));
+  const text = promptSpeechText(prompt);
   const multi = prompt.length > 1;
 
   return (
     <div className="relative w-full text-center">
       {speechOn && (
         <div className="absolute right-0 top-0">
-          <SpeakButton id="quiz-question" text={text} size="sm" />
+          <SpeakButton id={QUESTION_SPEECH_ID} text={text} size="sm" />
         </div>
       )}
       <p className="font-mono text-xs uppercase tracking-[0.08em] text-faint">Question</p>

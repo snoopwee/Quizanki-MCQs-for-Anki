@@ -23,15 +23,18 @@ public class SessionService {
     private final NoteRepository noteRepository;
     private final CardStatsRepository cardStatsRepository;
     private final EntityManager entityManager;
+    private final StreakService streakService;
 
     public SessionService(DeckRepository deckRepository,
                           NoteRepository noteRepository,
                           CardStatsRepository cardStatsRepository,
-                          EntityManager entityManager) {
+                          EntityManager entityManager,
+                          StreakService streakService) {
         this.deckRepository = deckRepository;
         this.noteRepository = noteRepository;
         this.cardStatsRepository = cardStatsRepository;
         this.entityManager = entityManager;
+        this.streakService = streakService;
     }
 
     @Transactional(readOnly = true)
@@ -56,13 +59,19 @@ public class SessionService {
         // (user_id, note_id) row. sessionId is logged on the answer_events row so
         // the stats chart can plot one point per test (see V8); it's not otherwise
         // validated — a bogus id only fragments that user's own history.
-        entityManager.createNativeQuery("SELECT record_answer(:userId, :noteId, :correct, :sessionId)")
+        // source (V21) says which study surface produced the answer; omitted = quiz.
+        entityManager.createNativeQuery("SELECT record_answer(:userId, :noteId, :correct, :sessionId, :source)")
                 .setParameter("userId", userId)
                 .setParameter("noteId", request.noteId())
                 .setParameter("correct", request.correct())
                 .setParameter("sessionId", sessionId)
+                .setParameter("source", request.sourceOrDefault())
                 .getSingleResult();
         entityManager.clear();
+
+        // A recorded answer is study: mark today, in the caller's own timezone, as a study
+        // day for the streak (V22). Idempotent, and inside this same transaction.
+        streakService.markStudied(userId, ClientZone.parse(request.timezone()), request.sourceOrDefault());
 
         CardStats stats = cardStatsRepository.findByUserIdAndNoteId(userId, request.noteId())
                 .orElseThrow(() -> new NotFoundException("Card stats not found after recording answer"));

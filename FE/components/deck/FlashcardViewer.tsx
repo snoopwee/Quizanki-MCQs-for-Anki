@@ -80,6 +80,7 @@ export function FlashcardViewer({
   previewSlot,
   hiddenSide = null,
   fields,
+  onStudied,
 }: {
   parsed: ApkgParseResponse;
   // Mean mastery across the deck (0-100). Surfaced as a percent + progress bar
@@ -121,6 +122,11 @@ export function FlashcardViewer({
   // by the deck page for an owner (built from deck contents so ids are the real
   // note-type UUIDs). Absent for the guest/unsaved flow and non-owners.
   fields?: DeckFieldControls;
+  // Called once per mount, on the first real study interaction (flip, card nav,
+  // autoplay, or a Know / Still-learning verdict) — not on merely opening the page. The
+  // deck page uses it to mark today on the study streak. Streak only: flashcards on the
+  // deck page are preview material and never record answers or change mastery.
+  onStudied?: () => void;
 }) {
   const allCards: StudyCard[] = useMemo(
     () => buildFlashcards(parsed.noteTypes).map((c, i) => ({ ...c, key: i })),
@@ -129,6 +135,17 @@ export function FlashcardViewer({
   // Text-to-speech: a mount-aware support gate (the language is auto-detected per
   // card, so there's no per-deck setting to thread through).
   const speechOn = useSpeechSupported();
+
+  // Fires `onStudied` at most once for this mount. Refs only, so it is safe to call from
+  // the keyboard and autoplay effects' closures (a stale copy still reads the live refs).
+  const onStudiedRef = useRef(onStudied);
+  onStudiedRef.current = onStudied;
+  const studiedRef = useRef(false);
+  function noteStudied() {
+    if (studiedRef.current) return;
+    studiedRef.current = true;
+    onStudiedRef.current?.();
+  }
 
   const [prefs, setPrefs] = useState<FlashcardPreferences>(DEFAULT_FLASHCARD_PREFS);
   const [index, setIndex] = useState(0);
@@ -382,6 +399,7 @@ export function FlashcardViewer({
         e.preventDefault();
         setAutoplaying(false);
         stopPlayback();
+        noteStudied();
         setFlipped((f) => !f);
       } else if (e.key === "f" || e.key === "F") {
         e.preventDefault();
@@ -410,6 +428,7 @@ export function FlashcardViewer({
       const step = nextAutoplayStep(onStartSide, canNextRef.current);
       if (step === "flip") {
         stopPlayback();
+        noteStudied();
         setFlipped((f) => !f);
       } else if (step === "advance") {
         goRef.current(1);
@@ -472,6 +491,7 @@ export function FlashcardViewer({
     if (total === 0 || !card) return;
     // Nothing to reveal past the ends — don't fling the card into empty space.
     if (delta > 0 ? !canNext : !canPrev) return;
+    noteStudied();
     stopPlayback();
     // Fly the outgoing card away as a blank surface — its text vanishes at once,
     // so only the reveal of the next card (already rendered beneath) draws the eye.
@@ -485,6 +505,7 @@ export function FlashcardViewer({
   function flip() {
     // A manual flip takes over — stop autoplay so the two don't fight.
     setAutoplaying(false);
+    noteStudied();
     stopPlayback();
     setFlipped((f) => !f);
   }
@@ -494,6 +515,7 @@ export function FlashcardViewer({
 
   function mark(knows: boolean) {
     if (!card) return;
+    noteStudied();
     const k = card.key;
     // Whether this fills the last unsorted slot — if so the breakdown replaces
     // the card, so skip the fly-away (its overlay wouldn't mount to clear itself).

@@ -14,6 +14,7 @@ import {
 } from "@/hooks/useDecks";
 import { useNotes, useToggleStar } from "@/hooks/useNotes";
 import { useStartSession } from "@/hooks/useQuizSession";
+import { useRecordStudyActivity } from "@/hooks/useStreak";
 import { deckContentsToParsed } from "@/lib/deckContents";
 import { reshuffleQuestions, type Question } from "@/lib/buildQuestions";
 import { useQuizStore } from "@/stores/quizStore";
@@ -62,6 +63,7 @@ function DeckDetail() {
   const openDeck = useOpenDeck();
   const copies = useDeckCopies(deckId).data ?? 0;
   const toggleStar = useToggleStar(deckId);
+  const recordActivity = useRecordStudyActivity();
 
   // The viewer's relationship to this deck (from the studiable read). A non-owner
   // studying a shared deck gets the Save/Duplicate controls instead of edit/delete.
@@ -153,6 +155,9 @@ function DeckDetail() {
   }
   function goToMatch() {
     router.push(`/decks/${deckId}/match`);
+  }
+  function goToLearn() {
+    router.push(`/decks/${deckId}/learn`);
   }
 
   function startTest(questions: Question[]) {
@@ -352,6 +357,13 @@ function DeckDetail() {
                 onClick={goToSetup}
               />
               <StudyMode
+                icon="brain"
+                color="var(--warning)"
+                label="Learn"
+                desc="Missed cards come back until you get them right"
+                onClick={goToLearn}
+              />
+              <StudyMode
                 icon="cards"
                 color="var(--info)"
                 label="Flashcards"
@@ -386,6 +398,10 @@ function DeckDetail() {
               hiddenSide={hiddenSide}
               onBack={() => router.push("/home")}
               onStartTest={goToSetup}
+              // Studying the flashcards keeps today's streak — streak ONLY, never mastery.
+              // It invalidates just ["streak"]: refetching deck-contents here would rebuild
+              // the cards and reset the player to card 1 mid-study.
+              onStudied={() => recordActivity.mutate("flashcards")}
               // Owner-only "show/hide extra fields" control (real note-type UUIDs
               // from contents), saved to the deck's layout via PUT /decks/{id}/layout.
               fields={
@@ -421,6 +437,7 @@ function DeckDetail() {
             onQuiz={goToSetup}
             onFlashcards={scrollToCards}
             onMatch={goToMatch}
+            onLearn={goToLearn}
             hideOn={hideOn}
             hideSide={hideSide}
             onToggleHide={() => setHideOn((v) => !v)}
@@ -576,6 +593,7 @@ function FloatingStudyRail({
   onQuiz,
   onFlashcards,
   onMatch,
+  onLearn,
   hideOn,
   hideSide,
   onToggleHide,
@@ -585,6 +603,7 @@ function FloatingStudyRail({
   onQuiz: () => void;
   onFlashcards: () => void;
   onMatch: () => void;
+  onLearn: () => void;
   // Self-test controls: hide one column of the Cards-in-this-deck list.
   hideOn: boolean;
   hideSide: "front" | "back";
@@ -601,6 +620,7 @@ function FloatingStudyRail({
     onClick?: () => void;
   }> = [
     { icon: "clipboard", label: "Quiz me", color: "var(--accent)", primary: true, onClick: onQuiz },
+    { icon: "brain", label: "Learn", color: "var(--warning)", onClick: onLearn },
     { icon: "cards", label: "Flashcards", color: "var(--info)", onClick: onFlashcards },
     { icon: "shuffle", label: "Match", color: "var(--success)", onClick: onMatch },
   ];

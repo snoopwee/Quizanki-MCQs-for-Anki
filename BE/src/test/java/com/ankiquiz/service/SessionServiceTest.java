@@ -20,6 +20,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -27,6 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -43,6 +46,7 @@ class SessionServiceTest {
     @Mock private CardStatsRepository cardStatsRepository;
     @Mock private EntityManager entityManager;
     @Mock private Query query;
+    @Mock private StreakService streakService;
 
     private SessionService service;
 
@@ -51,7 +55,7 @@ class SessionServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new SessionService(deckRepository, noteRepository, cardStatsRepository, entityManager);
+        service = new SessionService(deckRepository, noteRepository, cardStatsRepository, entityManager, streakService);
     }
 
     private Note note() {
@@ -78,11 +82,13 @@ class SessionServiceTest {
         when(deckRepository.findStudiable(deckId, USER)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.recordAnswer(USER, UUID.randomUUID(),
-                new RecordAnswerRequest(noteId, true)))
+                new RecordAnswerRequest(noteId, true, null, null)))
                 .isInstanceOf(NotFoundException.class);
 
         // Crucially, no progress was written for a deck the caller may not study.
         verify(entityManager, never()).createNativeQuery(anyString());
+        // ...and no study day is marked for an answer that was refused.
+        verify(streakService, never()).markStudied(any(), any(), any());
     }
 
     // ── happy path: records the CALLER's own progress ────────────────────────
@@ -108,11 +114,40 @@ class SessionServiceTest {
         when(cardStatsRepository.findByUserIdAndNoteId(USER, noteId)).thenReturn(Optional.of(stats));
 
         RecordAnswerResponse res = service.recordAnswer(USER, sessionId,
-                new RecordAnswerRequest(noteId, true));
+                new RecordAnswerRequest(noteId, true, null, null));
 
         assertThat(res.mastery()).isEqualTo(15.0);
         assertThat(res.streak()).isEqualTo(1);
         // The acting user is threaded into record_answer, not the deck owner.
         verify(query).setParameter(eq("userId"), eq(USER));
+        // A request with no source records a quiz answer.
+        verify(query).setParameter(eq("source"), eq("quiz"));
+        // It also marks today a study day — in UTC when the client sent no timezone.
+        verify(streakService).markStudied(USER, ZoneOffset.UTC, "quiz");
+    }
+
+    @Test
+    void recordAnswer_recordsTheRequestedSource() {
+        when(noteRepository.findById(noteId)).thenReturn(Optional.of(note()));
+        when(deckRepository.findStudiable(deckId, USER)).thenReturn(Optional.of(new Deck()));
+        when(entityManager.createNativeQuery(anyString())).thenReturn(query);
+        when(query.setParameter(anyString(), any())).thenReturn(query);
+        when(query.getSingleResult()).thenReturn(0);
+
+        CardStats stats = new CardStats();
+        stats.setUserId(USER);
+        stats.setNoteId(noteId);
+        stats.setAccuracy(0.0);
+        stats.setStreak(0);
+        stats.setMastery(0.0);
+        when(cardStatsRepository.findByUserIdAndNoteId(USER, noteId)).thenReturn(Optional.of(stats));
+
+        // A Learn answer is recorded with its source.
+        service.recordAnswer(USER, UUID.randomUUID(), new RecordAnswerRequest(noteId, false, "learn", "Asia/Ho_Chi_Minh"));
+
+        verify(entityManager).createNativeQuery(contains(":source"));
+        verify(query).setParameter(eq("source"), eq("learn"));
+        verify(query).setParameter(eq("correct"), eq(false));
+        verify(streakService).markStudied(USER, ZoneId.of("Asia/Ho_Chi_Minh"), "learn");
     }
 }

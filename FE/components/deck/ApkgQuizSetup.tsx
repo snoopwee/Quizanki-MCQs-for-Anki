@@ -2,45 +2,38 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { detectFields, selectableFields } from "@/lib/detectFields";
+import { buildMixedQuestions, type Question } from "@/lib/buildQuestions";
 import {
-  buildMixedQuestions,
-  detectClozeField,
-  type NoteTypeQuizSpec,
-  type Question,
-  type QuizNote,
-} from "@/lib/buildQuestions";
-import { uniqueClozeIndices } from "@/lib/cloze";
+  buildAllCardsSpecs,
+  cardsInType,
+  collectStarredIds,
+  collectWeakIds,
+  countCardsIn,
+  initialPrefsByType,
+  initialPrefsForType,
+  isQuizable,
+  totalCardsAcrossTypes,
+  type NoteStatsLookup,
+} from "@/lib/quizDeckSpecs";
 import {
   loadQuizPreferences,
   saveQuizPreferences,
   type NoteTypeFieldPrefs,
   type QuizPreferences,
 } from "@/lib/quizPreferences";
-import { ALL_QUESTION_KINDS, type QuestionKind } from "@/lib/questionTypes";
+import { toggleQuestionKind, type QuestionKind } from "@/lib/questionTypes";
 import { ConfidenceBadge } from "@/components/shared/ConfidenceBadge";
 import { FieldSelect } from "@/components/deck/FieldSelect";
 import { Card } from "@/components/ui/Card";
-import { Icon, type IconName } from "@/components/ui/icons";
+import { Icon } from "@/components/ui/icons";
+import { QuestionTypeChips } from "@/components/quiz/QuestionTypeChips";
 import { buttonClasses } from "@/components/ui/Button";
 import { Segmented, SoonTag } from "@/components/ui/controls";
 import type { ApkgNoteType, ApkgParseResponse } from "@/types/api";
 
-// A note type can power a multiple-choice quiz when:
-//   - it's a cloze type with at least one cloze deletion in any note, OR
-//   - it has at least two text fields (prompt + answer) and at least one note.
-function isQuizable(t: ApkgNoteType): boolean {
-  if (t.noteCount === 0) return false;
-  if (t.cloze) return detectClozeField(t.fieldNames, t.notes) !== null;
-  return t.fieldNames.length >= 2;
-}
-
-// Stats lookup used by the mastery-weighted card selection. The caller is
-// responsible for sourcing the data — authed callers build it from card_stats
-// returned by /decks/{id}/notes; the guest trial reads from localStorage.
-// Returning undefined / a zero record both mean "treat as a new card."
-export type NoteStatsLookup = (noteId: string) =>
-  | { mastery: number; timesSeen: number; starred?: boolean }
-  | undefined;
+// The deck helpers (quizable check, stats lookup, spec building) live in
+// lib/quizDeckSpecs.ts so Learn shares them; the lookup type stays importable here.
+export type { NoteStatsLookup };
 
 // Which slice of the deck the quiz draws its questions from.
 export type QuizSource = "all" | "starred" | "weak";
@@ -94,12 +87,8 @@ export function ApkgQuizSetup({
     () => savedPrefs?.kinds ?? ["mcq"],
   );
   function toggleKind(kind: QuestionKind) {
-    setEnabledKinds((prev) => {
-      const has = prev.includes(kind);
-      if (has && prev.length === 1) return prev; // keep at least one on
-      const next = has ? prev.filter((k) => k !== kind) : [...prev, kind];
-      return ALL_QUESTION_KINDS.filter((k) => next.includes(k)); // canonical order
-    });
+    // Canonical order, and never empty (switching off the last one is a no-op).
+    setEnabledKinds((prev) => toggleQuestionKind(prev, kind));
   }
 
   // If basicTypes change (rare — e.g. quizable set changes after a re-import),
@@ -231,17 +220,7 @@ export function ApkgQuizSetup({
         title="Question types"
         desc="Mix any combination — each card is asked in one of the enabled formats."
       >
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-          {ALL_QUESTION_KINDS.map((kind) => (
-            <QTypeChip
-              key={kind}
-              icon={KIND_META[kind].icon}
-              label={KIND_META[kind].label}
-              on={enabledKinds.includes(kind)}
-              onClick={() => toggleKind(kind)}
-            />
-          ))}
-        </div>
+        <QuestionTypeChips enabled={enabledKinds} onToggle={toggleKind} />
       </SettingCard>
 
       {/* pull cards from */}
@@ -463,52 +442,6 @@ function SettingCard({
   );
 }
 
-// Icon + label for each question format, in canonical order.
-const KIND_META: Record<QuestionKind, { icon: IconName; label: string }> = {
-  mcq: { icon: "clipboard", label: "Multiple choice" },
-  truefalse: { icon: "check", label: "True / false" },
-  written: { icon: "pencil", label: "Written" },
-};
-
-// A question-format toggle. `on` shows the accent fill + a filled checkbox; off
-// is a plain, clickable chip with an empty checkbox.
-function QTypeChip({
-  icon,
-  label,
-  on,
-  onClick,
-}: {
-  icon: IconName;
-  label: string;
-  on: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={on}
-      className={`focus-ring flex items-center gap-2.5 rounded-card border px-3.5 py-3 text-left transition ${
-        on ? "border-accent bg-accent-soft" : "border-line bg-surface-2 hover:border-line-strong"
-      }`}
-    >
-      <span className={on ? "text-accent-ink" : "text-faint"}>
-        <Icon name={icon} size={18} />
-      </span>
-      <span className={`text-sm font-semibold ${on ? "text-ink" : "text-muted"}`}>{label}</span>
-      <span className="ml-auto">
-        {on ? (
-          <span className="grid h-[18px] w-[18px] place-items-center rounded-[6px] bg-accent text-white">
-            <Icon name="check" size={12} />
-          </span>
-        ) : (
-          <span className="block h-[18px] w-[18px] rounded-[6px] border border-line-strong" />
-        )}
-      </span>
-    </button>
-  );
-}
-
 function clampCount(n: number, max: number): number {
   if (!Number.isFinite(n) || n < 1) return 1;
   if (max <= 0) return 1;
@@ -518,163 +451,4 @@ function clampCount(n: number, max: number): number {
 function sampleValue(notes: ApkgNoteType["notes"], field: string): string {
   const found = notes.find((n) => (n.fields[field] ?? "").length > 0);
   return found ? found.fields[field] : "(empty)";
-}
-
-function cardsInType(t: ApkgNoteType): number {
-  if (!t.cloze) return t.noteCount;
-  const field = detectClozeField(t.fieldNames, t.notes);
-  if (!field) return 0;
-  let total = 0;
-  for (const n of t.notes) {
-    total += uniqueClozeIndices(n.fields[field] ?? "").length;
-  }
-  return total;
-}
-
-function totalCardsAcrossTypes(types: ApkgNoteType[]): number {
-  return types.reduce((acc, t) => acc + cardsInType(t), 0);
-}
-
-// The id a note is tracked by, matching buildFlashcards / the quiz pool: the
-// persisted UUID for saved decks, else the Anki note id, else a synthetic key.
-// One lookup then serves the flashcard list, the quiz, and starred selection.
-function noteKey(noteType: ApkgNoteType, note: ApkgNoteType["notes"][number], i: number): string {
-  return note.id ?? note.ankiNoteId ?? `${noteType.id}-${i}`;
-}
-
-function buildPool(
-  noteType: ApkgNoteType,
-  getStats: NoteStatsLookup | undefined,
-): QuizNote[] {
-  return noteType.notes.map((n, i) => {
-    const id = noteKey(noteType, n, i);
-    const stats = getStats?.(id);
-    return {
-      id,
-      fields: n.fields,
-      mastery: stats?.mastery ?? 0,
-      timesSeen: stats?.timesSeen ?? 0,
-    };
-  });
-}
-
-// Note keys the user has starred, across every quizable type. Empty when there's
-// no stats lookup (guest with no stars yet, or a caller that doesn't track them).
-function collectStarredIds(
-  types: ApkgNoteType[],
-  getStats: NoteStatsLookup | undefined,
-): Set<string> {
-  const ids = new Set<string>();
-  if (!getStats) return ids;
-  for (const nt of types) {
-    nt.notes.forEach((n, i) => {
-      if (getStats(noteKey(nt, n, i))?.starred) ids.add(noteKey(nt, n, i));
-    });
-  }
-  return ids;
-}
-
-// Note keys the learner has seen but not yet mastered (mastery < 80). The
-// "Still learning" source draws from these. Empty without a stats lookup, or
-// for a learner who hasn't answered anything yet.
-function collectWeakIds(
-  types: ApkgNoteType[],
-  getStats: NoteStatsLookup | undefined,
-): Set<string> {
-  const ids = new Set<string>();
-  if (!getStats) return ids;
-  for (const nt of types) {
-    nt.notes.forEach((n, i) => {
-      const key = noteKey(nt, n, i);
-      const stats = getStats(key);
-      if (stats && stats.timesSeen > 0 && stats.mastery < 80) ids.add(key);
-    });
-  }
-  return ids;
-}
-
-// How many quiz cards a given id subset yields — a cloze note still contributes
-// one card per deletion, mirroring cardsInType.
-function countCardsIn(types: ApkgNoteType[], idSet: Set<string>): number {
-  let total = 0;
-  for (const nt of types) {
-    const clozeField = nt.cloze ? detectClozeField(nt.fieldNames, nt.notes) : null;
-    nt.notes.forEach((n, i) => {
-      if (!idSet.has(noteKey(nt, n, i))) return;
-      total += clozeField ? uniqueClozeIndices(n.fields[clozeField] ?? "").length : 1;
-    });
-  }
-  return total;
-}
-
-function initialPrefsForType(
-  nt: ApkgNoteType,
-  saved: QuizPreferences | null,
-): NoteTypeFieldPrefs {
-  const restored = restoreFieldPrefs(saved?.fieldPrefs[String(nt.id)], nt.fieldNames);
-  if (restored) return restored;
-  const detection = detectFields(nt.notes, nt.fieldNames);
-  const answerField = nt.backFields[0] ?? detection.answerField ?? nt.fieldNames[1] ?? "";
-  const questionFields =
-    nt.frontFields.length > 0
-      ? nt.frontFields
-      : detection.questionField
-        ? [detection.questionField]
-        : [];
-  return {
-    questionFields: questionFields.filter((f) => f !== answerField),
-    answerField,
-  };
-}
-
-function initialPrefsByType(
-  basicTypes: ApkgNoteType[],
-  saved: QuizPreferences | null,
-): Record<string, NoteTypeFieldPrefs> {
-  const out: Record<string, NoteTypeFieldPrefs> = {};
-  for (const nt of basicTypes) {
-    out[String(nt.id)] = initialPrefsForType(nt, saved);
-  }
-  return out;
-}
-
-function restoreFieldPrefs(
-  saved: NoteTypeFieldPrefs | undefined,
-  liveFields: string[],
-): NoteTypeFieldPrefs | null {
-  if (!saved) return null;
-  const live = new Set(liveFields);
-  if (!live.has(saved.answerField)) return null;
-  const questionFields = saved.questionFields.filter(
-    (f) => live.has(f) && f !== saved.answerField,
-  );
-  if (questionFields.length === 0) return null;
-  return { questionFields, answerField: saved.answerField };
-}
-
-function buildAllCardsSpecs(
-  quizable: ApkgNoteType[],
-  perTypePrefs: Record<string, NoteTypeFieldPrefs>,
-  getStats: NoteStatsLookup | undefined,
-): NoteTypeQuizSpec[] {
-  const specs: NoteTypeQuizSpec[] = [];
-  for (const nt of quizable) {
-    const pool = buildPool(nt, getStats);
-    if (nt.cloze) {
-      const textField = detectClozeField(nt.fieldNames, nt.notes);
-      if (!textField) continue;
-      specs.push({ kind: "cloze", noteTypeId: String(nt.id), textField, notes: pool });
-      continue;
-    }
-    const prefs = perTypePrefs[String(nt.id)];
-    if (!prefs || prefs.questionFields.length === 0 || !prefs.answerField) continue;
-    specs.push({
-      kind: "basic",
-      noteTypeId: String(nt.id),
-      questionFields: prefs.questionFields,
-      answerField: prefs.answerField,
-      notes: pool,
-    });
-  }
-  return specs;
 }

@@ -53,6 +53,14 @@ const STAGE_BAR: Record<MasteryStage, string> = {
   mastered: "bg-success",
 };
 
+// The stages weakest to strongest, for breakdowns and legends.
+export const MASTERY_STAGES: MasteryStage[] = ["new", "learning", "practicing", "mastered"];
+
+// Display metadata for one stage (a legend dot, a breakdown bar segment).
+export function stageStyle(stage: MasteryStage): { label: string; pillClass: string; barClass: string } {
+  return { label: STAGE_LABEL[stage], pillClass: STAGE_PILL[stage], barClass: STAGE_BAR[stage] };
+}
+
 export function classifyMastery(
   stats: { mastery?: number; timesSeen?: number } | undefined,
 ): StageInfo {

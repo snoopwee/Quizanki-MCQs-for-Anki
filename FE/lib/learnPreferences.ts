@@ -29,6 +29,9 @@ export interface LearnPreferences {
   includeMastered: boolean;
   // Off = cards come in deck order instead of a random order.
   shuffle: boolean;
+  // On = a missed card comes back later in the session until it's answered correctly.
+  // Off = every card is asked once, right or wrong.
+  retryMissed: boolean;
   // After a wrong written answer, type the correct answer before moving on.
   retypeWrong: boolean;
   // Written answers forgive small typos (see gradeWritten's typoTolerant option).
@@ -44,6 +47,7 @@ export const DEFAULT_LEARN_PREFS: LearnPreferences = {
   starredOnly: false,
   includeMastered: true,
   shuffle: true,
+  retryMissed: true,
   retypeWrong: false,
   smartGrading: true,
   readAloud: false,
@@ -93,6 +97,8 @@ export function sanitizeLearnPreferences(value: unknown): LearnPreferences | nul
     starredOnly: bool(v.starredOnly, d.starredOnly),
     includeMastered: bool(v.includeMastered, d.includeMastered),
     shuffle: bool(v.shuffle, d.shuffle),
+    // Settings saved before this option existed keep the old behaviour (missed cards return).
+    retryMissed: bool(v.retryMissed, d.retryMissed),
     retypeWrong: bool(v.retypeWrong, d.retypeWrong),
     smartGrading: bool(v.smartGrading, d.smartGrading),
     readAloud: bool(v.readAloud, d.readAloud),

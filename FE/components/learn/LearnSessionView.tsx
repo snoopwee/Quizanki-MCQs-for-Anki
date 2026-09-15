@@ -27,8 +27,10 @@ import { Icon } from "@/components/ui/icons";
 export function LearnSessionView({
   templates,
   prefs,
+  resumeFrom,
   paused,
   onAnswer,
+  onProgress,
   onComplete,
   onExit,
   onOpenSettings,
@@ -37,18 +39,25 @@ export function LearnSessionView({
 }: {
   templates: CardTemplate[];
   prefs: LearnPreferences;
+  // A saved session to pick up instead of dealing a new one.
+  resumeFrom?: LearnSession;
   // True while a modal is open — keyboard shortcuts stand down.
   paused: boolean;
   // Every answer, as it's final. The page records it (mastery + streak).
   onAnswer: (noteId: string, correct: boolean) => void;
+  // The session after every change, plus a multiple choice / true-false verdict already
+  // recorded before Next (null when none) — the page saves both so leaving can resume.
+  onProgress?: (session: LearnSession, pending: boolean | null) => void;
   onComplete: (session: LearnSession) => void;
   onExit: () => void;
   onOpenSettings: () => void;
   getStarred?: (noteId: string) => boolean;
   onToggleStar?: (noteId: string, next: boolean) => void;
 }) {
-  const [session, setSession] = useState<LearnSession>(() =>
-    startLearnSession(templates, prefs.kinds, { shuffle: prefs.shuffle }),
+  const [session, setSession] = useState<LearnSession>(
+    () =>
+      resumeFrom ??
+      startLearnSession(templates, prefs.kinds, { shuffle: prefs.shuffle, retryMissed: prefs.retryMissed }),
   );
   // The recorded pick for multiple choice / true-false on the current ask.
   const [picked, setPicked] = useState<string | null>(null);
@@ -65,6 +74,13 @@ export function LearnSessionView({
       onComplete(session);
     }
   }, [session, onComplete]);
+
+  // Report every change (the first render included) so the page can save it.
+  const onProgressRef = useRef(onProgress);
+  onProgressRef.current = onProgress;
+  useEffect(() => {
+    onProgressRef.current?.(session, null);
+  }, [session]);
 
   // Stop narration when the question changes or the session unmounts.
   useEffect(() => {
@@ -83,7 +99,8 @@ export function LearnSessionView({
   const retyped =
     needsRetype && gradeWritten(retype, question.correct, { typoTolerant: prefs.smartGrading });
   const canAdvance = answered && (!needsRetype || retyped);
-  const finishing = answered && correct && session.queue.length === 1;
+  // The last card, and this answer won't send it back.
+  const finishing = answered && (correct || !prefs.retryMissed) && session.queue.length === 1;
 
   // Guards against a double Next (click + Enter) advancing past the same answer twice.
   const advancedAtRef = useRef(-1);
@@ -119,18 +136,22 @@ export function LearnSessionView({
 
   if (!question) return null;
 
-  const { learned, total } = learnProgress(session);
+  const { done, total } = learnProgress(session);
 
   function handleOption(option: string) {
     if (answered || !question) return;
     setPicked(option);
-    onAnswer(question.noteId, option === question.correct);
+    const right = option === question.correct;
+    onAnswer(question.noteId, right);
+    onProgressRef.current?.(session, right);
   }
 
   function handleTrueFalse(pick: boolean) {
     if (answered || !question || question.kind !== "truefalse") return;
     setPicked(trueFalseLabel(pick));
-    onAnswer(question.noteId, pick === question.truth);
+    const right = pick === question.truth;
+    onAnswer(question.noteId, right);
+    onProgressRef.current?.(session, right);
   }
 
   function checkWritten() {
@@ -147,18 +168,18 @@ export function LearnSessionView({
         </IconButton>
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex items-center justify-between font-mono text-xs text-muted">
-            <span>Learn</span>
+            <span>{resumeFrom ? "Learn · resumed" : "Learn"}</span>
             <span>
               <span className="font-bold text-ink">
-                {learned} / {total}
+                {done} / {total}
               </span>{" "}
-              learned
+              {prefs.retryMissed ? "learned" : "done"}
             </span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
             <div
               className="h-full bg-accent transition-[width] duration-300"
-              style={{ width: `${(learned / total) * 100}%` }}
+              style={{ width: `${(done / total) * 100}%` }}
             />
           </div>
         </div>

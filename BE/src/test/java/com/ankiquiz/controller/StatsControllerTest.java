@@ -57,8 +57,8 @@ class StatsControllerTest {
         UUID deckId = UUID.randomUUID();
         when(statsService.getDeckHistory(eq("user-1"), eq(deckId), eq(30)))
                 .thenReturn(List.of(
-                        new DeckHistoryPoint(1_752_000_000_000L, 10, 7, 0.7),
-                        new DeckHistoryPoint(1_752_003_600_000L, 8, 8, 1.0)));
+                        new DeckHistoryPoint(1_752_000_000_000L, 10, 7, 0.7, "quiz"),
+                        new DeckHistoryPoint(1_752_003_600_000L, 8, 8, 1.0, "learn")));
 
         mockMvc.perform(get("/api/v1/decks/{deckId}/stats/history", deckId)
                         .with(jwt().jwt(j -> j.subject("user-1"))))
@@ -68,7 +68,9 @@ class StatsControllerTest {
                 .andExpect(jsonPath("$[0].answered").value(10))
                 .andExpect(jsonPath("$[0].correct").value(7))
                 .andExpect(jsonPath("$[0].accuracy").value(0.7))
-                .andExpect(jsonPath("$[1].accuracy").value(1.0));
+                .andExpect(jsonPath("$[0].source").value("quiz"))
+                .andExpect(jsonPath("$[1].accuracy").value(1.0))
+                .andExpect(jsonPath("$[1].source").value("learn"));
     }
 
     @Test

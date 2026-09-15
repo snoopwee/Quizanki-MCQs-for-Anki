@@ -2,9 +2,10 @@
 //
 // A session learns N cards picked the way the quiz picks them. Each time a card comes up
 // it's asked in one of the learner's enabled question types. A correct answer learns the
-// card; a miss sends it back REQUEUE_GAP places, to be asked again (possibly in another
-// type) until it's answered correctly. The session is complete once every card is
-// learned. Every answer — first try or repeat — is recorded and moves mastery like a quiz
+// card. A miss, when missed cards come back (the default), sends it back REQUEUE_GAP
+// places, to be asked again (possibly in another type) until it's answered correctly;
+// otherwise the card is done either way. The session is complete once no card is left to
+// ask. Every answer — first try or repeat — is recorded and moves mastery like a quiz
 // answer; the recording itself lives with the screen.
 
 import { askCard, type CardTemplate, type NoteTypeQuizSpec, type Question } from "@/lib/buildQuestions";
@@ -42,6 +43,8 @@ export interface LearnSession {
   // Answers so far. Changes on every advance, so a screen can use it as a reset key.
   asked: number;
   kinds: QuestionKind[];
+  // Whether a missed card comes back until it's answered correctly.
+  retryMissed: boolean;
 }
 
 export interface LearnSummary {
@@ -50,8 +53,10 @@ export interface LearnSummary {
   firstTry: number;
   // Every answer given, repeats included.
   answers: number;
-  // Cards that needed more than one try, most misses first.
+  // Cards missed at least once, most misses first.
   missed: LearnCard[];
+  // Whether missed cards came back — so every card ended up learned.
+  retriedMissed: boolean;
 }
 
 function shuffled<T>(items: T[], rng: () => number): T[] {
@@ -80,7 +85,7 @@ function askHead(cards: LearnCard[], queue: number[], kinds: QuestionKind[], rng
 export function startLearnSession(
   templates: CardTemplate[],
   kinds: QuestionKind[],
-  options: { shuffle: boolean },
+  options: { shuffle: boolean; retryMissed?: boolean },
   rng: () => number = Math.random,
 ): LearnSession {
   const cards: LearnCard[] = templates.map((template) => ({
@@ -93,11 +98,25 @@ export function startLearnSession(
   const queue = options.shuffle
     ? shuffled(indexes, rng)
     : indexes.sort((a, b) => cards[a].template.order - cards[b].template.order);
-  return { cards, queue, current: askHead(cards, queue, kinds, rng), asked: 0, kinds };
+  return {
+    cards,
+    queue,
+    current: askHead(cards, queue, kinds, rng),
+    asked: 0,
+    kinds,
+    retryMissed: options.retryMissed ?? true,
+  };
+}
+
+// The same session with the card on screen asked afresh — for a restored session whose saved
+// question can't be trusted.
+export function reaskLearnCard(session: LearnSession, rng: () => number = Math.random): LearnSession {
+  return { ...session, current: askHead(session.cards, session.queue, session.kinds, rng) };
 }
 
 // Records the answer to the card on screen and moves on: a correct answer learns it, a
-// miss puts it back REQUEUE_GAP places later. A complete session is returned unchanged.
+// miss puts it back REQUEUE_GAP places later (or, with retryMissed off, lets it go). A
+// complete session is returned unchanged.
 export function answerLearnCard(
   session: LearnSession,
   correct: boolean,
@@ -115,9 +134,10 @@ export function answerLearnCard(
         }
       : card,
   );
-  const queue = correct
-    ? rest
-    : [...rest.slice(0, REQUEUE_GAP), head, ...rest.slice(REQUEUE_GAP)];
+  const queue =
+    correct || !session.retryMissed
+      ? rest
+      : [...rest.slice(0, REQUEUE_GAP), head, ...rest.slice(REQUEUE_GAP)];
   return {
     ...session,
     cards,
@@ -127,9 +147,12 @@ export function answerLearnCard(
   };
 }
 
-export function learnProgress(session: LearnSession): { learned: number; total: number } {
+// `learned` = answered correctly; `done` = no longer coming up. The two match when missed
+// cards come back (the queue holds each unlearned card exactly once).
+export function learnProgress(session: LearnSession): { learned: number; done: number; total: number } {
   return {
     learned: session.cards.filter((card) => card.learned).length,
+    done: session.cards.length - session.queue.length,
     total: session.cards.length,
   };
 }
@@ -143,6 +166,7 @@ export function summarizeLearnSession(session: LearnSession): LearnSummary {
     firstTry: session.cards.length - missed.length,
     answers: session.cards.reduce((sum, card) => sum + card.attempts, 0),
     missed,
+    retriedMissed: session.retryMissed,
   };
 }
 

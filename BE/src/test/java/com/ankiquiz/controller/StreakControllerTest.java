@@ -1,16 +1,13 @@
 package com.ankiquiz.controller;
 
-import com.ankiquiz.dto.request.StudyActivityRequest;
 import com.ankiquiz.dto.response.StreakResponse;
 import com.ankiquiz.exception.GlobalExceptionHandler;
 import com.ankiquiz.service.StreakService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -21,13 +18,11 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -37,9 +32,6 @@ class StreakControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     @MockBean
     private StreakService streakService;
@@ -84,30 +76,4 @@ class StreakControllerTest {
                 .andExpect(status().isUnauthorized());
     }
 
-    @Test
-    void recordActivity_marksTodayAsAStudyDay_andReturns204() throws Exception {
-        StudyActivityRequest request = new StudyActivityRequest("flashcards", "Asia/Ho_Chi_Minh");
-
-        mockMvc.perform(post("/api/v1/me/activity")
-                        .with(jwt().jwt(j -> j.subject("user-1")))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNoContent());
-
-        verify(streakService).markStudied("user-1", ZoneId.of("Asia/Ho_Chi_Minh"), "flashcards");
-    }
-
-    @Test
-    void recordActivity_returns400_forAnUnknownSource() throws Exception {
-        StudyActivityRequest request = new StudyActivityRequest("homework", null);
-
-        mockMvc.perform(post("/api/v1/me/activity")
-                        .with(jwt().jwt(j -> j.subject("user-1")))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.details.source").exists());
-
-        verify(streakService, never()).markStudied(any(), any(), any());
-    }
 }

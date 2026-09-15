@@ -67,7 +67,11 @@ export function LearnSettingsModal({
       <div className="space-y-5">
         <Setting
           title="Cards per session"
-          desc="Missed cards come back until you get them right, so a session ends once every card is learned."
+          desc={
+            draft.retryMissed
+              ? "Missed cards come back until you get them right, so a session ends once every card is learned."
+              : "Each card is asked once, so a session ends after this many questions."
+          }
         >
           <input
             type="number"
@@ -127,6 +131,12 @@ export function LearnSettingsModal({
             desc="Turn off to go through cards in deck order."
             on={draft.shuffle}
             onChange={(shuffle) => patch({ shuffle })}
+          />
+          <ToggleRow
+            label="Bring back missed cards"
+            desc="Ask a missed card again later in the session until you get it right."
+            on={draft.retryMissed}
+            onChange={(retryMissed) => patch({ retryMissed })}
           />
           <ToggleRow
             label="Re-type wrong written answers"

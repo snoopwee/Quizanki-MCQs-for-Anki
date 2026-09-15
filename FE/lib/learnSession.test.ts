@@ -60,7 +60,7 @@ describe("startLearnSession", () => {
   it("is complete straight away with no cards", () => {
     const s = startLearnSession([], ["mcq"], { shuffle: false });
     expect(s.current).toBeNull();
-    expect(learnProgress(s)).toEqual({ learned: 0, total: 0 });
+    expect(learnProgress(s)).toEqual({ learned: 0, done: 0, total: 0 });
   });
 });
 
@@ -70,7 +70,7 @@ describe("answerLearnCard", () => {
 
   it("learns a card answered correctly and moves to the next", () => {
     const s = answerLearnCard(four(), true, makeRng());
-    expect(learnProgress(s)).toEqual({ learned: 1, total: 4 });
+    expect(learnProgress(s)).toEqual({ learned: 1, done: 1, total: 4 });
     expect(headKey(s)).toBe("b");
     expect(s.current?.noteId).toBe("b");
     expect(s.asked).toBe(1);
@@ -108,12 +108,42 @@ describe("answerLearnCard", () => {
       s = answerLearnCard(s, correct, makeRng());
     }
     expect(s.current).toBeNull();
-    expect(learnProgress(s)).toEqual({ learned: 4, total: 4 });
+    expect(learnProgress(s)).toEqual({ learned: 4, done: 4, total: 4 });
   });
 
   it("leaves a complete session unchanged", () => {
     const done = answerLearnCard(startLearnSession([card("a", 0)], ["mcq"], { shuffle: false }), true);
     expect(answerLearnCard(done, false)).toBe(done);
+  });
+});
+
+describe("answerLearnCard with missed cards not coming back", () => {
+  const four = () =>
+    startLearnSession(
+      [card("a", 0), card("b", 1), card("c", 2), card("d", 3)],
+      ["mcq"],
+      { shuffle: false, retryMissed: false },
+      makeRng(),
+    );
+
+  it("moves past a missed card without asking it again", () => {
+    const s = answerLearnCard(four(), false, makeRng());
+    expect(s.queue.map((i) => s.cards[i].template.key)).toEqual(["b", "c", "d"]);
+    expect(s.cards[0]).toMatchObject({ attempts: 1, misses: 1, learned: false });
+    expect(learnProgress(s)).toEqual({ learned: 0, done: 1, total: 4 });
+  });
+
+  it("ends once every card has been asked, right or wrong", () => {
+    let s = four();
+    for (const correct of [false, true, false, true]) {
+      expect(s.current).not.toBeNull();
+      s = answerLearnCard(s, correct, makeRng());
+    }
+    expect(s.current).toBeNull();
+    expect(learnProgress(s)).toEqual({ learned: 2, done: 4, total: 4 });
+    const summary = summarizeLearnSession(s);
+    expect(summary).toMatchObject({ total: 4, firstTry: 2, answers: 4, retriedMissed: false });
+    expect(summary.missed.map((c) => c.template.key)).toEqual(["a", "c"]);
   });
 });
 
@@ -127,6 +157,7 @@ describe("summarizeLearnSession", () => {
     expect(summary.total).toBe(3);
     expect(summary.firstTry).toBe(1);
     expect(summary.answers).toBe(6);
+    expect(summary.retriedMissed).toBe(true);
     expect(summary.missed.map((c) => [c.template.key, c.misses])).toEqual([
       ["a", 2],
       ["b", 1],

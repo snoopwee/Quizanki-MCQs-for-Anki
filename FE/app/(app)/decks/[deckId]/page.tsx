@@ -14,7 +14,6 @@ import {
 } from "@/hooks/useDecks";
 import { useNotes, useToggleStar } from "@/hooks/useNotes";
 import { useStartSession } from "@/hooks/useQuizSession";
-import { useRecordStudyActivity } from "@/hooks/useStreak";
 import { deckContentsToParsed } from "@/lib/deckContents";
 import { reshuffleQuestions, type Question } from "@/lib/buildQuestions";
 import { useQuizStore } from "@/stores/quizStore";
@@ -63,7 +62,6 @@ function DeckDetail() {
   const openDeck = useOpenDeck();
   const copies = useDeckCopies(deckId).data ?? 0;
   const toggleStar = useToggleStar(deckId);
-  const recordActivity = useRecordStudyActivity();
 
   // The viewer's relationship to this deck (from the studiable read). A non-owner
   // studying a shared deck gets the Save/Duplicate controls instead of edit/delete.
@@ -398,10 +396,6 @@ function DeckDetail() {
               hiddenSide={hiddenSide}
               onBack={() => router.push("/home")}
               onStartTest={goToSetup}
-              // Studying the flashcards keeps today's streak — streak ONLY, never mastery.
-              // It invalidates just ["streak"]: refetching deck-contents here would rebuild
-              // the cards and reset the player to card 1 mid-study.
-              onStudied={() => recordActivity.mutate("flashcards")}
               // Owner-only "show/hide extra fields" control (real note-type UUIDs
               // from contents), saved to the deck's layout via PUT /decks/{id}/layout.
               fields={

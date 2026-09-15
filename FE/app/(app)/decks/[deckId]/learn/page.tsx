@@ -14,6 +14,7 @@ import { applyAnswer } from "@/lib/mastery";
 import { loadQuizPreferences } from "@/lib/quizPreferences";
 import {
   buildAllCardsSpecs,
+  collectAllNoteIds,
   collectStarredIds,
   initialPrefsByType,
   isQuizable,
@@ -35,6 +36,12 @@ import {
   type LearnSession,
   type LearnSummary,
 } from "@/lib/learnSession";
+import {
+  clearLearnSnapshot,
+  loadLearnSnapshot,
+  saveLearnSnapshot,
+  type RestoredLearn,
+} from "@/lib/learnResume";
 import type { MasteryStage } from "@/lib/masteryStage";
 import { LearnSessionView } from "@/components/learn/LearnSessionView";
 import { LearnSettingsModal } from "@/components/learn/LearnSettingsModal";
@@ -50,6 +57,8 @@ interface Run {
   sessionId: string;
   templates: CardTemplate[];
   prefs: LearnPreferences;
+  // Set when this run picks up a saved session instead of dealing a new one.
+  resumeFrom?: LearnSession;
 }
 
 // Learn mode — the study page. Signed-in only (it lives under the auth-guarded app), full
@@ -72,6 +81,8 @@ export default function DeckLearnPage() {
     [contentsQuery.data],
   );
   const quizable = useMemo(() => parsed?.noteTypes.filter(isQuizable) ?? [], [parsed]);
+  // Every note a session can ask — a saved session naming any other note is stale.
+  const noteIds = useMemo(() => collectAllNoteIds(quizable), [quizable]);
 
   const getStats: NoteStatsLookup = useMemo(() => {
     const map = new Map<string, { mastery: number; timesSeen: number; starred: boolean }>();
@@ -128,6 +139,8 @@ export default function DeckLearnPage() {
     setFirstVisit(false);
     setFinished(null);
     setStartFailed(false);
+    // A new session replaces any saved one.
+    clearLearnSnapshot(deckId);
 
     // Same field picks as the deck's quiz setup (its saved choices, else the card layout).
     const basicTypes = quizable.filter((t) => !t.cloze);
@@ -142,12 +155,7 @@ export default function DeckLearnPage() {
       return;
     }
     setEmpty(false);
-    masteryRef.current = new Map(
-      templates.map((t): [string, { mastery: number; timesSeen: number }] => {
-        const s = getStats(t.base.noteId);
-        return [t.base.noteId, { mastery: s?.mastery ?? 0, timesSeen: s?.timesSeen ?? 0 }];
-      }),
-    );
+    seedMastery(templates);
     startSession.mutate(
       { deckId, questionCount: templates.length, direction: "FRONT_TO_BACK" },
       {
@@ -163,15 +171,52 @@ export default function DeckLearnPage() {
     );
   }
 
-  // Start straight away on a return visit, once the deck, the card stats (for mastery
-  // weighting and stars) and the saved settings are in.
+  // Picks up a session left mid-way, with the backend session id it had, so its answers
+  // keep charting as one session. Answers given before leaving are already recorded, so the
+  // card stats the mastery is seeded from include them.
+  function resume(saved: RestoredLearn) {
+    autoStartedRef.current = true;
+    setPrefs(saved.prefs);
+    setFirstVisit(false);
+    setSettingsOpen(false);
+    setFinished(null);
+    setStartFailed(false);
+    setEmpty(false);
+    const templates = saved.session.cards.map((card) => card.template);
+    seedMastery(templates);
+    runIdRef.current += 1;
+    setRun({
+      id: runIdRef.current,
+      sessionId: saved.sessionId,
+      templates,
+      prefs: saved.prefs,
+      resumeFrom: saved.session,
+    });
+  }
+
+  // The session's cards' current mastery, mirrored for the summary.
+  function seedMastery(templates: CardTemplate[]) {
+    masteryRef.current = new Map(
+      templates.map((t): [string, { mastery: number; timesSeen: number }] => {
+        const s = getStats(t.base.noteId);
+        return [t.base.noteId, { mastery: s?.mastery ?? 0, timesSeen: s?.timesSeen ?? 0 }];
+      }),
+    );
+  }
+
+  // Once the deck, the card stats (for mastery weighting and stars) and the saved settings
+  // are in: pick up a session left mid-way, else start straight away on a return visit.
   const ready = Boolean(parsed) && !notesQuery.isLoading && prefsLoaded;
   const startRef = useRef(start);
   startRef.current = start;
+  const resumeRef = useRef(resume);
+  resumeRef.current = resume;
   useEffect(() => {
-    if (!ready || firstVisit || autoStartedRef.current) return;
-    startRef.current(prefs);
-  }, [ready, firstVisit, prefs]);
+    if (!ready || autoStartedRef.current) return;
+    const saved = loadLearnSnapshot(deckId, noteIds);
+    if (saved) resumeRef.current(saved);
+    else if (!firstVisit) startRef.current(prefs);
+  }, [ready, firstVisit, prefs, deckId, noteIds]);
 
   function handleAnswer(noteId: string, correct: boolean) {
     const prev = masteryRef.current.get(noteId) ?? { mastery: 0, timesSeen: 0 };
@@ -186,7 +231,24 @@ export default function DeckLearnPage() {
     );
   }
 
+  // Keeps the session on screen saved as it moves, so leaving picks it up again next visit.
+  function handleProgress(session: LearnSession, pending: boolean | null) {
+    if (!run) return;
+    if (session.current === null) {
+      clearLearnSnapshot(deckId);
+      return;
+    }
+    saveLearnSnapshot(deckId, {
+      savedAt: Date.now(),
+      sessionId: run.sessionId,
+      prefs: run.prefs,
+      session,
+      pending,
+    });
+  }
+
   function handleComplete(session: LearnSession) {
+    clearLearnSnapshot(deckId);
     setFinished({
       summary: summarizeLearnSession(session),
       stages: stageCounts(session.cards, (id) => masteryRef.current.get(id)),
@@ -254,8 +316,10 @@ export default function DeckLearnPage() {
         key={run.id}
         templates={run.templates}
         prefs={run.prefs}
+        resumeFrom={run.resumeFrom}
         paused={settingsOpen}
         onAnswer={handleAnswer}
+        onProgress={handleProgress}
         onComplete={handleComplete}
         onExit={exit}
         onOpenSettings={() => setSettingsOpen(true)}

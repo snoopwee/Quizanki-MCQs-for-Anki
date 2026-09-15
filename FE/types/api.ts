@@ -128,14 +128,16 @@ export interface DeckStatsResponse {
   averageMastery: number;
 }
 
-// GET /api/v1/decks/{id}/stats/history — one point per test (quiz session) the
-// learner took, oldest first. Legacy pre-V8 answers with no session id collapse
-// per day. Only tests that happened are returned (no zero-fill).
+// GET /api/v1/decks/{id}/stats/history — one point per study session (a quiz or a
+// Learn session) the learner took, oldest first. Legacy pre-V8 answers with no
+// session id collapse per day. Only sessions that happened are returned (no zero-fill).
 export interface DeckHistoryPoint {
-  at: number; // epoch ms (UTC) of the test's last answer; render local
+  at: number; // epoch ms (UTC) of the session's last answer; render local
   answered: number;
   correct: number;
   accuracy: number; // 0–1
+  // Which surface the session was. Optional: a backend from before Phase 7 doesn't send it.
+  source?: AnswerSource;
 }
 
 export interface NoteRequest {
@@ -205,14 +207,7 @@ export interface RecordAnswerRequest {
 }
 
 // ── Daily study streak (Phase 7) ──────────────────────────────────────────────
-// What can mark a study day. Wider than AnswerSource: deck-page flashcards keep a streak
-// going without ever touching mastery.
-export type StudyActivitySource = "quiz" | "learn" | "flashcards";
-
-export interface StudyActivityRequest {
-  source: StudyActivitySource;
-  timezone?: string;
-}
+// A day counts once a quiz or Learn answer is recorded; deck-page flashcards never mark one.
 
 export interface StreakDay {
   // "YYYY-MM-DD", the user's LOCAL calendar date. Read it with parseLocalDate

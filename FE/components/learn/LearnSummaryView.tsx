@@ -8,7 +8,7 @@ import { MASTERY_STAGES, stageStyle, type MasteryStage } from "@/lib/masteryStag
 import type { LearnSummary } from "@/lib/learnSession";
 
 // The end of a Learn session: first-try accuracy, where the cards now stand on the
-// mastery scale, and the cards that took more than one try.
+// mastery scale, and the cards that were missed.
 export function LearnSummaryView({
   summary,
   stages,
@@ -21,7 +21,10 @@ export function LearnSummaryView({
   onExit: () => void;
 }) {
   const pct = summary.total > 0 ? Math.round((summary.firstTry / summary.total) * 100) : 0;
-  const headline = pct === 100 ? "Flawless!" : pct >= 70 ? "Nicely done!" : "Every card learned!";
+  const retried = summary.retriedMissed;
+  const headline =
+    pct === 100 ? "Flawless!" : pct >= 70 ? "Nicely done!" : retried ? "Every card learned!" : "Keep practicing!";
+  const cards = `${summary.total} card${summary.total === 1 ? "" : "s"}`;
   const stageTotal = MASTERY_STAGES.reduce((sum, stage) => sum + stages[stage], 0);
 
   return (
@@ -33,14 +36,17 @@ export function LearnSummaryView({
           <div className="min-w-0 flex-1 text-center sm:text-left">
             <p className="font-mono text-xs uppercase tracking-[0.08em] text-faint">Session complete</p>
             <h2 className="mt-1 font-display text-3xl font-bold tracking-tight text-ink">{headline}</h2>
-            <p className="mt-1 text-sm text-muted">
-              You learned{" "}
-              <strong className="text-ink">
-                {summary.total} card{summary.total === 1 ? "" : "s"}
-              </strong>
-              . {summary.firstTry} right on the first try, {summary.answers} answer
-              {summary.answers === 1 ? "" : "s"} in all.
-            </p>
+            {retried ? (
+              <p className="mt-1 text-sm text-muted">
+                You learned <strong className="text-ink">{cards}</strong>. {summary.firstTry} right on the first
+                try, {summary.answers} answer{summary.answers === 1 ? "" : "s"} in all.
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-muted">
+                You answered <strong className="text-ink">{cards}</strong>. {summary.firstTry} right,{" "}
+                {summary.missed.length} missed.
+              </p>
+            )}
           </div>
         </div>
       </Card>
@@ -77,7 +83,7 @@ export function LearnSummaryView({
       {summary.missed.length > 0 && (
         <div className="space-y-2">
           <h3 className="font-mono text-xs font-medium uppercase tracking-wide text-faint">
-            Took more than one try
+            {retried ? "Took more than one try" : "Missed"}
           </h3>
           <ul className="space-y-2">
             {summary.missed.map((card) => (

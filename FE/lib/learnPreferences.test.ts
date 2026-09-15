@@ -24,12 +24,18 @@ describe("sanitizeLearnPreferences", () => {
       starredOnly: true,
       includeMastered: false,
       shuffle: false,
+      retryMissed: false,
       retypeWrong: true,
       smartGrading: false,
       readAloud: true,
     };
     // Kinds come back in canonical order.
     expect(sanitizeLearnPreferences(saved)).toEqual({ ...saved, kinds: ["mcq", "written"] });
+  });
+
+  it("brings missed cards back by default, including for settings saved before the option", () => {
+    expect(DEFAULT_LEARN_PREFS.retryMissed).toBe(true);
+    expect(sanitizeLearnPreferences({ count: 8, shuffle: false })?.retryMissed).toBe(true);
   });
 
   it("never stores a card count below the minimum", () => {

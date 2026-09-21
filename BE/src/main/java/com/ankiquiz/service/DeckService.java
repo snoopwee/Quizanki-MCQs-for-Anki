@@ -145,6 +145,28 @@ public class DeckService {
         return ud;
     }
 
+    /**
+     * The named decks, in the order asked for, with this viewer's completion. Folders store deck
+     * ids and nothing else, so this is how a folder's contents are rendered.
+     *
+     * A deck that has since been deleted, or made private by someone else, simply drops out of the
+     * result rather than raising: a folder is a view over decks, not a claim on them.
+     */
+    @Transactional(readOnly = true)
+    public List<DeckResponse> getDecksByIds(String userId, List<UUID> deckIds) {
+        if (deckIds.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, Deck> visible = new java.util.HashMap<>();
+        for (Deck deck : deckRepository.findAllById(deckIds)) {
+            if (deck.getUserId().equals(userId) || deck.isPublic()) {
+                visible.put(deck.getId(), deck);
+            }
+        }
+        List<Deck> ordered = deckIds.stream().map(visible::get).filter(java.util.Objects::nonNull).toList();
+        return withViewerCompletion(userId, ordered);
+    }
+
     // Attach each deck's completion for THIS viewer (their own per-user mastery),
     // in one round trip. Used by the Saved/Recent lists, where a deck may not be owned.
     private List<DeckResponse> withViewerCompletion(String userId, List<Deck> decks) {

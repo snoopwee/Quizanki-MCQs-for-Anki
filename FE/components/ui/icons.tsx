@@ -48,6 +48,7 @@ const PATHS = {
       <path d="m3 13 9 5 9-5M3 18l9 5 9-5" />
     </>
   ),
+  folder: <path d="M3 7a2 2 0 0 1 2-2h3.8a2 2 0 0 1 1.6.8l1 1.2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />,
   clock: (
     <>
       <circle cx="12" cy="12" r="9" />

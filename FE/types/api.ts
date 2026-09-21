@@ -140,6 +140,58 @@ export interface DeckHistoryPoint {
   source?: AnswerSource;
 }
 
+// ── Folders (Phase 10) ────────────────────────────────────────────────────────
+// A folder is the VIEWER's own grouping: it can hold a deck they merely saved, and filing one
+// changes nothing for its owner. A deck may sit in several folders.
+export interface FolderResponse {
+  id: string;
+  name: string;
+  deckCount: number;
+  updatedAt: string;
+  // Only meaningful when the list was fetched for one deck (the deck page's picker).
+  containsDeck: boolean;
+}
+
+export interface FolderDetailResponse {
+  id: string;
+  name: string;
+  decks: DeckResponse[];
+}
+
+// ── AI deck generation (Phase 9) ──────────────────────────────────────────────
+// Whose key paid for a generation: our shared free-tier pool, or the user's own.
+export type AiKeyOwner = "shared" | "user";
+
+export interface AiDeckDraftMeta {
+  provider: string;
+  model: string;
+  keyOwner: AiKeyOwner;
+  // Generations left today after this one.
+  remainingToday: number;
+  cards: number;
+  // How many provider calls it took — long material is split.
+  chunks: number;
+  // The material was longer than the server was willing to send.
+  inputTruncated: boolean;
+  // A later chunk failed; these are the cards that did come back.
+  partial: boolean;
+}
+
+/** The draft arrives in the .apkg parser's shape, so `fromParsed` opens it in the review editor. */
+export interface AiDeckDraftResponse {
+  draft: ApkgParseResponse;
+  meta: AiDeckDraftMeta;
+}
+
+/** Never carries the key itself — `hint` is its last four characters. */
+export interface AiKeyStatusResponse {
+  // False when the server has no encryption key, so nobody can store one.
+  supported: boolean;
+  configured: boolean;
+  provider: string | null;
+  hint: string | null;
+}
+
 export interface NoteRequest {
   ankiNoteId?: string | null;
   fields: Record<string, string>;

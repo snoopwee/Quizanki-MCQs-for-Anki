@@ -145,3 +145,45 @@ management:
     redis:
       # Phase 0 doesn't use Redis yet, so don't gate /actuator/health on it.
       enabled: false
+
+# ── AI deck generation (Phase 9) ─────────────────────────────────────────────
+# Dormant by default: with ai.enabled=false nothing ever calls a provider, and the FE keeps the
+# manual editor and the .apkg / extension imports, which always work.
+#
+# Two ways to power it, and they can run side by side:
+#   * a SHARED free-tier key (ai.api-key) — ONE pool for every user, which is why the quotas
+#     below are not optional; without them one enthusiast empties the day for everybody
+#   * bring-your-own-key — per user, encrypted at rest with ai.key-encryption-key
+#
+# Generate the encryption key with:  openssl rand -base64 32
+# Losing it makes stored user keys undecryptable (users just re-enter them); leaking it makes
+# them readable, so it belongs only in the host's environment.
+ai:
+  enabled: ${AI_ENABLED:false}
+  provider: ${AI_PROVIDER:gemini}
+  # ⚠ Confirm the exact model id against the provider's docs before enabling — free-tier daily
+  # quotas differ sharply between models (Gemini 3 Flash ~1,500/day vs 2.5 Flash ~250/day).
+  model: ${AI_MODEL:gemini-2.5-flash}
+  api-key: ${AI_API_KEY:}
+  key-encryption-key: ${AI_KEY_ENCRYPTION_KEY:}
+  gemini:
+    base-url: ${AI_GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
+  quota:
+    # Enough for a newcomer to try the feature; not enough to be somebody's free API.
+    shared-per-day: ${AI_SHARED_PER_DAY:5}
+    # Keep below the provider's free daily quota so users hit OUR message, not the provider's 429.
+    global-per-day: ${AI_GLOBAL_PER_DAY:200}
+    # They pay for their own key, so this is only an abuse backstop on our server.
+    byok-per-day: ${AI_BYOK_PER_DAY:100}
+    # Gemini's free quota resets at midnight Pacific; match it so our day doesn't straddle theirs.
+    pool-reset-zone: ${AI_POOL_RESET_ZONE:America/Los_Angeles}
+  request:
+    max-input-chars: ${AI_MAX_INPUT_CHARS:24000}
+    max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:4096}
+    # A chunk is one provider call, so this is the real ceiling on what one request can spend.
+    max-chunks: ${AI_MAX_CHUNKS:4}
+    max-cards: ${AI_MAX_CARDS:60}
+    # PDFs: capped well under the global 50MB multipart limit (sized for .apkg decks) — a
+    # textbook-sized upload has no business being read into memory for a few chapters of cards.
+    max-pdf-bytes: ${AI_MAX_PDF_BYTES:20971520}
+    max-pdf-pages: ${AI_MAX_PDF_PAGES:80}

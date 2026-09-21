@@ -3,16 +3,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useDecks, useRecentDecks, useSavedDecks } from "@/hooks/useDecks";
-import { DeckAuthor } from "@/components/deck/DeckAuthor";
 import { Card } from "@/components/ui/Card";
-import { Ring } from "@/components/ui/Ring";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { StatTile } from "@/components/ui/StatTile";
 import { StreakTile } from "@/components/home/StreakTile";
+import { DeckGrid } from "@/components/home/DeckGrid";
+import { FoldersTab } from "@/components/home/FoldersTab";
 import { buttonClasses } from "@/components/ui/Button";
-import type { DeckResponse } from "@/types/api";
 
-type Tab = "yours" | "saved" | "recent";
+type Tab = "yours" | "saved" | "recent" | "folders";
 
 export default function HomePage() {
   const decksQuery = useDecks();
@@ -104,10 +103,13 @@ export default function HomePage() {
           <TabButton active={tab === "recent"} onClick={() => setTab("recent")}>
             Recent
           </TabButton>
+          <TabButton active={tab === "folders"} onClick={() => setTab("folders")}>
+            Folders
+          </TabButton>
         </div>
 
         {tab === "yours" && (
-          <DeckGridSection
+          <DeckGrid
             query={decksQuery}
             emptyTitle="No decks yet."
             emptyAction={
@@ -119,6 +121,7 @@ export default function HomePage() {
         )}
         {tab === "saved" && <SavedTab />}
         {tab === "recent" && <RecentTab />}
+        {tab === "folders" && <FoldersTab />}
       </div>
     </div>
   );
@@ -127,7 +130,7 @@ export default function HomePage() {
 function SavedTab() {
   const query = useSavedDecks();
   return (
-    <DeckGridSection
+    <DeckGrid
       query={query}
       showAuthor
       emptyTitle="No saved decks."
@@ -139,98 +142,12 @@ function SavedTab() {
 function RecentTab() {
   const query = useRecentDecks();
   return (
-    <DeckGridSection
+    <DeckGrid
       query={query}
       showAuthor
       emptyTitle="Nothing recent."
       emptyHint="Decks you open show up here for 30 days."
     />
-  );
-}
-
-// One tab's deck grid, with its own loading / error / empty states.
-function DeckGridSection({
-  query,
-  showAuthor = false,
-  emptyTitle,
-  emptyHint,
-  emptyAction,
-}: {
-  query: { data?: DeckResponse[]; isLoading: boolean; isError: boolean };
-  showAuthor?: boolean;
-  emptyTitle: string;
-  emptyHint?: string;
-  emptyAction?: React.ReactNode;
-}) {
-  const decks = query.data ?? [];
-
-  if (query.isLoading) return <p className="text-sm text-muted">Loading…</p>;
-  if (query.isError) return <p className="text-sm text-danger">Could not load decks.</p>;
-
-  if (decks.length === 0) {
-    return (
-      <Card className="flex flex-col items-center gap-3 border-dashed px-6 py-14 text-center">
-        <span className="grid h-12 w-12 place-items-center rounded-input bg-accent-soft text-accent">
-          <Icon name="cards" size={24} />
-        </span>
-        <p className="text-sm font-medium text-ink">{emptyTitle}</p>
-        {emptyHint && <p className="max-w-xs text-sm text-muted">{emptyHint}</p>}
-        {emptyAction}
-      </Card>
-    );
-  }
-
-  return (
-    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {decks.map((deck) => (
-        <li key={deck.id}>
-          {/* Stretched-link card so the author link inside isn't nested in the
-              card link (nested <a> is invalid HTML). */}
-          <Card hover className="relative overflow-hidden p-0">
-            <div className="h-1.5 bg-accent" />
-            <div className="p-5">
-              <div className="flex items-start gap-3">
-                <div className="min-w-0 flex-1">
-                  <p
-                    title={deck.name}
-                    className="truncate font-display text-base font-semibold text-ink"
-                  >
-                    {deck.name}
-                  </p>
-                  <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-faint">
-                    <span className="inline-flex items-center gap-1.5">
-                      <Icon name="layers" size={13} />
-                      {deck.cardCount ?? 0} cards
-                    </span>
-                    {deck.isPublic && (
-                      <span className="inline-flex items-center gap-1 text-accent">
-                        <Icon name="link" size={13} />
-                        Shared
-                      </span>
-                    )}
-                  </p>
-                  {showAuthor && (
-                    <DeckAuthor
-                      authorId={deck.authorId}
-                      authorName={deck.authorName}
-                      authorAvatarUrl={deck.authorAvatarUrl}
-                      sourceAuthorName={deck.sourceAuthorName}
-                      className="relative z-20 mt-1.5"
-                    />
-                  )}
-                </div>
-                <Ring value={Math.round(deck.completion ?? 0) / 100} size={46} label={`${Math.round(deck.completion ?? 0)}%`} />
-              </div>
-            </div>
-            <Link
-              href={`/decks/${deck.id}`}
-              aria-label={deck.name}
-              className="absolute inset-0 z-10"
-            />
-          </Card>
-        </li>
-      ))}
-    </ul>
   );
 }
 

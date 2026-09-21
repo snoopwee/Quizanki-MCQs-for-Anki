@@ -25,6 +25,7 @@ import { IconButton, iconButtonIconSize } from "@/components/ui/IconButton";
 import { ExportDeckModal } from "@/components/deck/ExportDeckModal";
 import { ShareDeckModal } from "@/components/deck/ShareDeckModal";
 import { ReportDeckModal } from "@/components/deck/ReportDeckModal";
+import { AddToFolderModal } from "@/components/deck/AddToFolderModal";
 import { DeckAuthor } from "@/components/deck/DeckAuthor";
 import { Card } from "@/components/ui/Card";
 import { Icon, type IconName } from "@/components/ui/icons";
@@ -87,6 +88,7 @@ function DeckDetail() {
   const [exportOpen, setExportOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [folderOpen, setFolderOpen] = useState(false);
   // Anchor for the "Flashcards" study mode — scrolls to the flashcard player.
   const cardsRef = useRef<HTMLDivElement>(null);
   const scrollToCards = () => cardsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -289,6 +291,9 @@ function DeckDetail() {
                               onClick: () => router.push(`/decks/${deckId}/edit`),
                             },
                             { label: "Export", icon: "download", onClick: () => setExportOpen(true) },
+                            // Folders are the viewer's own grouping, so this sits in BOTH
+                            // branches — you can file a deck you only saved.
+                            { label: "Folders", icon: "folder", onClick: () => setFolderOpen(true) },
                             {
                               label: "Delete",
                               icon: "trash",
@@ -300,6 +305,7 @@ function DeckDetail() {
                             // Not the owner: they can keep it in their library or fork
                             // an editable copy — but never edit/delete the original.
                             { label: "Duplicate", icon: "copy", onClick: handleDuplicate },
+                            { label: "Folders", icon: "folder", onClick: () => setFolderOpen(true) },
                             {
                               label: "Report",
                               icon: "alertTriangle",
@@ -464,6 +470,14 @@ function DeckDetail() {
         <ExportDeckModal
           contents={contentsQuery.data}
           onClose={() => setExportOpen(false)}
+        />
+      )}
+
+      {folderOpen && (
+        <AddToFolderModal
+          deckId={deckId}
+          deckName={deckName}
+          onClose={() => setFolderOpen(false)}
         />
       )}
 

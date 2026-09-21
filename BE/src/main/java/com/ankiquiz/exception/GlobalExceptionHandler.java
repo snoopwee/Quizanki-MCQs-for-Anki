@@ -66,6 +66,23 @@ public class GlobalExceptionHandler {
                 .body(error(ex.getStatus(), ex.getMessage(), null));
     }
 
+    @ExceptionHandler(AiUnavailableException.class)
+    public ResponseEntity<Map<String, Object>> handleAiUnavailable(AiUnavailableException ex) {
+        // 503, like TTS: AI generation is an accelerator, never the only way to build a deck.
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(error(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), null));
+    }
+
+    @ExceptionHandler(AiInputException.class)
+    public ResponseEntity<Map<String, Object>> handleAiInput(AiInputException ex) {
+        return ResponseEntity.badRequest().body(error(HttpStatus.BAD_REQUEST, ex.getMessage(), null));
+    }
+
+    @ExceptionHandler(AiKeyInvalidException.class)
+    public ResponseEntity<Map<String, Object>> handleAiKeyInvalid(AiKeyInvalidException ex) {
+        return ResponseEntity.badRequest().body(error(HttpStatus.BAD_REQUEST, ex.getMessage(), null));
+    }
+
     @ExceptionHandler(RateLimitExceededException.class)
     public ResponseEntity<Map<String, Object>> handleRateLimited(RateLimitExceededException ex) {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)

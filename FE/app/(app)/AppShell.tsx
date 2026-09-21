@@ -9,6 +9,7 @@ import { ADMIN_SECTIONS } from "@/lib/adminNav";
 import { AccountMenu } from "@/components/account/AccountMenu";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { DeckSearch } from "@/components/search/DeckSearch";
+import { StreakChip } from "@/components/layout/StreakChip";
 import { Icon, type IconName } from "@/components/ui/icons";
 
 // True for any URL a full-screen study mode takes over — sidebar is hidden so the
@@ -170,11 +171,36 @@ export function AppShell({
             <div className="min-w-0 flex-1 md:max-w-md">
               <DeckSearch />
             </div>
+            <HeaderActions />
           </header>
           <main className="min-w-0 flex-1 p-5 md:p-8">{children}</main>
         </div>
       </div>
     </ImportProvider>
+  );
+}
+
+// The right end of the top bar, on the search's row: today's streak, then the primary
+// New deck action (moved here from the rail, 2026-09-16). The label drops on phones so the
+// plus tile still fits beside the search box. An admin account doesn't study or import, so
+// it gets the streak only — matching the admin rail, which has no New deck either.
+function HeaderActions() {
+  const isAdmin = useMe().data?.isAdmin ?? false;
+
+  return (
+    <div className="ml-auto flex shrink-0 items-center gap-2">
+      <StreakChip />
+      {!isAdmin && (
+        <Link
+          href="/import"
+          title="New deck"
+          className="focus-ring inline-flex h-10 shrink-0 items-center gap-1.5 rounded-input bg-accent px-2.5 font-semibold text-white shadow-btn transition hover:opacity-95 sm:px-3.5"
+        >
+          <Icon name="plus" size={18} />
+          <span className="hidden text-sm sm:inline">New deck</span>
+        </Link>
+      )}
+    </div>
   );
 }
 
@@ -229,9 +255,9 @@ function Sidebar({
         expanded ? "w-64" : "w-16"
       } ${floating ? "shadow-card" : ""} ${className}`}
     >
-      {/* Brand + pin toggle. The 40px logo tile matches the "New deck" tile below 
-          and fills the slim rail (so it's centred). The toggle only shows while
-          expanded and carries a border, lined up with the nav tabs' right edge. */}
+      {/* Brand + pin toggle. The 40px logo tile fills the slim rail, so it reads as centred.
+          The toggle only shows while expanded and carries a border, lined up with the nav
+          tabs' right edge. */}
       <div className="flex h-10 items-center">
         <Link
           href={isAdmin ? "/admin" : "/home"}
@@ -264,7 +290,7 @@ function Sidebar({
       </div>
 
       {/* An admin account isn't for studying, so it gets an admin-focused rail
-          instead of the New deck / Home / Import study nav. It can still open and
+          instead of the Home / Import study nav. It can still open and
           view any deck (Browse decks → Discover) and its own profile (account
           menu). Everyone else gets the normal study nav. Until /me resolves we
           don't know which, so show a neutral skeleton — never the wrong rail. */}
@@ -309,21 +335,9 @@ function Sidebar({
         </nav>
       ) : (
         <>
-          {/* Primary CTA — 40px plus tile stays put, label grows out. */}
-          <Link
-            href="/import"
-            onClick={onNavigate}
-            title={expanded ? undefined : "New deck"}
-            className="mt-6 flex h-10 items-center rounded-input bg-accent font-semibold text-white shadow-btn transition hover:opacity-95"
-          >
-            <span className="grid h-10 w-10 shrink-0 place-items-center">
-              <Icon name="plus" size={18} />
-            </span>
-            <RevealLabel show={expanded} className="text-sm">
-              New deck
-            </RevealLabel>
-          </Link>
-
+          {/* New deck used to sit here as the rail's primary CTA; it moved to the top bar
+              (2026-09-16), beside the search and the streak. Import deck below still reaches
+              the same screen. */}
           <nav className="mt-6 flex flex-col gap-1 text-sm">
             <NavLink href="/home" pathname={pathname} label="Home" icon="home" expanded={expanded} onNavigate={onNavigate} />
             <NavLink href="/discover" pathname={pathname} label="Discover" icon="search" expanded={expanded} onNavigate={onNavigate} />

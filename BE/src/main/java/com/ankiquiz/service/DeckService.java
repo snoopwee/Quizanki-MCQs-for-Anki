@@ -281,6 +281,7 @@ public class DeckService {
             noteType.setFieldNames(toArray(typeReq.fieldNames()));
             noteType.setFrontFields(toArray(typeReq.frontFields()));
             noteType.setBackFields(toArray(typeReq.backFields()));
+            noteType.setTemplateFields(toArray(typeReq.templateFields()));
             NoteType savedType = noteTypeRepository.save(noteType);
 
             // Deck-global positions so the editor can reorder across note types.
@@ -448,6 +449,7 @@ public class DeckService {
                 type.fieldNames(),
                 type.frontFields(),
                 type.backFields(),
+                type.templateFields(),
                 notes
         );
     }
@@ -491,6 +493,10 @@ public class DeckService {
                 }
                 if (layout.backFields() != null) {
                     type.setBackFields(layout.backFields().toArray(String[]::new));
+                }
+                // A field added / removed in the editor changes the type's field list.
+                if (layout.fieldNames() != null && !layout.fieldNames().isEmpty()) {
+                    type.setFieldNames(layout.fieldNames().toArray(String[]::new));
                 }
                 noteTypeRepository.save(type);
             }
@@ -638,6 +644,7 @@ public class DeckService {
                             toList(type.getFieldNames()),
                             toList(type.getFrontFields()),
                             toList(type.getBackFields()),
+                            toList(type.getTemplateFields()),
                             notes.size(),
                             notes
                     );

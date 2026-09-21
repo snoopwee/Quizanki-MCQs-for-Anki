@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { buildFlashcards, type Flashcard } from "@/lib/flashcards";
+import { foldedFields } from "@/lib/deckEditor";
 import { classifyMastery, type MasteryStage } from "@/lib/masteryStage";
 import { cardMatchesQuery, nextAutoplayStep } from "@/lib/flashcardStudy";
 import { CardPreviewRow, Lines, StageBadge } from "./CardPreview";
-import { KebabMenu } from "@/components/shared/KebabMenu";
 import { StarButton } from "@/components/shared/StarButton";
 import { SpeakButton } from "@/components/shared/SpeakButton";
 import { useSpeechSupported } from "@/hooks/useSpeech";
@@ -17,7 +17,10 @@ import { stripFurigana } from "@/lib/furigana";
 import { EditFlashcardModal, type EditableNote } from "./EditFlashcardModal";
 import { FlashcardsOptionsModal, type DeckFieldControls } from "./FlashcardsOptionsModal";
 import { Icon } from "@/components/ui/icons";
+import { ZoomableImage } from "@/components/shared/ImageLightbox";
+import { AudioPlayer } from "@/components/shared/AudioPlayer";
 import { Toggle } from "@/components/ui/controls";
+import { Select } from "@/components/ui/Select";
 import {
   DEFAULT_FLASHCARD_PREFS,
   loadFlashcardPreferences,
@@ -32,6 +35,7 @@ import {
 import { majorityFaceLang } from "@/lib/faceLanguage";
 import { useSetDeckLanguages } from "@/hooks/useDecks";
 import type { ApkgParseResponse } from "@/types/api";
+import { IconButton, iconButtonIconSize } from "@/components/ui/IconButton";
 
 // Same shape ApkgQuizSetup uses — callers can pass a single lookup that serves
 // both screens.
@@ -274,6 +278,10 @@ export function FlashcardViewer({
   const noteIndex = useMemo(() => {
     const map = new Map<string, EditableNote>();
     for (const nt of parsed.noteTypes) {
+      // Fields folded into the per-side media slots (empty [sound:]/<img> holders) —
+      // the same ones the deck editor hides, so the edit modal doesn't show them as
+      // empty boxes.
+      const hidden = foldedFields(nt.fieldNames, nt.templateFields ?? [], nt.notes);
       for (const note of nt.notes) {
         if (!note.id) continue; // only persisted notes can be edited
         map.set(note.id, {
@@ -283,6 +291,7 @@ export function FlashcardViewer({
           fieldNames: nt.fieldNames,
           frontFields: nt.frontFields,
           backFields: nt.backFields,
+          hiddenFields: hidden,
           fields: note.fields,
           frontLang: note.frontLang ?? null,
           backLang: note.backLang ?? null,
@@ -372,8 +381,7 @@ export function FlashcardViewer({
       } else if (e.key === " ") {
         e.preventDefault();
         setAutoplaying(false);
-        stopPlayback();
-        setFlipped((f) => !f);
+        stopPlayback();        setFlipped((f) => !f);
       } else if (e.key === "f" || e.key === "F") {
         e.preventDefault();
         setFocus((v) => !v);
@@ -400,8 +408,7 @@ export function FlashcardViewer({
       const onStartSide = flipped === (prefs.startSide === "back");
       const step = nextAutoplayStep(onStartSide, canNextRef.current);
       if (step === "flip") {
-        stopPlayback();
-        setFlipped((f) => !f);
+        stopPlayback();        setFlipped((f) => !f);
       } else if (step === "advance") {
         goRef.current(1);
       } else {
@@ -462,8 +469,7 @@ export function FlashcardViewer({
   function go(delta: number) {
     if (total === 0 || !card) return;
     // Nothing to reveal past the ends — don't fling the card into empty space.
-    if (delta > 0 ? !canNext : !canPrev) return;
-    stopPlayback();
+    if (delta > 0 ? !canNext : !canPrev) return;    stopPlayback();
     // Fly the outgoing card away as a blank surface — its text vanishes at once,
     // so only the reveal of the next card (already rendered beneath) draws the eye.
     setLeaving({ card, dir: delta >= 0 ? 1 : -1 });
@@ -475,8 +481,7 @@ export function FlashcardViewer({
 
   function flip() {
     // A manual flip takes over — stop autoplay so the two don't fight.
-    setAutoplaying(false);
-    stopPlayback();
+    setAutoplaying(false);    stopPlayback();
     setFlipped((f) => !f);
   }
 
@@ -484,8 +489,7 @@ export function FlashcardViewer({
   canNextRef.current = canNext;
 
   function mark(knows: boolean) {
-    if (!card) return;
-    const k = card.key;
+    if (!card) return;    const k = card.key;
     // Whether this fills the last unsorted slot — if so the breakdown replaces
     // the card, so skip the fly-away (its overlay wouldn't mount to clear itself).
     const already = known.has(k) || learn.has(k);
@@ -569,9 +573,6 @@ export function FlashcardViewer({
     const faceText = isBack ? card!.back : card!.front;
     const faceImage = isBack ? card!.backImageUrl : card!.frontImageUrl;
     const faceAudio = isBack ? backFaceAudio : frontFaceAudio;
-    // A listening card's face is audio-only (its front template is "Listen.
-    // {{Audio}}") — show the audio player in place of an empty face.
-    const audioOnly = faceText.length === 0 && !faceImage && Boolean(faceAudio);
     return (
       <div
         inert={hidden}
@@ -588,28 +589,29 @@ export function FlashcardViewer({
         <div className="nice-scroll flex flex-1 flex-col items-center overflow-y-auto py-3">
           {/* my-auto centers content when it fits, but collapses so the top stays
               scrollable when content overflows (justify-center would clip it). */}
+          {/* Reading order is word → audio → image: the term is what you're being
+              tested on, so it leads; the picture is support material and sits last. */}
           <div className="my-auto w-full space-y-3">
-            {faceImage && (
-              // eslint-disable-next-line @next/next/no-img-element -- arbitrary Supabase Storage host; next/image would need remotePatterns config
-              <img
-                src={faceImage as string}
-                alt=""
-                className="mx-auto max-h-48 max-w-full rounded-input object-contain"
-              />
+            {faceText.length > 0 && <Lines values={faceText} className="text-4xl font-medium" />}
+            {/* A dedicated audio player for any face that carries an imported clip —
+                so a listening deck plays like one (Anki shows a ▶ on the card), even
+                when the face also has text/image. Scrubber + duration + volume; a tap
+                on it must not flip the card. Audio-only faces just show the player. */}
+            {faceAudio && (
+              <div className="flex justify-center py-2">
+                <AudioPlayer src={faceAudio} className="w-full max-w-sm" />
+              </div>
             )}
-            {audioOnly ? (
-              // Full audio player (scrubber, duration, volume) — a tap on it must
-              // not flip the card.
-              <div className="flex justify-center py-4" onClick={(e) => e.stopPropagation()}>
-                <audio
-                  controls
-                  preload="none"
-                  src={faceAudio}
-                  className="h-11 w-full max-w-sm"
+            {faceImage && (
+              // Capped so the text still fits on the face; click opens it full size
+              // in the lightbox (ZoomableImage stops the click, so the card doesn't
+              // flip out from under the viewer).
+              <div className="flex justify-center">
+                <ZoomableImage
+                  url={faceImage as string}
+                  className="max-h-48 max-w-full rounded-input object-contain"
                 />
               </div>
-            ) : (
-              <Lines values={faceText} className="text-4xl font-medium" />
             )}
           </div>
         </div>
@@ -618,33 +620,30 @@ export function FlashcardViewer({
         {/* in-card action cluster (Quizlet/Knowt): speaker · edit · star. A tap on
             the cluster must not flip the card, so it stops propagation. */}
         <div
-          className="absolute right-3 top-3 z-10 flex items-center gap-0.5"
+          className="absolute right-3 top-3 z-10 flex items-center gap-1.5"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Audio-only faces show the full <audio> player in the centre, so the
-              top-right speaker would be a duplicate — skip it there. */}
-          {!audioOnly && (speechOn || faceAudio) && (
+          {/* A face with an imported clip shows its own player in the body (above),
+              so the corner speaker is TTS only — offered when there's no recording. */}
+          {!faceAudio && speechOn && (
             <SpeakButton
               id={`card-face-${side}`}
               text={isBack ? backText : frontText}
               size="md"
               lang={isBack ? backFaceLang : frontFaceLang}
-              audioUrl={faceAudio || undefined}
             />
           )}
           {canEdit && noteIndex.has(card!.id) && (
-            <button
-              type="button"
-              title="Edit card"
-              aria-label="Edit card"
+            <IconButton
+              label="Edit card"
               onClick={(e) => {
                 e.stopPropagation();
                 setEditingId(card!.id);
               }}
-              className="focus-ring grid h-9 w-9 place-items-center rounded-full text-faint transition hover:text-accent"
+              className="text-faint hover:text-accent"
             >
-              <Icon name="pencil" size={17} />
-            </button>
+              <Icon name="pencil" size={iconButtonIconSize("md")} />
+            </IconButton>
           )}
           {starFor(card!.id, "md")}
         </div>
@@ -928,18 +927,13 @@ export function FlashcardViewer({
           )}
         </div>
         {canFilterMastery && (
-          <select
+          <Select
             value={masteryFilter}
-            onChange={(e) => setMasteryFilter(e.target.value as MasteryStage | "all")}
-            aria-label="Filter by mastery"
-            className="focus-ring shrink-0 rounded-input border border-line-strong bg-surface-2 px-2 py-2 text-sm text-ink outline-none"
-          >
-            {MASTERY_FILTERS.map((f) => (
-              <option key={f.value} value={f.value}>
-                {f.label}
-              </option>
-            ))}
-          </select>
+            options={MASTERY_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
+            onChange={(v) => setMasteryFilter(v as MasteryStage | "all")}
+            ariaLabel="Filter by mastery"
+            align="right"
+          />
         )}
       </div>
 
@@ -963,7 +957,7 @@ export function FlashcardViewer({
                 hiddenSide={hiddenSide}
                 action={
                   speechOn || canStar || (canEdit && noteIndex.has(c.id)) ? (
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       {speechOn && (
                         // Reads this row's whole card (front then back), language
                         // auto-detected per segment.
@@ -978,9 +972,17 @@ export function FlashcardViewer({
                       )}
                       {starFor(c.id, "sm")}
                       {canEdit && noteIndex.has(c.id) && (
-                        <KebabMenu
-                          items={[{ label: "Edit fields", onClick: () => setEditingId(c.id) }]}
-                        />
+                        // A DIRECT button, not a ⋯ menu: a kebab promises a choice,
+                        // and this only ever had one item. It also matches its
+                        // neighbours' `sm` size — the menu defaulted to `md`.
+                        <IconButton
+                          label="Edit fields"
+                          size="sm"
+                          onClick={() => setEditingId(c.id)}
+                          className="text-faint hover:text-accent"
+                        >
+                          <Icon name="pencil" size={iconButtonIconSize("sm")} />
+                        </IconButton>
                       )}
                     </div>
                   ) : undefined

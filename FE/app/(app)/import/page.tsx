@@ -13,15 +13,21 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ApkgUploader } from "@/components/deck/ApkgUploader";
 import { DeckReviewEditor } from "@/components/deck/DeckReviewEditor";
 import { Spinner } from "@/components/ui/Spinner";
+import { Icon } from "@/components/ui/icons";
 import { ConfirmLeaveModal } from "@/components/shared/ConfirmLeaveModal";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { useImportContext } from "@/components/import/ImportProvider";
 import { fromParsed } from "@/lib/deckDraft";
 import { buildAudioRefs, type AudioRef } from "@/lib/cardAudioImport";
 import { ApkgMedia } from "@/lib/apkgMedia";
-import { basicRow, type EditorState } from "@/lib/deckEditor";
+import { addBasicRow, basicRow, type EditorState } from "@/lib/deckEditor";
 import { clearDraft, describeAge, loadDraft, saveDraft } from "@/lib/draftStore";
 import { parsePlainText, type ParsedPair } from "@/lib/parsePlainText";
+import {
+  APP_MSG_SOURCE,
+  isExtensionImportMessage,
+  normalizePairs,
+} from "@/lib/extensionImport";
 import type { ApkgParseResponse } from "@/types/api";
 
 // /import is "bring in a deck, look it over, then save it". Importing used to
@@ -36,7 +42,7 @@ type Step =
   | { kind: "import" }
   | { kind: "review" };
 
-type Source = "file" | "text";
+type Source = "file" | "text" | "scratch";
 
 const AUTOSAVE_DELAY_MS = 600;
 
@@ -155,18 +161,70 @@ function ImportFlow() {
     startDraft(() => fromParsed(parsed), parsed.filename);
   }
 
-  function handlePasted(name: string, pairs: ParsedPair[]) {
+  // Pairs come either from a text paste (no pictures) or from the browser
+  // extension, where a face may carry an inlined `data:` picture — the save path
+  // uploads those, so they can go straight into the row.
+  function handlePasted(
+    name: string,
+    pairs: (ParsedPair & { frontImage?: string; backImage?: string })[],
+  ) {
     setApkgFile(null);
     setAudioRefs([]);
     startDraft(
       () => ({
         name: name.trim() || "Untitled deck",
-        rows: pairs.map((p) => basicRow(p.front, p.back)),
+        rows: pairs.map((p) => basicRow(p.front, p.back, p.frontImage, p.backImage)),
         layoutByType: {},
       }),
       null,
     );
   }
+
+  // Build a deck by hand: start with a few blank cards and drop straight into the
+  // same review editor the imports use, then Save through the same path.
+  function handleCreateScratch() {
+    setApkgFile(null);
+    setAudioRefs([]);
+    startDraft(
+      () => ({
+        name: "Untitled deck",
+        rows: [addBasicRow(), addBasicRow(), addBasicRow()],
+        layoutByType: {},
+      }),
+      null,
+    );
+  }
+
+  // Hand-off from the browser extension (quizlet.com / knowt.com → here). The
+  // extension opens `/import?from=extension`; its content script on our origin
+  // posts the extracted {front,back} pairs once we signal we're listening. We feed
+  // them into the SAME review path as a text paste. A ref keeps the effect's deps
+  // empty while still calling the latest handlePasted (stable setters, but no
+  // stale closure). Accept only same-origin, same-window, well-formed messages.
+  const handlePastedRef = useRef(handlePasted);
+  handlePastedRef.current = handlePasted;
+  const extHandledRef = useRef(false);
+  useEffect(() => {
+    if (params.get("from") !== "extension") return;
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin || e.source !== window) return;
+      if (!isExtensionImportMessage(e.data)) return;
+      // The extension posts once immediately and again on our "ready" ping to beat
+      // the mount race — handle only the first that arrives.
+      if (extHandledRef.current) return;
+      const pairs = normalizePairs(e.data.pairs);
+      if (pairs.length === 0) return;
+      extHandledRef.current = true;
+      handlePastedRef.current(e.data.name?.trim() || "Imported set", pairs);
+    };
+    window.addEventListener("message", onMessage);
+    // Tell the extension's on-page content script we're mounted and listening, so
+    // it posts the pairs now (avoids a race where it posts before we're ready).
+    window.postMessage({ source: APP_MSG_SOURCE, type: "ready" }, window.location.origin);
+    return () => window.removeEventListener("message", onMessage);
+    // Empty deps: setters are stable and handlePasted is read via the ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleSave() {
     if (!draft) return;
@@ -200,7 +258,7 @@ function ImportFlow() {
   );
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-3xl">
       {step.kind === "import" && isPreparing && <PreparingPanel />}
 
       {step.kind === "import" && !isPreparing && (
@@ -221,10 +279,12 @@ function ImportFlow() {
           <div className="inline-flex rounded-input border border-line bg-surface p-0.5 text-sm">
             <SourceTab label="Upload .apkg" active={source === "file"} onClick={() => setSource("file")} />
             <SourceTab label="Paste text" active={source === "text"} onClick={() => setSource("text")} />
+            <SourceTab label="Create from scratch" active={source === "scratch"} onClick={() => setSource("scratch")} />
           </div>
 
           {source === "file" && <ApkgUploader onContinue={handleParsed} />}
           {source === "text" && <PasteTextImport onImport={handlePasted} />}
+          {source === "scratch" && <CreateScratchPanel onStart={handleCreateScratch} />}
         </div>
       )}
 
@@ -332,6 +392,29 @@ function SourceTab({
     >
       {label}
     </button>
+  );
+}
+
+// Build a deck by hand — no import. Starts a blank draft in the same review editor
+// the imports use, so hand-made and imported decks are edited identically.
+function CreateScratchPanel({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="space-y-4 rounded-card border border-line bg-surface p-6 text-center">
+      <div className="space-y-1">
+        <h2 className="font-display text-lg font-semibold tracking-tight">Create a deck from scratch</h2>
+        <p className="mx-auto max-w-sm text-sm text-muted">
+          Start with a few blank cards and fill in the term, definition, and any images or audio
+          yourself — then save it like any other deck.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onStart}
+        className="focus-ring inline-flex items-center gap-2 rounded-input bg-accent px-4 py-2 text-sm font-semibold text-white shadow-btn transition hover:opacity-95"
+      >
+        <Icon name="plus" size={16} /> Start a blank deck
+      </button>
+    </div>
   );
 }
 

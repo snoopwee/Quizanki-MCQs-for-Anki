@@ -43,6 +43,12 @@ public class NoteType {
     @Column(name = "back_fields", columnDefinition = "text[]", nullable = false)
     private String[] backFields;
 
+    // Fields any card template renders (what Anki shows). Fields in none are metadata
+    // the editor hides by default (V19). Empty for template-less / pre-V19 decks.
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "template_fields", columnDefinition = "text[]", nullable = false)
+    private String[] templateFields = new String[0];
+
     public UUID getId() {
         return id;
     }
@@ -105,5 +111,13 @@ public class NoteType {
 
     public void setBackFields(String[] backFields) {
         this.backFields = backFields;
+    }
+
+    public String[] getTemplateFields() {
+        return templateFields;
+    }
+
+    public void setTemplateFields(String[] templateFields) {
+        this.templateFields = templateFields;
     }
 }

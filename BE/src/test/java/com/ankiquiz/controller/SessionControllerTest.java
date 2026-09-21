@@ -19,7 +19,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -76,7 +78,7 @@ class SessionControllerTest {
         when(sessionService.recordAnswer(eq("user-1"), any(), any()))
                 .thenReturn(new RecordAnswerResponse(0.75, 3, 60.0));
 
-        RecordAnswerRequest request = new RecordAnswerRequest(UUID.randomUUID(), true);
+        RecordAnswerRequest request = new RecordAnswerRequest(UUID.randomUUID(), true, null, null);
 
         mockMvc.perform(post("/api/v1/sessions/{sessionId}/answers", sessionId)
                         .with(jwt().jwt(j -> j.subject("user-1")))
@@ -86,5 +88,37 @@ class SessionControllerTest {
                 .andExpect(jsonPath("$.accuracy").value(0.75))
                 .andExpect(jsonPath("$.streak").value(3))
                 .andExpect(jsonPath("$.mastery").value(60.0));
+    }
+
+    @Test
+    void recordAnswer_passesTheSourceThrough() throws Exception {
+        UUID sessionId = UUID.randomUUID();
+        when(sessionService.recordAnswer(eq("user-1"), any(), any()))
+                .thenReturn(new RecordAnswerResponse(0.0, 0, 0.0));
+
+        RecordAnswerRequest request = new RecordAnswerRequest(UUID.randomUUID(), false, "learn", null);
+
+        mockMvc.perform(post("/api/v1/sessions/{sessionId}/answers", sessionId)
+                        .with(jwt().jwt(j -> j.subject("user-1")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+
+        verify(sessionService).recordAnswer(eq("user-1"), eq(sessionId),
+                argThat(r -> "learn".equals(r.source())));
+    }
+
+    @Test
+    void recordAnswer_returns400_whenSourceUnknown() throws Exception {
+        // Deck-page flashcards are preview only and never record mastery, so
+        // "flashcards" is not an accepted source.
+        RecordAnswerRequest request = new RecordAnswerRequest(UUID.randomUUID(), true, "flashcards", null);
+
+        mockMvc.perform(post("/api/v1/sessions/{sessionId}/answers", UUID.randomUUID())
+                        .with(jwt().jwt(j -> j.subject("user-1")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.source").exists());
     }
 }

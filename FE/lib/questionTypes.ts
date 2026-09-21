@@ -12,6 +12,15 @@ export type QuestionKind = "mcq" | "truefalse" | "written";
 // Order the setup screen shows them in, and the canonical iteration order.
 export const ALL_QUESTION_KINDS: QuestionKind[] = ["mcq", "truefalse", "written"];
 
+// Switches one format on or off in an enabled set, keeping canonical order. The set never
+// empties: switching off the last one returns it unchanged.
+export function toggleQuestionKind(enabled: QuestionKind[], kind: QuestionKind): QuestionKind[] {
+  const has = enabled.includes(kind);
+  if (has && enabled.length === 1) return enabled;
+  const next = has ? enabled.filter((k) => k !== kind) : [...enabled, kind];
+  return ALL_QUESTION_KINDS.filter((k) => next.includes(k));
+}
+
 // Uniformly pick one enabled kind for a single card. The setup screen guarantees
 // at least one kind is enabled; the empty-set fallback to "mcq" is just defensive
 // so a bad caller can never produce a question with no renderable format.
@@ -76,8 +85,56 @@ export function acceptedAnswers(correct: string): string[] {
 // insensitive exact match against any accepted alternative. Blank input is always
 // wrong. Imperfect by design — the session offers an "I was right" override for
 // answers this can't credit (synonyms, extra words, typos).
-export function gradeWritten(input: string, correct: string): boolean {
+//
+// `typoTolerant` (Learn's "smart grading"; the quiz never passes it) also credits a near
+// miss of an accepted answer — see typoAllowance.
+export function gradeWritten(
+  input: string,
+  correct: string,
+  options: { typoTolerant?: boolean } = {},
+): boolean {
   const norm = normalizeWritten(input);
   if (norm.length === 0) return false;
-  return acceptedAnswers(correct).includes(norm);
+  const accepted = acceptedAnswers(correct);
+  if (accepted.includes(norm)) return true;
+  if (!options.typoTolerant) return false;
+  return accepted.some((answer) => {
+    const allowance = typoAllowance(answer);
+    return allowance > 0 && editDistanceWithin(norm, answer, allowance);
+  });
+}
+
+// How many single-character slips smart grading forgives for an accepted answer. None up
+// to 4 characters — one wrong letter there is usually a different word ("cat" / "cot"),
+// and most CJK words are that short. One up to 8 characters, two beyond.
+export function typoAllowance(answer: string): number {
+  const length = Array.from(answer).length;
+  if (length <= 4) return 0;
+  if (length <= 8) return 1;
+  return 2;
+}
+
+// Whether `a` becomes `b` in at most `max` edits — an insertion, deletion, substitution,
+// or swap of two neighbouring characters each count as one (optimal string alignment).
+// Compares code points, so a kana or an emoji is one character.
+export function editDistanceWithin(a: string, b: string, max: number): boolean {
+  const s = Array.from(a);
+  const t = Array.from(b);
+  if (Math.abs(s.length - t.length) > max) return false;
+  let beforePrev: number[] = [];
+  let prev = Array.from({ length: t.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= s.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= t.length; j++) {
+      const cost = s[i - 1] === t[j - 1] ? 0 : 1;
+      let best = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + cost);
+      if (i > 1 && j > 1 && s[i - 1] === t[j - 2] && s[i - 2] === t[j - 1]) {
+        best = Math.min(best, beforePrev[j - 2] + 1);
+      }
+      row.push(best);
+    }
+    beforePrev = prev;
+    prev = row;
+  }
+  return prev[t.length] <= max;
 }

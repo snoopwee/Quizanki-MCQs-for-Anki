@@ -23,6 +23,10 @@ export interface EditorRow {
   fieldNames: string[];
   frontFields: string[];
   backFields: string[];
+  // Fields any of this note type's card templates renders (what Anki shows). Fields
+  // in none are metadata the editor hides by default. [] = show every field (a
+  // manual deck, or a pre-V19 / template-less import).
+  templateFields: string[];
   fields: Record<string, string>;
   tags: string[];
   // Per-face TTS language override (BCP-47 primary subtag); "" = inherit the deck
@@ -43,6 +47,14 @@ export interface EditorState {
   rows: EditorRow[];
   // Per-note-type front/back layout, flipped by swapLayoutAll and sent on save.
   layoutByType: Record<string, { frontFields: string[]; backFields: string[] }>;
+  // Per-note-type fields whose content is media we already lifted into the per-side
+  // image/audio slots (e.g. an imported "FrontAudio"/"Image" holding only
+  // [sound:]/<img>, cleaned to empty). Computed ONCE at load (fromContents /
+  // fromParsed) so a field the user adds later is never mistaken for one; these
+  // render as the side's media slot, never as an empty text box, and aren't offered
+  // in the fields panel. "" keys the manual/Basic bucket (always empty — scratch and
+  // paste decks fold nothing). Keyed by noteTypeId.
+  mediaFields?: Record<string, string[]>;
 }
 
 let keyCounter = 0;
@@ -83,6 +95,7 @@ export function fromContents(contents: DeckContentsResponse): EditorState {
         fieldNames: nt.fieldNames,
         frontFields: nt.frontFields,
         backFields: nt.backFields,
+        templateFields: nt.templateFields ?? [],
         fields: { ...note.fields },
         tags: [...note.tags],
         frontLang: note.frontLang ?? "",
@@ -94,7 +107,7 @@ export function fromContents(contents: DeckContentsResponse): EditorState {
       });
     }
   }
-  return { name: contents.name, rows, layoutByType };
+  return { name: contents.name, rows, layoutByType, mediaFields: mediaFieldsFromRows(rows) };
 }
 
 // Flatten one cloze note into Term/Definition rows. Term = the sentence with the
@@ -204,8 +217,44 @@ export function addBasicRow(): EditorRow {
   return basicRow("", "");
 }
 
-export function basicRow(front: string, back: string): EditorRow {
-  return rowWithId(null, front, back, []);
+// A blank card for "+ Add a card" that matches the deck's primary note type — its
+// fields, front/back layout and note-type id — so a new card carries any fields the
+// user added (not a hardcoded Front/Back). Falls back to a Basic row for an empty
+// deck. Non-cloze only (cloze rows aren't hand-added).
+export function addRowLike(rows: EditorRow[]): EditorRow {
+  const sample = rows.find((r) => !r.cloze) ?? rows[0];
+  if (!sample) return addBasicRow();
+  return {
+    key: nextKey(),
+    id: null,
+    ankiNoteId: null,
+    noteTypeId: sample.noteTypeId,
+    cloze: false,
+    fieldNames: sample.fieldNames,
+    frontFields: sample.frontFields,
+    backFields: sample.backFields,
+    templateFields: sample.templateFields,
+    fields: Object.fromEntries(sample.fieldNames.map((f) => [f, ""])),
+    tags: [],
+    frontLang: "",
+    backLang: "",
+    frontImageUrl: "",
+    backImageUrl: "",
+    frontAudioUrl: "",
+    backAudioUrl: "",
+  };
+}
+
+// `frontImage`/`backImage` accept either a stored public URL or a `data:` URL not
+// yet uploaded — the browser-extension import supplies the latter, and the save
+// path (lib/cardImageUpload.ts) turns any data URL into a stored one.
+export function basicRow(
+  front: string,
+  back: string,
+  frontImage = "",
+  backImage = "",
+): EditorRow {
+  return rowWithId(null, front, back, [], "", "", frontImage, backImage);
 }
 
 // A Basic (Front/Back) row carrying an explicit note id and tags — used when
@@ -217,6 +266,8 @@ function rowWithId(
   tags: string[],
   frontLang = "",
   backLang = "",
+  frontImage = "",
+  backImage = "",
 ): EditorRow {
   return {
     key: nextKey(),
@@ -227,12 +278,13 @@ function rowWithId(
     fieldNames: ["Front", "Back"],
     frontFields: ["Front"],
     backFields: ["Back"],
+    templateFields: [], // manual Basic card — no hidden metadata, show both fields
     fields: { Front: front, Back: back },
     tags: [...tags],
     frontLang,
     backLang,
-    frontImageUrl: "",
-    backImageUrl: "",
+    frontImageUrl: frontImage,
+    backImageUrl: backImage,
     frontAudioUrl: "",
     backAudioUrl: "",
   };
@@ -273,6 +325,175 @@ export function emptyFieldsByType(rows: EditorRow[]): Map<string, Set<string>> {
     result.set(key, empty);
   }
   return result;
+}
+
+// Media-holder fields, keyed by note type: fields that are empty across EVERY card
+// of an IMPORTED note type. For an imported deck these are almost always fields
+// whose only content was media ([sound:]/<img>) that we already lifted into the
+// side's image/audio slot — so an empty text box for them is pure noise. Gated to
+// note types WITH template info (`templateFields` non-empty): a manual / scratch /
+// paste deck folds nothing, so its blank Term/Definition boxes always show (and a
+// field the user adds and hasn't filled yet is never hidden). This is the stable
+// set stored on EditorState.mediaFields at load; the editor never recomputes it as
+// the user types. Nothing is deleted — the field's data (if any) stays in the map.
+// The fold set for ONE note type: fields whose content is media we lifted into the
+// per-side image/audio slots ([sound:]/<img> cleaned to empty), or an all-but-unused
+// field the deck's template happens to list on a side. Only IMPORTED types fold
+// (templateFields non-empty) — a manual/scratch deck keeps its blank boxes to type
+// into. A field folds when it holds text on almost no card: the tolerance is 0 for
+// decks under 200 and grows slowly (0.5%), so a genuinely used field is never
+// folded — e.g. of 894 cards it folds a field with text on ≤4 (FrontAudio 0,
+// Image 1, BackAudio 3) but keeps one with text on 62. Shared by the editor and the
+// study-page edit modal so both hide the same fields.
+export function foldedFields(
+  fieldNames: string[],
+  templateFields: string[],
+  notes: { fields: Record<string, string> }[],
+): string[] {
+  if (templateFields.length === 0 || notes.length === 0) return [];
+  const tolerance = Math.floor(notes.length * 0.005);
+  const out: string[] = [];
+  for (const field of fieldNames) {
+    let textCount = 0;
+    for (const n of notes) if ((n.fields[field] ?? "").trim()) textCount++;
+    if (textCount <= tolerance) out.push(field);
+  }
+  return out;
+}
+
+export function mediaFieldsFromRows(rows: EditorRow[]): Record<string, string[]> {
+  const byType = new Map<string, EditorRow[]>();
+  for (const r of rows) {
+    const k = r.noteTypeId ?? "";
+    const g = byType.get(k);
+    if (g) g.push(r);
+    else byType.set(k, [r]);
+  }
+  const out: Record<string, string[]> = {};
+  for (const [typeId, group] of byType) {
+    out[typeId] = foldedFields(group[0].fieldNames, group[0].templateFields, group);
+  }
+  return out;
+}
+
+// The stored fold set as a Map<typeId, Set<field>> for the editor / card to consume.
+export function mediaFieldsMap(state: EditorState): Map<string, Set<string>> {
+  const map = new Map<string, Set<string>>();
+  for (const [typeId, fields] of Object.entries(state.mediaFields ?? {})) {
+    map.set(typeId, new Set(fields));
+  }
+  return map;
+}
+
+// ── Field-panel edits (add / remove / move a field between sides) ─────────────
+//
+// The note type's front/back layout IS what shows per side AND the quiz's Q/A
+// (buildFlashcards), so these edit the layout directly and keep every row of the
+// type in lockstep (fieldNames, the fields map, frontFields, backFields) plus the
+// per-type layoutByType entry that Save reads.
+
+export type FieldSide = "term" | "definition" | "off";
+
+function typeKey(row: EditorRow): string {
+  return row.noteTypeId ?? "";
+}
+
+// Move a field to the Term side, the Definition side, or Off (on the card but on
+// neither side = removed from the card, data kept). Order within a side follows the
+// note type's field order so the card reads consistently.
+export function moveFieldToSide(
+  state: EditorState,
+  typeId: string,
+  field: string,
+  side: FieldSide,
+): EditorState {
+  const sample = state.rows.find((r) => typeKey(r) === typeId);
+  if (!sample) return state;
+  const order = sample.fieldNames;
+  const rank = (f: string) => order.indexOf(f);
+  const front = new Set(sample.frontFields.filter((f) => f !== field));
+  const back = new Set(sample.backFields.filter((f) => f !== field));
+  if (side === "term") front.add(field);
+  else if (side === "definition") back.add(field);
+  const frontFields = order.filter((f) => front.has(f)).sort((a, b) => rank(a) - rank(b));
+  const backFields = order.filter((f) => back.has(f)).sort((a, b) => rank(a) - rank(b));
+  // A card must keep a Term and a Definition — never empty a side.
+  if (frontFields.length === 0 || backFields.length === 0) return state;
+  return applyLayout(state, typeId, frontFields, backFields);
+}
+
+// Create a brand-new field on the note type: appended to fieldNames, initialised to
+// "" on every card of the type, and placed on the chosen side. No-op if the name is
+// blank or already exists.
+export function addFieldToType(
+  state: EditorState,
+  typeId: string,
+  rawName: string,
+  side: "term" | "definition",
+): EditorState {
+  const name = rawName.trim();
+  const sample = state.rows.find((r) => typeKey(r) === typeId);
+  if (!name || !sample) return state;
+  if (sample.fieldNames.some((f) => f.toLowerCase() === name.toLowerCase())) return state;
+  const fieldNames = [...sample.fieldNames, name];
+  const frontFields = side === "term" ? [...sample.frontFields, name] : sample.frontFields;
+  const backFields = side === "definition" ? [...sample.backFields, name] : sample.backFields;
+  const rows = state.rows.map((r) =>
+    typeKey(r) === typeId
+      ? { ...r, fieldNames, frontFields, backFields, fields: { ...r.fields, [name]: "" } }
+      : r,
+  );
+  return {
+    ...state,
+    rows,
+    layoutByType: { ...state.layoutByType, [typeId]: { frontFields, backFields } },
+  };
+}
+
+// Delete a field from the note type entirely (fieldNames + every card's value +
+// both sides). Intended for empty fields only (a mistaken add, or an unused imported
+// field) — callers gate it on the field carrying no data anywhere. The primary
+// term/definition are never deletable.
+export function deleteFieldFromType(state: EditorState, typeId: string, field: string): EditorState {
+  const sample = state.rows.find((r) => typeKey(r) === typeId);
+  if (!sample) return state;
+  const fieldNames = sample.fieldNames.filter((f) => f !== field);
+  const frontFields = sample.frontFields.filter((f) => f !== field);
+  const backFields = sample.backFields.filter((f) => f !== field);
+  const rows = state.rows.map((r) => {
+    if (typeKey(r) !== typeId) return r;
+    const fields = { ...r.fields };
+    delete fields[field];
+    return { ...r, fieldNames, frontFields, backFields, fields };
+  });
+  return {
+    ...state,
+    rows,
+    layoutByType: { ...state.layoutByType, [typeId]: { frontFields, backFields } },
+  };
+}
+
+// Whether a field holds any content on any card of its type — used to gate delete
+// (only empty fields can be deleted; a field with data can be moved Off but not lost).
+export function fieldHasData(rows: EditorRow[], typeId: string, field: string): boolean {
+  return rows.some((r) => typeKey(r) === typeId && (r.fields[field] ?? "").trim().length > 0);
+}
+
+// Shared tail of moveFieldToSide: write the new layout to layoutByType and sync
+// every row of the type.
+function applyLayout(
+  state: EditorState,
+  typeId: string,
+  frontFields: string[],
+  backFields: string[],
+): EditorState {
+  return {
+    ...state,
+    layoutByType: { ...state.layoutByType, [typeId]: { frontFields, backFields } },
+    rows: state.rows.map((r) =>
+      typeKey(r) === typeId ? { ...r, frontFields, backFields } : r,
+    ),
+  };
 }
 
 // Split a note type's fields into the card's Term (front) side, its Definition
@@ -343,10 +564,18 @@ export function isBlankRow(row: EditorRow): boolean {
 }
 
 export function toPayload(state: EditorState): UpdateDeckContentsRequest {
+  // fieldNames live on the rows; send them alongside the layout so a field the user
+  // added / removed in the editor persists on the note type (not just the layout).
+  const fieldNamesByType = new Map<string, string[]>();
+  for (const r of state.rows) {
+    const id = r.noteTypeId ?? "";
+    if (id && !fieldNamesByType.has(id)) fieldNamesByType.set(id, r.fieldNames);
+  }
   const noteTypes = Object.entries(state.layoutByType).map(([id, layout]) => ({
     id,
     frontFields: layout.frontFields,
     backFields: layout.backFields,
+    fieldNames: fieldNamesByType.get(id) ?? null,
   }));
   const notes = state.rows
     .filter((r) => !isBlankRow(r))

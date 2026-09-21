@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { Ring } from "@/components/ui/Ring";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { StatTile } from "@/components/ui/StatTile";
+import { StreakTile } from "@/components/home/StreakTile";
 import { buttonClasses } from "@/components/ui/Button";
 import type { DeckResponse } from "@/types/api";
 
@@ -40,8 +41,10 @@ export default function HomePage() {
         </Link>
       </div>
 
-      {/* stats (your own decks) */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* stats: your study streak, then your own decks. On phones the streak takes the full
+          first row and the two deck tiles share the second. */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <StreakTile className="col-span-2 sm:col-span-1" />
         <StatTile
           icon={<Icon name="layers" size={18} />}
           color="var(--info)"

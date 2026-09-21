@@ -128,14 +128,16 @@ export interface DeckStatsResponse {
   averageMastery: number;
 }
 
-// GET /api/v1/decks/{id}/stats/history — one point per test (quiz session) the
-// learner took, oldest first. Legacy pre-V8 answers with no session id collapse
-// per day. Only tests that happened are returned (no zero-fill).
+// GET /api/v1/decks/{id}/stats/history — one point per study session (a quiz or a
+// Learn session) the learner took, oldest first. Legacy pre-V8 answers with no
+// session id collapse per day. Only sessions that happened are returned (no zero-fill).
 export interface DeckHistoryPoint {
-  at: number; // epoch ms (UTC) of the test's last answer; render local
+  at: number; // epoch ms (UTC) of the session's last answer; render local
   answered: number;
   correct: number;
   accuracy: number; // 0–1
+  // Which surface the session was. Optional: a backend from before Phase 7 doesn't send it.
+  source?: AnswerSource;
 }
 
 export interface NoteRequest {
@@ -159,6 +161,8 @@ export interface NoteTypeRequest {
   fieldNames: string[];
   frontFields: string[];
   backFields: string[];
+  // Fields any card template renders (what Anki shows); omitted/[] = show every field.
+  templateFields?: string[];
   notes: NoteRequest[];
 }
 
@@ -189,9 +193,35 @@ export interface StartSessionResponse {
   sessionId: string;
 }
 
+// Which study surface produced an answer — mirrors answer_events.source (V21). Only the
+// quiz and study mode record; deck-page flashcards are preview only and never do.
+export type AnswerSource = "quiz" | "learn";
+
 export interface RecordAnswerRequest {
   noteId: string;
   correct: boolean;
+  // Omitted = a quiz answer (the backend's default).
+  source?: AnswerSource;
+  // The browser's IANA timezone, so the streak files today under the user's own date.
+  timezone?: string;
+}
+
+// ── Daily study streak (Phase 7) ──────────────────────────────────────────────
+// A day counts once a quiz or Learn answer is recorded; deck-page flashcards never mark one.
+
+export interface StreakDay {
+  // "YYYY-MM-DD", the user's LOCAL calendar date. Read it with parseLocalDate
+  // (lib/streakDisplay) — never new Date(), which parses it as midnight UTC.
+  date: string;
+  studied: boolean;
+}
+
+export interface StreakResponse {
+  current: number;
+  longest: number;
+  studiedToday: boolean;
+  // Today and the six days before it, oldest first.
+  last7Days: StreakDay[];
 }
 
 export interface RecordAnswerResponse {
@@ -238,6 +268,9 @@ export interface ApkgNoteType {
   // modern decks); the client then falls back to its detection heuristic.
   frontFields: string[];
   backFields: string[];
+  // Fields any card template renders (what Anki shows); omitted/[] when no template
+  // info. Fields not in this set are metadata the editor hides by default.
+  templateFields?: string[];
   noteCount: number;
   notes: ApkgParsedNote[];
 }
@@ -287,6 +320,9 @@ export interface DeckContentsNoteType {
   fieldNames: string[];
   frontFields: string[];
   backFields: string[];
+  // Fields any card template renders (what Anki shows); omitted/[] for
+  // pre-V19/template-less decks. Fields not in it are metadata hidden by default.
+  templateFields?: string[];
   noteCount: number;
   notes: DeckContentsNote[];
 }
@@ -296,6 +332,9 @@ export interface UpdateDeckContentsNoteType {
   id: string;
   frontFields: string[];
   backFields: string[];
+  // The note type's full field list, so a field added/removed in the editor
+  // persists on the type. Null/omitted → leave the stored field list unchanged.
+  fieldNames?: string[] | null;
 }
 
 export interface UpdateDeckContentsNote {

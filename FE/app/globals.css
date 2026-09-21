@@ -320,6 +320,19 @@ html {
 }
 
 /* Subtle scrollbar for in-card / in-row scroll areas, blends with both themes. */
+/* Accent strip along a card's top edge.
+   Painted as the CARD'S OWN BACKGROUND rather than a child <div>, so the card's
+   border-radius clips it exactly. A child bar has to guess its own corner radius:
+   at the card's outer radius its arc runs alongside the border's inner arc instead
+   of following it, which reads as two rounded edges stacked on each other (and even
+   the correct inner radius, outer - border-width, only half-fixes it). Clipped to
+   padding-box so the card's 1px border stays visible around it.
+   Pair with a spacer of the same height so content clears the strip. */
+.accent-top {
+  background-image: linear-gradient(to bottom, var(--accent) var(--accent-top-h, 6px), transparent var(--accent-top-h, 6px));
+  background-clip: padding-box;
+}
+
 .nice-scroll {
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, currentColor 25%, transparent) transparent;

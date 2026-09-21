@@ -69,10 +69,10 @@ public class StatsService {
     private static final int MAX_HISTORY_DAYS = 365;
 
     /**
-     * MCQ accuracy per test for a deck over the last {@code days} days, oldest
-     * first. One point per quiz session (answers sharing a session id); legacy
-     * events with no session id (pre-V8) collapse per UTC calendar day. Each
-     * point's timestamp is when that test's last answer landed.
+     * Accuracy per study session for a deck over the last {@code days} days, oldest
+     * first. One point per quiz or Learn session (answers sharing a session id);
+     * legacy events with no session id (pre-V8) collapse per UTC calendar day. Each
+     * point's timestamp is when that session's last answer landed.
      */
     @Transactional(readOnly = true)
     public List<DeckHistoryPoint> getDeckHistory(String userId, UUID deckId, int days) {
@@ -89,13 +89,16 @@ public class StatsService {
         // Group each answer by its session (one point per test). Rows written
         // before V8 have session_id NULL, so fall back to a per-day key for those
         // so early history still charts as one point per day. `at` is epoch millis
-        // of the test's last answer.
+        // of the test's last answer. A session id is only ever used by one surface, so
+        // any Learn answer (V21 source) makes the point a Learn session.
         @SuppressWarnings("unchecked")
         List<Object[]> rows = entityManager.createNativeQuery("""
                 SELECT
                     (extract(epoch FROM max(ae.answered_at)) * 1000)::bigint AS at_ms,
                     count(*)                                                  AS answered,
-                    count(*) FILTER (WHERE ae.correct)                        AS correct
+                    count(*) FILTER (WHERE ae.correct)                        AS correct,
+                    CASE WHEN bool_or(ae.source = 'learn')
+                         THEN 'learn' ELSE 'quiz' END                         AS source
                 FROM answer_events ae
                 JOIN notes n ON n.id = ae.note_id
                 WHERE n.deck_id = :deckId
@@ -118,7 +121,7 @@ public class StatsService {
             long answered = ((Number) row[1]).longValue();
             long correct = ((Number) row[2]).longValue();
             double accuracy = answered == 0 ? 0.0 : (double) correct / answered;
-            return new DeckHistoryPoint(at, answered, correct, accuracy);
+            return new DeckHistoryPoint(at, answered, correct, accuracy, (String) row[3]);
         }).toList();
     }
 }

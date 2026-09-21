@@ -42,6 +42,38 @@ export function hasExtraFields(
   );
 }
 
+// A note type carrying its id + display name, for the fields control.
+export interface NamedNoteType {
+  id: string;
+  name: string;
+  fieldNames: string[];
+  frontFields: string[];
+  backFields: string[];
+  cloze?: boolean;
+}
+
+// The same note type as above, but standing in for every structurally-identical
+// one — `ids` lists all of them so a toggle can be applied to each.
+export interface MergedNoteType extends NamedNoteType {
+  ids: string[];
+}
+
+// Some .apkg imports carry several note types that are identical in structure
+// (same fields + same front/back layout) — e.g. two "Basic" models. Showing one
+// row each is confusing and redundant; collapse them into a single control row
+// whose `ids` covers them all, so editing keeps every copy in lockstep. Order is
+// preserved by first appearance.
+export function mergeIdenticalNoteTypes(noteTypes: NamedNoteType[]): MergedNoteType[] {
+  const byShape = new Map<string, MergedNoteType>();
+  for (const nt of noteTypes) {
+    const key = JSON.stringify([nt.fieldNames, nt.frontFields, nt.backFields, nt.cloze ?? false]);
+    const existing = byShape.get(key);
+    if (existing) existing.ids.push(nt.id);
+    else byShape.set(key, { ...nt, ids: [nt.id] });
+  }
+  return [...byShape.values()];
+}
+
 // The new front/back selection after toggling one extra field on or off. Front is
 // untouched; back is rebuilt as [primaryDefinition, ...shown extras] in fieldNames
 // order so the card reads consistently regardless of toggle order.

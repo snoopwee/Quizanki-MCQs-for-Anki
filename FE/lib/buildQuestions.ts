@@ -330,19 +330,126 @@ export function buildMixedQuestions(
   // callers/tests are unaffected.
   enabledKinds: QuestionKind[] = ["mcq"],
 ): Question[] {
-  type Synth = QuizNote & {
-    parentId: string;
-    noteTypeId: string;
-    kind: "basic" | "cloze";
-    // basic
-    basicQuestionFields?: string[];
-    basicAnswerField?: string;
-    // cloze
-    clozeText?: string;
-    clozeIndex?: number;
-  };
+  const { pool, answerPoolByType, globalPool } = buildCardPool(specs);
 
-  const pool: Synth[] = [];
+  // Restrict the *askable* pool to the eligible subset (if given), keeping the
+  // answer pools intact so distractors still come from the whole deck.
+  const askable = eligibleNoteIds
+    ? pool.filter((s) => eligibleNoteIds.has(s.parentId))
+    : pool;
+  const selected = selectQuizNotes(askable, Math.max(0, count), rng);
+
+  return selected.map((s) => {
+    const sameTypePool = answerPoolByType.get(s.noteTypeId) ?? [];
+    return shapeQuestion(
+      baseQuestionFor(s),
+      assignQuestionKind(enabledKinds, rng),
+      sameTypePool,
+      globalPool,
+      rng,
+    );
+  });
+}
+
+/**
+ * A selected card, ready to be asked in any format: its shared question fields plus up
+ * to three distractors, picked once (same-type first). Learn asks one card several times
+ * — a missed card comes back, possibly in another format — so the format is chosen per
+ * ask with {@link askCard} instead of being fixed at build time like the quiz.
+ */
+export interface CardTemplate {
+  // Unique per card: the note id, or note + deletion for a cloze card.
+  key: string;
+  // Position in the deck's card order, for a session that isn't shuffled.
+  order: number;
+  base: BaseQuestion;
+  distractors: string[];
+}
+
+/**
+ * Selects {@code count} cards exactly the way the quiz does (mastery-weighted with the
+ * new-card share; {@code eligibleNoteIds} limits what can be asked while distractors
+ * still come from the whole deck) and returns them as {@link CardTemplate}s.
+ */
+export function buildCardTemplates(
+  specs: NoteTypeQuizSpec[],
+  count: number,
+  rng: () => number = Math.random,
+  eligibleNoteIds?: Set<string>,
+): CardTemplate[] {
+  const { pool, answerPoolByType, globalPool } = buildCardPool(specs);
+  const order = new Map(pool.map((s, i) => [s.id, i]));
+  const askable = eligibleNoteIds
+    ? pool.filter((s) => eligibleNoteIds.has(s.parentId))
+    : pool;
+  const selected = selectQuizNotes(askable, Math.max(0, count), rng);
+
+  return selected.map((s) => {
+    const base = baseQuestionFor(s);
+    return {
+      key: s.id,
+      order: order.get(s.id) ?? 0,
+      base,
+      distractors: pickDistractors(
+        base.correct,
+        answerPoolByType.get(s.noteTypeId) ?? [],
+        globalPool,
+        rng,
+      ),
+    };
+  });
+}
+
+/**
+ * Asks a card in one format. Multiple choice shuffles the answer in among the
+ * distractors; true/false asserts the answer or one of the distractors; written needs
+ * nothing extra.
+ */
+export function askCard(
+  card: CardTemplate,
+  kind: QuestionKind,
+  rng: () => number = Math.random,
+): Question {
+  const { base, distractors } = card;
+  if (kind === "written") {
+    return { ...base, kind: "written" };
+  }
+  if (kind === "truefalse") {
+    const { statement, truth } = buildTrueFalseFace(base.correct, distractors, rng);
+    return { ...base, kind: "truefalse", statement, truth };
+  }
+  return { ...base, kind: "mcq", options: shuffle([base.correct, ...distractors], rng) };
+}
+
+// One selectable entry: a basic note, or one deletion of a cloze note. Basic entries
+// carry their field picks; cloze entries their text and deletion index.
+type PoolCard = QuizNote & {
+  parentId: string;
+  noteTypeId: string;
+  kind: "basic" | "cloze";
+  // basic
+  basicQuestionFields?: string[];
+  basicAnswerField?: string;
+  // cloze
+  clozeText?: string;
+  clozeIndex?: number;
+};
+
+interface CardPool {
+  pool: PoolCard[];
+  // Same-type distractor pool per spec, keyed by noteTypeId.
+  answerPoolByType: Map<string, string[]>;
+  // Every answer in the deck, the cross-type fallback for distractors.
+  globalPool: string[];
+}
+
+/**
+ * Expands the specs into one selectable pool — basic notes as-is, cloze notes
+ * pre-expanded into one entry per deletion inheriting the parent's mastery — plus the
+ * distractor pools. Uses no randomness, so callers keep their rng sequence.
+ */
+function buildCardPool(specs: NoteTypeQuizSpec[]): CardPool {
+  const pool: PoolCard[] = [];
   // Same-type distractor pool per spec, keyed by noteTypeId. Two basic note
   // types each draw from their own answer pool first — distractors stay
   // semantically near the question.
@@ -408,31 +515,22 @@ export function buildMixedQuestions(
     }
   }
 
-  // Restrict the *askable* pool to the eligible subset (if given), keeping the
-  // answer pools above intact so distractors still come from the whole deck.
-  const askable = eligibleNoteIds
-    ? pool.filter((s) => eligibleNoteIds.has(s.parentId))
-    : pool;
-  const selected = selectQuizNotes(askable, Math.max(0, count), rng);
-  const globalPool = Array.from(globalAnswerPool);
+  return { pool, answerPoolByType, globalPool: Array.from(globalAnswerPool) };
+}
 
-  return selected.map((s) => {
-    const sameTypePool = answerPoolByType.get(s.noteTypeId) ?? [];
-    let base: BaseQuestion;
-    if (s.kind === "cloze") {
-      const correct = clozeAnswer(s.clozeText!, s.clozeIndex!);
-      const question = renderClozeFront(s.clozeText!, s.clozeIndex!);
-      base = { noteId: s.parentId, prompt: [{ label: "Cloze", value: question }], question, correct };
-    } else {
-      const correct = s.fields[s.basicAnswerField!] ?? "";
-      const prompt = s.basicQuestionFields!
-        .map((f) => ({ label: f, value: s.fields[f] ?? "" }))
-        .filter((seg) => seg.value.length > 0);
-      const question = prompt.map((seg) => seg.value).join(" — ");
-      base = { noteId: s.parentId, prompt, question, correct };
-    }
-    return shapeQuestion(base, assignQuestionKind(enabledKinds, rng), sameTypePool, globalPool, rng);
-  });
+// The shared question fields (prompt, flattened question, answer) for one pool entry.
+function baseQuestionFor(s: PoolCard): BaseQuestion {
+  if (s.kind === "cloze") {
+    const correct = clozeAnswer(s.clozeText!, s.clozeIndex!);
+    const question = renderClozeFront(s.clozeText!, s.clozeIndex!);
+    return { noteId: s.parentId, prompt: [{ label: "Cloze", value: question }], question, correct };
+  }
+  const correct = s.fields[s.basicAnswerField!] ?? "";
+  const prompt = s.basicQuestionFields!
+    .map((f) => ({ label: f, value: s.fields[f] ?? "" }))
+    .filter((seg) => seg.value.length > 0);
+  const question = prompt.map((seg) => seg.value).join(" — ");
+  return { noteId: s.parentId, prompt, question, correct };
 }
 
 /**

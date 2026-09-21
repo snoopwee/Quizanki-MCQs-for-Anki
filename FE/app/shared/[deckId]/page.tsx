@@ -65,8 +65,9 @@ export default function SharedDeckPage() {
 
         {deckQuery.data && (
           <>
-            <Card className="relative p-0">
-              <div className="h-1.5 rounded-t-card bg-accent" />
+            {/* Accent strip as the card's own background — see `.accent-top`. */}
+            <Card className="accent-top relative p-0">
+              <div className="h-1.5" aria-hidden />
               <div className="p-6">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2 py-0.5 font-mono text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-accent-ink">
                   <Icon name="link" size={13} />

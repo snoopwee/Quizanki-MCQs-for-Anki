@@ -6,17 +6,21 @@ import { Segmented } from "@/components/ui/controls";
 import { Spinner } from "@/components/ui/Spinner";
 import { Icon } from "@/components/ui/icons";
 import {
-  addBasicRow,
-  emptyFieldsByType,
-  noteTypesFromRows,
+  addFieldToType,
+  addRowLike,
+  deleteFieldFromType,
+  fieldHasData,
+  mediaFieldsMap,
+  moveFieldToSide,
   rowMatches,
   swapAllValues,
   swapValuesForRow,
   type EditorRow,
   type EditorState,
+  type FieldSide,
 } from "@/lib/deckEditor";
 import { draftCardCount } from "@/lib/deckDraft";
-import { FieldVisibilityModal } from "@/components/deck/FieldVisibilityModal";
+import { CardFieldsControl, type FieldNoteType } from "@/components/deck/CardFieldsControl";
 
 // How many cards to mount per page. Big enough to review at a glance, small
 // enough that entering the editor is instant even for a 5,000-card deck.
@@ -94,12 +98,28 @@ export function DeckReviewEditor({
         r.key === key ? { ...r, [face === "front" ? "frontImageUrl" : "backImageUrl"]: url } : r,
       ),
     }));
+  const setAudio = (key: string, face: "front" | "back", url: string) =>
+    patch((d) => ({
+      ...d,
+      rows: d.rows.map((r) =>
+        r.key === key ? { ...r, [face === "front" ? "frontAudioUrl" : "backAudioUrl"]: url } : r,
+      ),
+    }));
   const deleteRow = (key: string) =>
     patch((d) => ({ ...d, rows: d.rows.filter((r) => r.key !== key) }));
   const swapRow = (key: string) =>
     patch((d) => ({ ...d, rows: d.rows.map((r) => (r.key === key ? swapValuesForRow(r) : r)) }));
   const swapAll = () => patch((d) => swapAllValues(d));
-  const addRow = () => patch((d) => ({ ...d, rows: [...d.rows, addBasicRow()] }));
+  const addRow = () => patch((d) => ({ ...d, rows: [...d.rows, addRowLike(d.rows)] }));
+  // "Fields shown on card": move a field to Term / Definition / Off, add a new
+  // field, or delete an (empty) one — applied to every id of a merged note-type
+  // group so structurally-identical types stay in lockstep.
+  const moveField = (typeIds: string[], field: string, side: FieldSide) =>
+    patch((d) => typeIds.reduce((s, id) => moveFieldToSide(s, id, field, side), d));
+  const addField = (typeIds: string[], name: string, side: "term" | "definition") =>
+    patch((d) => typeIds.reduce((s, id) => addFieldToType(s, id, name, side), d));
+  const deleteField = (typeIds: string[], field: string) =>
+    patch((d) => typeIds.reduce((s, id) => deleteFieldFromType(s, id, field), d));
 
   const query = search.trim().toLowerCase();
   // Each visible row keeps its position in the FULL deck, so the "#12" label
@@ -115,34 +135,30 @@ export function DeckReviewEditor({
   const shown = visible.slice(0, limit);
   const remaining = visible.length - shown.length;
 
-  // Field visibility. By default, fields empty across a whole note type (media
-  // holders like "Audio"/"Image_URI") are hidden — their clip/picture shows in the
-  // Media section instead. The "Fields" modal lets the user override any of these:
-  // `shown[typeId::field] = true/false` wins over the auto-default. Purely a view
-  // preference (nothing is deleted; a hidden field still saves).
-  const [fieldsOpen, setFieldsOpen] = useState(false);
-  const [shownFields, setShownFields] = useState<Record<string, boolean>>({});
-  const autoEmpty = useMemo(() => emptyFieldsByType(draft.rows), [draft.rows]);
-  const noteTypes = useMemo(() => noteTypesFromRows(draft.rows), [draft.rows]);
-  const isFieldVisible = (typeId: string, field: string) => {
-    const key = `${typeId}::${field}`;
-    return key in shownFields ? shownFields[key] : !autoEmpty.get(typeId)?.has(field);
-  };
-  const toggleField = (typeId: string, field: string) =>
-    setShownFields((s) => ({ ...s, [`${typeId}::${field}`]: !isFieldVisible(typeId, field) }));
-  const hiddenByType = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    for (const nt of noteTypes) {
-      const set = new Set<string>();
-      for (const f of nt.fieldNames) {
-        const key = `${nt.id}::${f}`;
-        const visible = key in shownFields ? shownFields[key] : !autoEmpty.get(nt.id)?.has(f);
-        if (!visible) set.add(f);
+  // Fields whose content is media we lifted into the per-side slots — folded out of
+  // the card (no empty text box) and the fields panel. Stable set computed at load.
+  const hiddenByType = useMemo(() => mediaFieldsMap(draft), [draft]);
+
+  // Note types (with their current front/back layout) for the fields panel — derived
+  // from the rows since a draft has no saved note-type list.
+  const fieldNoteTypes = useMemo<FieldNoteType[]>(() => {
+    const byId = new Map<string, FieldNoteType>();
+    for (const r of draft.rows) {
+      const id = r.noteTypeId ?? "";
+      if (!byId.has(id)) {
+        byId.set(id, {
+          id,
+          name: "",
+          fieldNames: r.fieldNames,
+          frontFields: r.frontFields,
+          backFields: r.backFields,
+          cloze: r.cloze,
+        });
       }
-      map.set(nt.id, set);
     }
-    return map;
-  }, [noteTypes, autoEmpty, shownFields]);
+    return [...byId.values()];
+  }, [draft.rows]);
+  const hasFieldPanel = fieldNoteTypes.some((nt) => !nt.cloze);
 
   // "Show all" can mount thousands of cards — do it in a transition so the click
   // isn't a freeze, and show a spinner while the extra rows render.
@@ -167,21 +183,12 @@ export function DeckReviewEditor({
         <div className="ml-auto flex gap-2">
           <button
             type="button"
-            onClick={() => setFieldsOpen(true)}
-            title="Choose which fields show while editing"
-            className="inline-flex items-center gap-1.5 rounded-input border border-line-strong bg-surface px-2.5 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent"
-          >
-            <Icon name="settings" size={15} />
-            <span className="hidden sm:inline">Fields</span>
-          </button>
-          <button
-            type="button"
             onClick={swapAll}
             aria-label="Swap term and definition for all cards"
             title="Swap the term and definition of all cards"
-            className="rounded-input border border-line-strong bg-surface px-2.5 py-1.5 text-base leading-none transition hover:border-accent hover:text-accent"
+            className="inline-flex items-center justify-center rounded-input border border-line-strong bg-surface px-2.5 py-2 leading-none transition hover:border-accent hover:text-accent"
           >
-            ⇅
+            <Icon name="swap" size={16} />
           </button>
           <button
             type="button"
@@ -225,6 +232,25 @@ export function DeckReviewEditor({
 
       <VisibilityChoice isPublic={isPublic} onChange={onVisibilityChange} />
 
+      {hasFieldPanel && (
+        <div className="space-y-3 rounded-card border border-line bg-surface p-4">
+          <div>
+            <h2 className="text-sm font-bold text-ink">Fields shown on card</h2>
+            <p className="mt-0.5 text-xs text-muted">
+              Put each field on the Term or Definition side (or Off), or add your own.
+            </p>
+          </div>
+          <CardFieldsControl
+            noteTypes={fieldNoteTypes}
+            mediaFields={hiddenByType}
+            hasData={(typeId, field) => fieldHasData(draft.rows, typeId, field)}
+            onMove={moveField}
+            onAddField={addField}
+            onDeleteField={deleteField}
+          />
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-3">
         <input
           type="search"
@@ -261,6 +287,7 @@ export function DeckReviewEditor({
                 onDelete={deleteRow}
                 onLang={setLang}
                 onImage={setImage}
+                onAudio={setAudio}
                 playAudio={playAudio}
                 hiddenFields={hiddenByType.get(row.noteTypeId ?? "")}
               />
@@ -300,15 +327,6 @@ export function DeckReviewEditor({
       >
         + Add a card
       </button>
-
-      {fieldsOpen && (
-        <FieldVisibilityModal
-          noteTypes={noteTypes}
-          isVisible={isFieldVisible}
-          onToggle={toggleField}
-          onClose={() => setFieldsOpen(false)}
-        />
-      )}
     </div>
   );
 }

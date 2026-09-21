@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { draftCardCount, draftToImportRequest, fromParsed } from "@/lib/deckDraft";
-import { addBasicRow, basicRow } from "@/lib/deckEditor";
+import { addBasicRow, addFieldToType, basicRow } from "@/lib/deckEditor";
 import type { ApkgNoteType, ApkgParseResponse } from "@/types/api";
 
 function noteType(over: Partial<ApkgNoteType>): ApkgNoteType {
@@ -134,6 +134,22 @@ describe("draftToImportRequest", () => {
     expect(added!.notes).toHaveLength(1);
     // The cloze type is untouched by the addition.
     expect(req.noteTypes.find((t) => t.cloze)!.notes).toHaveLength(1);
+  });
+
+  it("carries a field added to a scratch/manual deck through to the saved note type", () => {
+    // A hand-built deck: two manual Basic cards, then a field added via the panel.
+    let draft: import("@/lib/deckEditor").EditorState = {
+      name: "Vocab",
+      rows: [basicRow("犬", "dog"), basicRow("猫", "cat")],
+      layoutByType: {},
+    };
+    draft = addFieldToType(draft, "", "Reading", "definition");
+    draft.rows[0].fields.Reading = "いぬ";
+
+    const type = draftToImportRequest(draft, { isPublic: false }).noteTypes[0];
+    expect(type.fieldNames).toEqual(["Front", "Back", "Reading"]);
+    expect(type.backFields).toEqual(["Back", "Reading"]);
+    expect(type.notes[0].fields.Reading).toBe("いぬ");
   });
 
   it("trims the deck name and keeps the source filename", () => {

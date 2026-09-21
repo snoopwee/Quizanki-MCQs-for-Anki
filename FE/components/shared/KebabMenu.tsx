@@ -1,10 +1,28 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { Icon, type IconName } from "@/components/ui/icons";
+import { IconButton, iconButtonIconSize, type IconButtonSize } from "@/components/ui/IconButton";
+import {
+  MENU_ITEM,
+  MENU_ITEM_DANGER,
+  MENU_ITEM_HOVER,
+  MENU_ITEM_IDLE,
+  MENU_SURFACE,
+} from "@/components/ui/menu";
 
 export interface KebabItem {
   label: string;
   onClick: () => void;
+  // Leading icon. Give every item in a menu one or give none of them one — a
+  // mixed menu leaves some labels indented and some not.
+  icon?: IconName;
+  // Keep `label` SHORT — ideally one word. The menu already names its subject (a
+  // deck's ⋯ menu is about that deck), so "Edit flashcards" / "Delete deck" only
+  // repeat it: use "Edit", "Delete". Rows never wrap (the list is nowrap and sizes
+  // to its longest label), so a long label doesn't break the layout — it just
+  // makes the menu wide. Spend the width only where it carries meaning the short
+  // form would lose, e.g. "Save to Home" names a destination.
   // Renders the item in red — used for destructive actions like Delete.
   danger?: boolean;
 }
@@ -16,10 +34,15 @@ export function KebabMenu({
   items,
   label = "Options",
   align = "right",
+  size = "md",
+  bordered = false,
 }: {
   items: KebabItem[];
   label?: string;
   align?: "left" | "right";
+  size?: IconButtonSize;
+  /** Only when this sits in a cluster of peer icon actions. */
+  bordered?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -45,24 +68,30 @@ export function KebabMenu({
 
   return (
     <div ref={rootRef} className="relative">
-      <button
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={open ? menuId : undefined}
-        aria-label={label}
+      {/* A ⋯ menu is usually a LONE control (a deck header's options), so it is
+          unbordered by default — the outline is for a cluster of peer actions.
+          Pass `bordered` when it genuinely sits in one. */}
+      <IconButton
+        label={label}
+        size={size}
+        bordered={bordered}
+        ariaHasPopup="menu"
+        ariaExpanded={open}
+        ariaControls={open ? menuId : undefined}
         onClick={() => setOpen((o) => !o)}
-        className="rounded-input px-2 py-1 text-lg leading-none text-muted transition hover:bg-surface-2 hover:text-ink"
+        className="text-muted hover:text-ink"
       >
-        ⋯
-      </button>
+        <Icon name="dots" size={iconButtonIconSize(size)} />
+      </IconButton>
       {open && (
         <div
           id={menuId}
           role="menu"
-          className={`absolute z-20 mt-1 min-w-36 overflow-hidden rounded-input border border-line bg-surface py-1 shadow-card ${
-            align === "right" ? "right-0" : "left-0"
-          }`}
+          // Same surface as the Select listbox (see components/ui/menu.ts) — one
+          // menu look across the app. `w-max` sizes it to its longest label rather
+          // than shrink-to-fitting against the icon button it hangs off, so a row
+          // never wraps onto a second line.
+          className={`${MENU_SURFACE} w-max min-w-36 ${align === "right" ? "right-0" : "left-0"}`}
         >
           {items.map((item) => (
             <button
@@ -73,11 +102,18 @@ export function KebabMenu({
                 setOpen(false);
                 item.onClick();
               }}
-              className={`block w-full px-3 py-1.5 text-left text-sm transition hover:bg-surface-2 ${
-                item.danger ? "text-danger" : "text-ink"
+              className={`${MENU_ITEM} ${MENU_ITEM_HOVER} cursor-pointer gap-2.5 ${
+                item.danger ? MENU_ITEM_DANGER : MENU_ITEM_IDLE
               }`}
             >
-              {item.label}
+              {item.icon && (
+                <Icon
+                  name={item.icon}
+                  size={15}
+                  className={`shrink-0 ${item.danger ? "" : "text-faint"}`}
+                />
+              )}
+              <span>{item.label}</span>
             </button>
           ))}
         </div>

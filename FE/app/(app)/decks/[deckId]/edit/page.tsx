@@ -6,8 +6,12 @@ import Link from "next/link";
 import { Reorder, useDragControls } from "motion/react";
 import { useDeckContents, useReplaceDeckContents } from "@/hooks/useDecks";
 import {
-  addBasicRow,
-  emptyFieldsByType,
+  addFieldToType,
+  addRowLike,
+  deleteFieldFromType,
+  fieldHasData,
+  mediaFieldsMap,
+  moveFieldToSide,
   fromContents,
   rowMatches,
   swapAllValues,
@@ -15,12 +19,11 @@ import {
   toPayload,
   type EditorRow,
   type EditorState,
+  type FieldSide,
 } from "@/lib/deckEditor";
 import { ImportCardsModal, type ImportMode } from "@/components/deck/ImportCardsModal";
 import { EditableCard, type EditableCardProps } from "@/components/deck/EditableCard";
 import { CardFieldsControl, type FieldNoteType } from "@/components/deck/CardFieldsControl";
-import { FieldVisibilityModal } from "@/components/deck/FieldVisibilityModal";
-import { hasExtraFields } from "@/lib/cardFields";
 import { Icon } from "@/components/ui/icons";
 
 export default function DeckEditPage() {
@@ -112,56 +115,51 @@ function DeckEditor() {
   const swapRow = (key: string) =>
     patch((d) => ({ ...d, rows: d.rows.map((r) => (r.key === key ? swapValuesForRow(r) : r)) }));
   const swapAll = () => patch((d) => swapAllValues(d));
-  const addRow = () => patch((d) => ({ ...d, rows: [...d.rows, addBasicRow()] }));
+  const addRow = () => patch((d) => ({ ...d, rows: [...d.rows, addRowLike(d.rows)] }));
   const handleImport = (rows: EditorRow[], mode: ImportMode) =>
     patch((d) => ({ ...d, rows: mode === "replace" ? rows : [...d.rows, ...rows] }));
-  // "Show / hide extra fields": update a note type's front/back field selection.
-  // Persisted with the deck on save (toPayload sends layoutByType).
-  const setLayout = (typeId: string, next: { frontFields: string[]; backFields: string[] }) =>
-    patch((d) => ({ ...d, layoutByType: { ...d.layoutByType, [typeId]: next } }));
+  // "Fields shown on card": move a field to Term / Definition / Off, add a new
+  // field, or delete an (empty) one — synced to every row of the type so the card
+  // preview reflects it at once. Persisted on Save (toPayload sends the layout +
+  // field list).
+  const moveField = (typeIds: string[], field: string, side: FieldSide) =>
+    patch((d) => typeIds.reduce((s, id) => moveFieldToSide(s, id, field, side), d));
+  const addField = (typeIds: string[], name: string, side: "term" | "definition") =>
+    patch((d) => typeIds.reduce((s, id) => addFieldToType(s, id, name, side), d));
+  const deleteField = (typeIds: string[], field: string) =>
+    patch((d) => typeIds.reduce((s, id) => deleteFieldFromType(s, id, field), d));
 
-  // Note types with their field names (static, from contents) + the draft's
-  // current front/back selection — what the "Fields shown on cards" control edits.
+  // Note types for the fields panel — derived from the DRAFT rows (so a just-added
+  // field appears), with the display name looked up from the saved contents.
   const fieldNoteTypes = useMemo<FieldNoteType[]>(() => {
-    if (!contentsQuery.data || !draft) return [];
-    return contentsQuery.data.noteTypes.map((nt) => ({
-      id: nt.id,
-      name: nt.name,
-      fieldNames: nt.fieldNames,
-      cloze: nt.cloze,
-      frontFields: draft.layoutByType[nt.id]?.frontFields ?? nt.frontFields,
-      backFields: draft.layoutByType[nt.id]?.backFields ?? nt.backFields,
-    }));
+    if (!draft) return [];
+    const nameById = new Map(
+      (contentsQuery.data?.noteTypes ?? []).map((nt) => [nt.id, nt.name]),
+    );
+    const byId = new Map<string, FieldNoteType>();
+    for (const r of draft.rows) {
+      const id = r.noteTypeId ?? "";
+      if (!byId.has(id)) {
+        byId.set(id, {
+          id,
+          name: nameById.get(id) ?? "",
+          fieldNames: r.fieldNames,
+          frontFields: r.frontFields,
+          backFields: r.backFields,
+          cloze: r.cloze,
+        });
+      }
+    }
+    return [...byId.values()];
   }, [contentsQuery.data, draft]);
 
-  // Field visibility: empty-across-the-type fields (media holders like "Audio"/
-  // "Image_URI") are hidden by default; the "Fields" modal lets the user override
-  // any of them. A view preference only — a hidden field still saves.
-  const [fieldsOpen, setFieldsOpen] = useState(false);
-  const [shownFields, setShownFields] = useState<Record<string, boolean>>({});
-  const autoEmpty = useMemo(
-    () => (draft ? emptyFieldsByType(draft.rows) : new Map<string, Set<string>>()),
+  // Media-holder fields folded into the per-side slots (stable, computed at load) —
+  // hidden from the card and the panel.
+  const hiddenByType = useMemo(
+    () => (draft ? mediaFieldsMap(draft) : new Map<string, Set<string>>()),
     [draft],
   );
-  const isFieldVisible = (typeId: string, field: string) => {
-    const key = `${typeId}::${field}`;
-    return key in shownFields ? shownFields[key] : !autoEmpty.get(typeId)?.has(field);
-  };
-  const toggleField = (typeId: string, field: string) =>
-    setShownFields((s) => ({ ...s, [`${typeId}::${field}`]: !isFieldVisible(typeId, field) }));
-  const hiddenByType = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    for (const nt of fieldNoteTypes) {
-      const set = new Set<string>();
-      for (const f of nt.fieldNames) {
-        const key = `${nt.id}::${f}`;
-        const visible = key in shownFields ? shownFields[key] : !autoEmpty.get(nt.id)?.has(f);
-        if (!visible) set.add(f);
-      }
-      map.set(nt.id, set);
-    }
-    return map;
-  }, [fieldNoteTypes, autoEmpty, shownFields]);
+  const hasFieldPanel = fieldNoteTypes.some((nt) => !nt.cloze);
 
   // Live reorder from the drag list: motion hands back the new key order, so we
   // reshuffle the draft rows to match (row objects, with their edits, are kept).
@@ -222,21 +220,12 @@ function DeckEditor() {
         <div className="ml-auto flex gap-2">
           <button
             type="button"
-            onClick={() => setFieldsOpen(true)}
-            title="Choose which fields show while editing"
-            className="inline-flex items-center gap-1.5 rounded-input border border-line-strong bg-surface px-2.5 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent"
-          >
-            <Icon name="settings" size={15} />
-            <span className="hidden sm:inline">Fields</span>
-          </button>
-          <button
-            type="button"
             onClick={swapAll}
             aria-label="Swap term and definition for all cards"
             title="Swap the term and definition of all cards"
-            className="rounded-input border border-line-strong bg-surface px-2.5 py-1.5 text-base leading-none transition hover:border-accent hover:text-accent"
+            className="inline-flex items-center justify-center rounded-input border border-line-strong bg-surface px-2.5 py-2 leading-none transition hover:border-accent hover:text-accent"
           >
-            ⇅
+            <Icon name="swap" size={16} />
           </button>
           <button
             type="button"
@@ -277,16 +266,22 @@ function DeckEditor() {
         />
       </label>
 
-      {hasExtraFields(fieldNoteTypes) && (
+      {hasFieldPanel && (
         <div className="space-y-3 rounded-card border border-line bg-surface p-4">
           <div>
-            <h2 className="text-sm font-bold text-ink">Fields shown on cards</h2>
+            <h2 className="text-sm font-bold text-ink">Fields shown on card</h2>
             <p className="mt-0.5 text-xs text-muted">
-              Your deck has extra fields from the import. Choose which also appear on each card&apos;s
-              definition side.
+              Put each field on the Term or Definition side (or Off), or add your own.
             </p>
           </div>
-          <CardFieldsControl noteTypes={fieldNoteTypes} onChange={setLayout} />
+          <CardFieldsControl
+            noteTypes={fieldNoteTypes}
+            mediaFields={hiddenByType}
+            hasData={(typeId, field) => (draft ? fieldHasData(draft.rows, typeId, field) : false)}
+            onMove={moveField}
+            onAddField={addField}
+            onDeleteField={deleteField}
+          />
         </div>
       )}
 
@@ -373,15 +368,6 @@ function DeckEditor() {
 
       {importOpen && (
         <ImportCardsModal onClose={() => setImportOpen(false)} onImport={handleImport} />
-      )}
-
-      {fieldsOpen && (
-        <FieldVisibilityModal
-          noteTypes={fieldNoteTypes}
-          isVisible={isFieldVisible}
-          onToggle={toggleField}
-          onClose={() => setFieldsOpen(false)}
-        />
       )}
     </div>
   );

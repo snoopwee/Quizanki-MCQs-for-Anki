@@ -17,6 +17,7 @@ import { useQuizStore } from "@/stores/quizStore";
 import { useGuestMastery } from "@/stores/guestMasteryStore";
 import { useGuestStars } from "@/stores/guestStarStore";
 import type { ApkgParseResponse } from "@/types/api";
+import { Icon } from "@/components/ui/icons";
 
 // The landing page IS the product trial: a guest can upload a deck and study /
 // quiz it immediately. Logged-in users see a "Home" link instead of Log in.
@@ -124,8 +125,8 @@ function Landing() {
             {["Auto-detects fields", "Flashcard study mode", "Distractors from your own deck"].map(
               (f) => (
                 <li key={f} className="flex items-center gap-1.5">
-                  <span aria-hidden className="text-success">
-                    ✓
+                  <span aria-hidden className="shrink-0 text-success">
+                    <Icon name="check" size={15} />
                   </span>
                   {f}
                 </li>

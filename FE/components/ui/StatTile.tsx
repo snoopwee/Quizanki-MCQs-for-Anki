@@ -11,6 +11,8 @@ export function StatTile({
   sub,
   color = "var(--accent)",
   soon = false,
+  className = "",
+  children,
 }: {
   icon: ReactNode;
   label: string;
@@ -18,9 +20,13 @@ export function StatTile({
   sub?: string;
   color?: string;
   soon?: boolean;
+  // Placement for the tile in its grid, e.g. a column span.
+  className?: string;
+  // Extra content under the value, e.g. the streak's 7-day strip.
+  children?: ReactNode;
 }) {
   return (
-    <Card className="p-4">
+    <Card className={`p-4 ${className}`}>
       <div className="flex items-center gap-2.5">
         <span
           className="grid h-8 w-8 shrink-0 place-items-center rounded-input"
@@ -33,6 +39,7 @@ export function StatTile({
       </div>
       <div className="mt-2 font-display text-2xl font-bold tracking-tight text-ink">{value}</div>
       {sub && <div className="mt-0.5 font-mono text-xs text-faint">{sub}</div>}
+      {children}
     </Card>
   );
 }

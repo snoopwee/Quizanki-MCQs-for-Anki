@@ -1,10 +1,10 @@
 "use client";
 
 import { useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import type { DeckHistoryPoint } from "@/types/api";
+import type { AnswerSource, DeckHistoryPoint } from "@/types/api";
 
 // Accuracy-over-time line chart — a single series, so no legend (the heading
-// names it). Pure inline SVG themed with the design tokens (var(--accent) line,
+// names it). One point per quiz or Learn session; the tooltip says which. Pure inline SVG themed with the design tokens (var(--accent) line,
 // recessive var(--line) grid, var(--faint) labels), so it adapts to light/dark
 // automatically. Crosshair + tooltip on hover per the dataviz interaction rules.
 
@@ -27,6 +27,10 @@ function shortTime(at: number): string {
   return new Date(at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
+function sourceLabel(source: AnswerSource): string {
+  return source === "learn" ? "Learn" : "Quiz";
+}
+
 export function AccuracyChart({ points }: { points: DeckHistoryPoint[] }) {
   const gradientId = useId();
   const svgRef = useRef<SVGSVGElement>(null);
@@ -38,7 +42,7 @@ export function AccuracyChart({ points }: { points: DeckHistoryPoint[] }) {
         <p className="text-sm text-muted">
           No study history yet.
           <br />
-          <span className="text-faint">Take a quiz and your accuracy will chart here.</span>
+          <span className="text-faint">Take a quiz or learn this deck and your accuracy will chart here.</span>
         </p>
       </div>
     );
@@ -91,7 +95,7 @@ export function AccuracyChart({ points }: { points: DeckHistoryPoint[] }) {
         className="w-full touch-none"
         style={{ height: "auto" }}
         role="img"
-        aria-label={`Accuracy across ${n} ${n === 1 ? "test" : "tests"}; most recent ${Math.round(
+        aria-label={`Accuracy across ${n} study ${n === 1 ? "session" : "sessions"}; most recent ${Math.round(
           latest.accuracy * 100,
         )} percent.`}
         onPointerMove={onMove}
@@ -204,6 +208,7 @@ export function AccuracyChart({ points }: { points: DeckHistoryPoint[] }) {
             {Math.round(hoverPoint.accuracy * 100)}%
           </div>
           <div className="text-[0.6875rem] text-muted">
+            {hoverPoint.source && `${sourceLabel(hoverPoint.source)} · `}
             {shortDate(hoverPoint.at)}, {shortTime(hoverPoint.at)} · {hoverPoint.correct}/
             {hoverPoint.answered}
           </div>

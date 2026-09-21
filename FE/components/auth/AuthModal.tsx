@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/ui/BrandMark";
+import { Icon } from "@/components/ui/icons";
 
 type Mode = "signup" | "login";
 
@@ -93,7 +94,7 @@ export function AuthModal({
           aria-label="Close"
           className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-input text-faint transition hover:bg-surface-2 hover:text-ink disabled:opacity-40"
         >
-          ✕
+          <Icon name="x" size={16} />
         </button>
 
         <BrandMark />

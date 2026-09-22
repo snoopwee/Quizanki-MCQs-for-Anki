@@ -66,4 +66,18 @@ class AdminControllerSecurityTest {
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk());
     }
+
+    @Test
+    void theMatcherCoversEveryAdminPath_notJustTheOneThisSliceMaps() throws Exception {
+        // The broadcast endpoint (AdminAnnouncementController) fans a write out over every user, so
+        // it had better be behind the same gate. This slice doesn't register that controller, but
+        // the filter chain refuses a non-admin BEFORE routing — which is the property being
+        // proven: the /api/v1/admin/** matcher guards the path pattern, not a list of handlers.
+        mockMvc.perform(get("/api/v1/admin/announcements/audience")
+                        .with(jwt().jwt(j -> j.subject("user-1"))))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/v1/admin/announcements/audience"))
+                .andExpect(status().isUnauthorized());
+    }
 }

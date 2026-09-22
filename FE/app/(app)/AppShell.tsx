@@ -10,6 +10,7 @@ import { AccountMenu } from "@/components/account/AccountMenu";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { DeckSearch } from "@/components/search/DeckSearch";
 import { StreakChip } from "@/components/layout/StreakChip";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 import { Icon, type IconName } from "@/components/ui/icons";
 
 // True for any URL a full-screen study mode takes over — sidebar is hidden so the
@@ -180,16 +181,18 @@ export function AppShell({
   );
 }
 
-// The right end of the top bar, on the search's row: today's streak, then the primary
-// New deck action (moved here from the rail, 2026-09-16). The label drops on phones so the
-// plus tile still fits beside the search box. An admin account doesn't study or import, so
-// it gets the streak only — matching the admin rail, which has no New deck either.
+// The right end of the top bar, on the search's row: today's streak, the notification bell, then
+// the primary New deck action (moved here from the rail, 2026-09-16). The label drops on phones so
+// the plus tile still fits beside the search box. An admin account doesn't study or import, so it
+// gets the streak and the bell only — matching the admin rail, which has no New deck either. The
+// bell stays for admins because S5 broadcasts from the admin panel, and they can receive too.
 function HeaderActions() {
   const isAdmin = useMe().data?.isAdmin ?? false;
 
   return (
     <div className="ml-auto flex shrink-0 items-center gap-2">
       <StreakChip />
+      <NotificationBell />
       {!isAdmin && (
         <Link
           href="/import"

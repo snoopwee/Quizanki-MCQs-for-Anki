@@ -158,6 +158,53 @@ export interface FolderDetailResponse {
   decks: DeckResponse[];
 }
 
+// ── Notifications (Phase 10) ─────────────────────────────────────────────────
+// Rows are snapshots the backend wrote: `title` / `body` are its wording, while `kind`,
+// `actorName` and `deckId` come along so the UI can word a row differently without a migration.
+export type NotificationKind = "deck_shared" | "author_published" | "announcement";
+
+export interface NotificationResponse {
+  id: string;
+  // Widened to string: an older client must render a row whose kind it has never heard of.
+  kind: NotificationKind | string;
+  title: string;
+  body: string | null;
+  /** An in-app route ("/decks/<id>"), never absolute — and checked again by `inAppHref`. */
+  link: string | null;
+  actorId: string | null;
+  actorName: string | null;
+  deckId: string | null;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface NotificationPageResponse {
+  items: NotificationResponse[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  /** ALL of this user's unread notifications, not just the ones on this page — the badge number. */
+  unread: number;
+}
+
+export interface UnreadCountResponse {
+  unread: number;
+}
+
+/** POST /api/v1/admin/announcements — what the broadcast actually did. */
+export interface AnnouncementResultResponse {
+  // "all" or "me"; echoed back so the UI reports what was really sent, not what was typed.
+  audience: string;
+  recipients: number;
+  sent: number;
+}
+
+/** GET /api/v1/admin/announcements/audience — how many a broadcast would reach. */
+export interface AudienceResponse {
+  recipients: number;
+}
+
 // ── AI deck generation (Phase 9) ──────────────────────────────────────────────
 // Whose key paid for a generation: our shared free-tier pool, or the user's own.
 export type AiKeyOwner = "shared" | "user";

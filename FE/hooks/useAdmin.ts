@@ -1,6 +1,12 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/axios";
-import type { AdminStatsResponse, AdminUsersPage, PublicDeckPage } from "@/types/api";
+import type {
+  AdminStatsResponse,
+  AdminUsersPage,
+  AnnouncementResultResponse,
+  AudienceResponse,
+  PublicDeckPage,
+} from "@/types/api";
 
 // A page of Supabase users (1-based), from the Admin API. keepPreviousData so the
 // table doesn't blank out while paging.
@@ -93,5 +99,39 @@ export function useAdminDeleteDeck() {
       queryClient.invalidateQueries({ queryKey: ["admin", "decks"] });
       queryClient.invalidateQueries({ queryKey: ["discover"] });
     },
+  });
+}
+
+// ── Announcements (Phase 10 S5) ──────────────────────────────────────────────
+
+// How many people a broadcast would reach. Asked for when the admin picks "Everyone", so the
+// confirm can name a number before anything irreversible happens.
+export function useAnnouncementAudience(enabled: boolean) {
+  return useQuery({
+    queryKey: ["admin", "announcement-audience"],
+    enabled,
+    queryFn: async () => {
+      const { data } = await api.get<AudienceResponse>("/admin/announcements/audience");
+      return data.recipients;
+    },
+  });
+}
+
+// Send one. On success the notification queries are invalidated too: an announcement reaches the
+// sending admin as well, so their own bell should light up immediately — which is how a broadcast
+// gets verified without asking a user.
+export function useSendAnnouncement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (request: {
+      title: string;
+      body: string | null;
+      link: string | null;
+      audience: "all" | "me";
+    }) => {
+      const { data } = await api.post<AnnouncementResultResponse>("/admin/announcements", request);
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
   });
 }

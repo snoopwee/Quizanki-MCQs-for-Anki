@@ -34,6 +34,18 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
     @Query("update Notification n set n.readAt = :now where n.userId = :userId and n.readAt is null")
     int markAllRead(@Param("userId") String userId, @Param("now") OffsetDateTime now);
 
+    /**
+     * Delete one, addressed by (id, recipient) so another user's row is simply not matched. Returns
+     * how many went, which lets the caller answer identically whether the row was already gone or
+     * never theirs.
+     */
+    long deleteByIdAndUserId(UUID id, String userId);
+
+    /** Clear the whole bell in one statement rather than loading every row to delete it. */
+    @Modifying
+    @Query("delete from Notification n where n.userId = :userId")
+    int deleteAllForUser(@Param("userId") String userId);
+
     /** Retention, scoped to one user so it rides the (user_id, created_at) index. */
     @Modifying
     @Query("delete from Notification n where n.userId = :userId and n.createdAt < :cutoff")

@@ -100,6 +100,24 @@ public class NotificationService {
         return notifications.markAllRead(userId, OffsetDateTime.now(clock));
     }
 
+    /**
+     * Remove one notification. Deliberately NOT a 404 when nothing matches: unlike marking read,
+     * a delete that finds nothing has already achieved what the caller wanted, and answering the
+     * same way for "already gone" and "never yours" keeps another user's id unconfirmable.
+     *
+     * @return whether a row was actually removed.
+     */
+    @Transactional
+    public boolean delete(String userId, UUID notificationId) {
+        return notifications.deleteByIdAndUserId(notificationId, userId) > 0;
+    }
+
+    /** Empty this user's bell. @return how many were removed. */
+    @Transactional
+    public int clear(String userId) {
+        return notifications.deleteAllForUser(userId);
+    }
+
     // ── the write side: what other features call ─────────────────────────────────────────────
     // Nothing produces notifications yet. The producers are Phase 10 S5 (admin broadcast) and
     // Phase 11 (share a deck to a user, follow an author), which is why these take the actor and

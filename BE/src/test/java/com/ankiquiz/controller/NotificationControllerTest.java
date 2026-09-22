@@ -25,6 +25,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -120,6 +121,33 @@ class NotificationControllerTest {
     }
 
     @Test
+    void deletingOneReturns204() throws Exception {
+        mockMvc.perform(delete("/api/v1/me/notifications/{id}", notificationId)
+                        .with(jwt().jwt(j -> j.subject("user-1"))))
+                .andExpect(status().isNoContent());
+
+        verify(notificationService).delete("user-1", notificationId);
+    }
+
+    @Test
+    void deletingSomethingAlreadyGoneStillReturns204() throws Exception {
+        when(notificationService.delete(any(), any())).thenReturn(false);
+
+        mockMvc.perform(delete("/api/v1/me/notifications/{id}", notificationId)
+                        .with(jwt().jwt(j -> j.subject("user-1"))))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void clearingAllReturns204() throws Exception {
+        mockMvc.perform(delete("/api/v1/me/notifications")
+                        .with(jwt().jwt(j -> j.subject("user-1"))))
+                .andExpect(status().isNoContent());
+
+        verify(notificationService).clear("user-1");
+    }
+
+    @Test
     void everyNotificationRouteNeedsAuthentication() throws Exception {
         mockMvc.perform(get("/api/v1/me/notifications")).andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/v1/me/notifications/unread-count")).andExpect(status().isUnauthorized());
@@ -129,10 +157,16 @@ class NotificationControllerTest {
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(post("/api/v1/me/notifications/read-all").with(csrf()))
                 .andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/api/v1/me/notifications/{id}", notificationId).with(csrf()))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/api/v1/me/notifications").with(csrf()))
+                .andExpect(status().isUnauthorized());
 
         verify(notificationService, never()).page(any(), org.mockito.ArgumentMatchers.anyInt(),
                 org.mockito.ArgumentMatchers.anyInt());
         verify(notificationService, never()).markRead(any(), any());
         verify(notificationService, never()).markAllRead(any());
+        verify(notificationService, never()).delete(any(), any());
+        verify(notificationService, never()).clear(any());
     }
 }

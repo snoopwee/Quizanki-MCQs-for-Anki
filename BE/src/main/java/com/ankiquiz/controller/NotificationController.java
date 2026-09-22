@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -67,6 +68,28 @@ public class NotificationController {
     @Operation(summary = "Mark everything as read", description = "Clears the badge in one call.")
     public ResponseEntity<Void> markAllRead(@AuthenticationPrincipal Jwt jwt) {
         notificationService.markAllRead(jwt.getSubject());
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{notificationId}")
+    @Operation(summary = "Delete one",
+            description = "204 whether or not it was there: a delete that finds nothing has already "
+                    + "done what was asked, and the same answer for \"already gone\" and \"not "
+                    + "yours\" keeps another user's id unconfirmable.")
+    public ResponseEntity<Void> delete(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID notificationId
+    ) {
+        notificationService.delete(jwt.getSubject(), notificationId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping
+    @Operation(summary = "Clear all of yours",
+            description = "Removes every notification for the caller — read or not. Nobody else's "
+                    + "bell is touched, and there is no undo, so the client confirms first.")
+    public ResponseEntity<Void> clear(@AuthenticationPrincipal Jwt jwt) {
+        notificationService.clear(jwt.getSubject());
         return ResponseEntity.noContent().build();
     }
 }

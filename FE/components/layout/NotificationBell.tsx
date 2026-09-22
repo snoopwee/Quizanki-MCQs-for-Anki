@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { IconButton, iconButtonIconSize } from "@/components/ui/IconButton";
 import { Spinner } from "@/components/ui/Spinner";
+import { buttonClasses } from "@/components/ui/Button";
 import {
+  useClearNotifications,
+  useDeleteNotification,
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
   useNotifications,
@@ -13,6 +16,9 @@ import {
 } from "@/hooks/useNotifications";
 import { inAppHref, relativeTime, unreadBadge, unreadLabel } from "@/lib/notificationDisplay";
 import type { NotificationResponse } from "@/types/api";
+
+const headerActionClasses =
+  "focus-ring rounded-input px-1.5 py-0.5 text-xs font-semibold text-accent transition hover:bg-accent-soft disabled:cursor-not-allowed disabled:text-faint disabled:hover:bg-transparent";
 
 // The notification bell, beside the streak chip in the top bar. Closed, it costs one count; open,
 // it fetches one page of rows. Clicking a row marks it read and follows its link.
@@ -26,6 +32,11 @@ export function NotificationBell() {
   const page = useNotifications(open);
   const markRead = useMarkNotificationRead();
   const markAll = useMarkAllNotificationsRead();
+  const remove = useDeleteNotification();
+  const clear = useClearNotifications();
+  // Clearing can't be undone, so it confirms in place inside the panel rather than opening a
+  // dialog over it — the same two-step the folder cards use.
+  const [confirmingClear, setConfirmingClear] = useState(false);
 
   // Same dismissal contract as KebabMenu: outside click, Escape, or choosing something.
   useEffect(() => {
@@ -70,7 +81,10 @@ export function NotificationBell() {
         ariaHasPopup="menu"
         ariaExpanded={open}
         ariaControls={open ? panelId : undefined}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          setOpen((o) => !o);
+          setConfirmingClear(false);
+        }}
         className={open ? "text-ink" : "text-muted hover:text-ink"}
       >
         <Icon name="bell" size={iconButtonIconSize("md")} />
@@ -99,15 +113,52 @@ export function NotificationBell() {
         >
           <div className="flex items-center justify-between gap-2 px-2 py-1.5">
             <span className="font-display text-sm font-semibold text-ink">Notifications</span>
-            <button
-              type="button"
-              onClick={() => markAll.mutate()}
-              disabled={count === 0 || markAll.isPending}
-              className="focus-ring rounded-input px-1.5 py-0.5 text-xs font-semibold text-accent transition hover:bg-accent-soft disabled:cursor-not-allowed disabled:text-faint disabled:hover:bg-transparent"
-            >
-              {markAll.isPending ? "Marking…" : "Mark all read"}
-            </button>
+            <span className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => markAll.mutate()}
+                disabled={count === 0 || markAll.isPending}
+                className={headerActionClasses}
+              >
+                {markAll.isPending ? "Marking…" : "Mark all read"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingClear(true)}
+                disabled={items.length === 0 || clear.isPending}
+                className={headerActionClasses}
+              >
+                Clear all
+              </button>
+            </span>
           </div>
+
+          {confirmingClear && (
+            <div className="mx-1 mb-1 space-y-1.5 rounded-[8px] border border-danger/30 bg-danger/5 p-2">
+              <p className="text-xs font-semibold text-ink">Delete all your notifications?</p>
+              <p className="text-[0.6875rem] text-muted">This one can&apos;t be undone.</p>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setConfirmingClear(false)}
+                  className={buttonClasses({ variant: "ghost", size: "sm" })}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    clear.mutate(undefined, { onSuccess: () => setConfirmingClear(false) })
+                  }
+                  disabled={clear.isPending}
+                  className={buttonClasses({ variant: "danger", size: "sm" })}
+                >
+                  {clear.isPending && <Spinner className="h-3 w-3 text-danger" label="Clearing" />}
+                  Clear all
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="nice-scroll max-h-80 overflow-y-auto overflow-x-hidden">
             {page.isLoading ? (
@@ -131,7 +182,12 @@ export function NotificationBell() {
               <ul>
                 {items.map((notification) => (
                   <li key={notification.id}>
-                    <Row notification={notification} onOpen={() => openRow(notification)} />
+                    <Row
+                      notification={notification}
+                      onOpen={() => openRow(notification)}
+                      onDelete={() => remove.mutate(notification.id)}
+                      deleting={remove.isPending && remove.variables === notification.id}
+                    />
                   </li>
                 ))}
               </ul>
@@ -152,48 +208,72 @@ export function NotificationBell() {
 function Row({
   notification,
   onOpen,
+  onDelete,
+  deleting,
 }: {
   notification: NotificationResponse;
   onOpen: () => void;
+  onDelete: () => void;
+  deleting: boolean;
 }) {
   const href = inAppHref(notification.link);
   const age = relativeTime(notification.createdAt);
 
+  // The row and its ✕ are SIBLINGS: a button inside a button is invalid HTML, and nesting them
+  // would also make every dismiss double as "open this notification".
   return (
-    <button
-      type="button"
-      role="menuitem"
-      onClick={onOpen}
-      className={`focus-ring flex w-full items-start gap-2.5 rounded-[8px] px-2 py-2 text-left transition hover:bg-surface-2 ${
-        href ? "cursor-pointer" : "cursor-default"
-      }`}
-    >
-      <span
-        className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full ${
-          notification.read ? "bg-surface-2 text-faint" : "bg-accent-soft text-accent"
+    <div className="flex items-start gap-1 rounded-[8px] transition hover:bg-surface-2">
+      <button
+        type="button"
+        role="menuitem"
+        onClick={onOpen}
+        className={`focus-ring flex min-w-0 flex-1 items-start gap-2.5 rounded-[8px] px-2 py-2 text-left ${
+          href ? "cursor-pointer" : "cursor-default"
         }`}
       >
-        <Icon name={kindIcon(notification.kind)} size={15} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-baseline gap-2">
-          <span
-            className={`min-w-0 flex-1 text-sm ${
-              notification.read ? "font-medium text-muted" : "font-semibold text-ink"
-            }`}
-          >
-            {notification.title}
-          </span>
-          {age && <span className="shrink-0 font-mono text-[0.6875rem] text-faint">{age}</span>}
+        <span
+          className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full ${
+            notification.read ? "bg-surface-2 text-faint" : "bg-accent-soft text-accent"
+          }`}
+        >
+          <Icon name={kindIcon(notification.kind)} size={15} />
         </span>
-        {notification.body && (
-          <span className="mt-0.5 line-clamp-2 block text-xs text-muted">{notification.body}</span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-baseline gap-2">
+            <span
+              className={`min-w-0 flex-1 text-sm ${
+                notification.read ? "font-medium text-muted" : "font-semibold text-ink"
+              }`}
+            >
+              {notification.title}
+            </span>
+            {age && <span className="shrink-0 font-mono text-[0.6875rem] text-faint">{age}</span>}
+          </span>
+          {notification.body && (
+            <span className="mt-0.5 line-clamp-2 block text-xs text-muted">{notification.body}</span>
+          )}
+        </span>
+        {!notification.read && (
+          <span aria-hidden className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent" />
         )}
-      </span>
-      {!notification.read && (
-        <span aria-hidden className="mt-2 h-2 w-2 shrink-0 rounded-full bg-accent" />
-      )}
-    </button>
+      </button>
+      {/* Always visible, not hover-only: a hover-revealed control can't be reached on a touch
+          screen, which is exactly where a bell full of old rows is most annoying. */}
+      <IconButton
+        label={`Delete: ${notification.title}`}
+        size="sm"
+        bordered={false}
+        disabled={deleting}
+        onClick={onDelete}
+        className="mt-1.5 mr-1 text-faint hover:text-danger"
+      >
+        {deleting ? (
+          <Spinner className="h-3 w-3 text-danger" label="Deleting" />
+        ) : (
+          <Icon name="x" size={iconButtonIconSize("sm")} />
+        )}
+      </IconButton>
+    </div>
   );
 }
 

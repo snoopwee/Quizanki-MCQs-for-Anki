@@ -360,4 +360,33 @@ class NotificationServiceTest {
 
         assertThat(captureSaved().getLink()).isNull();
     }
+
+    // ── deleting ─────────────────────────────────────────────────────────────
+
+    @Test
+    void deletingOneAddressesItByRecipientTooAndSaysWhetherItWent() {
+        when(notifications.deleteByIdAndUserId(notificationId, USER)).thenReturn(1L);
+
+        assertThat(service.delete(USER, notificationId)).isTrue();
+        verify(notifications).deleteByIdAndUserId(notificationId, USER);
+    }
+
+    @Test
+    void deletingSomethingAlreadyGoneOrNotYoursIsNotAnError() {
+        // Same answer either way: a stranger's id must stay unconfirmable, and a double-click
+        // shouldn't surface an error for work that is already done.
+        when(notifications.deleteByIdAndUserId(any(UUID.class), anyString())).thenReturn(0L);
+
+        assertThat(service.delete(USER, notificationId)).isFalse();
+        assertThat(service.delete(STRANGER, notificationId)).isFalse();
+    }
+
+    @Test
+    void clearingEmptiesOnlyTheCallersBellAndReportsTheCount() {
+        when(notifications.deleteAllForUser(USER)).thenReturn(9);
+
+        assertThat(service.clear(USER)).isEqualTo(9);
+        verify(notifications).deleteAllForUser(USER);
+        verify(notifications, never()).deleteAllForUser(STRANGER);
+    }
 }

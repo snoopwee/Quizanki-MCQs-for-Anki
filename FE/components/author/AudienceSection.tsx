@@ -92,15 +92,15 @@ function FollowerRows({
           >
             <Avatar
               url={person.avatarUrl}
-              initials={initialsFrom(person.displayName ?? "", "")}
+              initials={initialsFrom(person.username ?? person.displayName ?? "", "")}
               className="h-9 w-9 shrink-0 text-sm"
             />
             <span
               className={`min-w-0 flex-1 truncate text-sm font-medium ${
-                person.displayName ? "text-ink" : "text-muted"
+                person.username ?? person.displayName ? "text-ink" : "text-muted"
               }`}
             >
-              {person.displayName ?? "A learner who hasn't set a name"}
+              {person.username ?? person.displayName ?? "A learner with no name yet"}
             </span>
             <Icon name="chevronRight" size={15} className="shrink-0 text-faint" />
           </Link>
@@ -137,7 +137,7 @@ function FollowingRows({
           >
             <Avatar
               url={author.authorAvatarUrl}
-              initials={initialsFrom(author.authorName ?? "", "")}
+              initials={initialsFrom(author.username ?? author.authorName ?? "", "")}
               className="h-9 w-9 shrink-0 text-sm"
             />
             <span className="min-w-0 flex-1">
@@ -145,10 +145,10 @@ function FollowingRows({
                   set a name — the deck count below says whether they have published. */}
               <span
                 className={`block truncate text-sm font-medium ${
-                  author.authorName ? "text-ink" : "text-muted"
+                  author.username ?? author.authorName ? "text-ink" : "text-muted"
                 }`}
               >
-                {author.authorName ?? "A learner who hasn't set a name"}
+                {author.username ?? author.authorName ?? "A learner with no name yet"}
               </span>
               <span className="block font-mono text-xs text-faint">
                 {author.publicDecks} public deck{author.publicDecks === 1 ? "" : "s"}

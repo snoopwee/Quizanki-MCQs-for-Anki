@@ -34,15 +34,18 @@ public class NoteService {
     private final NoteRepository noteRepository;
     private final NoteTypeRepository noteTypeRepository;
     private final CardStatsRepository cardStatsRepository;
+    private final ProfileService profileService;
 
     public NoteService(DeckRepository deckRepository,
                        NoteRepository noteRepository,
                        NoteTypeRepository noteTypeRepository,
-                       CardStatsRepository cardStatsRepository) {
+                       CardStatsRepository cardStatsRepository,
+                       ProfileService profileService) {
         this.deckRepository = deckRepository;
         this.noteRepository = noteRepository;
         this.noteTypeRepository = noteTypeRepository;
         this.cardStatsRepository = cardStatsRepository;
+        this.profileService = profileService;
     }
 
     @Transactional(readOnly = true)
@@ -106,7 +109,9 @@ public class NoteService {
         }
         if (!merged.equals(existing)) {
             deck.setAuthorId(caller.id());
-            deck.setAuthorName(caller.displayName());
+            // The username from their profile row, not the token's display name — see
+            // ProfileService.creditName.
+            deck.setAuthorName(profileService.creditName(caller));
             deck.setAuthorAvatarUrl(caller.avatarUrl());
             deckRepository.save(deck);
         }

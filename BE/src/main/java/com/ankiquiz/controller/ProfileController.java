@@ -70,13 +70,18 @@ public class ProfileController {
     }
 
     @PutMapping("/username")
-    @Operation(summary = "Change your public handle",
-            description = "The /user/{username} part of your profile URL. 409 when taken, 400 "
-                    + "when the shape is wrong or the name is reserved. Old links to the previous "
-                    + "handle stop working — /authors/{userId} does not, and never will.")
-    public Map<String, String> changeUsername(@AuthenticationPrincipal Jwt jwt,
+    @Operation(summary = "Change your username — the only name you have",
+            description = "Your ONE name: the /user/{username} URL, and what credits your decks. "
+                    + "409 when taken, 400 when the shape is wrong or the name is reserved. "
+                    + "Re-credits your existing decks, and returns how many were updated. Old "
+                    + "links to the previous handle stop working — /authors/{userId} never does.")
+    public Map<String, Object> changeUsername(@AuthenticationPrincipal Jwt jwt,
                                               @Valid @RequestBody UsernameRequest request) {
-        return Map.of("username", profileService.changeUsername(jwt.getSubject(), request.username()));
+        String username = profileService.changeUsername(jwt.getSubject(), request.username());
+        // A username change IS a rename: it is the only name this app has, and deck credit is a
+        // stored snapshot rather than a join, so existing decks would keep showing the old one.
+        int decks = deckService.syncAuthorProfile(Caller.from(jwt).withOverrides(username, null));
+        return Map.of("username", username, "decksUpdated", decks);
     }
 
     @PutMapping("/author-profile")

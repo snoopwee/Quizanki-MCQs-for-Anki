@@ -52,8 +52,8 @@ export function AuthModal({
   // Same query key the field uses, so this is the same request, not a second one. Signing up is
   // gated on a known-good handle: letting it through and fixing it afterwards is how you end up
   // with accounts whose handle nobody chose.
-  const handleCheck = useUsernameAvailability(username, mode === "signup");
-  const handleReady = !handleCheck.checking && handleCheck.data?.available === true;
+  // No ownHandle here: signing up, there is no account yet and nothing of theirs to collide with.
+  const handleReady = useUsernameAvailability(username, mode === "signup").available;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -72,7 +72,10 @@ export function AuthModal({
           // The handle rides along in user_metadata rather than being claimed with an API call:
           // an email-confirmation project hands back no session here, so there would be no token
           // to call with. The backend treats it as a REQUEST and re-checks it before honouring it.
-          options: { data: { username: username.trim() } },
+          //
+          // display_name is set to the same value because there is only ONE name — the username
+          // is what credits their decks, and `Caller` reads it off the token.
+          options: { data: { username: username.trim(), display_name: username.trim() } },
         });
         if (signUpError) throw signUpError;
         // Email-confirmation projects return no session; we can't continue until
@@ -148,7 +151,7 @@ export function AuthModal({
               value={username}
               onChange={setUsername}
               disabled={busy}
-              hint="Your public page lives here. You can change it later."
+              hint="You can change this later."
             />
           )}
 

@@ -67,10 +67,10 @@ public class FollowService {
             follows.save(follow);
 
             // Only on a NEW row: following is idempotent, and pressing the button twice must not
-            // announce you twice. The follower's name comes from their profile, which exists even
-            // if they have never published anything.
+            // announce you twice. The name is their USERNAME — the one name this app has — which
+            // exists even for somebody who has never published anything.
             String followerName = profiles.find(followerId)
-                    .map(Profile::getDisplayName)
+                    .map(Profile::getUsername)
                     .orElse(null);
             notifications.newFollower(authorId, followerId, followerName);
         }
@@ -114,12 +114,12 @@ public class FollowService {
         return authorIds.stream().map(id -> {
             List<Deck> published = byAuthor.getOrDefault(id, List.of());
             Deck latest = published.isEmpty() ? null : published.getFirst();
-            // The profile is what they are called today; a deck's author_name is a credit snapshot
-            // and only the fallback. It is also the ONLY name for somebody you followed back off
-            // your follower list who has never published.
+            // The username IS the name. A deck's author_name is a credit snapshot and only the
+            // fallback — and it does not exist at all for somebody you followed back off your
+            // follower list who has never published.
             Profile profile = named.get(id);
-            String name = profile != null && profile.getDisplayName() != null
-                    ? profile.getDisplayName()
+            String name = profile != null && profile.getUsername() != null
+                    ? profile.getUsername()
                     : (latest == null ? null : latest.getAuthorName());
             String avatar = profile != null && profile.getAvatarUrl() != null
                     ? profile.getAvatarUrl()
@@ -154,7 +154,9 @@ public class FollowService {
                     Profile profile = named.get(id);
                     return new FollowerResponse(id,
                             profile == null ? null : profile.getUsername(),
-                            profile == null ? null : profile.getDisplayName(),
+                            // Same value as the username, deliberately: one name, and the DTO
+                            // keeps both fields so a client can render either without a lookup.
+                            profile == null ? null : profile.getUsername(),
                             profile == null ? null : profile.getAvatarUrl());
                 })
                 .toList();

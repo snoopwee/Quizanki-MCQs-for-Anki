@@ -38,6 +38,7 @@ class NoteServiceTest {
     @Mock private NoteRepository noteRepository;
     @Mock private NoteTypeRepository noteTypeRepository;
     @Mock private CardStatsRepository cardStatsRepository;
+    @Mock private ProfileService profileService;
 
     private NoteService service;
 
@@ -47,7 +48,12 @@ class NoteServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new NoteService(deckRepository, noteRepository, noteTypeRepository, cardStatsRepository);
+        service = new NoteService(deckRepository, noteRepository, noteTypeRepository,
+                cardStatsRepository, profileService);
+        // Deck credit is stamped from the PROFILE now, not the token — model it as the caller's
+        // own name so the authorship assertions below still say what they mean.
+        lenient().when(profileService.creditName(any(Caller.class)))
+                .thenAnswer(i -> i.getArgument(0, Caller.class).displayName());
     }
 
     private Note existingNote(Map<String, String> fields) {

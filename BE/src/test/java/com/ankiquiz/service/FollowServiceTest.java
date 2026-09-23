@@ -74,10 +74,12 @@ class FollowServiceTest {
         return d;
     }
 
-    private static Profile profile(String userId, String displayName) {
+    // One name: the username IS the display name, and the rename endpoint keeps them equal.
+    private static Profile profile(String userId, String username) {
         Profile p = new Profile();
         p.setUserId(userId);
-        p.setDisplayName(displayName);
+        p.setUsername(username);
+        p.setDisplayName(username);
         return p;
     }
 
@@ -104,16 +106,13 @@ class FollowServiceTest {
     @Test
     void followingTellsTheAuthorWhoItWas() {
         authorHasPublished();
-        com.ankiquiz.entity.Profile follower = new com.ankiquiz.entity.Profile();
-        follower.setUserId(FOLLOWER);
-        follower.setDisplayName("Thanh");
-        when(profiles.find(FOLLOWER)).thenReturn(java.util.Optional.of(follower));
+        when(profiles.find(FOLLOWER)).thenReturn(java.util.Optional.of(profile(FOLLOWER, "thanh")));
 
         service.follow(FOLLOWER, AUTHOR);
 
-        // The name comes from their profile, which exists even for somebody who has never
-        // published anything — which is most followers.
-        verify(notifications).newFollower(AUTHOR, FOLLOWER, "Thanh");
+        // Their USERNAME — the one name this app has — which exists even for somebody who has
+        // never published anything, and that is most followers.
+        verify(notifications).newFollower(AUTHOR, FOLLOWER, "thanh");
     }
 
     @Test
@@ -156,7 +155,7 @@ class FollowServiceTest {
     void somebodyWhoHasPublishedNothingCanStillBeFollowed() {
         // You follow people back off your follower list, and most followers are learners who have
         // never published. Since V33 they have a profile row and a real page, so this must work.
-        when(profiles.find("learner")).thenReturn(Optional.of(profile("learner", "Thanh")));
+        when(profiles.find("learner")).thenReturn(Optional.of(profile("learner", "thanh")));
         when(follows.existsByFollowerIdAndAuthorId(FOLLOWER, "learner")).thenReturn(false);
 
         service.follow(FOLLOWER, "learner");
@@ -227,16 +226,16 @@ class FollowServiceTest {
     }
 
     @Test
-    void theFollowingListNamesPeopleFromTheirProfileNotTheDeckSnapshot() {
+    void theFollowingListNamesPeopleByTheirUsernameNotTheDeckSnapshot() {
         when(follows.authorsFollowedBy(FOLLOWER)).thenReturn(List.of(AUTHOR));
         when(decks.findPublicByAuthors(List.of(AUTHOR)))
                 .thenReturn(List.of(deck(AUTHOR, "JLPT N3 kanji")));
         when(profiles.findAll(List.of(AUTHOR)))
-                .thenReturn(Map.of(AUTHOR, profile(AUTHOR, "Mai Tran")));
+                .thenReturn(Map.of(AUTHOR, profile(AUTHOR, "maitran")));
 
-        // The deck credits "Mai"; the profile says Mai Tran, and the profile is what they are
-        // called today. It is also the only name a followed-back learner has.
-        assertThat(service.following(FOLLOWER).getFirst().authorName()).isEqualTo("Mai Tran");
+        // The deck credits "Mai" from before a rename; the username is the current name, and it
+        // is also the ONLY name a followed-back learner who never published has.
+        assertThat(service.following(FOLLOWER).getFirst().authorName()).isEqualTo("maitran");
     }
 
     @Test
@@ -269,9 +268,7 @@ class FollowServiceTest {
     @Test
     void anAuthorSeesWhoFollowsThem() {
         when(follows.followersOf(AUTHOR)).thenReturn(List.of(FOLLOWER, "user-2"));
-        com.ankiquiz.entity.Profile named = new com.ankiquiz.entity.Profile();
-        named.setUserId(FOLLOWER);
-        named.setDisplayName("Thanh");
+        com.ankiquiz.entity.Profile named = profile(FOLLOWER, "thanh");
         named.setAvatarUrl("thanh.webp");
         when(profiles.findAll(List.of(FOLLOWER, "user-2")))
                 .thenReturn(java.util.Map.of(FOLLOWER, named));
@@ -279,7 +276,8 @@ class FollowServiceTest {
         List<com.ankiquiz.dto.response.FollowerResponse> rows = service.followers(AUTHOR, AUTHOR);
 
         assertThat(rows).hasSize(2);
-        assertThat(rows.getFirst().displayName()).isEqualTo("Thanh");
+        assertThat(rows.getFirst().username()).isEqualTo("thanh");
+        assertThat(rows.getFirst().displayName()).isEqualTo("thanh");
         assertThat(rows.getFirst().avatarUrl()).isEqualTo("thanh.webp");
         // A follower we cannot name is still a follower — the row stays, the client shows the id.
         assertThat(rows.get(1).userId()).isEqualTo("user-2");

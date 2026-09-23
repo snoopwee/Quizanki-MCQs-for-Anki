@@ -153,6 +153,29 @@ public class ProfileService {
         return profiles.existsByUsernameIgnoreCase(username.trim()) ? "That username is taken." : null;
     }
 
+    /**
+     * The name to stamp on somebody's work: their <b>username</b>, which is the one name this app
+     * has.
+     *
+     * <p>Not {@code caller.displayName()}, which comes off the JWT. The token is a snapshot the
+     * client keeps in step, and a client that hasn't — an account created before the one-name rule,
+     * an OAuth sign-in that has not passed the username prompt — would stamp the wrong name onto a
+     * deck and leave it there. The profile row is the record; the token is a copy of it.
+     *
+     * <p>Falls back to the token only when there is no profile row at all, which should not happen
+     * for a signed-in caller ({@code GET /me} writes one) but is not worth crediting nobody over.
+     */
+    @Transactional(readOnly = true)
+    public String creditName(Caller caller) {
+        if (caller == null) {
+            return null;
+        }
+        return find(caller.id())
+                .map(Profile::getUsername)
+                .filter(name -> name != null && !name.isBlank())
+                .orElseGet(caller::displayName);
+    }
+
     /** Resolve {@code /user/{username}} to a person. Case-insensitive. */
     @Transactional(readOnly = true)
     public Optional<Profile> findByUsername(String username) {
@@ -189,6 +212,7 @@ public class ProfileService {
             // Confirming the handle we generated is still a choice — it is how the sign-up prompt
             // is answered by everybody who is happy with what they were given.
             profile.setUsernameChosen(true);
+            profile.setDisplayName(next);
             profile.setUpdatedAt(OffsetDateTime.now(clock));
             return next;
         }
@@ -198,6 +222,9 @@ public class ProfileService {
 
         profile.setUsername(next);
         profile.setUsernameChosen(true);
+        // There is ONE name. Keeping display_name equal to it means every reader that still asks
+        // for a display name — the token mirror, an old client — gets the same answer.
+        profile.setDisplayName(next);
         profile.setUpdatedAt(OffsetDateTime.now(clock));
         return next;
     }

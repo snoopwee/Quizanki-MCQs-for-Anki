@@ -168,27 +168,24 @@ function DiscoverContent() {
                     >
                       {deck.name}
                     </p>
-                    {/* Card count and author share a row; DeckAuthor's "·" (dot
-                        variant) separates them — no avatar on Discover. */}
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    {/* Card count and score share a row, as on every other deck surface. */}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                       <span className="inline-flex items-center gap-1.5 font-mono text-xs text-faint">
                         <Icon name="layers" size={13} />
                         {deck.cardCount ?? 0} card{deck.cardCount === 1 ? "" : "s"}
                       </span>
-                      <DeckAuthor
-                        authorId={deck.authorId}
-                        authorUsername={deck.authorUsername}
-                        authorName={deck.authorName}
-                        sourceAuthorName={deck.sourceAuthorName}
-                        variant="dot"
-                        className="relative z-20"
-                      />
-                    </div>
-                    {/* Only when somebody has rated it: "Not rated yet" on every card is noise,
-                        and on Discover it would read as a warning rather than an absence. */}
-                    {deck.ratingCount > 0 && (
                       <StarRating average={deck.ratingAverage} count={deck.ratingCount} size={13} />
-                    )}
+                    </div>
+                    {/* Its own line, so `plain` rather than `dot` — a separator at the start of a
+                        line has nothing to separate it from. No avatar on Discover. */}
+                    <DeckAuthor
+                      authorId={deck.authorId}
+                      authorUsername={deck.authorUsername}
+                      authorName={deck.authorName}
+                      sourceAuthorName={deck.sourceAuthorName}
+                      variant="plain"
+                      className="relative z-20"
+                    />
                   </div>
                   <Link
                     href={`/shared/${deck.id}`}

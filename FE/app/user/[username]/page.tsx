@@ -8,6 +8,7 @@ import { AppChrome } from "@/components/layout/AppChrome";
 import { Avatar } from "@/components/ui/Avatar";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/icons";
+import { StarRating } from "@/components/ui/StarRating";
 import { FollowButton } from "@/components/author/FollowButton";
 import { AudienceSection } from "@/components/author/AudienceSection";
 import { useFollowStatus } from "@/hooks/useFollows";
@@ -112,9 +113,16 @@ export default function UserProfilePage() {
                           <p className="truncate font-display text-base font-semibold text-ink">
                             {deck.name}
                           </p>
-                          <p className="inline-flex items-center gap-1.5 font-mono text-xs text-faint">
-                            <Icon name="layers" size={13} />
-                            {deck.cardCount ?? 0} card{deck.cardCount === 1 ? "" : "s"}
+                          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-faint">
+                            <span className="inline-flex items-center gap-1.5">
+                              <Icon name="layers" size={13} />
+                              {deck.cardCount ?? 0} card{deck.cardCount === 1 ? "" : "s"}
+                            </span>
+                            <StarRating
+                              average={deck.ratingAverage}
+                              count={deck.ratingCount}
+                              size={13}
+                            />
                           </p>
                           {deck.sourceAuthorName && deck.sourceAuthorName !== name && (
                             <p className="text-xs text-faint">

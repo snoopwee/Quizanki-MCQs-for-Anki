@@ -2,22 +2,26 @@
 
 import { Icon } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/Spinner";
-import { useUsernameAvailability } from "@/hooks/useUsernameAvailability";
+import { isOwnHandle, useUsernameAvailability } from "@/hooks/useUsernameAvailability";
 
 /**
- * The handle input, with a live verdict — shared by the sign-up form and the one-time prompt, so
- * both say the same thing about the same rules.
+ * The handle input, with a live verdict — shared by the sign-up form, the one-time prompt and the
+ * profile page, so all three say the same thing about the same rules.
  *
- * The verdict is held while a check is in flight rather than showing the last answer, because a
- * stale green tick next to a taken name is worse than a spinner.
+ * A plain box: no `/user/` stuck to the front. The prefix made the field look like a URL builder
+ * rather than a name you type, and the URL is already shown elsewhere on the page.
  *
- * A parent that needs to gate its submit button calls `useUsernameAvailability` with the same
- * value — React Query dedupes it to the one request this field already made.
+ * `ownHandle` is what the viewer is already called. Without it the check reports their own name as
+ * taken — see `useUsernameAvailability`.
+ *
+ * A parent that needs to gate its submit calls the same hook with the same value; React Query
+ * dedupes it to the one request this field already made.
  */
 export function UsernameField({
   id = "username",
   value,
   onChange,
+  ownHandle,
   disabled = false,
   autoFocus = false,
   label = "Username",
@@ -26,28 +30,32 @@ export function UsernameField({
   id?: string;
   value: string;
   onChange: (next: string) => void;
+  /** The viewer's current handle, so keeping it doesn't read as a collision with themselves. */
+  ownHandle?: string | null;
   disabled?: boolean;
   autoFocus?: boolean;
+  /** Omit or pass "" where the surrounding card already names the field. */
   label?: string;
   hint?: string;
 }) {
-  const check = useUsernameAvailability(value, !disabled);
+  const check = useUsernameAvailability(value, !disabled, ownHandle);
   const trimmed = value.trim();
   const tooShort = trimmed.length > 0 && trimmed.length < 3;
-  const available = !check.checking && check.data?.available === true;
-  const reason = check.checking ? null : check.data?.reason ?? null;
+  // Keeping your own name needs no tick — there is nothing to confirm.
+  const showTick = check.available && !isOwnHandle(value, ownHandle);
 
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="text-sm font-medium">
-        {label}
-      </label>
+      {label ? (
+        <label htmlFor={id} className="text-sm font-medium">
+          {label}
+        </label>
+      ) : null}
       <div
-        className={`focus-within:ring-accent/40 flex items-center rounded-input border bg-surface-2 pl-3 transition focus-within:ring-2 ${
-          reason ? "border-danger/50" : "border-line-strong"
+        className={`focus-within:ring-accent/40 flex items-center rounded-input border bg-surface-2 px-3 transition focus-within:ring-2 ${
+          check.reason ? "border-danger/50" : "border-line-strong"
         }`}
       >
-        <span className="shrink-0 select-none font-mono text-sm text-faint">/user/</span>
         <input
           id={id}
           type="text"
@@ -59,27 +67,25 @@ export function UsernameField({
           autoCapitalize="none"
           autoComplete="username"
           onChange={(e) => onChange(e.target.value)}
-          placeholder="your-handle"
-          className="w-full bg-transparent px-0 py-2.5 font-mono text-sm text-ink outline-none placeholder:font-sans placeholder:text-faint disabled:opacity-60"
+          placeholder="username"
+          className="w-full bg-transparent py-2.5 text-sm text-ink outline-none placeholder:text-faint disabled:opacity-60"
         />
-        <span className="grid w-9 shrink-0 place-items-center">
+        <span className="grid w-6 shrink-0 place-items-center">
           {check.checking && trimmed.length >= 3 ? (
             <Spinner className="h-4 w-4 text-faint" label="Checking" />
-          ) : available ? (
+          ) : showTick ? (
             <Icon name="check" size={16} className="text-success" />
           ) : null}
         </span>
       </div>
 
-      {reason ? (
-        <p className="text-xs text-danger">{reason}</p>
+      {check.reason ? (
+        <p className="text-xs text-danger">{check.reason}</p>
       ) : tooShort ? (
         <p className="text-xs text-muted">At least 3 characters.</p>
-      ) : (
-        <p className="text-xs text-muted">
-          {hint ?? "This is your public page — people find and share you by it."}
-        </p>
-      )}
+      ) : hint ? (
+        <p className="text-xs text-muted">{hint}</p>
+      ) : null}
     </div>
   );
 }

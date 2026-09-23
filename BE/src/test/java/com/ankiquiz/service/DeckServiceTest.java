@@ -78,6 +78,10 @@ class DeckServiceTest {
     void setUp() {
         service = new DeckService(deckRepository, noteTypeRepository, noteRepository,
                 userDeckRepository, followService, profileService, entityManager);
+        // Deck credit is stamped from the PROFILE now, not the token. Model that as "whatever
+        // this caller is called" so these tests keep asserting authorship, not plumbing.
+        when(profileService.creditName(any(Caller.class)))
+                .thenAnswer(i -> i.getArgument(0, Caller.class).displayName());
         // saveAll / save echo their argument; save assigns an id to new note types
         // so ensureBasicType can route new cards to it.
         when(noteRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -782,28 +786,29 @@ class DeckServiceTest {
     }
 
     @Test
-    void getAuthorPage_prefersTheProfileNameOverTheDecksCreditSnapshot() {
+    void getAuthorPage_namesThemByTheirUsernameNotTheDecksCreditSnapshot() {
         Deck a = deck();
         a.setPublic(true);
         a.setSharedAt(OffsetDateTime.now());
         when(deckRepository.findPublicByAuthor("alice")).thenReturn(List.of(a));
-        when(profileService.find("alice")).thenReturn(Optional.of(profile("alice", "Alice Nguyen")));
+        when(profileService.find("alice")).thenReturn(Optional.of(profile("alice", "alicenguyen")));
 
         // author_name on the deck is a CREDIT snapshot — it can even belong to somebody else after
-        // a copy — so the page shows what this person is called today.
-        assertThat(service.getAuthorPage("alice").authorName()).isEqualTo("Alice Nguyen");
+        // a copy — so the page shows the username, which is the one name this app has.
+        assertThat(service.getAuthorPage("alice").authorName()).isEqualTo("alicenguyen");
     }
 
     @Test
     void getAuthorPage_isARealPage_forSomebodyWhoHasPublishedNothing() {
         when(deckRepository.findPublicByAuthor("learner")).thenReturn(List.of());
-        when(profileService.find("learner")).thenReturn(Optional.of(profile("learner", "Thanh")));
+        when(profileService.find("learner")).thenReturn(Optional.of(profile("learner", "thanh")));
 
         var page = service.getAuthorPage("learner");
 
         // Having published nothing is not the same as not existing: this is what makes a follower
         // list worth clicking, and what you need to follow somebody back.
-        assertThat(page.authorName()).isEqualTo("Thanh");
+        assertThat(page.authorName()).isEqualTo("thanh");
+        assertThat(page.username()).isEqualTo("thanh");
         assertThat(page.deckCount()).isZero();
         assertThat(page.decks()).isEmpty();
     }
@@ -817,10 +822,12 @@ class DeckServiceTest {
                 .isInstanceOf(NotFoundException.class);
     }
 
-    private static Profile profile(String userId, String displayName) {
+    // One name: the username IS the display name, and the rename endpoint keeps them equal.
+    private static Profile profile(String userId, String username) {
         Profile p = new Profile();
         p.setUserId(userId);
-        p.setDisplayName(displayName);
+        p.setUsername(username);
+        p.setDisplayName(username);
         return p;
     }
 

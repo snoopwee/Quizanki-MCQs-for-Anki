@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 import api from "@/lib/axios";
+import { createClient } from "@/lib/supabase/client";
 import { useMe } from "@/hooks/useMe";
 import { useUsernameAvailability } from "@/hooks/useUsernameAvailability";
 import { UsernameField } from "@/components/auth/UsernameField";
@@ -36,15 +37,21 @@ export function ChooseUsernameGate() {
     setValue(suggested);
   }, [suggested]);
 
-  const check = useUsernameAvailability(value, needed);
-  // Keeping what we generated for you is always allowed — it is yours already, so the availability
-  // check would otherwise report you as taken by yourself.
+  // `suggested` is the handle they already hold, so the check knows not to call it taken.
+  const check = useUsernameAvailability(value, needed, suggested);
   const unchanged = value.trim().toLowerCase() === suggested.toLowerCase();
-  const ready = unchanged ? suggested.length > 0 : !check.checking && check.data?.available === true;
+  const ready = unchanged ? suggested.length > 0 : check.available;
 
   const save = useMutation({
     mutationFn: async (username: string) => {
       const { data } = await api.put<{ username: string }>("/me/username", { username });
+      // One name: the session has to carry it too, or the sidebar and avatar initials keep
+      // showing whatever the OAuth provider called them.
+      try {
+        await createClient().auth.updateUser({ data: { display_name: data.username } });
+      } catch {
+        /* best effort — the rename is already saved */
+      }
       return data.username;
     },
     onSuccess: (username) => {
@@ -78,8 +85,8 @@ export function ChooseUsernameGate() {
           Pick your username
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-muted">
-          It&apos;s the address of your public page, and how people find and share your decks. We
-          picked one from your name — keep it or change it.
+          This is your name on Quizanki — it credits your decks and it&apos;s how people find you.
+          We picked one to start with; keep it or change it.
         </p>
 
         <form
@@ -93,6 +100,7 @@ export function ChooseUsernameGate() {
           <UsernameField
             id="choose-username"
             value={value}
+            ownHandle={suggested}
             onChange={(next) => {
               setValue(next);
               setError(null);
@@ -100,7 +108,7 @@ export function ChooseUsernameGate() {
             disabled={save.isPending}
             autoFocus
             label="Username"
-            hint="You can change this later in your profile."
+            hint="Shown on your decks. You can change it later in your profile."
           />
 
           {error && (

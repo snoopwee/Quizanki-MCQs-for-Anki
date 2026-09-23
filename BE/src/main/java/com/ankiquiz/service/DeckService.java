@@ -449,16 +449,16 @@ public class DeckService {
     public AuthorPageResponse getAuthorPage(String authorId) {
         List<Deck> decks = deckRepository.findPublicByAuthor(authorId);
         List<PublicDeckSummary> summaries = withHandles(decks);
-        // The profile is what this person is called TODAY; a deck's author_name is a credit
-        // snapshot that may belong to somebody else entirely (a copy keeps crediting its original
-        // author). Prefer the profile, and fall back to the snapshot only for an author whose
-        // profile row predates V33's backfill.
+        // The USERNAME is the name — there is only one, by design: it is what people are called,
+        // what credits their decks, and how they are found. A deck's author_name is only a credit
+        // snapshot (a copy keeps crediting its original author), so it is the last fallback, for
+        // an author with no profile row at all.
         Profile profile = profileService.find(authorId).orElse(null);
         if (profile == null && decks.isEmpty()) {
             throw new NotFoundException("Author not found: " + authorId);
         }
-        String authorName = profile != null && profile.getDisplayName() != null
-                ? profile.getDisplayName()
+        String authorName = profile != null && profile.getUsername() != null
+                ? profile.getUsername()
                 : (decks.isEmpty() ? null : decks.get(0).getAuthorName());
         String avatarUrl = profile != null && profile.getAvatarUrl() != null
                 ? profile.getAvatarUrl()
@@ -679,14 +679,16 @@ public class DeckService {
      * content change: re-saving without touching a card, or only renaming the
      * deck, is not authorship.
      *
-     * <p>For a deck you already author this just refreshes the stored display
-     * name, so a later profile rename propagates on the next save.
+     * <p>For a deck you already author this just refreshes the stored name, so a rename
+     * propagates on the next save even if nothing else pushed it.
      */
-    private static void claimAuthorship(Deck deck, Caller caller) {
+    private void claimAuthorship(Deck deck, Caller caller) {
         if (!caller.id().equals(deck.getAuthorId())) {
             deck.setAuthorId(caller.id());
         }
-        deck.setAuthorName(caller.displayName());
+        // The username, read from the profile row — never the token's display name, which a client
+        // that has drifted would stamp wrong and leave stamped.
+        deck.setAuthorName(profileService.creditName(caller));
         deck.setAuthorAvatarUrl(caller.avatarUrl());
     }
 

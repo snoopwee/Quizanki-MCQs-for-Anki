@@ -26,7 +26,7 @@ import { ExportDeckModal } from "@/components/deck/ExportDeckModal";
 import { ShareDeckModal } from "@/components/deck/ShareDeckModal";
 import { ReportDeckModal } from "@/components/deck/ReportDeckModal";
 import { AddToFolderModal } from "@/components/deck/AddToFolderModal";
-import { RateDeckPanel } from "@/components/deck/RateDeckPanel";
+import { RateDeckModal } from "@/components/deck/RateDeckModal";
 import { StarRating } from "@/components/ui/StarRating";
 import { useDeckRating } from "@/hooks/useDeckRating";
 import { DeckAuthor } from "@/components/deck/DeckAuthor";
@@ -65,8 +65,9 @@ function DeckDetail() {
   const saveDeck = useSaveDeck(deckId);
   const openDeck = useOpenDeck();
   const copies = useDeckCopies(deckId).data ?? 0;
-  // Shared with RateDeckPanel below — one request feeds both.
+  // Shared with the rating modal — one request feeds the score in the header and the modal's form.
   const deckRating = useDeckRating(deckId).data;
+  const [rateOpen, setRateOpen] = useState(false);
   const toggleStar = useToggleStar(deckId);
 
   // The viewer's relationship to this deck (from the studiable read). A non-owner
@@ -348,9 +349,23 @@ function DeckDetail() {
                     {copies} cop{copies === 1 ? "y" : "ies"}
                   </span>
                 )}
-                {/* The author sees this too — it is their deck's score, and they cannot rate it. */}
-                {deckRating && deckRating.count > 0 && (
-                  <StarRating average={deckRating.average} count={deckRating.count} size={15} />
+                {/* Always shown, even at zero: five hollow stars say "this can be rated" where a
+                    missing row says nothing. The author sees it too — it is their deck's score,
+                    they just cannot add to it. */}
+                {deckRating && (
+                  <span className="inline-flex items-center gap-2">
+                    <StarRating average={deckRating.average} count={deckRating.count} size={15} />
+                    {!owned && (
+                      <button
+                        type="button"
+                        onClick={() => setRateOpen(true)}
+                        className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface px-2.5 py-1 text-xs font-semibold text-ink transition hover:border-accent hover:text-accent"
+                      >
+                        <Icon name="star" size={13} />
+                        {deckRating.myStars != null ? "Your rating" : "Rate it"}
+                      </button>
+                    )}
+                  </span>
                 )}
                 {/* Only the author is told notes exist, and only when some do — there is nothing
                     to open otherwise. notesForAuthor is 0 for everyone else by construction. */}
@@ -452,9 +467,11 @@ function DeckDetail() {
           {/* "Cards in this deck" list is portaled here by FlashcardViewer above. */}
           <div ref={setPreviewSlot} />
 
-          {/* Rating sits AFTER the deck, not above it: you judge a deck once you have used it.
-              Owners never see it — the backend refuses a rating on your own deck anyway. */}
-          {!owned && <RateDeckPanel deckId={deckId} />}
+          {/* Opened from the score in the header. Owners never get here — the backend refuses a
+              rating on your own deck anyway. */}
+          {rateOpen && !owned && (
+            <RateDeckModal deckId={deckId} onClose={() => setRateOpen(false)} />
+          )}
 
           <FloatingStudyRail
             visible={railVisible}

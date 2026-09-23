@@ -4,6 +4,7 @@ import {
   formatAverage,
   ratingCaption,
   ratingLabel,
+  ratingSummary,
   starFills,
   STARS,
 } from "./ratingDisplay";
@@ -34,15 +35,36 @@ describe("starFills", () => {
 });
 
 describe("formatAverage", () => {
-  it("keeps one decimal, but not a pointless .0", () => {
+  it("always keeps one decimal, including the .0", () => {
+    // A column of deck cards reading 4.2 / 5.0 / 3.8 lines up where 4.2 / 5 / 3.8 looks ragged.
     expect(formatAverage(4.2)).toBe("4.2");
     expect(formatAverage(4.25)).toBe("4.3");
-    expect(formatAverage(5)).toBe("5");
+    expect(formatAverage(5)).toBe("5.0");
   });
 
-  it("prints nothing when there is no score", () => {
-    expect(formatAverage(0)).toBe("");
-    expect(formatAverage(Number.NaN)).toBe("");
+  it("prints 0.0 for no score, because the score is shown before anybody rates", () => {
+    expect(formatAverage(0)).toBe("0.0");
+    expect(formatAverage(-1)).toBe("0.0");
+    expect(formatAverage(Number.NaN)).toBe("0.0");
+  });
+
+  it("clamps above five rather than printing a sixth star's worth", () => {
+    expect(formatAverage(9)).toBe("5.0");
+  });
+});
+
+describe("ratingSummary", () => {
+  it("reads as the whole score in one string", () => {
+    // No "stars": the glyphs beside it already say that, and the word cost a line on a deck card.
+    expect(ratingSummary(4.2, 17)).toBe("4.2 (17)");
+    expect(ratingSummary(5, 1)).toBe("5.0 (1)");
+  });
+
+  it("says 0.0 (0) for a deck nobody has rated", () => {
+    // Not blank and not hidden: an unrated deck is a fact about the deck.
+    expect(ratingSummary(0, 0)).toBe("0.0 (0)");
+    // A count of zero wins over a stale average.
+    expect(ratingSummary(4.5, 0)).toBe("0.0 (0)");
   });
 });
 

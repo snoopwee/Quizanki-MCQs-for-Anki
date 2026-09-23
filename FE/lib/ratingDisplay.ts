@@ -19,11 +19,27 @@ export function starFills(average: number): StarFill[] {
   });
 }
 
-/** "4.2" — one decimal, but no trailing ".0" on a whole score. */
+/**
+ * "4.2" — always one decimal, including "5.0" and "0.0".
+ *
+ * The trailing ".0" is kept on purpose: these sit in a row of deck cards, and a column that reads
+ * 4.2 / 5 / 3.8 looks ragged where 4.2 / 5.0 / 3.8 lines up. An unrated deck is "0.0", not blank,
+ * because the score is now shown before anybody has rated.
+ */
 export function formatAverage(average: number): string {
-  if (!Number.isFinite(average) || average <= 0) return "";
-  const rounded = Math.round(average * 10) / 10;
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  const score = Number.isFinite(average) ? Math.min(Math.max(average, 0), STARS) : 0;
+  return (Math.round(score * 10) / 10).toFixed(1);
+}
+
+/**
+ * "4.2 (17)" — the score and how many gave it, including "0.0 (0)".
+ *
+ * No "stars" in the string: it sits beside five star glyphs that already say so, and the word was
+ * long enough to push the whole score onto a second line on a narrow deck card.
+ */
+export function ratingSummary(average: number, count: number): string {
+  const rated = Number.isFinite(count) && count > 0;
+  return `${formatAverage(rated ? average : 0)} (${rated ? Math.floor(count) : 0})`;
 }
 
 /** "Not rated yet" / "1 rating" / "12 ratings". */

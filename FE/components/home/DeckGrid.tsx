@@ -63,21 +63,10 @@ export function DeckGrid({
                       <Icon name="layers" size={13} />
                       {deck.cardCount ?? 0} cards
                     </span>
-                    {deck.isPublic && (
-                      <span className="inline-flex items-center gap-1 text-accent">
-                        <Icon name="link" size={13} />
-                        Shared
-                      </span>
-                    )}
-                    {/* Only once somebody has rated it — "Not rated yet" on every card is noise. */}
-                    {deck.ratingCount > 0 && (
-                      <StarRating
-                        average={deck.ratingAverage}
-                        count={deck.ratingCount}
-                        size={13}
-                        showCaption={false}
-                      />
-                    )}
+                    {/* The score sits where "Shared" used to: whether a deck is public is a
+                        property of YOUR copy and says nothing about whether it is any good.
+                        Always shown, zero included — "0.0 stars (0)" is a fact about the deck. */}
+                    <StarRating average={deck.ratingAverage} count={deck.ratingCount} size={13} />
                   </p>
                   {showAuthor && (
                     <DeckAuthor

@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import { Icon } from "@/components/ui/icons";
-import { formatAverage, ratingCaption, ratingLabel, starFills, STARS } from "@/lib/ratingDisplay";
+import { formatAverage, ratingLabel, ratingSummary, starFills, STARS } from "@/lib/ratingDisplay";
 
 /**
- * A deck's public score: five stars, the number, and how many people rated it.
+ * A deck's public score: five stars, the number, and how many people rated it — "4.2 stars (17)".
+ *
+ * Shown even at zero, as five hollow stars and "0.0 stars (0)": a deck nobody has rated is a fact
+ * about the deck, and a row that simply disappears tells a browser nothing about why.
  *
  * The stars are `aria-hidden` and the whole thing carries one readable label — five separate star
  * glyphs announced one by one tell a screen reader nothing.
@@ -36,18 +39,9 @@ export function StarRating({
           <Star key={i} fill={fill} size={size} />
         ))}
       </span>
-      {rated ? (
-        <span aria-hidden className="font-mono text-xs text-muted">
-          {formatAverage(average)}
-          {showCaption && <span className="text-faint"> · {ratingCaption(count)}</span>}
-        </span>
-      ) : (
-        showCaption && (
-          <span aria-hidden className="font-mono text-xs text-faint">
-            {ratingCaption(count)}
-          </span>
-        )
-      )}
+      <span aria-hidden className={`font-mono text-xs ${rated ? "text-muted" : "text-faint"}`}>
+        {showCaption ? ratingSummary(average, count) : formatAverage(rated ? average : 0)}
+      </span>
     </span>
   );
 }

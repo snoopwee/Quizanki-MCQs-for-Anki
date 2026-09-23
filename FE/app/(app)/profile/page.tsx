@@ -1,21 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "@/hooks/useSession";
 import { useDecks } from "@/hooks/useDecks";
 import { useMe } from "@/hooks/useMe";
 import { profileUrl } from "@/lib/profileUrl";
-import { createClient } from "@/lib/supabase/client";
 import { avatarUrlOf, displayNameOf, hasCustomAvatar, initialsFrom } from "@/lib/userDisplay";
-import { propagateAuthorProfile } from "@/lib/authorProfile";
-import { AccountSection, accountInputClasses } from "@/components/account/AccountSection";
+import { AccountSection } from "@/components/account/AccountSection";
 import { UsernameSection } from "@/components/account/UsernameSection";
 import { AvatarUploadModal } from "@/components/account/AvatarUploadModal";
 import { Avatar } from "@/components/ui/Avatar";
 import { Toast } from "@/components/shared/Toast";
-import { buttonClasses } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/icons";
 
 function formatJoined(iso?: string): string | null {
@@ -29,7 +25,6 @@ export default function ProfilePage() {
   const { user, loading } = useSession();
   const decksQuery = useDecks();
   const me = useMe();
-  const queryClient = useQueryClient();
 
   const storedName = displayNameOf(user);
   const email = user?.email ?? "";
@@ -37,44 +32,14 @@ export default function ProfilePage() {
   // Only our uploaded avatar is removable (the OAuth default isn't ours to clear).
   const hasUploadedAvatar = hasCustomAvatar(user);
 
-  const [name, setName] = useState("");
-  const [saving, setSaving] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
   const [toast, setToast] = useState<{ kind: "success" | "error"; message: string } | null>(null);
 
-  // Seed the field once the session resolves. Keyed on the stored value so an
-  // external change (or the post-save refresh) re-syncs, but local edits persist.
-  useEffect(() => {
-    setName(storedName);
-  }, [storedName]);
-
-  const dirty = name.trim() !== storedName.trim();
   const joined = formatJoined(user?.created_at);
   const verified = Boolean(user?.email_confirmed_at ?? user?.confirmed_at);
-  const avatar = useMemo(() => initialsFrom(name || storedName, email), [name, storedName, email]);
-
-  async function saveName() {
-    const next = name.trim();
-    setSaving(true);
-    setToast(null);
-    const supabase = createClient();
-    const { error } = await supabase.auth.updateUser({ data: { display_name: next } });
-    if (error) {
-      setSaving(false);
-      setToast({ kind: "error", message: error.message || "Couldn't save your name." });
-      return;
-    }
-
-    // Deck author name/avatar are stored snapshots (there's no user table), so a
-    // rename must be pushed onto the decks this user authored — otherwise old decks
-    // (and Discover / shared / author / Home pages) keep showing the old name. The
-    // avatar is unchanged here; we re-stamp the current one so name + avatar stay
-    // consistent on the deck rows.
-    await propagateAuthorProfile(supabase, queryClient, { name: next, avatarUrl: avatarUrl || null });
-
-    setSaving(false);
-    setToast({ kind: "success", message: "Profile updated." });
-  }
+  // One name: the username. `storedName` mirrors it (the rename writes both), so initials and the
+  // header keep working off the session without a second request.
+  const avatar = useMemo(() => initialsFrom(storedName, email), [storedName, email]);
 
   if (loading) {
     return <p className="text-sm text-muted">Loading profile…</p>;
@@ -106,7 +71,7 @@ export default function ProfilePage() {
         </div>
         <div className="min-w-0">
           <p className="truncate font-display text-lg font-semibold text-ink">
-            {storedName || "Unnamed learner"}
+            {me.data?.username || storedName || "Unnamed learner"}
           </p>
           <p className="truncate text-sm text-muted">{email}</p>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-faint">
@@ -146,32 +111,6 @@ export default function ProfilePage() {
           <Icon name="chevronRight" size={15} className="shrink-0 text-faint" />
         </Link>
       )}
-
-      {/* display name */}
-      <AccountSection
-        icon="user"
-        title="Display name"
-        description="Shown on your account. This doesn't change how you sign in."
-      >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <input
-            type="text"
-            value={name}
-            maxLength={60}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Add a display name"
-            className={accountInputClasses}
-          />
-          <button
-            type="button"
-            onClick={saveName}
-            disabled={!dirty || saving}
-            className={buttonClasses({ variant: "primary", size: "md", className: "sm:w-auto" })}
-          >
-            {saving ? "Saving…" : "Save"}
-          </button>
-        </div>
-      </AccountSection>
 
       <UsernameSection />
 

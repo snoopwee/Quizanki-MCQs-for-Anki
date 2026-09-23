@@ -347,4 +347,26 @@ class ProfileServiceTest {
         assertThat(service.unavailableBecause("admin")).contains("reserved");
         assertThat(service.unavailableBecause("no spaces")).contains("letters");
     }
+
+    @Test
+    void creditNameIsTheUsername_notWhateverTheTokenSays() {
+        Profile p = stored("test", null);
+        p.setUsername("tester");
+        when(profiles.findById("user-1")).thenReturn(Optional.of(p));
+
+        // The token still says "test" — an account created before the one-name rule, or an OAuth
+        // sign-in whose metadata nobody updated. Stamping that onto a deck would leave the wrong
+        // name on their work permanently, so the profile row wins.
+        assertThat(service.creditName(new Caller("user-1", "test", null))).isEqualTo("tester");
+    }
+
+    @Test
+    void creditNameFallsBackToTheTokenWhenThereIsNoProfileAtAll() {
+        when(profiles.findById("user-1")).thenReturn(Optional.empty());
+
+        // Should not happen for a signed-in caller — GET /me writes a row — but crediting nobody
+        // is worse than crediting the token.
+        assertThat(service.creditName(new Caller("user-1", "Thanh", null))).isEqualTo("Thanh");
+        assertThat(service.creditName(null)).isNull();
+    }
 }

@@ -4,7 +4,7 @@ import { initialsFrom } from "@/lib/userDisplay";
 import { timeAgo } from "@/lib/relativeTime";
 import { profileUrl } from "@/lib/profileUrl";
 
-type Variant = "inline" | "dot" | "detailed";
+type Variant = "inline" | "dot" | "plain" | "detailed";
 
 /**
  * Who made a deck, plus "Original deck by Bob" when it started life as a copy of
@@ -14,6 +14,8 @@ type Variant = "inline" | "dot" | "detailed";
  *   and the general case).
  * - `dot`: no avatar — a "·" separator + "by Alice", meant to sit inline after the
  *   card count (Discover cards, where a per-card avatar is visual noise).
+ * - `plain`: just "by Alice" — for a line of its own, where a leading separator
+ *   would dangle at the start of the line with nothing before it.
  * - `detailed`: a larger avatar next to two stacked rows — the author's name, then
  *   the deck's creation time ("2 days ago") — for the deck-page header. Pass
  *   `createdAt` (the deck's importedAt) for the second row.
@@ -80,10 +82,10 @@ export function DeckAuthor({
     );
   }
 
-  // A dot stands in for the avatar on Discover, where it reads as a separator
-  // between the card count and the author.
+  // A dot stands in for the avatar where the author follows something else on the
+  // same line; `plain` drops both, for an author that starts its own line.
   const leading =
-    variant === "dot" ? (
+    variant === "plain" ? null : variant === "dot" ? (
       <span aria-hidden className="text-faint">
         ·
       </span>

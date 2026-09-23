@@ -4,6 +4,7 @@ import com.ankiquiz.config.AdminAccess;
 import com.ankiquiz.dto.request.AuthorProfileRequest;
 import com.ankiquiz.service.Caller;
 import com.ankiquiz.service.DeckService;
+import com.ankiquiz.service.ProfileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
@@ -28,10 +29,13 @@ import java.util.Map;
 public class ProfileController {
 
     private final DeckService deckService;
+    private final ProfileService profileService;
     private final AdminAccess adminAccess;
 
-    public ProfileController(DeckService deckService, AdminAccess adminAccess) {
+    public ProfileController(DeckService deckService, ProfileService profileService,
+                             AdminAccess adminAccess) {
         this.deckService = deckService;
+        this.profileService = profileService;
         this.adminAccess = adminAccess;
     }
 
@@ -40,6 +44,13 @@ public class ProfileController {
             description = "The client reads isAdmin to decide whether to show the /admin area. "
                     + "Authoritative on the server too — admin endpoints are gated independently.")
     public Map<String, Object> me(@AuthenticationPrincipal Jwt jwt) {
+        // Every page load passes through here, and the access token already carries the name and
+        // avatar — so this is where a profile row gets written, with no extra call to Supabase.
+        // The token's issue time goes with it: a JWT is a snapshot, and right after a rename the
+        // one in hand still says the old name. Without that guard this call would undo the rename
+        // on the very next page load.
+        profileService.rememberFromToken(Caller.from(jwt), jwt.getIssuedAt());
+
         String email = jwt.getClaimAsString("email");
         return Map.of(
                 "userId", jwt.getSubject(),
@@ -59,7 +70,15 @@ public class ProfileController {
     ) {
         String name = request == null ? null : request.name();
         String avatarUrl = request == null ? null : request.avatarUrl();
-        int updated = deckService.syncAuthorProfile(Caller.from(jwt), name, avatarUrl);
+        // Resolved once: the body wins over the token, because a rename reaches Supabase before
+        // the JWT carrying it does.
+        Caller caller = Caller.from(jwt).withOverrides(name, avatarUrl);
+
+        // The profile row is what the author page reads, so it has to be written HERE and not
+        // left to the next GET /me — that one reads the token, which is still a rename behind.
+        profileService.remember(caller);
+
+        int updated = deckService.syncAuthorProfile(caller);
         return Map.of("updated", updated);
     }
 }

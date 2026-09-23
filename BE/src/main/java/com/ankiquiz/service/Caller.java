@@ -27,6 +27,23 @@ public record Caller(String id, String displayName, String avatarUrl) {
         return new Caller(jwt.getSubject(), resolveDisplayName(jwt), resolveAvatarUrl(jwt));
     }
 
+    /**
+     * The same person, but with what they just typed taking precedence over the token.
+     *
+     * <p>This exists because a rename lands in Supabase before the access token carrying it does:
+     * right after {@code updateUser}, the JWT in hand still says the OLD name. The profile page
+     * therefore sends the new values in the request body, and they win here.
+     *
+     * <p>A blank value falls back to the token, which is what makes "remove custom photo" reveal an
+     * OAuth default rather than wiping the picture to initials — by then the caller has cleared the
+     * custom key and refreshed, so the token's avatar is the effective one.
+     */
+    public Caller withOverrides(String rawName, String rawAvatarUrl) {
+        String name = (rawName != null && !rawName.isBlank()) ? rawName.trim() : displayName();
+        String avatar = (rawAvatarUrl != null && !rawAvatarUrl.isBlank()) ? rawAvatarUrl.trim() : avatarUrl();
+        return new Caller(id(), name, avatar);
+    }
+
     // The profile picture, mirroring the FE's avatarUrlOf: the user's uploaded
     // photo first, then an OAuth default (Google sets avatar_url/picture), else
     // null. Kept in sync with the deck's snapshot via PUT /me/author-profile.

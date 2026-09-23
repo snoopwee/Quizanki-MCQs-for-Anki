@@ -5,6 +5,7 @@ import com.ankiquiz.dto.request.AuthorProfileRequest;
 import com.ankiquiz.exception.GlobalExceptionHandler;
 import com.ankiquiz.service.Caller;
 import com.ankiquiz.service.DeckService;
+import com.ankiquiz.service.ProfileService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +17,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -40,6 +42,9 @@ class ProfileControllerTest {
     private AdminAccess adminAccess;
 
     @MockBean
+    private ProfileService profileService;
+
+    @MockBean
     private JwtDecoder jwtDecoder;
 
     // Same as elsewhere: a bare test JWT resolves to (subject, Anonymous, no avatar).
@@ -59,8 +64,8 @@ class ProfileControllerTest {
 
     @Test
     void syncAuthorProfile_returns200_withTheUpdatedCount() throws Exception {
-        when(deckService.syncAuthorProfile(eq(CALLER), eq("Alice Renamed"), eq("https://cdn/a.png")))
-                .thenReturn(4);
+        Caller renamed = CALLER.withOverrides("Alice Renamed", "https://cdn/a.png");
+        when(deckService.syncAuthorProfile(eq(renamed))).thenReturn(4);
 
         mockMvc.perform(put("/api/v1/me/author-profile")
                         .with(jwt().jwt(j -> j.subject("user-123")))
@@ -69,12 +74,16 @@ class ProfileControllerTest {
                                 new AuthorProfileRequest("Alice Renamed", "https://cdn/a.png"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.updated").value(4));
+
+        // The bug this closes: the author page reads the PROFILE row, and GET /me can only write
+        // it from the token — which is still a rename behind. So it has to be written here, from
+        // the values the profile page just sent.
+        verify(profileService).remember(renamed);
     }
 
     @Test
     void syncAuthorProfile_toleratesAnEmptyBody() throws Exception {
-        when(deckService.syncAuthorProfile(eq(CALLER), eq((String) null), eq((String) null)))
-                .thenReturn(0);
+        when(deckService.syncAuthorProfile(eq(CALLER))).thenReturn(0);
 
         mockMvc.perform(put("/api/v1/me/author-profile")
                         .with(jwt().jwt(j -> j.subject("user-123"))))

@@ -14,6 +14,7 @@ import com.ankiquiz.dto.response.PublicDeckPage;
 import com.ankiquiz.dto.response.PublicDeckSummary;
 import com.ankiquiz.entity.Deck;
 import com.ankiquiz.entity.Note;
+import com.ankiquiz.entity.Profile;
 import com.ankiquiz.entity.NoteType;
 import com.ankiquiz.exception.ApkgParseException;
 import com.ankiquiz.exception.ConflictException;
@@ -53,6 +54,8 @@ public class DeckService {
     private final UserDeckRepository userDeckRepository;
     // Followers are told when one of this author's decks becomes public.
     private final FollowService followService;
+    // What people are called now, so a page exists for somebody who has published nothing.
+    private final ProfileService profileService;
     private final EntityManager entityManager;
 
     public DeckService(DeckRepository deckRepository,
@@ -60,12 +63,14 @@ public class DeckService {
                        NoteRepository noteRepository,
                        UserDeckRepository userDeckRepository,
                        FollowService followService,
+                       ProfileService profileService,
                        EntityManager entityManager) {
         this.deckRepository = deckRepository;
         this.noteTypeRepository = noteTypeRepository;
         this.noteRepository = noteRepository;
         this.userDeckRepository = userDeckRepository;
         this.followService = followService;
+        this.profileService = profileService;
         this.entityManager = entityManager;
     }
 
@@ -93,15 +98,10 @@ public class DeckService {
      * means "no photo" (null → initials). Returns the rows updated.
      */
     @Transactional
-    public int syncAuthorProfile(Caller caller, String rawName, String rawAvatarUrl) {
-        String name = (rawName != null && !rawName.isBlank()) ? rawName.trim() : caller.displayName();
-        // Blank avatar → fall back to the (refreshed) JWT's avatar, symmetric with
-        // the name. This is what makes "remove custom photo" reveal an OAuth default
-        // rather than wiping the credit to initials — the caller cleared the custom
-        // key and refreshed before this call, so caller.avatarUrl() is now the
-        // effective one (OAuth photo, or null when there's none).
-        String avatar = (rawAvatarUrl != null && !rawAvatarUrl.isBlank()) ? rawAvatarUrl.trim() : caller.avatarUrl();
-        return deckRepository.updateAuthorProfile(caller.id(), name, avatar);
+    public int syncAuthorProfile(Caller caller) {
+        // The caller arrives already resolved (see Caller.withOverrides), so the deck credit and
+        // the profile row can never be written from different answers to "what are they called".
+        return deckRepository.updateAuthorProfile(caller.id(), caller.displayName(), caller.avatarUrl());
     }
 
     /** The Saved tab: decks the user has bookmarked but doesn't own. */
@@ -429,8 +429,17 @@ public class DeckService {
     public AuthorPageResponse getAuthorPage(String authorId) {
         List<Deck> decks = deckRepository.findPublicByAuthor(authorId);
         List<PublicDeckSummary> summaries = decks.stream().map(DeckService::toSummary).toList();
-        String authorName = decks.isEmpty() ? null : decks.get(0).getAuthorName();
-        String avatarUrl = decks.isEmpty() ? null : decks.get(0).getAuthorAvatarUrl();
+        // The profile is what this person is called TODAY; a deck's author_name is a credit
+        // snapshot that may belong to somebody else entirely (a copy keeps crediting its original
+        // author). Prefer the profile, and fall back to the snapshot only for an author whose
+        // profile row predates V33's backfill.
+        Profile profile = profileService.find(authorId).orElse(null);
+        String authorName = profile != null && profile.getDisplayName() != null
+                ? profile.getDisplayName()
+                : (decks.isEmpty() ? null : decks.get(0).getAuthorName());
+        String avatarUrl = profile != null && profile.getAvatarUrl() != null
+                ? profile.getAvatarUrl()
+                : (decks.isEmpty() ? null : decks.get(0).getAuthorAvatarUrl());
         return new AuthorPageResponse(authorId, authorName, avatarUrl, summaries.size(),
                 followService.followerCount(authorId), summaries);
     }

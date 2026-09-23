@@ -94,4 +94,37 @@ class CallerTest {
     void hasNoAvatar_whenTheTokenCarriesNone() {
         assertThat(Caller.from(token().build()).avatarUrl()).isNull();
     }
+
+    // ── withOverrides: what the profile page just typed beats what the token says ──
+
+    @Test
+    void withOverrides_prefersWhatWasJustTyped_overAStaleToken() {
+        // A rename reaches Supabase before the access token carrying it does, so right after
+        // updateUser the JWT still says the old name.
+        Caller resolved = new Caller("user-1", "stale-jwt-name", null)
+                .withOverrides("  Alice Renamed  ", "  https://cdn/a.png  ");
+
+        assertThat(resolved.id()).isEqualTo("user-1");
+        assertThat(resolved.displayName()).isEqualTo("Alice Renamed");
+        assertThat(resolved.avatarUrl()).isEqualTo("https://cdn/a.png");
+    }
+
+    @Test
+    void withOverrides_fallsBackToTheTokenWhenNothingWasTyped() {
+        // The "removed my custom photo, keep my OAuth one" case: by now the caller has cleared the
+        // custom key and refreshed, so the token's avatar is the effective one.
+        Caller resolved = new Caller("user-1", "alice", "https://oauth/pic.png")
+                .withOverrides("   ", "  ");
+
+        assertThat(resolved.displayName()).isEqualTo("alice");
+        assertThat(resolved.avatarUrl()).isEqualTo("https://oauth/pic.png");
+    }
+
+    @Test
+    void withOverrides_leavesNoAvatarAsNullRatherThanBlank() {
+        Caller resolved = new Caller("user-1", "alice", null).withOverrides(null, null);
+
+        assertThat(resolved.displayName()).isEqualTo("alice");
+        assertThat(resolved.avatarUrl()).isNull();
+    }
 }

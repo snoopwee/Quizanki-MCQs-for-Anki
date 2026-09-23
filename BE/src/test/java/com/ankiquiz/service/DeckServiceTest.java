@@ -64,6 +64,7 @@ class DeckServiceTest {
     @Mock private NoteRepository noteRepository;
     @Mock private UserDeckRepository userDeckRepository;
     @Mock private FollowService followService;
+    @Mock private ProfileService profileService;
     @Mock private EntityManager entityManager;
     @Mock private Query query;
 
@@ -75,7 +76,7 @@ class DeckServiceTest {
     @BeforeEach
     void setUp() {
         service = new DeckService(deckRepository, noteTypeRepository, noteRepository,
-                userDeckRepository, followService, entityManager);
+                userDeckRepository, followService, profileService, entityManager);
         // saveAll / save echo their argument; save assigns an id to new note types
         // so ensureBasicType can route new cards to it.
         when(noteRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -850,36 +851,23 @@ class DeckServiceTest {
     // ── author-profile (name + avatar) propagation ───────────────────────────
 
     @Test
-    void syncAuthorProfile_stampsTheProvidedNameAndAvatarAcrossAuthoredDecks() {
+    void syncAuthorProfile_stampsTheResolvedNameAndAvatarAcrossAuthoredDecks() {
         when(deckRepository.updateAuthorProfile(eq(USER), eq("Alice Renamed"), eq("https://cdn/a.png")))
                 .thenReturn(3);
 
-        int updated = service.syncAuthorProfile(
-                new Caller(USER, "stale-jwt-name", null), "  Alice Renamed  ", "  https://cdn/a.png  ");
+        // The caller arrives already resolved (Caller.withOverrides decides whether the body or
+        // the token wins), so this method has one job: stamp it.
+        int updated = service.syncAuthorProfile(new Caller(USER, "Alice Renamed", "https://cdn/a.png"));
 
         assertThat(updated).isEqualTo(3);
-        // The client-supplied name/avatar win (trimmed) over the JWT's, so it works
-        // even before the token refreshes.
         verify(deckRepository).updateAuthorProfile(USER, "Alice Renamed", "https://cdn/a.png");
     }
 
     @Test
-    void syncAuthorProfile_fallsBackToTheJwtNameAndAvatar_whenBlank() {
-        when(deckRepository.updateAuthorProfile(eq(USER), eq("alice"), eq("https://oauth/pic.png")))
-                .thenReturn(0);
-
-        // Blank name/avatar → the (refreshed) JWT's values. This is the "removed my
-        // custom photo, keep my OAuth one" case: the caller carries the OAuth avatar.
-        service.syncAuthorProfile(new Caller(USER, "alice", "https://oauth/pic.png"), "   ", "  ");
-
-        verify(deckRepository).updateAuthorProfile(USER, "alice", "https://oauth/pic.png");
-    }
-
-    @Test
-    void syncAuthorProfile_clearsToNull_whenBlankAndTheJwtHasNoAvatar() {
+    void syncAuthorProfile_passesANullAvatarStraightThrough() {
         when(deckRepository.updateAuthorProfile(eq(USER), eq("alice"), isNull())).thenReturn(0);
 
-        service.syncAuthorProfile(new Caller(USER, "alice", null), "   ", "  ");
+        service.syncAuthorProfile(new Caller(USER, "alice", null));
 
         verify(deckRepository).updateAuthorProfile(USER, "alice", null);
     }

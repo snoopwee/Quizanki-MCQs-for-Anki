@@ -97,13 +97,16 @@ class SharedDeckControllerTest {
     @Test
     void getAuthor_isReachableWithoutAuth_andListsTheAuthorsPublicDecks() throws Exception {
         UUID deckId = UUID.randomUUID();
-        AuthorPageResponse page = new AuthorPageResponse("author-1", "Alice", null, 1,
+        AuthorPageResponse page = new AuthorPageResponse("author-1", "Alice", null, 1, 12,
                 List.of(new PublicDeckSummary(deckId, "JLPT N4", 120, "author-1", "Alice", null, null,
                         OffsetDateTime.now(), 0, 0.0)));
         when(deckService.getAuthorPage(eq("author-1"))).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/public/authors/{authorId}", "author-1"))
                 .andExpect(status().isOk())
+                // The follower count is public: a guest sees it under the name. Whether THEY
+                // follow the author is personal and comes from the authenticated route.
+                .andExpect(jsonPath("$.followers").value(12))
                 .andExpect(jsonPath("$.authorName").value("Alice"))
                 .andExpect(jsonPath("$.deckCount").value(1))
                 .andExpect(jsonPath("$.decks[0].id").value(deckId.toString()))

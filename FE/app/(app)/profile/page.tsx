@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { avatarUrlOf, displayNameOf, hasCustomAvatar, initialsFrom } from "@/lib/userDisplay";
 import { propagateAuthorProfile } from "@/lib/authorProfile";
 import { AccountSection, accountInputClasses } from "@/components/account/AccountSection";
+import { FollowingList } from "@/components/author/FollowingList";
 import { AvatarUploadModal } from "@/components/account/AvatarUploadModal";
 import { Avatar } from "@/components/ui/Avatar";
 import { Toast } from "@/components/shared/Toast";
@@ -119,6 +120,8 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      <FollowingList />
 
       {/* display name */}
       <AccountSection

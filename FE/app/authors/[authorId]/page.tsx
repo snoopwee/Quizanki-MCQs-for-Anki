@@ -8,6 +8,7 @@ import { AppChrome } from "@/components/layout/AppChrome";
 import { Avatar } from "@/components/ui/Avatar";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/icons";
+import { FollowButton } from "@/components/author/FollowButton";
 
 // A public author page — "all the decks this person made" — a mix of the profile
 // page (identity header) and Home (deck grid). Public decks only: you can't expose
@@ -43,7 +44,7 @@ export default function AuthorPage() {
                 initials={initialsFrom(name, "")}
                 className="h-16 w-16 text-xl"
               />
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="truncate font-display text-xl font-bold tracking-tight text-ink">
                   {name}
                 </p>
@@ -55,7 +56,16 @@ export default function AuthorPage() {
                     <Icon name="layers" size={13} /> {page.deckCount} public deck
                     {page.deckCount === 1 ? "" : "s"}
                   </span>
+                  {/* Public, so a guest sees it too. Whether YOU follow them is personal and
+                      lives in the button. */}
+                  <span className="inline-flex items-center gap-1.5">
+                    <Icon name="bookmark" size={13} /> {page.followers} follower
+                    {page.followers === 1 ? "" : "s"}
+                  </span>
                 </div>
+              </div>
+              <div className="shrink-0">
+                <FollowButton authorId={authorId} authorName={name} />
               </div>
             </div>
 

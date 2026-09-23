@@ -17,7 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -214,6 +216,61 @@ public class NotificationService {
         // stops getting notifications keeps their old ones, which is harmless — the panel pages.
         notifications.deleteOlderThan(recipientId, now.minusDays(RETENTION_DAYS));
 
+        notifications.save(row(recipientId, kind, title, body, link, actorId, actorName, deckId, now));
+        return true;
+    }
+
+    /**
+     * A followed author published: one row per follower, written as a batch.
+     *
+     * <p>This is the first write in the app that scales with someone's popularity, so it does none
+     * of the per-recipient work {@link #deliver} does — one query asks which followers already have
+     * an unread row about this deck, one statement does retention for the whole set, and the rows
+     * go out through saveAll (JDBC batching is configured, batch_size 200). The single-delivery
+     * path is still right for a notification that reaches one person.
+     *
+     * @return how many rows were written.
+     */
+    @Transactional
+    public int authorPublishedToMany(Collection<String> followerIds, String actorId, String actorName,
+                                     UUID deckId, String deckName) {
+        if (followerIds == null || followerIds.isEmpty() || deckId == null) {
+            return 0;
+        }
+        List<String> recipients = followerIds.stream()
+                .filter(NotificationService::hasText)
+                // An author following themselves is blocked at the database, but a publish must
+                // never notify its own author whatever the follow table says.
+                .filter(id -> !id.equals(actorId))
+                .distinct()
+                .toList();
+        if (recipients.isEmpty()) {
+            return 0;
+        }
+
+        Set<String> alreadyWaiting = new HashSet<>(notifications.userIdsWithUnread(
+                NotificationKind.AUTHOR_PUBLISHED.wire(), deckId, recipients));
+
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        notifications.deleteOlderThanForAll(recipients, now.minusDays(RETENTION_DAYS));
+
+        String who = hasText(actorName) ? actorName.strip() : "An author you follow";
+        List<Notification> rows = recipients.stream()
+                .filter(id -> !alreadyWaiting.contains(id))
+                .map(id -> row(id, NotificationKind.AUTHOR_PUBLISHED, who + " published a new deck",
+                        deckName, "/decks/" + deckId, actorId, actorName, deckId, now))
+                .toList();
+        if (rows.isEmpty()) {
+            return 0;
+        }
+        notifications.saveAll(rows);
+        return rows.size();
+    }
+
+    /** One row, built the same way whether it goes out alone or in a batch. */
+    private Notification row(String recipientId, NotificationKind kind, String title, String body,
+                             String link, String actorId, String actorName, UUID deckId,
+                             OffsetDateTime now) {
         Notification notification = new Notification();
         notification.setUserId(recipientId);
         notification.setKind(kind.wire());
@@ -224,8 +281,7 @@ public class NotificationService {
         notification.setActorName(clip(actorName, MAX_TITLE));
         notification.setDeckId(deckId);
         notification.setCreatedAt(now);
-        notifications.save(notification);
-        return true;
+        return notification;
     }
 
     private static NotificationResponse toResponse(Notification n) {

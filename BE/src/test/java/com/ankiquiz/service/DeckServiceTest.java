@@ -63,6 +63,7 @@ class DeckServiceTest {
     @Mock private NoteTypeRepository noteTypeRepository;
     @Mock private NoteRepository noteRepository;
     @Mock private UserDeckRepository userDeckRepository;
+    @Mock private FollowService followService;
     @Mock private EntityManager entityManager;
     @Mock private Query query;
 
@@ -74,7 +75,7 @@ class DeckServiceTest {
     @BeforeEach
     void setUp() {
         service = new DeckService(deckRepository, noteTypeRepository, noteRepository,
-                userDeckRepository, entityManager);
+                userDeckRepository, followService, entityManager);
         // saveAll / save echo their argument; save assigns an id to new note types
         // so ensureBasicType can route new cards to it.
         when(noteRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -674,6 +675,47 @@ class DeckServiceTest {
         ArgumentCaptor<Pageable> pageCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(deckRepository).findPublicDecks(eq(""), isNull(), isNull(), pageCaptor.capture());
         assertThat(pageCaptor.getValue().getPageNumber()).isEqualTo(2);
+    }
+
+    @Test
+    void sharingADeckForTheFirstTimeTellsTheAuthorsFollowers() {
+        Deck deck = deck();
+        deck.setPublic(false);
+        deck.setAuthorId(deck.getUserId());
+        when(deckRepository.findByIdAndUserId(any(), any())).thenReturn(Optional.of(deck));
+        when(deckRepository.save(any(Deck.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.setDeckSharing(deck.getUserId(), deck.getId(), true);
+
+        verify(followService).announcePublished(deck);
+    }
+
+    @Test
+    void resharingADeckThatWasAlreadyPublicTellsNobody() {
+        Deck deck = deck();
+        deck.setPublic(true);
+        deck.setAuthorId(deck.getUserId());
+        when(deckRepository.findByIdAndUserId(any(), any())).thenReturn(Optional.of(deck));
+        when(deckRepository.save(any(Deck.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.setDeckSharing(deck.getUserId(), deck.getId(), true);
+
+        // Only the private -> public transition is news; toggling or re-saving must not spam an
+        // author's followers with the same deck.
+        verify(followService, never()).announcePublished(any());
+    }
+
+    @Test
+    void unsharingTellsNobody() {
+        Deck deck = deck();
+        deck.setPublic(true);
+        deck.setAuthorId(deck.getUserId());
+        when(deckRepository.findByIdAndUserId(any(), any())).thenReturn(Optional.of(deck));
+        when(deckRepository.save(any(Deck.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.setDeckSharing(deck.getUserId(), deck.getId(), false);
+
+        verify(followService, never()).announcePublished(any());
     }
 
     @Test

@@ -15,6 +15,10 @@ public record AuthorPageResponse(
         // The author's profile picture for the page header (null → initials).
         String authorAvatarUrl,
         long deckCount,
+        // How many people follow them. Public: it sits under the name for everyone, guests
+        // included. Whether YOU follow them is personal and comes from the authenticated
+        // /authors/{id}/follow instead.
+        long followers,
         List<PublicDeckSummary> decks
 ) {
 }

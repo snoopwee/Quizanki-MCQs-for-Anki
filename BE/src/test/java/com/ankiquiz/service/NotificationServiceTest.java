@@ -391,4 +391,68 @@ class NotificationServiceTest {
         verify(notifications).deleteAllForUser(USER);
         verify(notifications, never()).deleteAllForUser(STRANGER);
     }
+
+    // ── the batched fan-out (a followed author publishing) ───────────────────
+
+    @Test
+    void aFanOutAsksOnceWhoAlreadyHasAnUnreadRowAndWritesTheRestInOneBatch() {
+        List<String> followers = List.of("f-1", "f-2", "f-3");
+        when(notifications.userIdsWithUnread(eq("author_published"), eq(deckId), any()))
+                .thenReturn(List.of("f-2"));
+
+        assertThat(service.authorPublishedToMany(followers, "author-9", "Mai", deckId, "JLPT N3"))
+                .isEqualTo(2);
+
+        // One existence query for the whole set, not one per follower.
+        verify(notifications).userIdsWithUnread(eq("author_published"), eq(deckId), any());
+        verify(notifications, never())
+                .existsByUserIdAndKindAndDeckIdAndReadAtIsNull(anyString(), anyString(), any());
+        // One retention statement for the whole set, not one per follower.
+        verify(notifications).deleteOlderThanForAll(eq(followers),
+                eq(OffsetDateTime.ofInstant(nowInstant, ZoneOffset.UTC).minusDays(NotificationService.RETENTION_DAYS)));
+        verify(notifications, never()).deleteOlderThan(anyString(), any(OffsetDateTime.class));
+
+        ArgumentCaptor<List<Notification>> saved = ArgumentCaptor.forClass(List.class);
+        verify(notifications).saveAll(saved.capture());
+        assertThat(saved.getValue()).extracting(Notification::getUserId)
+                .containsExactly("f-1", "f-3");
+        assertThat(saved.getValue()).allSatisfy(n -> {
+            assertThat(n.getKind()).isEqualTo("author_published");
+            assertThat(n.getTitle()).isEqualTo("Mai published a new deck");
+            assertThat(n.getBody()).isEqualTo("JLPT N3");
+            assertThat(n.getLink()).isEqualTo("/decks/" + deckId);
+            assertThat(n.getDeckId()).isEqualTo(deckId);
+            assertThat(n.getActorId()).isEqualTo("author-9");
+        });
+    }
+
+    @Test
+    void aFanOutNeverNotifiesTheAuthorWhoPublished() {
+        // The database refuses a self-follow, but the publish path must not depend on that.
+        when(notifications.userIdsWithUnread(any(), any(), any())).thenReturn(List.of());
+
+        assertThat(service.authorPublishedToMany(List.of("author-9"), "author-9", "Mai", deckId, "X"))
+                .isZero();
+
+        verify(notifications, never()).saveAll(any());
+    }
+
+    @Test
+    void aFanOutWithNothingLeftToWriteTouchesNothing() {
+        when(notifications.userIdsWithUnread(any(), any(), any())).thenReturn(List.of("f-1"));
+
+        assertThat(service.authorPublishedToMany(List.of("f-1"), "author-9", "Mai", deckId, "X"))
+                .isZero();
+
+        verify(notifications, never()).saveAll(any());
+    }
+
+    @Test
+    void aFanOutOverNobodyIsNotAQuery() {
+        assertThat(service.authorPublishedToMany(List.of(), "author-9", "Mai", deckId, "X")).isZero();
+        assertThat(service.authorPublishedToMany(null, "author-9", "Mai", deckId, "X")).isZero();
+
+        verify(notifications, never()).userIdsWithUnread(any(), any(), any());
+        verify(notifications, never()).saveAll(any());
+    }
 }

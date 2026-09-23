@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -30,6 +32,18 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
      */
     boolean existsByUserIdAndKindAndDeckIdAndReadAtIsNull(String userId, String kind, UUID deckId);
 
+    /**
+     * The same question for a whole fan-out, in one query. Publishing to an author's followers is
+     * the first write that scales with someone's popularity, so it must not ask per recipient.
+     */
+    @Query("""
+            select n.userId from Notification n
+            where n.kind = :kind and n.deckId = :deckId and n.readAt is null and n.userId in :userIds
+            """)
+    List<String> userIdsWithUnread(@Param("kind") String kind,
+                                   @Param("deckId") UUID deckId,
+                                   @Param("userIds") Collection<String> userIds);
+
     @Modifying
     @Query("update Notification n set n.readAt = :now where n.userId = :userId and n.readAt is null")
     int markAllRead(@Param("userId") String userId, @Param("now") OffsetDateTime now);
@@ -50,4 +64,10 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
     @Modifying
     @Query("delete from Notification n where n.userId = :userId and n.createdAt < :cutoff")
     int deleteOlderThan(@Param("userId") String userId, @Param("cutoff") OffsetDateTime cutoff);
+
+    /** Retention for a whole fan-out in one statement rather than one delete per recipient. */
+    @Modifying
+    @Query("delete from Notification n where n.userId in :userIds and n.createdAt < :cutoff")
+    int deleteOlderThanForAll(@Param("userIds") Collection<String> userIds,
+                              @Param("cutoff") OffsetDateTime cutoff);
 }

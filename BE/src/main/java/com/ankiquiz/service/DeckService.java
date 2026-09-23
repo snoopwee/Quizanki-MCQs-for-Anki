@@ -51,17 +51,21 @@ public class DeckService {
     private final NoteTypeRepository noteTypeRepository;
     private final NoteRepository noteRepository;
     private final UserDeckRepository userDeckRepository;
+    // Followers are told when one of this author's decks becomes public.
+    private final FollowService followService;
     private final EntityManager entityManager;
 
     public DeckService(DeckRepository deckRepository,
                        NoteTypeRepository noteTypeRepository,
                        NoteRepository noteRepository,
                        UserDeckRepository userDeckRepository,
+                       FollowService followService,
                        EntityManager entityManager) {
         this.deckRepository = deckRepository;
         this.noteTypeRepository = noteTypeRepository;
         this.noteRepository = noteRepository;
         this.userDeckRepository = userDeckRepository;
+        this.followService = followService;
         this.entityManager = entityManager;
     }
 
@@ -333,9 +337,18 @@ public class DeckService {
             throw new ConflictException(
                     "This is a copy of someone else's deck. Edit it to make it your own before sharing it.");
         }
+        // Captured before the write: only the PRIVATE -> PUBLIC transition is news. Re-sharing a
+        // deck that was already public, or toggling it off and on, must not spam an author's
+        // followers with the same deck.
+        boolean newlyPublished = isPublic && !deck.isPublic();
+
         deck.setPublic(isPublic);
         deck.setSharedAt(isPublic ? OffsetDateTime.now() : null);
         Deck saved = deckRepository.save(deck);
+
+        if (newlyPublished) {
+            followService.announcePublished(saved);
+        }
         return DeckResponse.from(saved, completionForDeck(userId, deckId));
     }
 
@@ -418,7 +431,8 @@ public class DeckService {
         List<PublicDeckSummary> summaries = decks.stream().map(DeckService::toSummary).toList();
         String authorName = decks.isEmpty() ? null : decks.get(0).getAuthorName();
         String avatarUrl = decks.isEmpty() ? null : decks.get(0).getAuthorAvatarUrl();
-        return new AuthorPageResponse(authorId, authorName, avatarUrl, summaries.size(), summaries);
+        return new AuthorPageResponse(authorId, authorName, avatarUrl, summaries.size(),
+                followService.followerCount(authorId), summaries);
     }
 
     /** How many people have taken a copy of this deck — shown on the deck page,

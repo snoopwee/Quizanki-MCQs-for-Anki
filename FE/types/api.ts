@@ -218,6 +218,24 @@ export interface AdminReviewReport {
   createdAt: string;
 }
 
+// ── Follows (Phase 11) ─────────────────────────────────────────
+// Following is one-sided: a subscription to an author page. The author is never asked and is never
+// told who followed them.
+export interface FollowStatusResponse {
+  following: boolean;
+  followers: number;
+  // True when you ARE the author, so the client shows no button rather than one that gets refused.
+  self: boolean;
+}
+
+export interface FollowedAuthorResponse {
+  authorId: string;
+  // Null for an author whose public decks have all gone — the follow outlives them.
+  authorName: string | null;
+  authorAvatarUrl: string | null;
+  publicDecks: number;
+}
+
 // ── Notifications (Phase 10) ─────────────────────────────────────────────────
 // Rows are snapshots the backend wrote: `title` / `body` are its wording, while `kind`,
 // `actorName` and `deckId` come along so the UI can word a row differently without a migration.
@@ -573,7 +591,9 @@ export interface AuthorPageResponse {
   // The author's profile picture for the page header (null → initials).
   authorAvatarUrl: string | null;
   deckCount: number;
-  decks: PublicDeckSummary[];
+  decks: PublicDeckSummary[];  // How many people follow them. Public — it sits under the name for guests too; whether YOU
+  // follow them is personal and comes from /authors/{id}/follow.
+  followers: number;
 }
 
 // GET /api/v1/public/discover — one page of the directory plus the counts the

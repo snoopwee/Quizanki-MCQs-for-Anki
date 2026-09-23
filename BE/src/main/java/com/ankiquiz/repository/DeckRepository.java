@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,6 +38,13 @@ public interface DeckRepository extends JpaRepository<Deck, UUID> {
                               where ud.deckId = d.id and ud.userId = :userId and ud.saved = true))
             """)
     Optional<Deck> findStudiable(@Param("deckId") UUID deckId, @Param("userId") String userId);
+
+    /**
+     * Public decks for several authors at once, newest-shared first — the "following" list, which
+     * would otherwise be one query per author followed.
+     */
+    @Query("select d from Deck d where d.authorId in :authorIds and d.isPublic = true order by d.sharedAt desc")
+    List<Deck> findPublicByAuthors(@Param("authorIds") Collection<String> authorIds);
 
     /** An author's public decks, newest-shared first — backs the author page. */
     @Query("select d from Deck d where d.authorId = :authorId and d.isPublic = true order by d.sharedAt desc")

@@ -5,12 +5,17 @@ import Link from "next/link";
 import { useAdminReports, useUpdateReport } from "@/hooks/useReports";
 import { timeAgo } from "@/lib/relativeTime";
 import { Segmented } from "@/components/ui/controls";
+import { ReviewReportQueue } from "@/components/admin/ReviewReportQueue";
 import { Icon } from "@/components/ui/icons";
 
 // The moderation queue. Open reports by default; resolve (handled) or dismiss (not a
 // problem) closes them. Moderating the deck itself uses the Moderate decks page.
 export default function AdminReportsPage() {
   const [filter, setFilter] = useState<"open" | "">("open"); // "" = all
+  // Two queues, not one list: a deck report is about something public anyone can go and look at,
+  // a note report is about text one person was shown. They need different rows and different
+  // actions, so they get their own tabs rather than a `type` column to squint at.
+  const [queue, setQueue] = useState<"decks" | "notes">("decks");
   const reports = useAdminReports(filter);
   const update = useUpdateReport();
 
@@ -21,19 +26,35 @@ export default function AdminReportsPage() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-xl font-bold tracking-tight text-ink">Reports</h1>
-          <p className="mt-1 text-sm text-muted">Decks users have flagged for review.</p>
+          <p className="mt-1 text-sm text-muted">
+            {queue === "decks"
+              ? "Decks users have flagged for review."
+              : "Notes authors have escalated from their feedback page."}
+          </p>
         </div>
-        <Segmented
-          options={[
-            { value: "open", label: "Open" },
-            { value: "", label: "All" },
-          ]}
-          value={filter}
-          onChange={(v) => setFilter(v as "open" | "")}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Segmented
+            options={[
+              { value: "decks", label: "Decks" },
+              { value: "notes", label: "Notes" },
+            ]}
+            value={queue}
+            onChange={(v) => setQueue(v as "decks" | "notes")}
+          />
+          <Segmented
+            options={[
+              { value: "open", label: "Open" },
+              { value: "", label: "All" },
+            ]}
+            value={filter}
+            onChange={(v) => setFilter(v as "open" | "")}
+          />
+        </div>
       </header>
 
-      {reports.isLoading ? (
+      {queue === "notes" && <ReviewReportQueue status={filter} />}
+
+      {queue === "decks" && (reports.isLoading ? (
         <SkeletonList />
       ) : reports.isError ? (
         <p className="rounded-card border border-danger/30 bg-danger/10 px-4 py-6 text-center text-sm text-danger">
@@ -102,7 +123,7 @@ export default function AdminReportsPage() {
             </li>
           ))}
         </ul>
-      )}
+      ))}
     </div>
   );
 }

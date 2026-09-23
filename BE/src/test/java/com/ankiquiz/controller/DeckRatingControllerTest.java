@@ -1,11 +1,13 @@
 package com.ankiquiz.controller;
 
 import com.ankiquiz.dto.request.DeckRatingRequest;
+import com.ankiquiz.dto.response.DeckFeedbackResponse;
 import com.ankiquiz.dto.response.DeckRatingResponse;
 import com.ankiquiz.exception.ConflictException;
 import com.ankiquiz.exception.GlobalExceptionHandler;
 import com.ankiquiz.exception.NotFoundException;
 import com.ankiquiz.service.DeckRatingService;
+import com.ankiquiz.service.ReviewReportService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +18,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -46,6 +50,9 @@ class DeckRatingControllerTest {
     private DeckRatingService deckRatingService;
 
     @MockBean
+    private ReviewReportService reviewReportService;
+
+    @MockBean
     private JwtDecoder jwtDecoder;
 
     private final UUID deckId = UUID.randomUUID();
@@ -57,7 +64,7 @@ class DeckRatingControllerTest {
     @Test
     void returnsTheScoreAndTheCallersOwnRating() throws Exception {
         when(deckRatingService.get("user-1", deckId))
-                .thenReturn(new DeckRatingResponse(17, 4.2, 4, "Mine, for the author."));
+                .thenReturn(new DeckRatingResponse(17, 4.2, 4, "Mine, for the author.", 0));
 
         mockMvc.perform(get("/api/v1/decks/{deckId}/rating", deckId)
                         .with(jwt().jwt(j -> j.subject("user-1"))))
@@ -71,7 +78,7 @@ class DeckRatingControllerTest {
     @Test
     void ratingGoesThroughWithItsNote() throws Exception {
         when(deckRatingService.rate(eq("user-1"), eq(deckId), anyInt(), any()))
-                .thenReturn(new DeckRatingResponse(1, 5.0, 5, "Excellent."));
+                .thenReturn(new DeckRatingResponse(1, 5.0, 5, "Excellent.", 0));
 
         mockMvc.perform(put("/api/v1/decks/{deckId}/rating", deckId)
                         .with(jwt().jwt(j -> j.subject("user-1")))
@@ -134,13 +141,53 @@ class DeckRatingControllerTest {
     @Test
     void takingBackARatingReturnsTheScoreWithoutIt() throws Exception {
         when(deckRatingService.remove("user-1", deckId))
-                .thenReturn(new DeckRatingResponse(16, 4.1, null, null));
+                .thenReturn(new DeckRatingResponse(16, 4.1, null, null, 0));
 
         mockMvc.perform(delete("/api/v1/decks/{deckId}/rating", deckId)
                         .with(jwt().jwt(j -> j.subject("user-1"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.count").value(16))
                 .andExpect(jsonPath("$.myStars").doesNotExist());
+    }
+
+    @Test
+    void theAuthorSeesTheNotesLeftOnTheirDeck() throws Exception {
+        UUID noteId = UUID.randomUUID();
+        when(deckRatingService.feedback("author-9", deckId)).thenReturn(
+                new DeckFeedbackResponse(3, 4.0, List.of(new DeckFeedbackResponse.Note(
+                        noteId, 4, "Audio is quiet on the last 20 cards.",
+                        OffsetDateTime.parse("2026-09-22T09:00:00Z")))));
+
+        mockMvc.perform(get("/api/v1/decks/{deckId}/rating/notes", deckId)
+                        .with(jwt().jwt(j -> j.subject("author-9"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.count").value(3))
+                .andExpect(jsonPath("$.notes[0].id").value(noteId.toString()))
+                .andExpect(jsonPath("$.notes[0].stars").value(4))
+                .andExpect(jsonPath("$.notes[0].note").value("Audio is quiet on the last 20 cards."))
+                // No name, no user id: the response has nowhere to put one.
+                .andExpect(jsonPath("$.notes[0].userId").doesNotExist())
+                .andExpect(jsonPath("$.notes[0].authorName").doesNotExist());
+    }
+
+    @Test
+    void somebodyElsesFeedbackPageIs404() throws Exception {
+        when(deckRatingService.feedback(any(), any())).thenThrow(new NotFoundException("Deck not found"));
+
+        mockMvc.perform(get("/api/v1/decks/{deckId}/rating/notes", deckId)
+                        .with(jwt().jwt(j -> j.subject("user-1"))))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void clearingANoteReturns204() throws Exception {
+        UUID noteId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/api/v1/decks/{deckId}/rating/notes/{noteId}", deckId, noteId)
+                        .with(jwt().jwt(j -> j.subject("author-9"))))
+                .andExpect(status().isNoContent());
+
+        verify(deckRatingService).deleteNote("author-9", deckId, noteId);
     }
 
     @Test
@@ -156,8 +203,11 @@ class DeckRatingControllerTest {
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(delete("/api/v1/decks/{deckId}/rating", deckId).with(csrf()))
                 .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/decks/{deckId}/rating/notes", deckId))
+                .andExpect(status().isUnauthorized());
 
         verify(deckRatingService, never()).rate(any(), any(), anyInt(), any());
         verify(deckRatingService, never()).remove(any(), any());
+        verify(deckRatingService, never()).feedback(any(), any());
     }
 }

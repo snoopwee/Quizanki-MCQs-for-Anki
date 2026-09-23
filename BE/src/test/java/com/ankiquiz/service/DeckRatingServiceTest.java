@@ -1,5 +1,6 @@
 package com.ankiquiz.service;
 
+import com.ankiquiz.dto.response.DeckFeedbackResponse;
 import com.ankiquiz.dto.response.DeckRatingResponse;
 import com.ankiquiz.entity.Deck;
 import com.ankiquiz.entity.DeckRating;
@@ -20,6 +21,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -44,16 +46,18 @@ class DeckRatingServiceTest {
 
     @Mock private DeckRatingRepository ratings;
     @Mock private DeckRepository decks;
+    @Mock private NotificationService notifications;
 
     private final Instant nowInstant = Instant.parse("2026-09-22T10:00:00Z");
     private final Clock clock = Clock.fixed(nowInstant, ZoneOffset.UTC);
     private DeckRatingService service;
 
     private final UUID deckId = UUID.randomUUID();
+    private final UUID noteId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
-        service = new DeckRatingService(ratings, decks, clock);
+        service = new DeckRatingService(ratings, decks, notifications, clock);
     }
 
     private Deck deck(String owner, int count, int sum) {
@@ -64,6 +68,11 @@ class DeckRatingServiceTest {
         d.setRatingCount(count);
         d.setRatingSum(sum);
         return d;
+    }
+
+    private void deckIsOwnedBy(String owner, Deck deck) {
+        when(decks.findById(deckId)).thenReturn(Optional.of(deck));
+        deck.setUserId(owner);
     }
 
     private void deckIsStudiable(Deck deck) {
@@ -220,5 +229,115 @@ class DeckRatingServiceTest {
         assertThat(response.myStars()).isEqualTo(4);
         assertThat(response.myNote()).isEqualTo("Mine, for the author.");
         verify(ratings).findByDeckIdAndUserId(deckId, RATER);
+    }
+
+    // ── the author's feedback page ───────────────────────────────────────────
+
+    @Test
+    void theFeedbackPageListsOnlyRatingsThatCarryANote() {
+        Deck deck = deck(OWNER, 3, 12);
+        deckIsOwnedBy(OWNER, deck);
+        DeckRating withNote = existing("someone", 4, "Audio is quiet on the last 20 cards.");
+        withNote.setPublicId(noteId);
+        when(ratings.findByDeckIdAndNoteIsNotNullOrderByUpdatedAtDesc(deckId))
+                .thenReturn(List.of(withNote));
+
+        DeckFeedbackResponse feedback = service.feedback(OWNER, deckId);
+
+        assertThat(feedback.count()).isEqualTo(3);
+        assertThat(feedback.average()).isEqualTo(4.0);
+        assertThat(feedback.notes()).hasSize(1);
+        assertThat(feedback.notes().getFirst().id()).isEqualTo(noteId);
+        assertThat(feedback.notes().getFirst().stars()).isEqualTo(4);
+        assertThat(feedback.notes().getFirst().note()).isEqualTo("Audio is quiet on the last 20 cards.");
+        // The repository query is the one that filters, so a star-only rating never reaches here.
+        verify(ratings).findByDeckIdAndNoteIsNotNullOrderByUpdatedAtDesc(deckId);
+    }
+
+    @Test
+    void someoneElsesFeedbackPageIs404() {
+        Deck deck = deck(OWNER, 1, 5);
+        deckIsOwnedBy(OWNER, deck);
+
+        // Not 403: whether a deck has feedback waiting is itself the author's business.
+        assertThatThrownBy(() -> service.feedback(RATER, deckId)).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> service.deleteNote(RATER, deckId, noteId))
+                .isInstanceOf(NotFoundException.class);
+        verify(ratings, never()).save(any());
+    }
+
+    @Test
+    void clearingANoteKeepsTheRatingItCameWith() {
+        Deck deck = deck(OWNER, 1, 2);
+        deckIsOwnedBy(OWNER, deck);
+        DeckRating harsh = existing("someone", 2, "this deck is rubbish and so are you");
+        harsh.setPublicId(noteId);
+        when(ratings.findByDeckIdAndPublicId(deckId, noteId)).thenReturn(Optional.of(harsh));
+
+        assertThat(service.deleteNote(OWNER, deckId, noteId)).isTrue();
+
+        DeckRating saved = captureSaved();
+        assertThat(saved.getNote()).isNull();
+        // The load-bearing rule: an author who could delete RATINGS would leave a public score
+        // reflecting only the ones they liked.
+        assertThat(saved.getStars()).isEqualTo((short) 2);
+        verify(ratings, never()).refreshAggregate(any());
+    }
+
+    @Test
+    void clearingANoteThatIsNotThereIsNotAnError() {
+        Deck deck = deck(OWNER, 0, 0);
+        deckIsOwnedBy(OWNER, deck);
+        when(ratings.findByDeckIdAndPublicId(deckId, noteId)).thenReturn(Optional.empty());
+        assertThat(service.deleteNote(OWNER, deckId, noteId)).isFalse();
+
+        DeckRating starsOnly = existing("someone", 5, null);
+        starsOnly.setPublicId(noteId);
+        when(ratings.findByDeckIdAndPublicId(deckId, noteId)).thenReturn(Optional.of(starsOnly));
+        assertThat(service.deleteNote(OWNER, deckId, noteId)).isFalse();
+
+        verify(ratings, never()).save(any());
+    }
+
+    // ── telling the author ───────────────────────────────────────────────────
+
+    @Test
+    void aNoteNotifiesTheAuthorBecauseNobodyElseCanReadIt() {
+        deckIsStudiable(deck(OWNER, 0, 0));
+
+        service.rate(RATER, deckId, 4, "The kanji readings are duplicated.");
+
+        verify(notifications).deckReviewed(OWNER, deckId, "JLPT N3 kanji");
+    }
+
+    @Test
+    void starsAloneAreNotNews() {
+        deckIsStudiable(deck(OWNER, 0, 0));
+
+        service.rate(RATER, deckId, 4, null);
+        service.rate(RATER, deckId, 4, "   ");
+
+        // The author can already see their score move; a bare rating is not something to announce.
+        verify(notifications, never()).deckReviewed(any(), any(), any());
+    }
+
+    @Test
+    void aNewRatingGetsAnOpaqueHandleSoNoUserIdEverReachesAUrl() {
+        deckIsStudiable(deck(OWNER, 0, 0));
+
+        service.rate(RATER, deckId, 4, "Good deck.");
+
+        assertThat(captureSaved().getPublicId()).isNotNull();
+    }
+
+    @Test
+    void onlyTheAuthorIsToldHowManyNotesAreWaiting() {
+        Deck deck = deck(OWNER, 2, 9);
+        deckIsStudiable(deck);
+        when(ratings.countByDeckIdAndNoteIsNotNull(deckId)).thenReturn(4);
+
+        assertThat(service.get(OWNER, deckId).notesForAuthor()).isEqualTo(4);
+        // A rater is not told how much feedback a deck has collected.
+        assertThat(service.get(RATER, deckId).notesForAuthor()).isZero();
     }
 }

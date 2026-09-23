@@ -35,6 +35,14 @@ public class DeckRating {
     @Column
     private String note;
 
+    /**
+     * Opaque handle for this rating (V29), so the author can act on a note without its writer's
+     * user id appearing in a URL. Deliberately NOT the identity — that is still (deckId, userId);
+     * this is only an address. Named publicId rather than id so the two can never be confused.
+     */
+    @Column(name = "public_id", nullable = false)
+    private UUID publicId;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
@@ -71,6 +79,14 @@ public class DeckRating {
 
     public void setNote(String note) {
         this.note = note;
+    }
+
+    public UUID getPublicId() {
+        return publicId;
+    }
+
+    public void setPublicId(UUID publicId) {
+        this.publicId = publicId;
     }
 
     public OffsetDateTime getCreatedAt() {

@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -15,6 +16,18 @@ public interface DeckRatingRepository extends JpaRepository<DeckRating, DeckRati
     Optional<DeckRating> findByDeckIdAndUserId(UUID deckId, String userId);
 
     long deleteByDeckIdAndUserId(UUID deckId, String userId);
+
+    /** The author's feedback page: only the ratings that actually carry a note, newest first. */
+    List<DeckRating> findByDeckIdAndNoteIsNotNullOrderByUpdatedAtDesc(UUID deckId);
+
+    /** How many notes are waiting, for the button that opens that page. */
+    int countByDeckIdAndNoteIsNotNull(UUID deckId);
+
+    /**
+     * One rating by its opaque handle, scoped to the deck so a handle from another deck cannot be
+     * used against this one.
+     */
+    Optional<DeckRating> findByDeckIdAndPublicId(UUID deckId, UUID publicId);
 
     /**
      * Recompute the deck's aggregate from the ratings themselves.

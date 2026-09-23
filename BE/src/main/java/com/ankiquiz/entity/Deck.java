@@ -228,6 +228,15 @@ public class Deck {
         return ratingSum;
     }
 
+    /**
+     * The public score: the exact integer sum over the count, rounded to one decimal for display.
+     * 0 means nobody has rated yet, which the client renders as "not rated" rather than as zero
+     * stars. Deliberately not named getXxx so Hibernate can never mistake it for a mapped property.
+     */
+    public double ratingAverage() {
+        return ratingCount == 0 ? 0 : Math.round((ratingSum * 10.0) / ratingCount) / 10.0;
+    }
+
     public void setRatingSum(int ratingSum) {
         this.ratingSum = ratingSum;
     }

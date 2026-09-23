@@ -42,6 +42,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -673,6 +674,52 @@ class DeckServiceTest {
         ArgumentCaptor<Pageable> pageCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(deckRepository).findPublicDecks(eq(""), isNull(), isNull(), pageCaptor.capture());
         assertThat(pageCaptor.getValue().getPageNumber()).isEqualTo(2);
+    }
+
+    @Test
+    void getPublicDecks_ordersByRatingOnlyWhenAskedTo() {
+        when(deckRepository.findPublicDecksByRating(eq(""), isNull(), isNull(), anyInt(), any(Pageable.class)))
+                .thenReturn(pageOf(List.of(), 12, 0));
+
+        service.getPublicDecks(null, null, null, 12, 0, "rated");
+
+        // The floor travels with the query: without it one five-star rating owns Discover.
+        verify(deckRepository).findPublicDecksByRating(eq(""), isNull(), isNull(),
+                eq(DeckService.MIN_RATINGS_TO_RANK), any(Pageable.class));
+        verify(deckRepository, never()).findPublicDecks(any(), any(), any(), any(Pageable.class));
+    }
+
+    @Test
+    void getPublicDecks_keepsNewestFirstForEverythingElse() {
+        when(deckRepository.findPublicDecks(eq(""), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(pageOf(List.of(), 12, 0));
+
+        // Null, the old five-argument call, and an unrecognised value all mean the original listing.
+        service.getPublicDecks(null, null, null, 12, 0, null);
+        service.getPublicDecks(null, null, null, 12, 0);
+        service.getPublicDecks(null, null, null, 12, 0, "shiniest");
+
+        verify(deckRepository, org.mockito.Mockito.times(3))
+                .findPublicDecks(eq(""), isNull(), isNull(), any(Pageable.class));
+        verify(deckRepository, never())
+                .findPublicDecksByRating(any(), any(), any(), anyInt(), any(Pageable.class));
+    }
+
+    @Test
+    void aDiscoverRowCarriesTheDecksScore() {
+        Deck shared = deck();
+        shared.setPublic(true);
+        shared.setSharedAt(OffsetDateTime.now());
+        shared.setRatingCount(17);
+        shared.setRatingSum(71);
+        when(deckRepository.findPublicDecks(eq(""), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(pageOf(List.of(shared), 12, 1));
+
+        PublicDeckPage result = service.getPublicDecks(null, null, null, 12, 0);
+
+        assertThat(result.items().get(0).ratingCount()).isEqualTo(17);
+        // 71 / 17 = 4.176…, rounded once for display.
+        assertThat(result.items().get(0).ratingAverage()).isEqualTo(4.2);
     }
 
     @Test

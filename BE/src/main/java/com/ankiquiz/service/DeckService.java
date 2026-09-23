@@ -364,6 +364,16 @@ public class DeckService {
     @Transactional(readOnly = true)
     public PublicDeckPage getPublicDecks(String query, Integer minCards, Integer maxCards,
                                          int limit, int offset) {
+        return getPublicDecks(query, minCards, maxCards, limit, offset, null);
+    }
+
+    /**
+     * @param sort "rated" orders by the deck's score; anything else (including null) keeps the
+     *             original newest-shared-first listing.
+     */
+    @Transactional(readOnly = true)
+    public PublicDeckPage getPublicDecks(String query, Integer minCards, Integer maxCards,
+                                         int limit, int offset, String sort) {
         int size = Math.max(1, Math.min(limit, MAX_DISCOVER_PAGE));
         // Spring Data pages by page number, so translate the caller's row offset.
         // Snapping to a page boundary keeps the contract honest for the paging the
@@ -371,7 +381,9 @@ public class DeckService {
         Pageable pageable = PageRequest.of(Math.max(0, offset) / size, size);
         String q = query == null ? "" : query.trim();
 
-        Page<Deck> page = deckRepository.findPublicDecks(q, minCards, maxCards, pageable);
+        Page<Deck> page = "rated".equals(sort)
+                ? deckRepository.findPublicDecksByRating(q, minCards, maxCards, MIN_RATINGS_TO_RANK, pageable)
+                : deckRepository.findPublicDecks(q, minCards, maxCards, pageable);
         List<PublicDeckSummary> items = page.getContent().stream()
                 .map(DeckService::toSummary)
                 .toList();
@@ -388,7 +400,9 @@ public class DeckService {
                 d.getAuthorName(),
                 d.getAuthorAvatarUrl(),
                 d.getSourceAuthorName(),
-                d.getSharedAt());
+                d.getSharedAt(),
+                d.getRatingCount(),
+                d.ratingAverage());
     }
 
     /**
@@ -480,6 +494,13 @@ public class DeckService {
 
     // Ceiling on a single Discover page, so a hand-crafted ?limit= can't ask the
     // public endpoint to serialise the whole directory.
+    /**
+     * How many ratings a deck needs before its score ranks it on Discover. Below this it still
+     * appears, just under the decks with enough ratings to mean something — otherwise one
+     * five-star rating would own the top of the page.
+     */
+    static final int MIN_RATINGS_TO_RANK = 3;
+
     private static final int MAX_DISCOVER_PAGE = 60;
 
     /**

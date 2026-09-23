@@ -296,12 +296,17 @@ export function useCloneDeck() {
   });
 }
 
+export type DiscoverSort = "new" | "rated";
+
 export interface DiscoverParams {
   q: string;
   minCards: number | null;
   maxCards: number | null;
   page: number; // zero-based
   pageSize: number;
+  // "new" (the backend default, newest-shared first) or "rated" (best score first, with decks
+  // that have too few ratings to rank listed below the ones that do).
+  sort?: DiscoverSort;
 }
 
 // The public Discover directory. Unauthenticated — guests browse the same list
@@ -321,6 +326,9 @@ export function useDiscoverDecks(params: DiscoverParams) {
           maxCards: params.maxCards ?? undefined,
           limit: params.pageSize,
           offset: params.page * params.pageSize,
+          // Omitted rather than sent as "new": the backend's default IS newest-first, and a param
+          // it does not recognise would silently mean the same thing.
+          sort: params.sort === "rated" ? "rated" : undefined,
         },
       });
       return data;

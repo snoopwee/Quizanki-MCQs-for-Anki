@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useDiscoverDecks } from "@/hooks/useDecks";
+import { useDiscoverDecks, type DiscoverSort } from "@/hooks/useDecks";
 import { AppChrome } from "@/components/layout/AppChrome";
 import { DeckAuthor } from "@/components/deck/DeckAuthor";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/icons";
+import { StarRating } from "@/components/ui/StarRating";
 import { SIZE_FILTERS, sizeFilterById } from "@/lib/discoverFilters";
 
 // Every deck people have chosen to publish. Open to everyone — a guest browses
@@ -31,6 +32,7 @@ function DiscoverContent() {
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
   const [sizeId, setSizeId] = useState("all");
+  const [sort, setSort] = useState<DiscoverSort>("new");
   const [page, setPage] = useState(0); // zero-based
 
   // Debounced so typing doesn't fire a request per keystroke.
@@ -41,12 +43,12 @@ function DiscoverContent() {
 
   // Any change to what's being asked for resets to the first page — otherwise a
   // filter could land you on a page that no longer exists.
-  useEffect(() => setPage(0), [query, sizeId]);
+  useEffect(() => setPage(0), [query, sizeId, sort]);
 
   const size = sizeFilterById(sizeId);
   const params = useMemo(
-    () => ({ q: query, minCards: size.min, maxCards: size.max, page, pageSize: PAGE_SIZE }),
-    [query, size.min, size.max, page],
+    () => ({ q: query, minCards: size.min, maxCards: size.max, page, pageSize: PAGE_SIZE, sort }),
+    [query, size.min, size.max, page, sort],
   );
 
   const decksQuery = useDiscoverDecks(params);
@@ -98,6 +100,28 @@ function DiscoverContent() {
               }`}
             >
               {f.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-1 font-mono text-xs uppercase tracking-[0.08em] text-faint">Sort</span>
+          {([
+            { id: "new", label: "Newest" },
+            { id: "rated", label: "Best rated" },
+          ] as const).map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              aria-pressed={option.id === sort}
+              onClick={() => setSort(option.id)}
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                option.id === sort
+                  ? "border-accent bg-accent-soft text-accent-ink"
+                  : "border-line bg-surface text-muted hover:border-line-strong hover:text-ink"
+              }`}
+            >
+              {option.label}
             </button>
           ))}
         </div>
@@ -159,6 +183,11 @@ function DiscoverContent() {
                         className="relative z-20"
                       />
                     </div>
+                    {/* Only when somebody has rated it: "Not rated yet" on every card is noise,
+                        and on Discover it would read as a warning rather than an absence. */}
+                    {deck.ratingCount > 0 && (
+                      <StarRating average={deck.ratingAverage} count={deck.ratingCount} size={13} />
+                    )}
                   </div>
                   <Link
                     href={`/shared/${deck.id}`}

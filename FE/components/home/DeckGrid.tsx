@@ -5,6 +5,7 @@ import { DeckAuthor } from "@/components/deck/DeckAuthor";
 import { Card } from "@/components/ui/Card";
 import { Ring } from "@/components/ui/Ring";
 import { Icon } from "@/components/ui/icons";
+import { StarRating } from "@/components/ui/StarRating";
 import type { DeckResponse } from "@/types/api";
 
 // The deck card grid used by Home's tabs and by a folder's contents — extracted so a folder
@@ -67,6 +68,15 @@ export function DeckGrid({
                         <Icon name="link" size={13} />
                         Shared
                       </span>
+                    )}
+                    {/* Only once somebody has rated it — "Not rated yet" on every card is noise. */}
+                    {deck.ratingCount > 0 && (
+                      <StarRating
+                        average={deck.ratingAverage}
+                        count={deck.ratingCount}
+                        size={13}
+                        showCaption={false}
+                      />
                     )}
                   </p>
                   {showAuthor && (

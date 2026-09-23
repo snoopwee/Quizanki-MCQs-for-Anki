@@ -89,6 +89,46 @@ public interface DeckRepository extends JpaRepository<Deck, UUID> {
             @Param("maxCards") Integer maxCards,
             Pageable pageable);
 
+    /**
+     * The same listing ordered by rating instead of recency.
+     *
+     * <p>A separate query rather than a parameterised ORDER BY: the ordering is an expression, not
+     * a column, so it cannot come from a Pageable's Sort, and leaving the shipped
+     * {@link #findPublicDecks} query untouched keeps the default listing exactly as it was.
+     *
+     * <p><b>The floor matters.</b> Without it, the first deck to collect a single five-star rating
+     * would sit at the top of Discover forever. Decks under {@code minRatings} score -1 and fall to
+     * the bottom of the rated ones, but are still listed — browsing by rating should not hide the
+     * catalogue. Ties break by how many people rated (confidence), then by recency.
+     * {@code minRatings} is always >= 1, so the division below is never by zero.
+     */
+    @Query(value = """
+            select d from Deck d
+            where d.isPublic = true
+              and (:q = '' or lower(d.name) like lower(concat('%', :q, '%')))
+              and (:minCards is null or d.cardCount >= :minCards)
+              and (:maxCards is null or d.cardCount <= :maxCards)
+            order by
+              case when d.ratingCount >= :minRatings
+                   then (d.ratingSum * 1.0) / d.ratingCount
+                   else -1 end desc,
+              d.ratingCount desc,
+              d.sharedAt desc
+            """,
+            countQuery = """
+            select count(d) from Deck d
+            where d.isPublic = true
+              and (:q = '' or lower(d.name) like lower(concat('%', :q, '%')))
+              and (:minCards is null or d.cardCount >= :minCards)
+              and (:maxCards is null or d.cardCount <= :maxCards)
+            """)
+    Page<Deck> findPublicDecksByRating(
+            @Param("q") String q,
+            @Param("minCards") Integer minCards,
+            @Param("maxCards") Integer maxCards,
+            @Param("minRatings") int minRatings,
+            Pageable pageable);
+
     /** How many copies people have taken of this deck. */
     long countByCloneSourceDeckId(UUID cloneSourceDeckId);
 

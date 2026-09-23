@@ -53,17 +53,20 @@ public class SharedDeckController {
 
     @GetMapping("/discover")
     @Operation(summary = "Browse every shared deck (public, no auth)",
-            description = "Newest-shared first, optionally narrowed by a case-insensitive name "
-                    + "fragment and a card-count range (minCards/maxCards, inclusive; either may "
-                    + "be omitted). Paged — page size is capped server-side; the response carries "
-                    + "the total so the client can render a pager.")
+            description = "Newest-shared first by default, or best-rated with sort=rated (decks "
+                    + "with too few ratings to rank still appear, below the ones that do). "
+                    + "Optionally narrowed by a case-insensitive name fragment and a card-count "
+                    + "range (minCards/maxCards, inclusive; either may be omitted). Paged — page "
+                    + "size is capped server-side; the response carries the total so the client "
+                    + "can render a pager.")
     public PublicDeckPage discover(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) Integer minCards,
             @RequestParam(required = false) Integer maxCards,
             @RequestParam(defaultValue = "12") int limit,
-            @RequestParam(defaultValue = "0") int offset
+            @RequestParam(defaultValue = "0") int offset,
+            @RequestParam(required = false) String sort
     ) {
-        return deckService.getPublicDecks(q, minCards, maxCards, limit, offset);
+        return deckService.getPublicDecks(q, minCards, maxCards, limit, offset, sort);
     }
 }

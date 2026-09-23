@@ -13,6 +13,9 @@ public record DeckRatingResponse(
         int count,
         double average,
         Integer myStars,
-        String myNote
+        String myNote,
+        // How many notes are waiting on the feedback page. Only ever non-zero for the deck's
+        // author — nobody else may read them, so nobody else is told how many there are.
+        int notesForAuthor
 ) {
 }

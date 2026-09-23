@@ -103,6 +103,11 @@ export interface DeckResponse {
   // Home / deck cards next to the name. Null → the client renders initials.
   authorAvatarUrl: string | null;
   sourceAuthorName: string | null;
+  // The public rating (V28). count 0 means nobody has rated it yet, and the average is then 0 —
+  // the UI says "Not rated yet" rather than showing zero stars. The notes people write with a
+  // rating are private to the deck's author and never appear here.
+  ratingCount: number;
+  ratingAverage: number;
 }
 
 export interface NoteResponse {
@@ -156,6 +161,55 @@ export interface FolderDetailResponse {
   id: string;
   name: string;
   decks: DeckResponse[];
+}
+
+// ── Deck ratings (V28) ───────────────────────────────────────────
+// One deck's score, plus the caller's OWN rating. `myNote` is their own note echoed back so they
+// can edit it — never anyone else's. Only the deck's author can read other people's notes.
+export interface DeckRatingResponse {
+  count: number;
+  average: number;
+  myStars: number | null;
+  myNote: string | null;
+  // How many notes are waiting on the feedback page. Only ever non-zero for the deck's author —
+  // nobody else may read them, so nobody else is told how many there are.
+  notesForAuthor: number;
+}
+
+/**
+ * The author's feedback page. Notes carry NO name and no user id: candid feedback needs cover, and
+ * one rating per person per deck already makes each note a different voice. `id` is an opaque
+ * handle — the only thing needed to clear a note.
+ */
+export interface DeckFeedbackResponse {
+  count: number;
+  average: number;
+  notes: {
+    id: string;
+    stars: number;
+    note: string;
+    writtenAt: string;
+  }[];
+}
+
+/**
+ * GET /api/v1/admin/review-reports — a note an author escalated.
+ *
+ * `noteSnapshot` is the text as it was when reported, so it survives being taken down;
+ * `noteStillThere` says whether the live note is still there. There is no writer identity in this
+ * row on purpose: the queue judges text, and acting on a person goes through the user tools.
+ */
+export interface AdminReviewReport {
+  id: string;
+  deckId: string;
+  deckName: string | null;
+  reporterId: string;
+  reason: string | null;
+  details: string | null;
+  noteSnapshot: string;
+  noteStillThere: boolean;
+  status: string; // open | resolved | dismissed
+  createdAt: string;
 }
 
 // ── Notifications (Phase 10) ─────────────────────────────────────────────────
@@ -501,7 +555,9 @@ export interface PublicDeckSummary {
   // The author's profile picture (null → initials).
   authorAvatarUrl: string | null;
   sourceAuthorName: string | null;
-  sharedAt: string | null;
+  sharedAt: string | null;  // The public rating, so a browser can judge a deck before opening it.
+  ratingCount: number;
+  ratingAverage: number;
 }
 
 // GET /api/v1/public/authors/{authorId} — an author's public decks + who they are.

@@ -1,5 +1,6 @@
 package com.ankiquiz.service;
 
+import com.ankiquiz.dto.response.DeckFeedbackResponse;
 import com.ankiquiz.dto.response.DeckRatingResponse;
 import com.ankiquiz.entity.Deck;
 import com.ankiquiz.entity.DeckRating;
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -37,11 +39,14 @@ public class DeckRatingService {
 
     private final DeckRatingRepository ratings;
     private final DeckRepository decks;
+    private final NotificationService notifications;
     private final Clock clock;
 
-    public DeckRatingService(DeckRatingRepository ratings, DeckRepository decks, Clock clock) {
+    public DeckRatingService(DeckRatingRepository ratings, DeckRepository decks,
+                             NotificationService notifications, Clock clock) {
         this.ratings = ratings;
         this.decks = decks;
+        this.notifications = notifications;
         this.clock = clock;
     }
 
@@ -49,7 +54,12 @@ public class DeckRatingService {
     @Transactional(readOnly = true)
     public DeckRatingResponse get(String userId, UUID deckId) {
         Deck deck = requireStudiable(userId, deckId);
-        return toResponse(deck, ratings.findByDeckIdAndUserId(deckId, userId).orElse(null));
+        // The waiting-notes count is for the author's button, so only the author is given it.
+        int notesForAuthor = userId.equals(deck.getUserId())
+                ? ratings.countByDeckIdAndNoteIsNotNull(deckId)
+                : 0;
+        return toResponse(deck, ratings.findByDeckIdAndUserId(deckId, userId).orElse(null),
+                notesForAuthor);
     }
 
     /** Rate a deck, or change a rating already given. */
@@ -70,6 +80,7 @@ public class DeckRatingService {
             DeckRating fresh = new DeckRating();
             fresh.setDeckId(deckId);
             fresh.setUserId(userId);
+            fresh.setPublicId(UUID.randomUUID());
             fresh.setCreatedAt(now);
             return fresh;
         });
@@ -77,6 +88,13 @@ public class DeckRatingService {
         rating.setNote(clip(note));
         rating.setUpdatedAt(now);
         ratings.save(rating);
+
+        // Only a NOTE is news. Stars alone move a number the author can already see on their deck;
+        // a note is something only they can read, so it would otherwise sit unseen. Re-editing a
+        // note does not stack up either — NotificationService drops a second unread row per deck.
+        if (rating.getNote() != null) {
+            notifications.deckReviewed(deck.getUserId(), deckId, deck.getName());
+        }
 
         return afterWrite(deckId, rating);
     }
@@ -92,12 +110,59 @@ public class DeckRatingService {
         return afterWrite(deckId, null);
     }
 
+    /**
+     * Every note left on a deck — for its author alone. Someone else's deck is a 404, not a 403:
+     * whether a deck has feedback is itself the author's business.
+     */
+    @Transactional(readOnly = true)
+    public DeckFeedbackResponse feedback(String authorId, UUID deckId) {
+        Deck deck = requireOwned(authorId, deckId);
+        List<DeckFeedbackResponse.Note> notes =
+                ratings.findByDeckIdAndNoteIsNotNullOrderByUpdatedAtDesc(deckId).stream()
+                        // No names: see DeckFeedbackResponse. One rating per person per deck means
+                        // each note is already a different voice.
+                        .map(r -> new DeckFeedbackResponse.Note(
+                                r.getPublicId(), r.getStars(), r.getNote(), r.getUpdatedAt()))
+                        .toList();
+        return new DeckFeedbackResponse(deck.getRatingCount(), deck.ratingAverage(), notes);
+    }
+
+    /**
+     * Clear one note. <b>The rating survives.</b> An author who could delete ratings would leave a
+     * public score that reflects only the ones they liked; they can silence a note they find
+     * abusive without touching the number it came with.
+     *
+     * @return whether a note was actually cleared.
+     */
+    @Transactional
+    public boolean deleteNote(String authorId, UUID deckId, UUID publicId) {
+        requireOwned(authorId, deckId);
+        Optional<DeckRating> found = ratings.findByDeckIdAndPublicId(deckId, publicId);
+        if (found.isEmpty() || found.get().getNote() == null) {
+            return false;
+        }
+        DeckRating rating = found.get();
+        rating.setNote(null);
+        // Not touched: stars, createdAt, or the aggregate - none of them change.
+        ratings.save(rating);
+        return true;
+    }
+
+    private Deck requireOwned(String userId, UUID deckId) {
+        Deck deck = decks.findById(deckId)
+                .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
+        if (!userId.equals(deck.getUserId())) {
+            throw new NotFoundException("Deck not found: " + deckId);
+        }
+        return deck;
+    }
+
     /** Re-reads the deck so the response carries the aggregate this write just produced. */
     private DeckRatingResponse afterWrite(UUID deckId, DeckRating mine) {
         ratings.refreshAggregate(deckId);
         Deck deck = decks.findById(deckId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
-        return toResponse(deck, mine);
+        return toResponse(deck, mine, 0);
     }
 
     private Deck requireStudiable(String userId, UUID deckId) {
@@ -106,7 +171,7 @@ public class DeckRatingService {
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
     }
 
-    private static DeckRatingResponse toResponse(Deck deck, DeckRating mine) {
+    private static DeckRatingResponse toResponse(Deck deck, DeckRating mine, int notesForAuthor) {
         int count = deck.getRatingCount();
         // Exact integer sum / count, rounded to one decimal for display; 0 reads as "not rated yet".
         double average = count == 0 ? 0 : Math.round((deck.getRatingSum() * 10.0) / count) / 10.0;
@@ -114,7 +179,8 @@ public class DeckRatingService {
                 count,
                 average,
                 Optional.ofNullable(mine).map(r -> (int) r.getStars()).orElse(null),
-                Optional.ofNullable(mine).map(DeckRating::getNote).orElse(null));
+                Optional.ofNullable(mine).map(DeckRating::getNote).orElse(null),
+                notesForAuthor);
     }
 
     private static String clip(String note) {

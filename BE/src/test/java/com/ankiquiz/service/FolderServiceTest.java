@@ -261,7 +261,7 @@ class FolderServiceTest {
         filing.setDeckId(deckId);
         when(folderDecks.findAllByFolderIdOrderByAddedAtDesc(folderId)).thenReturn(List.of(filing));
         DeckResponse deck = new DeckResponse(deckId, "Kanji", null, null, 10,
-                OffsetDateTime.now(clock), 42.0, null, null, false, "author", "Author", null, null);
+                OffsetDateTime.now(clock), 42.0, null, null, false, "author", "Author", null, null, 0, 0.0);
         when(deckService.getDecksByIds(any(), any())).thenReturn(List.of(deck));
 
         assertThat(service.get(USER, folderId).decks()).containsExactly(deck);

@@ -1,0 +1,122 @@
+package com.ankiquiz.controller;
+
+import com.ankiquiz.dto.request.UpdateReportRequest;
+import com.ankiquiz.dto.response.AdminReviewReportResponse;
+import com.ankiquiz.exception.GlobalExceptionHandler;
+import com.ankiquiz.exception.NotFoundException;
+import com.ankiquiz.service.ReviewReportService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.UUID;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@WebMvcTest(AdminReviewReportController.class)
+@Import(GlobalExceptionHandler.class)
+class AdminReviewReportControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @MockBean
+    private ReviewReportService reviewReportService;
+
+    @MockBean
+    private JwtDecoder jwtDecoder;
+
+    private final UUID reportId = UUID.randomUUID();
+    private final UUID deckId = UUID.randomUUID();
+
+    @Test
+    void listsReportedNotesWithTheirSnapshot() throws Exception {
+        when(reviewReportService.list("open")).thenReturn(List.of(new AdminReviewReportResponse(
+                reportId, deckId, "JLPT N3 kanji", "author-9", "Abusive", null,
+                "this deck is rubbish and so are you", true, "open",
+                OffsetDateTime.parse("2026-09-23T09:00:00Z"))));
+
+        mockMvc.perform(get("/api/v1/admin/review-reports").param("status", "open")
+                        .with(jwt().jwt(j -> j.subject("admin-1"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].noteSnapshot").value("this deck is rubbish and so are you"))
+                .andExpect(jsonPath("$[0].deckName").value("JLPT N3 kanji"))
+                .andExpect(jsonPath("$[0].noteStillThere").value(true))
+                // The queue judges text: there is nowhere in the row for the writer's identity.
+                .andExpect(jsonPath("$[0].userId").doesNotExist())
+                .andExpect(jsonPath("$[0].writerId").doesNotExist());
+    }
+
+    @Test
+    void resolvingPassesTheAdminThrough() throws Exception {
+        mockMvc.perform(put("/api/v1/admin/review-reports/{id}", reportId)
+                        .with(jwt().jwt(j -> j.subject("admin-1")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new UpdateReportRequest("resolved"))))
+                .andExpect(status().isNoContent());
+
+        verify(reviewReportService).updateStatus(reportId, "resolved", "admin-1");
+    }
+
+    @Test
+    void aBlankStatusIsRejectedByValidation() throws Exception {
+        mockMvc.perform(put("/api/v1/admin/review-reports/{id}", reportId)
+                        .with(jwt().jwt(j -> j.subject("admin-1")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new UpdateReportRequest("  "))))
+                .andExpect(status().isBadRequest());
+
+        verify(reviewReportService, never()).updateStatus(any(), any(), any());
+    }
+
+    @Test
+    void anUnknownReportIs404() throws Exception {
+        when(reviewReportService.deleteNote(any())).thenThrow(new NotFoundException("Report not found"));
+
+        mockMvc.perform(delete("/api/v1/admin/review-reports/{id}/note", reportId)
+                        .with(jwt().jwt(j -> j.subject("admin-1"))))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void takingTheNoteDownReturns204() throws Exception {
+        mockMvc.perform(delete("/api/v1/admin/review-reports/{id}/note", reportId)
+                        .with(jwt().jwt(j -> j.subject("admin-1"))))
+                .andExpect(status().isNoContent());
+
+        verify(reviewReportService).deleteNote(reportId);
+    }
+
+    @Test
+    void bothRoutesNeedAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/review-reports")).andExpect(status().isUnauthorized());
+        // csrf() because a @WebMvcTest slice doesn't load SecurityConfig (which disables CSRF), so
+        // these would otherwise be refused as 403 before authentication is reached.
+        mockMvc.perform(delete("/api/v1/admin/review-reports/{id}/note", reportId).with(csrf()))
+                .andExpect(status().isUnauthorized());
+
+        verify(reviewReportService, never()).list(any());
+        verify(reviewReportService, never()).deleteNote(any());
+    }
+}

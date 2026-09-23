@@ -324,9 +324,11 @@ class NotificationServiceTest {
 
     @Test
     void everyKindsWireValueMatchesWhatTheMigrationAllows() {
-        // V27's notifications_kind_check lists exactly these three; a drift here is a 500 on write.
+        // The DB's check constraint lists exactly these; a drift here is a 500 on write. V27 set the
+        // first three, V29 added the fourth, V30 the fifth — each by replacing the constraint.
         assertThat(List.of(NotificationKind.values())).extracting(NotificationKind::wire)
-                .containsExactly("deck_shared", "author_published", "announcement");
+                .containsExactly("deck_shared", "author_published", "announcement", "deck_reviewed",
+                        "report_reviewed");
     }
 
     @Test

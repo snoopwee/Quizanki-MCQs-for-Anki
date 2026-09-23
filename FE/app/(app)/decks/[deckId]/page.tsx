@@ -26,6 +26,9 @@ import { ExportDeckModal } from "@/components/deck/ExportDeckModal";
 import { ShareDeckModal } from "@/components/deck/ShareDeckModal";
 import { ReportDeckModal } from "@/components/deck/ReportDeckModal";
 import { AddToFolderModal } from "@/components/deck/AddToFolderModal";
+import { RateDeckPanel } from "@/components/deck/RateDeckPanel";
+import { StarRating } from "@/components/ui/StarRating";
+import { useDeckRating } from "@/hooks/useDeckRating";
 import { DeckAuthor } from "@/components/deck/DeckAuthor";
 import { Card } from "@/components/ui/Card";
 import { Icon, type IconName } from "@/components/ui/icons";
@@ -62,6 +65,8 @@ function DeckDetail() {
   const saveDeck = useSaveDeck(deckId);
   const openDeck = useOpenDeck();
   const copies = useDeckCopies(deckId).data ?? 0;
+  // Shared with RateDeckPanel below — one request feeds both.
+  const deckRating = useDeckRating(deckId).data;
   const toggleStar = useToggleStar(deckId);
 
   // The viewer's relationship to this deck (from the studiable read). A non-owner
@@ -343,6 +348,21 @@ function DeckDetail() {
                     {copies} cop{copies === 1 ? "y" : "ies"}
                   </span>
                 )}
+                {/* The author sees this too — it is their deck's score, and they cannot rate it. */}
+                {deckRating && deckRating.count > 0 && (
+                  <StarRating average={deckRating.average} count={deckRating.count} size={15} />
+                )}
+                {/* Only the author is told notes exist, and only when some do — there is nothing
+                    to open otherwise. notesForAuthor is 0 for everyone else by construction. */}
+                {(deckRating?.notesForAuthor ?? 0) > 0 && (
+                  <Link
+                    href={`/decks/${deckId}/feedback`}
+                    className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface px-2.5 py-1 text-xs font-semibold text-ink transition hover:border-accent hover:text-accent"
+                  >
+                    <Icon name="star" size={13} />
+                    {deckRating?.notesForAuthor} note{deckRating?.notesForAuthor === 1 ? "" : "s"}
+                  </Link>
+                )}
               </div>
             </div>
           </Card>
@@ -431,6 +451,10 @@ function DeckDetail() {
 
           {/* "Cards in this deck" list is portaled here by FlashcardViewer above. */}
           <div ref={setPreviewSlot} />
+
+          {/* Rating sits AFTER the deck, not above it: you judge a deck once you have used it.
+              Owners never see it — the backend refuses a rating on your own deck anyway. */}
+          {!owned && <RateDeckPanel deckId={deckId} />}
 
           <FloatingStudyRail
             visible={railVisible}

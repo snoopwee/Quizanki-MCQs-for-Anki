@@ -15,7 +15,16 @@ public enum NotificationKind {
     AUTHOR_PUBLISHED("author_published"),
 
     /** The team is speaking — an admin broadcast (Phase 10 S5). No actor. */
-    ANNOUNCEMENT("announcement");
+    ANNOUNCEMENT("announcement"),
+
+    /**
+     * Somebody left a note with their rating of this author's deck. The author is the only person
+     * who can read that note, so without this it would sit unseen.
+     */
+    DECK_REVIEWED("deck_reviewed"),
+
+    /** An admin has dealt with something this user reported. */
+    REPORT_REVIEWED("report_reviewed");
 
     private final String wire;
 

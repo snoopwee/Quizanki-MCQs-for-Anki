@@ -145,6 +145,30 @@ public class NotificationService {
     }
 
     /**
+     * Somebody left a note with their rating. Carries no actor: the feedback page shows no names,
+     * so the notification must not leak one either.
+     */
+    @Transactional
+    public boolean deckReviewed(String authorId, UUID deckId, String deckName) {
+        return deliver(authorId, NotificationKind.DECK_REVIEWED,
+                "New feedback on your deck", deckName,
+                deckId == null ? null : "/decks/" + deckId + "/feedback", null, null, deckId);
+    }
+
+    /**
+     * An admin has finished with something this user reported. Without it the moderation queue is
+     * a black hole: the reporter never learns whether anything happened.
+     */
+    @Transactional
+    public boolean reportReviewed(String reporterId, UUID deckId, String deckName, boolean actioned) {
+        String outcome = actioned
+                ? "We removed what you reported"
+                : "We looked at your report";
+        return deliver(reporterId, NotificationKind.REPORT_REVIEWED, outcome, deckName,
+                deckId == null ? null : "/decks/" + deckId + "/feedback", null, null, deckId);
+    }
+
+    /**
      * An admin announcement, fanned out to the recipients the caller names. There is deliberately
      * no "everyone" row: the read side stays one indexed query per user, and per-user read state
      * comes for free.

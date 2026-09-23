@@ -21,6 +21,9 @@ public record PublicDeckSummary(
         String authorAvatarUrl,
         // "Original deck by X" — set when this deck started life as a copy.
         String sourceAuthorName,
-        OffsetDateTime sharedAt
+        OffsetDateTime sharedAt,
+        // The public rating (V28), so a browser can judge a deck before opening it. Never the notes.
+        int ratingCount,
+        double ratingAverage
 ) {
 }

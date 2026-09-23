@@ -4,6 +4,7 @@ import com.ankiquiz.dto.response.NotificationPage;
 import com.ankiquiz.dto.response.NotificationResponse;
 import com.ankiquiz.entity.Notification;
 import com.ankiquiz.exception.NotFoundException;
+import com.ankiquiz.repository.NotificationMuteRepository;
 import com.ankiquiz.repository.NotificationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,10 +56,13 @@ public class NotificationService {
     private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
 
     private final NotificationRepository notifications;
+    private final NotificationMuteRepository mutes;
     private final Clock clock;
 
-    public NotificationService(NotificationRepository notifications, Clock clock) {
+    public NotificationService(NotificationRepository notifications,
+                               NotificationMuteRepository mutes, Clock clock) {
         this.notifications = notifications;
+        this.mutes = mutes;
         this.clock = clock;
     }
 
@@ -171,6 +175,21 @@ public class NotificationService {
     }
 
     /**
+     * Somebody started following this author.
+     *
+     * <p>Carries the follower so the author can go and look at who it was — which is also why this
+     * one is mutable: it names a person, and not everybody wants that arriving.
+     */
+    @Transactional
+    public boolean newFollower(String authorId, String followerId, String followerName) {
+        String who = hasText(followerName) ? followerName.strip() : "Someone";
+        return deliver(authorId, NotificationKind.NEW_FOLLOWER,
+                who + " started following you", null,
+                followerId == null ? null : "/authors/" + followerId,
+                followerId, followerName, null);
+    }
+
+    /**
      * An admin announcement, fanned out to the recipients the caller names. There is deliberately
      * no "everyone" row: the read side stays one indexed query per user, and per-user read state
      * comes for free.
@@ -208,6 +227,11 @@ public class NotificationService {
         }
         if (deckId != null
                 && notifications.existsByUserIdAndKindAndDeckIdAndReadAtIsNull(recipientId, kind.wire(), deckId)) {
+            return false;
+        }
+        // Asked not to hear about this. Checked at the source so no caller has to remember, and
+        // only for kinds a person is allowed to switch off.
+        if (kind.mutable() && mutes.existsByUserIdAndKind(recipientId, kind.wire())) {
             return false;
         }
 
@@ -250,13 +274,16 @@ public class NotificationService {
 
         Set<String> alreadyWaiting = new HashSet<>(notifications.userIdsWithUnread(
                 NotificationKind.AUTHOR_PUBLISHED.wire(), deckId, recipients));
+        // One query for everyone's preference, not one per follower.
+        Set<String> notInterested = new HashSet<>(
+                mutes.mutingUsers(NotificationKind.AUTHOR_PUBLISHED.wire(), recipients));
 
         OffsetDateTime now = OffsetDateTime.now(clock);
         notifications.deleteOlderThanForAll(recipients, now.minusDays(RETENTION_DAYS));
 
         String who = hasText(actorName) ? actorName.strip() : "An author you follow";
         List<Notification> rows = recipients.stream()
-                .filter(id -> !alreadyWaiting.contains(id))
+                .filter(id -> !alreadyWaiting.contains(id) && !notInterested.contains(id))
                 .map(id -> row(id, NotificationKind.AUTHOR_PUBLISHED, who + " published a new deck",
                         deckName, "/decks/" + deckId, actorId, actorName, deckId, now))
                 .toList();

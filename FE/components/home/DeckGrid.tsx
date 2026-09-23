@@ -81,6 +81,8 @@ export function DeckGrid({
                   </p>
                   {showAuthor && (
                     <DeckAuthor
+                      // DeckResponse carries no handle, so these link by id and redirect.
+                      // Only the public listings (Discover, a profile page) carry one.
                       authorId={deck.authorId}
                       authorName={deck.authorName}
                       authorAvatarUrl={deck.authorAvatarUrl}

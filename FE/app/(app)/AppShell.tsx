@@ -11,6 +11,7 @@ import { BrandMark } from "@/components/ui/BrandMark";
 import { DeckSearch } from "@/components/search/DeckSearch";
 import { StreakChip } from "@/components/layout/StreakChip";
 import { NotificationBell } from "@/components/layout/NotificationBell";
+import { ChooseUsernameGate } from "@/components/auth/ChooseUsernameGate";
 import { Icon, type IconName } from "@/components/ui/icons";
 
 // True for any URL a full-screen study mode takes over — sidebar is hidden so the
@@ -110,6 +111,11 @@ export function AppShell({
 
   return (
     <ImportProvider>
+      {/* Anybody whose handle we generated confirms it once, here — the one place every
+          signed-in route passes through, so an OAuth sign-up can't slip past a sign-up form it
+          never saw. Deliberately not on the immersive branch: interrupting a quiz to ask for a
+          username is the wrong moment, and they'll pass through here on the way out. */}
+      <ChooseUsernameGate />
       <div className="flex min-h-screen">
         {/* Layout spacer — reserves the docked width (slim in hover mode so the
             hover-expand floats over content instead of pushing it). */}

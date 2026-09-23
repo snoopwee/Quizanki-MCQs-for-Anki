@@ -91,7 +91,7 @@ class AdminControllerTest {
         UUID deckId = UUID.randomUUID();
         PublicDeckPage page = new PublicDeckPage(
                 List.of(new PublicDeckSummary(
-                        deckId, "JLPT N4", 120, "author-1", "Alice", null, null, OffsetDateTime.now(), 0, 0.0)),
+                        deckId, "JLPT N4", 120, "author-1", "alice", "Alice", null, null, OffsetDateTime.now(), 0, 0.0)),
                 0, 20, 1, 1);
         when(deckService.getPublicDecks(eq("jlpt"), isNull(), isNull(), eq(20), eq(0))).thenReturn(page);
 

@@ -9,6 +9,12 @@ export interface MeResponse {
   userId: string;
   email: string;
   isAdmin: boolean;
+  // Your public handle — the /user/{username} half of your profile URL. Null only for a profile
+  // written before V35 assigned one.
+  username: string | null;
+  // False when we GENERATED that handle and you've never seen it — the client then asks you to
+  // confirm or change it once, pre-filled. True once you've typed one, confirmed one, or edited it.
+  usernameChosen: boolean;
 }
 
 // GET /api/v1/admin/reports — one row of the deck-report moderation queue.
@@ -218,6 +224,15 @@ export interface AdminReviewReport {
   createdAt: string;
 }
 
+// ── Notification settings (V34) ─────────────────────────────────
+// Only kinds a person may switch off are listed — announcements are operational and the outcome of
+// a report you filed is something you asked for, so neither is offered. Stored as a mute list, so
+// "not listed as muted" means on.
+export interface NotificationSettingResponse {
+  kind: string;
+  muted: boolean;
+}
+
 // ── Follows (Phase 11) ─────────────────────────────────────────
 // Following is one-sided: a subscription to an author page. The author is never asked and is never
 // told who followed them.
@@ -228,8 +243,20 @@ export interface FollowStatusResponse {
   self: boolean;
 }
 
+/**
+ * One of your followers. Only ever served to you — public counts, private lists. `displayName` can
+ * be null, and the row stays anyway: a follower who is hard to name is still a follower.
+ */
+export interface FollowerResponse {
+  userId: string;
+  username: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+}
+
 export interface FollowedAuthorResponse {
   authorId: string;
+  username: string | null;
   // Null for an author whose public decks have all gone — the follow outlives them.
   authorName: string | null;
   authorAvatarUrl: string | null;
@@ -575,6 +602,9 @@ export interface PublicDeckSummary {
   cardCount: number | null;
   // The credited author's id — lets the author name link to their author page.
   authorId: string;
+  // Their public handle, so the row links straight to /user/{username} rather than bouncing
+  // through the id alias. Null falls back to that alias.
+  authorUsername: string | null;
   authorName: string | null;
   // The author's profile picture (null → initials).
   authorAvatarUrl: string | null;
@@ -584,9 +614,13 @@ export interface PublicDeckSummary {
   ratingAverage: number;
 }
 
-// GET /api/v1/public/authors/{authorId} — an author's public decks + who they are.
+// GET /api/v1/public/users/{username} (and the /public/authors/{authorId} alias) — somebody's
+// public profile page: who they are, plus the decks they've published.
 export interface AuthorPageResponse {
   authorId: string;
+  // The handle in the page's real URL, /user/{username}. Null only for a profile written before
+  // one was assigned; the client falls back to the /authors/{authorId} form.
+  username: string | null;
   authorName: string | null;
   // The author's profile picture for the page header (null → initials).
   authorAvatarUrl: string | null;

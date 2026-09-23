@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
 import { initialsFrom } from "@/lib/userDisplay";
 import { timeAgo } from "@/lib/relativeTime";
+import { profileUrl } from "@/lib/profileUrl";
 
 type Variant = "inline" | "dot" | "detailed";
 
@@ -17,12 +18,14 @@ type Variant = "inline" | "dot" | "detailed";
  *   the deck's creation time ("2 days ago") — for the deck-page header. Pass
  *   `createdAt` (the deck's importedAt) for the second row.
  *
- * When `authorId` is given the name links to that author's page. The source line is
+ * When `authorId` is given the name links to that author's page — by handle when the caller has
+ * one (deck listings carry it), by id otherwise, which redirects. The source line is
  * suppressed when it matches the author — an unedited copy credits its original
  * author on both, and "by Alice · Original deck by Alice" would just read as a bug.
  */
 export function DeckAuthor({
   authorId,
+  authorUsername,
   authorName,
   authorAvatarUrl,
   sourceAuthorName,
@@ -31,6 +34,7 @@ export function DeckAuthor({
   className = "",
 }: {
   authorId?: string | null;
+  authorUsername?: string | null;
   authorName: string | null;
   authorAvatarUrl?: string | null;
   sourceAuthorName: string | null;
@@ -46,7 +50,7 @@ export function DeckAuthor({
 
   const nameNode = authorId ? (
     <Link
-      href={`/authors/${authorId}`}
+      href={profileUrl(authorId, authorUsername)}
       onClick={(e) => e.stopPropagation()}
       className="font-medium text-ink underline-offset-2 hover:text-accent hover:underline"
     >

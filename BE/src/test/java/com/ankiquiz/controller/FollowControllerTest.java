@@ -2,6 +2,7 @@ package com.ankiquiz.controller;
 
 import com.ankiquiz.dto.response.FollowStatusResponse;
 import com.ankiquiz.dto.response.FollowedAuthorResponse;
+import com.ankiquiz.dto.response.FollowerResponse;
 import com.ankiquiz.exception.ConflictException;
 import com.ankiquiz.exception.GlobalExceptionHandler;
 import com.ankiquiz.exception.NotFoundException;
@@ -96,13 +97,42 @@ class FollowControllerTest {
     @Test
     void listsWhoYouFollow() throws Exception {
         when(followService.following("user-1")).thenReturn(List.of(
-                new FollowedAuthorResponse("author-9", "Mai", "https://example.test/mai.webp", 4)));
+                new FollowedAuthorResponse("author-9", "mai", "Mai", "https://example.test/mai.webp", 4)));
 
         mockMvc.perform(get("/api/v1/me/following").with(jwt().jwt(j -> j.subject("user-1"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].authorId").value("author-9"))
+                .andExpect(jsonPath("$[0].username").value("mai"))
                 .andExpect(jsonPath("$[0].authorName").value("Mai"))
                 .andExpect(jsonPath("$[0].publicDecks").value(4));
+    }
+
+    @Test
+    void anAuthorSeesTheirOwnFollowerList() throws Exception {
+        when(followService.followers("author-9", "author-9")).thenReturn(List.of(
+                new FollowerResponse("user-1", "thanh", "Thanh", "https://example.test/thanh.webp"),
+                new FollowerResponse("user-2", null, null, null)));
+
+        mockMvc.perform(get("/api/v1/authors/{authorId}/followers", "author-9")
+                        .with(jwt().jwt(j -> j.subject("author-9"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].userId").value("user-1"))
+                .andExpect(jsonPath("$[0].username").value("thanh"))
+                .andExpect(jsonPath("$[0].displayName").value("Thanh"))
+                // A follower with no profile row is still a follower, so the row survives unnamed.
+                .andExpect(jsonPath("$[1].userId").value("user-2"))
+                .andExpect(jsonPath("$[1].displayName").doesNotExist());
+    }
+
+    @Test
+    void somebodyElsesFollowerListIs404NotForbidden() throws Exception {
+        // 404, because 403 would confirm the page exists and that we hold a list worth guarding.
+        when(followService.followers("user-1", "author-9"))
+                .thenThrow(new NotFoundException("Author not found"));
+
+        mockMvc.perform(get("/api/v1/authors/{authorId}/followers", "author-9")
+                        .with(jwt().jwt(j -> j.subject("user-1"))))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -110,6 +140,8 @@ class FollowControllerTest {
         mockMvc.perform(get("/api/v1/authors/{authorId}/follow", "author-9"))
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/v1/me/following")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/authors/{authorId}/followers", "author-9"))
+                .andExpect(status().isUnauthorized());
         // csrf() because a @WebMvcTest slice doesn't load SecurityConfig (which disables CSRF), so
         // these would otherwise be refused as 403 before authentication is reached.
         mockMvc.perform(put("/api/v1/authors/{authorId}/follow", "author-9").with(csrf()))
@@ -120,5 +152,6 @@ class FollowControllerTest {
         verify(followService, never()).follow(any(), any());
         verify(followService, never()).unfollow(any(), any());
         verify(followService, never()).following(any());
+        verify(followService, never()).followers(any(), any());
     }
 }

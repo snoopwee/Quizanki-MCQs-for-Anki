@@ -9,6 +9,7 @@ import com.ankiquiz.dto.response.PublicDeckSummary;
 import com.ankiquiz.exception.GlobalExceptionHandler;
 import com.ankiquiz.exception.NotFoundException;
 import com.ankiquiz.service.DeckService;
+import com.ankiquiz.service.ProfileService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -50,6 +51,9 @@ class SharedDeckControllerTest {
     @MockBean
     private DeckService deckService;
 
+    @MockBean
+    private ProfileService profileService;
+
     @Test
     void getSharedDeck_isReachableWithoutAuth() throws Exception {
         UUID deckId = UUID.randomUUID();
@@ -80,7 +84,7 @@ class SharedDeckControllerTest {
     void discover_isReachableWithoutAuth_andReturnsAPage() throws Exception {
         UUID deckId = UUID.randomUUID();
         PublicDeckPage page = new PublicDeckPage(
-                List.of(new PublicDeckSummary(deckId, "JLPT N4", 120, "author-1", "Alice", null, null, OffsetDateTime.now(), 0, 0.0)),
+                List.of(new PublicDeckSummary(deckId, "JLPT N4", 120, "author-1", "alice", "Alice", null, null, OffsetDateTime.now(), 0, 0.0)),
                 0, 12, 1, 1);
         when(deckService.getPublicDecks(eq("jlpt"), eq(20), eq(50), eq(12), eq(0), isNull())).thenReturn(page);
 
@@ -95,10 +99,50 @@ class SharedDeckControllerTest {
     }
 
     @Test
+    void usernameAvailability_answersWithoutAnAccount_andSaysWhyNot() throws Exception {
+        // It runs from the SIGN-UP form, before the account it would belong to exists, so it
+        // cannot require a token.
+        when(profileService.unavailableBecause("pyrettt")).thenReturn(null);
+        when(profileService.unavailableBecause("admin")).thenReturn("That username is reserved.");
+
+        mockMvc.perform(get("/api/v1/public/usernames/{username}/available", "pyrettt"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.available").value(true));
+
+        mockMvc.perform(get("/api/v1/public/usernames/{username}/available", "admin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.available").value(false))
+                .andExpect(jsonPath("$.reason").value("That username is reserved."));
+    }
+
+    @Test
+    void getUserPage_isTheReadableUrl_andNeedsNoAccount() throws Exception {
+        AuthorPageResponse page = new AuthorPageResponse("author-1", "pyrettt", "Alice", null, 0, 3,
+                List.of());
+        when(deckService.getUserPage(eq("pyrettt"))).thenReturn(page);
+
+        // /user/{username} is what people link to and say out loud; the uuid form stays an alias.
+        mockMvc.perform(get("/api/v1/public/users/{username}", "pyrettt"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("pyrettt"))
+                .andExpect(jsonPath("$.authorId").value("author-1"))
+                .andExpect(jsonPath("$.followers").value(3));
+    }
+
+    @Test
+    void getUserPage_is404ForAHandleNobodyHas() throws Exception {
+        when(deckService.getUserPage(eq("ghost")))
+                .thenThrow(new NotFoundException("No user called ghost"));
+
+        mockMvc.perform(get("/api/v1/public/users/{username}", "ghost"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void getAuthor_isReachableWithoutAuth_andListsTheAuthorsPublicDecks() throws Exception {
         UUID deckId = UUID.randomUUID();
-        AuthorPageResponse page = new AuthorPageResponse("author-1", "Alice", null, 1, 12,
-                List.of(new PublicDeckSummary(deckId, "JLPT N4", 120, "author-1", "Alice", null, null,
+        AuthorPageResponse page = new AuthorPageResponse("author-1", "alice", "Alice", null, 1, 12,
+                List.of(new PublicDeckSummary(deckId, "JLPT N4", 120, "author-1", "alice", "Alice", null, null,
                         OffsetDateTime.now(), 0, 0.0)));
         when(deckService.getAuthorPage(eq("author-1"))).thenReturn(page);
 
@@ -108,6 +152,7 @@ class SharedDeckControllerTest {
                 // follow the author is personal and comes from the authenticated route.
                 .andExpect(jsonPath("$.followers").value(12))
                 .andExpect(jsonPath("$.authorName").value("Alice"))
+                .andExpect(jsonPath("$.username").value("alice"))
                 .andExpect(jsonPath("$.deckCount").value(1))
                 .andExpect(jsonPath("$.decks[0].id").value(deckId.toString()))
                 .andExpect(jsonPath("$.decks[0].authorId").value("author-1"));

@@ -4,6 +4,7 @@ import com.ankiquiz.dto.response.AuthorPageResponse;
 import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.PublicDeckPage;
 import com.ankiquiz.service.DeckService;
+import com.ankiquiz.service.ProfileService;
 import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -11,6 +12,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -29,9 +32,11 @@ import java.util.UUID;
 public class SharedDeckController {
 
     private final DeckService deckService;
+    private final ProfileService profileService;
 
-    public SharedDeckController(DeckService deckService) {
+    public SharedDeckController(DeckService deckService, ProfileService profileService) {
         this.deckService = deckService;
+        this.profileService = profileService;
     }
 
     @GetMapping("/shared/{deckId}")
@@ -43,12 +48,35 @@ public class SharedDeckController {
     }
 
     @GetMapping("/authors/{authorId}")
-    @Operation(summary = "An author's public decks (public, no auth)",
-            description = "All decks credited to the author that are currently shared, newest "
-                    + "first, plus their current display name. Empty when the author has no "
-                    + "public decks.")
+    @Operation(summary = "A user's public profile page (public, no auth)",
+            description = "Their current display name and avatar, their follower count, and every "
+                    + "deck credited to them that is currently shared, newest first. An empty deck "
+                    + "list is a real page: publishing nothing is not the same as not existing. "
+                    + "404 only for a user with neither a profile nor a public deck.")
     public AuthorPageResponse getAuthor(@PathVariable String authorId) {
         return deckService.getAuthorPage(authorId);
+    }
+
+    @GetMapping("/users/{username}")
+    @Operation(summary = "A user's public profile page, by handle (public, no auth)",
+            description = "The readable form of /public/authors/{id} — same payload, resolved "
+                    + "through the unique username. 404 when no such handle exists.")
+    public AuthorPageResponse getUserPage(@PathVariable String username) {
+        return deckService.getUserPage(username);
+    }
+
+    @GetMapping("/usernames/{username}/available")
+    @Operation(summary = "Is this handle free? (public, no auth)",
+            description = "Asked from the sign-up form, before the account it would belong to "
+                    + "exists — which is why it can't require a token. Answers the shape rules "
+                    + "too, so the form can say WHY rather than just refusing. Availability is "
+                    + "advisory: the claim is settled when the profile row is written.")
+    public Map<String, Object> usernameAvailable(@PathVariable String username) {
+        String reason = profileService.unavailableBecause(username);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("available", reason == null);
+        body.put("reason", reason);
+        return body;
     }
 
     @GetMapping("/discover")

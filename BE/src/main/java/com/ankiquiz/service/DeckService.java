@@ -397,19 +397,36 @@ public class DeckService {
         Page<Deck> page = "rated".equals(sort)
                 ? deckRepository.findPublicDecksByRating(q, minCards, maxCards, MIN_RATINGS_TO_RANK, pageable)
                 : deckRepository.findPublicDecks(q, minCards, maxCards, pageable);
-        List<PublicDeckSummary> items = page.getContent().stream()
-                .map(DeckService::toSummary)
-                .toList();
+        List<PublicDeckSummary> items = withHandles(page.getContent());
         return new PublicDeckPage(items, page.getNumber(), size,
                 page.getTotalElements(), page.getTotalPages());
     }
 
-    private static PublicDeckSummary toSummary(Deck d) {
+    /**
+     * Summaries with each author's public handle attached, in ONE extra query for the whole
+     * listing — a per-deck lookup would be an N+1 on the busiest read in the app.
+     */
+    private List<PublicDeckSummary> withHandles(List<Deck> decks) {
+        if (decks.isEmpty()) {
+            return List.of();
+        }
+        Map<String, Profile> named = profileService.findAll(decks.stream()
+                .map(Deck::getAuthorId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList());
+        return decks.stream()
+                .map(d -> toSummary(d, named.get(d.getAuthorId())))
+                .toList();
+    }
+
+    private static PublicDeckSummary toSummary(Deck d, Profile author) {
         return new PublicDeckSummary(
                 d.getId(),
                 d.getName(),
                 d.getCardCount(),
                 d.getAuthorId(),
+                author == null ? null : author.getUsername(),
                 d.getAuthorName(),
                 d.getAuthorAvatarUrl(),
                 d.getSourceAuthorName(),
@@ -419,29 +436,50 @@ public class DeckService {
     }
 
     /**
-     * A public author page: an author's published decks + their current name. No
-     * user table, so the name comes off their decks' denormalised author_name
-     * (kept current by the profile-rename propagation). Public decks only — you
-     * can't expose an author's private decks to other viewers. An author with no
-     * public decks yields a null name + empty list (the page reads as empty).
+     * A public author page — which is also this app's public profile page: who somebody is, plus
+     * the decks they have published. Public decks only; you can't expose an author's private decks
+     * to other viewers.
+     *
+     * <p><b>Having published nothing is not the same as not existing.</b> Since V33 every
+     * signed-in user has a {@code profiles} row, so a learner with no decks still gets a real page
+     * with a name, an avatar, a follower count and a Follow button — which is what makes a
+     * follower list worth clicking. Only a user we have never heard of is a 404.
      */
     @Transactional(readOnly = true)
     public AuthorPageResponse getAuthorPage(String authorId) {
         List<Deck> decks = deckRepository.findPublicByAuthor(authorId);
-        List<PublicDeckSummary> summaries = decks.stream().map(DeckService::toSummary).toList();
+        List<PublicDeckSummary> summaries = withHandles(decks);
         // The profile is what this person is called TODAY; a deck's author_name is a credit
         // snapshot that may belong to somebody else entirely (a copy keeps crediting its original
         // author). Prefer the profile, and fall back to the snapshot only for an author whose
         // profile row predates V33's backfill.
         Profile profile = profileService.find(authorId).orElse(null);
+        if (profile == null && decks.isEmpty()) {
+            throw new NotFoundException("Author not found: " + authorId);
+        }
         String authorName = profile != null && profile.getDisplayName() != null
                 ? profile.getDisplayName()
                 : (decks.isEmpty() ? null : decks.get(0).getAuthorName());
         String avatarUrl = profile != null && profile.getAvatarUrl() != null
                 ? profile.getAvatarUrl()
                 : (decks.isEmpty() ? null : decks.get(0).getAuthorAvatarUrl());
-        return new AuthorPageResponse(authorId, authorName, avatarUrl, summaries.size(),
+        return new AuthorPageResponse(authorId,
+                profile == null ? null : profile.getUsername(),
+                authorName, avatarUrl, summaries.size(),
                 followService.followerCount(authorId), summaries);
+    }
+
+    /**
+     * The same page, reached the way people actually link to it: {@code /user/{username}}.
+     *
+     * <p>The handle is resolved to a user id and everything downstream stays keyed by the id, so a
+     * rename changes one column and nothing else.
+     */
+    @Transactional(readOnly = true)
+    public AuthorPageResponse getUserPage(String username) {
+        return getAuthorPage(profileService.findByUsername(username)
+                .orElseThrow(() -> new NotFoundException("No user called " + username))
+                .getUserId());
     }
 
     /** How many people have taken a copy of this deck — shown on the deck page,

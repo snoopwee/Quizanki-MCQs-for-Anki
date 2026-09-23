@@ -177,6 +177,7 @@ function DiscoverContent() {
                       </span>
                       <DeckAuthor
                         authorId={deck.authorId}
+                        authorUsername={deck.authorUsername}
                         authorName={deck.authorName}
                         sourceAuthorName={deck.sourceAuthorName}
                         variant="dot"

@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/axios";
-import type { FollowStatusResponse, FollowedAuthorResponse } from "@/types/api";
+import type {
+  FollowStatusResponse,
+  FollowedAuthorResponse,
+  FollowerResponse,
+} from "@/types/api";
 
 /**
  * Whether the signed-in viewer follows this author. Personal, so it needs an account — the public
@@ -54,6 +58,21 @@ export function useFollowing() {
     queryKey: ["following"],
     queryFn: async () => {
       const { data } = await api.get<FollowedAuthorResponse[]>("/me/following");
+      return data;
+    },
+  });
+}
+
+/**
+ * Who follows you. Fetched only on your own page — the backend answers 404 to anybody else, so
+ * asking for somebody else's would be a guaranteed error rather than a useful request.
+ */
+export function useFollowers(authorId: string, isSelf: boolean) {
+  return useQuery({
+    queryKey: ["followers", authorId],
+    enabled: Boolean(authorId) && isSelf,
+    queryFn: async () => {
+      const { data } = await api.get<FollowerResponse[]>(`/authors/${authorId}/followers`);
       return data;
     },
   });

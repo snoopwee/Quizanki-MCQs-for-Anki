@@ -1,6 +1,7 @@
 package com.ankiquiz.controller;
 
 import com.ankiquiz.dto.response.FollowStatusResponse;
+import com.ankiquiz.dto.response.FollowerResponse;
 import com.ankiquiz.dto.response.FollowedAuthorResponse;
 import com.ankiquiz.service.FollowService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -52,6 +53,14 @@ public class FollowController {
     @Operation(summary = "Unfollow an author", description = "Idempotent, and tells them nothing.")
     public FollowStatusResponse unfollow(@AuthenticationPrincipal Jwt jwt, @PathVariable String authorId) {
         return followService.unfollow(jwt.getSubject(), authorId);
+    }
+
+    @GetMapping("/authors/{authorId}/followers")
+    @Operation(summary = "Who follows you (your own page only)",
+            description = "404 for anybody else's: the COUNT is public, the list is not. Names come "
+                    + "from profiles, so a follower who has never published is still nameable.")
+    public List<FollowerResponse> followers(@AuthenticationPrincipal Jwt jwt, @PathVariable String authorId) {
+        return followService.followers(jwt.getSubject(), authorId);
     }
 
     @GetMapping("/me/following")

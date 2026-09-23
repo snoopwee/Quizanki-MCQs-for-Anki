@@ -3,6 +3,7 @@ package com.ankiquiz.service;
 import com.ankiquiz.dto.response.NotificationPage;
 import com.ankiquiz.entity.Notification;
 import com.ankiquiz.exception.NotFoundException;
+import com.ankiquiz.repository.NotificationMuteRepository;
 import com.ankiquiz.repository.NotificationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,7 @@ class NotificationServiceTest {
     private static final String STRANGER = "user-2";
 
     @Mock private NotificationRepository notifications;
+    @Mock private NotificationMuteRepository mutes;
 
     private final Instant nowInstant = Instant.parse("2026-09-22T08:00:00Z");
     private final Clock clock = Clock.fixed(nowInstant, ZoneOffset.UTC);
@@ -56,7 +58,7 @@ class NotificationServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new NotificationService(notifications, clock);
+        service = new NotificationService(notifications, mutes, clock);
     }
 
     private Notification row(String recipient, boolean read) {
@@ -324,11 +326,11 @@ class NotificationServiceTest {
 
     @Test
     void everyKindsWireValueMatchesWhatTheMigrationAllows() {
-        // The DB's check constraint lists exactly these; a drift here is a 500 on write. V27 set the
-        // first three, V29 added the fourth, V30 the fifth — each by replacing the constraint.
+        // The DB's check constraint lists exactly these; a drift here is a 500 on write. V27 set
+        // the first three, then V29, V30 and V34 each replaced the constraint to add one more.
         assertThat(List.of(NotificationKind.values())).extracting(NotificationKind::wire)
                 .containsExactly("deck_shared", "author_published", "announcement", "deck_reviewed",
-                        "report_reviewed");
+                        "report_reviewed", "new_follower");
     }
 
     @Test
@@ -454,5 +456,83 @@ class NotificationServiceTest {
 
         verify(notifications, never()).userIdsWithUnread(any(), any(), any());
         verify(notifications, never()).saveAll(any());
+    }
+
+    // ── what somebody asked not to hear ──────────────────────────────────────
+
+    @Test
+    void aMutedKindIsNotDelivered() {
+        when(mutes.existsByUserIdAndKind(USER, "new_follower")).thenReturn(true);
+
+        assertThat(service.newFollower(USER, "user-3", "Thanh")).isFalse();
+
+        verify(notifications, never()).save(any());
+    }
+
+    @Test
+    void mutingOneKindDoesNotSilenceAnother() {
+        when(mutes.existsByUserIdAndKind(USER, "new_follower")).thenReturn(true);
+        when(mutes.existsByUserIdAndKind(USER, "deck_shared")).thenReturn(false);
+
+        assertThat(service.deckShared(USER, "author-9", "Mai", deckId, "JLPT N3")).isTrue();
+    }
+
+    @Test
+    void aKindNobodyMayMuteIsDeliveredWithoutEvenAsking() {
+        service.announce(List.of(USER), "Scheduled maintenance", null, null);
+
+        // An announcement is operational, so the preference table is not consulted for it at all.
+        verify(mutes, never()).existsByUserIdAndKind(anyString(), eq("announcement"));
+        verify(notifications).save(any());
+    }
+
+    @Test
+    void aNewFollowerIsAnnouncedByNameAndLinksToThem() {
+        service.newFollower(USER, "user-3", "Thanh");
+
+        Notification saved = captureSaved();
+        assertThat(saved.getKind()).isEqualTo("new_follower");
+        assertThat(saved.getTitle()).isEqualTo("Thanh started following you");
+        assertThat(saved.getLink()).isEqualTo("/authors/user-3");
+        assertThat(saved.getActorId()).isEqualTo("user-3");
+        // No deck involved, so the no-two-unread-about-one-deck rule does not apply here.
+        assertThat(saved.getDeckId()).isNull();
+    }
+
+    @Test
+    void aFollowerWithNoNameStillReadsLikeASentence() {
+        service.newFollower(USER, "user-3", "  ");
+
+        assertThat(captureSaved().getTitle()).isEqualTo("Someone started following you");
+    }
+
+    @Test
+    void aFanOutSkipsTheFollowersWhoMutedIt() {
+        List<String> followers = List.of("f-1", "f-2", "f-3");
+        when(notifications.userIdsWithUnread(any(), any(), any())).thenReturn(List.of());
+        when(mutes.mutingUsers(eq("author_published"), any())).thenReturn(List.of("f-2"));
+
+        assertThat(service.authorPublishedToMany(followers, "author-9", "Mai", deckId, "JLPT N3"))
+                .isEqualTo(2);
+
+        // One query for everyone's preference, not one per follower.
+        verify(mutes).mutingUsers(eq("author_published"), any());
+        verify(mutes, never()).existsByUserIdAndKind(anyString(), anyString());
+
+        ArgumentCaptor<List<Notification>> saved = ArgumentCaptor.forClass(List.class);
+        verify(notifications).saveAll(saved.capture());
+        assertThat(saved.getValue()).extracting(Notification::getUserId).containsExactly("f-1", "f-3");
+    }
+
+    @Test
+    void onlySomeKindsAreAPersonsToSwitchOff() {
+        assertThat(NotificationKind.NEW_FOLLOWER.mutable()).isTrue();
+        assertThat(NotificationKind.AUTHOR_PUBLISHED.mutable()).isTrue();
+        assertThat(NotificationKind.DECK_SHARED.mutable()).isTrue();
+        assertThat(NotificationKind.DECK_REVIEWED.mutable()).isTrue();
+        // An announcement is operational and the one channel the team has; the outcome of a report
+        // is something the person asked for themselves.
+        assertThat(NotificationKind.ANNOUNCEMENT.mutable()).isFalse();
+        assertThat(NotificationKind.REPORT_REVIEWED.mutable()).isFalse();
     }
 }

@@ -4,6 +4,7 @@ import com.ankiquiz.dto.response.FollowStatusResponse;
 import com.ankiquiz.dto.response.FollowedAuthorResponse;
 import com.ankiquiz.entity.Deck;
 import com.ankiquiz.entity.Follow;
+import com.ankiquiz.entity.Profile;
 import com.ankiquiz.exception.ConflictException;
 import com.ankiquiz.exception.NotFoundException;
 import com.ankiquiz.repository.DeckRepository;
@@ -22,6 +23,8 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,6 +49,7 @@ class FollowServiceTest {
     @Mock private FollowRepository follows;
     @Mock private DeckRepository decks;
     @Mock private NotificationService notifications;
+    @Mock private ProfileService profiles;
 
     private final Instant nowInstant = Instant.parse("2026-09-23T11:00:00Z");
     private final Clock clock = Clock.fixed(nowInstant, ZoneOffset.UTC);
@@ -55,7 +59,7 @@ class FollowServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new FollowService(follows, decks, notifications, clock);
+        service = new FollowService(follows, decks, notifications, profiles, clock);
     }
 
     private Deck deck(String authorId, String name) {
@@ -68,6 +72,13 @@ class FollowServiceTest {
         d.setName(name);
         d.setPublic(true);
         return d;
+    }
+
+    private static Profile profile(String userId, String displayName) {
+        Profile p = new Profile();
+        p.setUserId(userId);
+        p.setDisplayName(displayName);
+        return p;
     }
 
     private void authorHasPublished() {
@@ -91,6 +102,39 @@ class FollowServiceTest {
     }
 
     @Test
+    void followingTellsTheAuthorWhoItWas() {
+        authorHasPublished();
+        com.ankiquiz.entity.Profile follower = new com.ankiquiz.entity.Profile();
+        follower.setUserId(FOLLOWER);
+        follower.setDisplayName("Thanh");
+        when(profiles.find(FOLLOWER)).thenReturn(java.util.Optional.of(follower));
+
+        service.follow(FOLLOWER, AUTHOR);
+
+        // The name comes from their profile, which exists even for somebody who has never
+        // published anything — which is most followers.
+        verify(notifications).newFollower(AUTHOR, FOLLOWER, "Thanh");
+    }
+
+    @Test
+    void pressingFollowTwiceAnnouncesYouOnce() {
+        authorHasPublished();
+        when(follows.existsByFollowerIdAndAuthorId(FOLLOWER, AUTHOR)).thenReturn(true);
+
+        service.follow(FOLLOWER, AUTHOR);
+
+        verify(notifications, never()).newFollower(any(), any(), any());
+    }
+
+    @Test
+    void unfollowingTellsThemNothing() {
+        service.unfollow(FOLLOWER, AUTHOR);
+
+        // Following is one-sided: they hear when somebody arrives, never when somebody leaves.
+        verify(notifications, never()).newFollower(any(), any(), any());
+    }
+
+    @Test
     void followingTwiceLeavesOneRow() {
         authorHasPublished();
         when(follows.existsByFollowerIdAndAuthorId(FOLLOWER, AUTHOR)).thenReturn(true);
@@ -109,9 +153,23 @@ class FollowServiceTest {
     }
 
     @Test
-    void anAuthorWithNothingPublishedCannotBeFollowed() {
-        // There is no author page to subscribe to — and a 404 stops an arbitrary user id being
-        // confirmed by trying to follow it.
+    void somebodyWhoHasPublishedNothingCanStillBeFollowed() {
+        // You follow people back off your follower list, and most followers are learners who have
+        // never published. Since V33 they have a profile row and a real page, so this must work.
+        when(profiles.find("learner")).thenReturn(Optional.of(profile("learner", "Thanh")));
+        when(follows.existsByFollowerIdAndAuthorId(FOLLOWER, "learner")).thenReturn(false);
+
+        service.follow(FOLLOWER, "learner");
+
+        verify(follows).save(any());
+        // Not even asked for: a profile row already proves the user exists.
+        verify(decks, never()).findPublicByAuthor("learner");
+    }
+
+    @Test
+    void aUserWeHaveNeverHeardOfCannotBeFollowed() {
+        // A 404 stops a made-up user id being confirmed by trying to follow it.
+        when(profiles.find("nobody")).thenReturn(Optional.empty());
         when(decks.findPublicByAuthor("nobody")).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.follow(FOLLOWER, "nobody"))
@@ -169,6 +227,19 @@ class FollowServiceTest {
     }
 
     @Test
+    void theFollowingListNamesPeopleFromTheirProfileNotTheDeckSnapshot() {
+        when(follows.authorsFollowedBy(FOLLOWER)).thenReturn(List.of(AUTHOR));
+        when(decks.findPublicByAuthors(List.of(AUTHOR)))
+                .thenReturn(List.of(deck(AUTHOR, "JLPT N3 kanji")));
+        when(profiles.findAll(List.of(AUTHOR)))
+                .thenReturn(Map.of(AUTHOR, profile(AUTHOR, "Mai Tran")));
+
+        // The deck credits "Mai"; the profile says Mai Tran, and the profile is what they are
+        // called today. It is also the only name a followed-back learner has.
+        assertThat(service.following(FOLLOWER).getFirst().authorName()).isEqualTo("Mai Tran");
+    }
+
+    @Test
     void anAuthorWhoUnpublishedEverythingStillAppearsInTheList() {
         when(follows.authorsFollowedBy(FOLLOWER)).thenReturn(List.of(AUTHOR));
         when(decks.findPublicByAuthors(List.of(AUTHOR))).thenReturn(List.of());
@@ -191,6 +262,49 @@ class FollowServiceTest {
         // Not one lookup per author followed.
         verify(decks).findPublicByAuthors(List.of(AUTHOR, "author-2", "author-3"));
         verify(decks, never()).findPublicByAuthor(anyString());
+    }
+
+    // ── who follows you ──────────────────────────────────────────────────────
+
+    @Test
+    void anAuthorSeesWhoFollowsThem() {
+        when(follows.followersOf(AUTHOR)).thenReturn(List.of(FOLLOWER, "user-2"));
+        com.ankiquiz.entity.Profile named = new com.ankiquiz.entity.Profile();
+        named.setUserId(FOLLOWER);
+        named.setDisplayName("Thanh");
+        named.setAvatarUrl("thanh.webp");
+        when(profiles.findAll(List.of(FOLLOWER, "user-2")))
+                .thenReturn(java.util.Map.of(FOLLOWER, named));
+
+        List<com.ankiquiz.dto.response.FollowerResponse> rows = service.followers(AUTHOR, AUTHOR);
+
+        assertThat(rows).hasSize(2);
+        assertThat(rows.getFirst().displayName()).isEqualTo("Thanh");
+        assertThat(rows.getFirst().avatarUrl()).isEqualTo("thanh.webp");
+        // A follower we cannot name is still a follower — the row stays, the client shows the id.
+        assertThat(rows.get(1).userId()).isEqualTo("user-2");
+        assertThat(rows.get(1).displayName()).isNull();
+        // One query for every name, not one each.
+        verify(profiles).findAll(List.of(FOLLOWER, "user-2"));
+    }
+
+    @Test
+    void nobodyElseSeesAnAuthorsFollowerList() {
+        // The COUNT is public and sits under their name; the list is not. 404, not 403.
+        assertThatThrownBy(() -> service.followers(FOLLOWER, AUTHOR))
+                .isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> service.followers(null, AUTHOR))
+                .isInstanceOf(NotFoundException.class);
+        verify(follows, never()).followersOf(anyString());
+    }
+
+    @Test
+    void anAuthorWithNoFollowersGetsAnEmptyListNotAQuery() {
+        when(follows.followersOf(AUTHOR)).thenReturn(List.of());
+
+        assertThat(service.followers(AUTHOR, AUTHOR)).isEmpty();
+
+        verify(profiles, never()).findAll(any());
     }
 
     // ── publishing ───────────────────────────────────────────────────────────

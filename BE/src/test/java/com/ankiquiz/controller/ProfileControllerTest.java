@@ -2,7 +2,9 @@ package com.ankiquiz.controller;
 
 import com.ankiquiz.config.AdminAccess;
 import com.ankiquiz.dto.request.AuthorProfileRequest;
+import com.ankiquiz.dto.request.UsernameRequest;
 import com.ankiquiz.exception.GlobalExceptionHandler;
+import com.ankiquiz.exception.ConflictException;
 import com.ankiquiz.service.Caller;
 import com.ankiquiz.service.DeckService;
 import com.ankiquiz.service.ProfileService;
@@ -19,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -89,5 +92,38 @@ class ProfileControllerTest {
                         .with(jwt().jwt(j -> j.subject("user-123"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.updated").value(0));
+    }
+
+    @Test
+    void changeUsername_returnsTheStoredHandle() throws Exception {
+        when(profileService.changeUsername("user-123", "Pyrettt")).thenReturn("Pyrettt");
+
+        mockMvc.perform(put("/api/v1/me/username")
+                        .with(jwt().jwt(j -> j.subject("user-123")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new UsernameRequest("Pyrettt"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("Pyrettt"));
+    }
+
+    @Test
+    void changeUsername_is409WhenSomebodyElseHasIt() throws Exception {
+        when(profileService.changeUsername("user-123", "pyrettt"))
+                .thenThrow(new ConflictException("That username is taken."));
+
+        mockMvc.perform(put("/api/v1/me/username")
+                        .with(jwt().jwt(j -> j.subject("user-123")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new UsernameRequest("pyrettt"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("That username is taken."));
+    }
+
+    @Test
+    void changeUsername_needsAnAccount() throws Exception {
+        mockMvc.perform(put("/api/v1/me/username").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new UsernameRequest("pyrettt"))))
+                .andExpect(status().isUnauthorized());
     }
 }

@@ -2,13 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useSession } from "@/hooks/useSession";
 import { useDecks } from "@/hooks/useDecks";
+import { useMe } from "@/hooks/useMe";
+import { profileUrl } from "@/lib/profileUrl";
 import { createClient } from "@/lib/supabase/client";
 import { avatarUrlOf, displayNameOf, hasCustomAvatar, initialsFrom } from "@/lib/userDisplay";
 import { propagateAuthorProfile } from "@/lib/authorProfile";
 import { AccountSection, accountInputClasses } from "@/components/account/AccountSection";
-import { FollowingList } from "@/components/author/FollowingList";
+import { UsernameSection } from "@/components/account/UsernameSection";
 import { AvatarUploadModal } from "@/components/account/AvatarUploadModal";
 import { Avatar } from "@/components/ui/Avatar";
 import { Toast } from "@/components/shared/Toast";
@@ -25,6 +28,7 @@ function formatJoined(iso?: string): string | null {
 export default function ProfilePage() {
   const { user, loading } = useSession();
   const decksQuery = useDecks();
+  const me = useMe();
   const queryClient = useQueryClient();
 
   const storedName = displayNameOf(user);
@@ -121,7 +125,27 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <FollowingList />
+      {/* Followers and Following live on the public page, which is the one other people see —
+          this page is account settings. A link keeps them one click away. */}
+      {user && (
+        <Link
+          href={profileUrl(user.id, me.data?.username)}
+          className="focus-ring flex items-center gap-3 rounded-card border border-line bg-surface p-4 transition hover:border-line-strong"
+        >
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-input bg-accent-soft text-accent-ink">
+            <Icon name="user" size={17} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium text-ink">Your public page</span>
+            <span className="block text-xs text-muted">
+              {me.data?.username
+                ? `quizanki.app/user/${me.data.username}`
+                : "Your decks as other people see them, plus your followers and who you follow."}
+            </span>
+          </span>
+          <Icon name="chevronRight" size={15} className="shrink-0 text-faint" />
+        </Link>
+      )}
 
       {/* display name */}
       <AccountSection
@@ -148,6 +172,8 @@ export default function ProfilePage() {
           </button>
         </div>
       </AccountSection>
+
+      <UsernameSection />
 
       {/* email (read-only in v1) */}
       <AccountSection

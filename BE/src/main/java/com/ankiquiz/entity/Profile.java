@@ -22,6 +22,21 @@ public class Profile {
     @Column(name = "user_id", nullable = false)
     private String userId;
 
+    /**
+     * The public handle in {@code /user/{username}} (V35). Unique case-insensitively, and
+     * GENERATED rather than supplied — see {@link com.ankiquiz.service.Usernames}. Nullable only
+     * as a transient state: every row written gets one on the way in.
+     */
+    @Column(name = "username")
+    private String username;
+
+    /**
+     * Whether the handle above is theirs or ours (V36). False means we generated it and they have
+     * never seen it, which is what makes the client ask them to confirm it once.
+     */
+    @Column(name = "username_chosen", nullable = false)
+    private boolean usernameChosen;
+
     @Column(name = "display_name")
     private String displayName;
 
@@ -37,6 +52,22 @@ public class Profile {
 
     public void setUserId(String userId) {
         this.userId = userId;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public boolean isUsernameChosen() {
+        return usernameChosen;
+    }
+
+    public void setUsernameChosen(boolean usernameChosen) {
+        this.usernameChosen = usernameChosen;
     }
 
     public String getDisplayName() {

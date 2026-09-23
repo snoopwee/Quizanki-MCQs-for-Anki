@@ -19,12 +19,22 @@ import java.util.Map;
  * OAuth sign-in populates {@code full_name} but not {@code display_name}, and a
  * token could carry neither.
  */
-public record Caller(String id, String displayName, String avatarUrl) {
+public record Caller(String id, String displayName, String avatarUrl, String requestedUsername) {
 
     public static final String ANONYMOUS = "Anonymous";
 
+    /** Without a requested handle — the common case, and every caller that predates V36. */
+    public Caller(String id, String displayName, String avatarUrl) {
+        this(id, displayName, avatarUrl, null);
+    }
+
     public static Caller from(Jwt jwt) {
-        return new Caller(jwt.getSubject(), resolveDisplayName(jwt), resolveAvatarUrl(jwt));
+        return new Caller(jwt.getSubject(), resolveDisplayName(jwt), resolveAvatarUrl(jwt),
+                // What they typed into the sign-up form, carried in user_metadata because there is
+                // no session to call PUT /me/username with yet — an email-confirmation project
+                // hands back no token at all until they confirm. It is a REQUEST, not a claim: the
+                // server still checks it is free and legal before honouring it.
+                stringValue(userMetadata(jwt).get("username")));
     }
 
     /**
@@ -41,7 +51,7 @@ public record Caller(String id, String displayName, String avatarUrl) {
     public Caller withOverrides(String rawName, String rawAvatarUrl) {
         String name = (rawName != null && !rawName.isBlank()) ? rawName.trim() : displayName();
         String avatar = (rawAvatarUrl != null && !rawAvatarUrl.isBlank()) ? rawAvatarUrl.trim() : avatarUrl();
-        return new Caller(id(), name, avatar);
+        return new Caller(id(), name, avatar, requestedUsername());
     }
 
     // The profile picture, mirroring the FE's avatarUrlOf: the user's uploaded

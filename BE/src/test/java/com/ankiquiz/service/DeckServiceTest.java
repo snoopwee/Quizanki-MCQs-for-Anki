@@ -8,6 +8,7 @@ import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.DeckResponse;
 import com.ankiquiz.dto.response.PublicDeckPage;
 import com.ankiquiz.entity.Deck;
+import com.ankiquiz.entity.Profile;
 import com.ankiquiz.entity.Note;
 import com.ankiquiz.entity.NoteType;
 import com.ankiquiz.entity.UserDeck;
@@ -781,14 +782,46 @@ class DeckServiceTest {
     }
 
     @Test
-    void getAuthorPage_isEmpty_whenTheAuthorHasNoPublicDecks() {
-        when(deckRepository.findPublicByAuthor("nobody")).thenReturn(List.of());
+    void getAuthorPage_prefersTheProfileNameOverTheDecksCreditSnapshot() {
+        Deck a = deck();
+        a.setPublic(true);
+        a.setSharedAt(OffsetDateTime.now());
+        when(deckRepository.findPublicByAuthor("alice")).thenReturn(List.of(a));
+        when(profileService.find("alice")).thenReturn(Optional.of(profile("alice", "Alice Nguyen")));
 
-        var page = service.getAuthorPage("nobody");
+        // author_name on the deck is a CREDIT snapshot — it can even belong to somebody else after
+        // a copy — so the page shows what this person is called today.
+        assertThat(service.getAuthorPage("alice").authorName()).isEqualTo("Alice Nguyen");
+    }
 
-        assertThat(page.authorName()).isNull();
+    @Test
+    void getAuthorPage_isARealPage_forSomebodyWhoHasPublishedNothing() {
+        when(deckRepository.findPublicByAuthor("learner")).thenReturn(List.of());
+        when(profileService.find("learner")).thenReturn(Optional.of(profile("learner", "Thanh")));
+
+        var page = service.getAuthorPage("learner");
+
+        // Having published nothing is not the same as not existing: this is what makes a follower
+        // list worth clicking, and what you need to follow somebody back.
+        assertThat(page.authorName()).isEqualTo("Thanh");
         assertThat(page.deckCount()).isZero();
         assertThat(page.decks()).isEmpty();
+    }
+
+    @Test
+    void getAuthorPage_is404_forAUserWeHaveNeverHeardOf() {
+        when(deckRepository.findPublicByAuthor("nobody")).thenReturn(List.of());
+        when(profileService.find("nobody")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getAuthorPage("nobody"))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    private static Profile profile(String userId, String displayName) {
+        Profile p = new Profile();
+        p.setUserId(userId);
+        p.setDisplayName(displayName);
+        return p;
     }
 
     @Test

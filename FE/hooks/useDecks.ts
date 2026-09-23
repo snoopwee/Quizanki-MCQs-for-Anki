@@ -350,6 +350,24 @@ export function useAuthorPage(authorId: string) {
   });
 }
 
+/**
+ * The same page by handle — the URL people actually link to. Separate from useAuthorPage so the
+ * two cache under different keys; the uuid route only exists to redirect here.
+ */
+export function useUserPage(username: string) {
+  return useQuery({
+    queryKey: ["userPage", username],
+    enabled: Boolean(username),
+    retry: false,
+    queryFn: async () => {
+      const { data } = await api.get<AuthorPageResponse>(
+        `/public/users/${encodeURIComponent(username)}`,
+      );
+      return data;
+    },
+  });
+}
+
 // How many people have taken a copy of this deck.
 export function useDeckCopies(deckId: string) {
   return useQuery({

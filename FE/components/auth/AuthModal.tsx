@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/ui/BrandMark";
+import { UsernameField } from "@/components/auth/UsernameField";
+import { useUsernameAvailability } from "@/hooks/useUsernameAvailability";
 import { Icon } from "@/components/ui/icons";
 
 type Mode = "signup" | "login";
@@ -31,6 +33,7 @@ export function AuthModal({
   signupLabel?: string;
 }) {
   const [mode, setMode] = useState<Mode>(initialMode);
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +49,12 @@ export function AuthModal({
 
   const heading = title ?? (mode === "login" ? "Welcome back" : "Create your account");
 
+  // Same query key the field uses, so this is the same request, not a second one. Signing up is
+  // gated on a known-good handle: letting it through and fixing it afterwards is how you end up
+  // with accounts whose handle nobody chose.
+  const handleCheck = useUsernameAvailability(username, mode === "signup");
+  const handleReady = !handleCheck.checking && handleCheck.data?.available === true;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -57,7 +66,14 @@ export function AuthModal({
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) throw signInError;
       } else {
-        const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          // The handle rides along in user_metadata rather than being claimed with an API call:
+          // an email-confirmation project hands back no session here, so there would be no token
+          // to call with. The backend treats it as a REQUEST and re-checks it before honouring it.
+          options: { data: { username: username.trim() } },
+        });
         if (signUpError) throw signUpError;
         // Email-confirmation projects return no session; we can't continue until
         // they confirm and log in.
@@ -126,6 +142,16 @@ export function AuthModal({
         </div>
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+          {mode === "signup" && (
+            <UsernameField
+              id="auth-username"
+              value={username}
+              onChange={setUsername}
+              disabled={busy}
+              hint="Your public page lives here. You can change it later."
+            />
+          )}
+
           <div className="space-y-1.5">
             <label htmlFor="auth-email" className="text-sm font-medium">
               Email
@@ -134,7 +160,7 @@ export function AuthModal({
               id="auth-email"
               type="email"
               required
-              autoFocus
+              autoFocus={mode === "login"}
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -167,7 +193,7 @@ export function AuthModal({
 
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || (mode === "signup" && !handleReady)}
             className="focus-ring w-full rounded-input bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-50"
           >
             {busy ? "Working…" : mode === "login" ? loginLabel : signupLabel}

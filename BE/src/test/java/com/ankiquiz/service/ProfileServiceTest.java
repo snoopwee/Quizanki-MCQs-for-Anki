@@ -1,6 +1,7 @@
 package com.ankiquiz.service;
 
 import com.ankiquiz.entity.Profile;
+import com.ankiquiz.exception.ConflictException;
 import com.ankiquiz.repository.ProfileRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,7 +20,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.web.server.ResponseStatusException;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -190,5 +194,157 @@ class ProfileServiceTest {
         service.remember(new Caller("user-1", "Mai Thi Nguyen", null));
 
         assertThat(captureSaved().getDisplayName()).isEqualTo("Mai Thi Nguyen");
+    }
+
+    // ── handles (V35) ────────────────────────────────────────────────────────
+
+    @Test
+    void aNewProfileGetsAHandleSluggedFromTheirName() {
+        when(profiles.findById("user-1")).thenReturn(Optional.empty());
+
+        service.remember(new Caller("user-1", "Thanh Nguyen", null));
+
+        assertThat(captureSaved().getUsername()).isEqualTo("thanhnguyen");
+    }
+
+    @Test
+    void aTakenHandleGetsAPerUserSuffixRatherThanACounter() {
+        when(profiles.findById("user-1")).thenReturn(Optional.empty());
+        when(profiles.existsByUsernameIgnoreCase("mai")).thenReturn(true);
+
+        service.remember(new Caller("user-1", "Mai", null));
+        String taken = captureSaved().getUsername();
+
+        // Derived from the user's own id, so two people who slug to "mai" cannot land on the same
+        // answer — a counter would have to be read and written atomically to promise that.
+        assertThat(taken).startsWith("mai").isNotEqualTo("mai").hasSize(7);
+    }
+
+    @Test
+    void somebodyWithNoUsableNameStillGetsAHandle() {
+        when(profiles.findById("user-1")).thenReturn(Optional.empty());
+
+        // Blank, and also the case of a name written entirely in a script that slugs to nothing.
+        service.remember(new Caller("user-1", "   ", null));
+
+        assertThat(captureSaved().getUsername()).startsWith("user").hasSize(12);
+    }
+
+    @Test
+    void aHandleIsAssignedOnceAndSurvivesARename() {
+        Profile existing = stored("Mai", null);
+        existing.setUsername("mai");
+        when(profiles.findById("user-1")).thenReturn(Optional.of(existing));
+
+        service.remember(new Caller("user-1", "Mai Tran", null));
+
+        // A handle is somebody's URL. It must not drift every time they edit their display name.
+        assertThat(captureSaved().getUsername()).isEqualTo("mai");
+    }
+
+    @Test
+    void takingSomebodyElsesHandleIs409() {
+        Profile existing = stored("Mai", null);
+        existing.setUsername("mai");
+        when(profiles.findById("user-1")).thenReturn(Optional.of(existing));
+        when(profiles.existsByUsernameIgnoreCase("pyrettt")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.changeUsername("user-1", "pyrettt"))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("taken");
+    }
+
+    @Test
+    void restylingYourOwnHandleIsNotACollisionWithYourself() {
+        Profile existing = stored("Mai", null);
+        existing.setUsername("mai");
+        when(profiles.findById("user-1")).thenReturn(Optional.of(existing));
+        when(profiles.existsByUsernameIgnoreCase("MAI")).thenReturn(true);
+
+        assertThat(service.changeUsername("user-1", "MAI")).isEqualTo("MAI");
+        assertThat(existing.getUsername()).isEqualTo("MAI");
+    }
+
+    @Test
+    void aReservedOrMalformedHandleIsRefusedBeforeAnyLookup() {
+        assertThatThrownBy(() -> service.changeUsername("user-1", "admin"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("reserved");
+        assertThatThrownBy(() -> service.changeUsername("user-1", "no spaces"))
+                .isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(() -> service.changeUsername("user-1", "ab"))
+                .isInstanceOf(ResponseStatusException.class);
+
+        verify(profiles, never()).existsByUsernameIgnoreCase(any());
+    }
+
+    @Test
+    void aHandleResolvesToItsPersonCaseInsensitively() {
+        Profile mai = stored("Mai", null);
+        mai.setUsername("Pyrettt");
+        when(profiles.findByUsernameIgnoreCase("pyrettt")).thenReturn(Optional.of(mai));
+
+        assertThat(service.findByUsername("  pyrettt  ")).contains(mai);
+        assertThat(service.findByUsername("  ")).isEmpty();
+    }
+
+    // ── chosen vs generated (V36) ────────────────────────────────────────────
+
+    @Test
+    void aHandleTypedAtSignUpIsHonouredAndCountsAsChosen() {
+        when(profiles.findById("user-1")).thenReturn(Optional.empty());
+
+        service.remember(new Caller("user-1", "Thanh Nguyen", null, "pyrettt"));
+
+        Profile saved = captureSaved();
+        assertThat(saved.getUsername()).isEqualTo("pyrettt");
+        assertThat(saved.isUsernameChosen()).isTrue();
+    }
+
+    @Test
+    void aRequestedHandleThatIsTakenFallsBackAndIsNotMarkedChosen() {
+        when(profiles.findById("user-1")).thenReturn(Optional.empty());
+        when(profiles.existsByUsernameIgnoreCase("pyrettt")).thenReturn(true);
+
+        service.remember(new Caller("user-1", "Thanh Nguyen", null, "pyrettt"));
+
+        Profile saved = captureSaved();
+        // Not the one they picked, so they get asked — a handle we fell back to isn't theirs.
+        assertThat(saved.getUsername()).isEqualTo("thanhnguyen");
+        assertThat(saved.isUsernameChosen()).isFalse();
+    }
+
+    @Test
+    void aRequestedHandleIsNeverTrustedBlindly() {
+        when(profiles.findById("user-1")).thenReturn(Optional.empty());
+
+        // It rides in on user_metadata, which the client writes — so it is a REQUEST, checked
+        // against the same rules as anything typed in Settings.
+        service.remember(new Caller("user-1", "Thanh Nguyen", null, "admin"));
+
+        assertThat(captureSaved().getUsername()).isEqualTo("thanhnguyen");
+    }
+
+    @Test
+    void confirmingTheGeneratedHandleCountsAsChoosingIt() {
+        Profile existing = stored("Thanh", null);
+        existing.setUsername("thanhnguyen");
+        when(profiles.findById("user-1")).thenReturn(Optional.of(existing));
+
+        service.changeUsername("user-1", "thanhnguyen");
+
+        // The sign-up prompt is pre-filled, so most people answer it by pressing Continue. That
+        // has to end the prompting, or they would see it on every page load forever.
+        assertThat(existing.isUsernameChosen()).isTrue();
+    }
+
+    @Test
+    void availabilityAnswersWhyNotJustNo() {
+        when(profiles.existsByUsernameIgnoreCase("taken")).thenReturn(true);
+
+        assertThat(service.unavailableBecause("free")).isNull();
+        assertThat(service.unavailableBecause("taken")).contains("taken");
+        assertThat(service.unavailableBecause("admin")).contains("reserved");
+        assertThat(service.unavailableBecause("no spaces")).contains("letters");
     }
 }

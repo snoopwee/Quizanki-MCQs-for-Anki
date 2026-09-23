@@ -15,6 +15,9 @@ public record PublicDeckSummary(
         // The credited author's id — lets the client link the author name to their
         // author page (all their public decks).
         String authorId,
+        // The credited author's public handle, so the row links straight to /user/{username}
+        // instead of bouncing through the id alias. Null falls back to that alias.
+        String authorUsername,
         String authorName,
         // The credited author's avatar (a Supabase Storage URL), or null → the
         // client shows initials. Denormalized onto the deck like authorName.

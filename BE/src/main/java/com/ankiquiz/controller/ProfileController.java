@@ -2,6 +2,7 @@ package com.ankiquiz.controller;
 
 import com.ankiquiz.config.AdminAccess;
 import com.ankiquiz.dto.request.AuthorProfileRequest;
+import com.ankiquiz.dto.request.UsernameRequest;
 import com.ankiquiz.service.Caller;
 import com.ankiquiz.service.DeckService;
 import com.ankiquiz.service.ProfileService;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -52,11 +54,29 @@ public class ProfileController {
         profileService.rememberFromToken(Caller.from(jwt), jwt.getIssuedAt());
 
         String email = jwt.getClaimAsString("email");
-        return Map.of(
-                "userId", jwt.getSubject(),
-                "email", email == null ? "" : email,
-                "isAdmin", adminAccess.isAdmin(jwt.getSubject(), email)
-        );
+        Map<String, Object> me = new LinkedHashMap<>();
+        me.put("userId", jwt.getSubject());
+        me.put("email", email == null ? "" : email);
+        me.put("isAdmin", adminAccess.isAdmin(jwt.getSubject(), email));
+        // Read back after the write above, so a brand-new account sees the handle it was just
+        // given rather than a blank field. LinkedHashMap because Map.of rejects a null value, and
+        // a profile written before V35 has one.
+        com.ankiquiz.entity.Profile profile = profileService.find(jwt.getSubject()).orElse(null);
+        me.put("username", profile == null ? null : profile.getUsername());
+        // False means we picked their handle and they have never seen it — the client asks them to
+        // confirm it once, pre-filled, rather than making them invent one mid-signup.
+        me.put("usernameChosen", profile != null && profile.isUsernameChosen());
+        return me;
+    }
+
+    @PutMapping("/username")
+    @Operation(summary = "Change your public handle",
+            description = "The /user/{username} part of your profile URL. 409 when taken, 400 "
+                    + "when the shape is wrong or the name is reserved. Old links to the previous "
+                    + "handle stop working — /authors/{userId} does not, and never will.")
+    public Map<String, String> changeUsername(@AuthenticationPrincipal Jwt jwt,
+                                              @Valid @RequestBody UsernameRequest request) {
+        return Map.of("username", profileService.changeUsername(jwt.getSubject(), request.username()));
     }
 
     @PutMapping("/author-profile")

@@ -50,6 +50,7 @@ class ReviewReportServiceTest {
     @Mock private DeckRatingRepository ratings;
     @Mock private DeckRepository decks;
     @Mock private NotificationService notifications;
+    @Mock private AdminUserService adminUsers;
 
     private final Instant nowInstant = Instant.parse("2026-09-23T09:00:00Z");
     private final Clock clock = Clock.fixed(nowInstant, ZoneOffset.UTC);
@@ -61,7 +62,7 @@ class ReviewReportServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ReviewReportService(reports, ratings, decks, notifications, clock);
+        service = new ReviewReportService(reports, ratings, decks, notifications, adminUsers, clock);
     }
 
     private Deck deck() {
@@ -172,6 +173,57 @@ class ReviewReportServiceTest {
         verify(reports, never()).save(any());
     }
 
+    @Test
+    void aReportAlsoRecordsWhoWroteTheNote() {
+        deck();
+        note("this deck is rubbish and so are you");
+        when(adminUsers.displayNameOf("rater-2")).thenReturn(Optional.of("Troublesome Tim"));
+
+        service.report(AUTHOR, deckId, noteId, "Abusive", null);
+
+        ReviewReport saved = captureSaved();
+        // Snapshot, not a lookup through the rating: an admin takedown DELETES the rating, so
+        // resolving identity later would fail right after the first moderation action.
+        assertThat(saved.getWriterId()).isEqualTo("rater-2");
+        assertThat(saved.getWriterName()).isEqualTo("Troublesome Tim");
+    }
+
+    @Test
+    void aFailedNameLookupStillFilesTheReport() {
+        deck();
+        note("this deck is rubbish and so are you");
+        // Supabase down, or the name simply not set. Reporting abuse must not depend on it.
+        when(adminUsers.displayNameOf("rater-2")).thenReturn(Optional.empty());
+
+        assertThat(service.report(AUTHOR, deckId, noteId, null, null)).isTrue();
+
+        ReviewReport saved = captureSaved();
+        assertThat(saved.getWriterName()).isNull();
+        // The id is what identifies the account, and it never depends on an outside call.
+        assertThat(saved.getWriterId()).isEqualTo("rater-2");
+    }
+
+    @Test
+    void theWriterIsStillOnTheReportAfterTheRatingIsTakenDown() {
+        ReviewReport report = filed("open");
+        report.setWriterId("rater-2");
+        report.setWriterName("Troublesome Tim");
+        note("this deck is rubbish and so are you");
+
+        service.takeDownRating(reportId);
+
+        // The whole reason for the snapshot: the rating is gone, and the account is still reachable.
+        when(reports.findByStatusOrderByCreatedAtDesc("open")).thenReturn(List.of(report));
+        Deck theDeck = deck();
+        when(decks.findAllById(List.of(deckId))).thenReturn(List.of(theDeck));
+        when(ratings.findByDeckIdAndPublicId(deckId, noteId)).thenReturn(Optional.empty());
+
+        AdminReviewReportResponse row = service.list("open").getFirst();
+        assertThat(row.ratingStillThere()).isFalse();
+        assertThat(row.writerId()).isEqualTo("rater-2");
+        assertThat(row.writerName()).isEqualTo("Troublesome Tim");
+    }
+
     // ── the queue ────────────────────────────────────────────────────────────
 
     @Test
@@ -187,7 +239,7 @@ class ReviewReportServiceTest {
         assertThat(rows).hasSize(1);
         assertThat(rows.getFirst().noteSnapshot()).isEqualTo("this deck is rubbish and so are you");
         assertThat(rows.getFirst().deckName()).isEqualTo("JLPT N3 kanji");
-        assertThat(rows.getFirst().noteStillThere()).isTrue();
+        assertThat(rows.getFirst().ratingStillThere()).isTrue();
     }
 
     @Test
@@ -202,11 +254,11 @@ class ReviewReportServiceTest {
         List<AdminReviewReportResponse> rows = service.list("open");
 
         assertThat(rows.getFirst().noteSnapshot()).isEqualTo("this deck is rubbish and so are you");
-        assertThat(rows.getFirst().noteStillThere()).isFalse();
+        assertThat(rows.getFirst().ratingStillThere()).isFalse();
     }
 
     @Test
-    void theQueueCarriesNoIdentityForWhoeverWroteTheNote() {
+    void theQueueNamesBothSidesForTheAdmin() {
         ReviewReport report = filed("open");
         when(reports.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(report));
         Deck theDeck = deck();
@@ -215,10 +267,10 @@ class ReviewReportServiceTest {
 
         AdminReviewReportResponse row = service.list(null).getFirst();
 
-        // The reporter is named (they are the author, and an admin may need to answer them); the
-        // writer is not. Acting on a person goes through the user tools instead.
+        // Both sides are named for the admin: the reporter (so they can be answered) and the
+        // writer (so a repeat offender can be reached). The AUTHOR's own feedback page still shows
+        // neither — that is DeckFeedbackResponse, which has nowhere to put a name.
         assertThat(row.reporterId()).isEqualTo(AUTHOR);
-        assertThat(row.toString()).doesNotContain("rater-2");
     }
 
     // ── admin actions ────────────────────────────────────────────────────────
@@ -267,31 +319,42 @@ class ReviewReportServiceTest {
 
         assertThatThrownBy(() -> service.updateStatus(reportId, "resolved", ADMIN))
                 .isInstanceOf(NotFoundException.class);
-        assertThatThrownBy(() -> service.deleteNote(reportId)).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> service.takeDownRating(reportId)).isInstanceOf(NotFoundException.class);
     }
 
     @Test
-    void anAdminTakingANoteDownLeavesTheRatingStanding() {
+    void anAdminTakeDownRemovesTheWholeRating() {
         filed("open");
         DeckRating rating = note("this deck is rubbish and so are you");
 
-        assertThat(service.deleteNote(reportId)).isTrue();
+        assertThat(service.takeDownRating(reportId)).isTrue();
 
-        ArgumentCaptor<DeckRating> saved = ArgumentCaptor.forClass(DeckRating.class);
-        verify(ratings).save(saved.capture());
-        assertThat(saved.getValue().getNote()).isNull();
-        // Removing the score with the text would hand anyone a way to scrub a bad rating by
-        // writing something reportable.
-        assertThat(saved.getValue().getStars()).isEqualTo((short) 2);
-        assertThat(rating.getStars()).isEqualTo((short) 2);
+        // Stars and note together. The note is private and the star is public, so clearing only
+        // the text would leave the abuser's mark on the score and take away the one thing the
+        // author could see. The reason box plus an admin reading it is the safeguard, not a rule
+        // that ties their hands.
+        verify(ratings).delete(rating);
+        // A star has gone, so the deck's public score has to be recomputed.
+        verify(ratings).refreshAggregate(deckId);
     }
 
     @Test
-    void takingDownANoteThatIsAlreadyGoneIsNotAnError() {
+    void aRatingWhoseNoteTheAuthorAlreadyClearedCanStillBeTakenDown() {
         filed("open");
-        note(null);
+        DeckRating starsOnly = note(null);
 
-        assertThat(service.deleteNote(reportId)).isFalse();
-        verify(ratings, never()).save(any());
+        // The star is the public half; it outlives the text and is still actionable.
+        assertThat(service.takeDownRating(reportId)).isTrue();
+        verify(ratings).delete(starsOnly);
+    }
+
+    @Test
+    void takingDownARatingThatIsAlreadyGoneIsNotAnError() {
+        filed("open");
+        when(ratings.findByDeckIdAndPublicId(deckId, noteId)).thenReturn(Optional.empty());
+
+        assertThat(service.takeDownRating(reportId)).isFalse();
+        verify(ratings, never()).delete(any(DeckRating.class));
+        verify(ratings, never()).refreshAggregate(any());
     }
 }

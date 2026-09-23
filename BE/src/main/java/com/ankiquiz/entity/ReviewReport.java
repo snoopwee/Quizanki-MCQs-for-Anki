@@ -44,6 +44,19 @@ public class ReviewReport {
     @Column(name = "note_snapshot", nullable = false)
     private String noteSnapshot;
 
+    /**
+     * Who wrote the note (V31), snapshot at report time. NOT resolved through
+     * {@code ratingPublicId} on demand: an admin takedown deletes the rating, so the moment they
+     * moderate is the moment that route disappears — taking the obvious action would destroy what
+     * the next one needs. Admin queue only; the author's feedback page never sees it.
+     */
+    @Column(name = "writer_id")
+    private String writerId;
+
+    /** What they were called at the time. Null when Supabase couldn't be reached. */
+    @Column(name = "writer_name")
+    private String writerName;
+
     @Column(nullable = false)
     private String status;
 
@@ -110,6 +123,22 @@ public class ReviewReport {
 
     public void setNoteSnapshot(String noteSnapshot) {
         this.noteSnapshot = noteSnapshot;
+    }
+
+    public String getWriterId() {
+        return writerId;
+    }
+
+    public void setWriterId(String writerId) {
+        this.writerId = writerId;
+    }
+
+    public String getWriterName() {
+        return writerName;
+    }
+
+    public void setWriterName(String writerName) {
+        this.writerName = writerName;
     }
 
     public String getStatus() {

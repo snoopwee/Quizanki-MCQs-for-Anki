@@ -39,7 +39,8 @@ export function ReportNoteModal({
             Thanks — an admin will look at it. You&apos;ll get a notification when they have.
           </p>
           <p className="mt-2 text-sm text-muted">
-            You can still delete the note yourself; the report keeps its own copy of the text.
+            You can still delete the note yourself in the meantime — the report keeps its own copy
+            of the text, so it can still be judged.
           </p>
           <div className="mt-5 flex justify-end">
             <button type="button" onClick={onClose} className={buttonClasses({ variant: "primary" })}>
@@ -50,8 +51,8 @@ export function ReportNoteModal({
       ) : (
         <>
           <p className="text-sm text-muted">
-            For a note that&apos;s abusive rather than just unwelcome. Their rating isn&apos;t
-            affected either way — moderation is about the text.
+            For a note that&apos;s abusive rather than just unwelcome. Say why below — an admin
+            reads it, and if they agree they&apos;ll remove the whole rating, stars included.
           </p>
 
           <blockquote className="mt-3 max-h-32 overflow-y-auto whitespace-pre-wrap break-words rounded-input border border-line bg-surface-2 px-3 py-2 text-sm text-ink">

@@ -66,13 +66,22 @@ export function useUpdateReviewReport() {
   });
 }
 
-/** Take the note down. The rating it came with stands — the backend enforces that. */
-export function useDeleteReportedNote() {
+/**
+ * Take the whole rating down — stars and note. Unlike the author's own delete, which only clears
+ * text: the note is private and the star is public, so removing just the text would leave the
+ * abuser's mark on the deck's score.
+ */
+export function useTakeDownRating() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (reportId: string) => {
-      await api.delete(`/admin/review-reports/${reportId}/note`);
+      await api.delete(`/admin/review-reports/${reportId}/rating`);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "review-reports"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "review-reports"] });
+      // A star has gone, so every surface that shows a deck's score is stale.
+      queryClient.invalidateQueries({ queryKey: ["decks"] });
+      queryClient.invalidateQueries({ queryKey: ["discover"] });
+    },
   });
 }

@@ -149,8 +149,9 @@ export default function DeckFeedbackPage() {
       )}
 
       <p className="text-xs text-muted">
-        Deleting a note removes the text for good — their rating stays either way. Report it instead
-        if somebody should look at who wrote it; an admin will tell you what they decided.
+        Deleting a note removes the text for good, and their rating still counts. Report it instead
+        if it&apos;s abusive: an admin can remove the whole rating, and either way they&apos;ll tell
+        you what they decided.
       </p>
 
       {reporting && (

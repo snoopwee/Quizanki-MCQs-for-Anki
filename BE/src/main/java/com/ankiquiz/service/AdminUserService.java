@@ -16,6 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
 import java.time.OffsetDateTime;
+import java.util.Optional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -173,10 +174,39 @@ public class AdminUserService {
         return null;
     }
 
-    private void requireConfigured() {
+    /**
+     * One user's display name, or empty when it can't be had.
+     *
+     * <p>Deliberately soft: this is called while somebody is REPORTING ABUSE, and a Supabase
+     * outage must not stop that report being filed. The id is what identifies the account; the
+     * name is a convenience for whoever reads the queue.
+     */
+    public Optional<String> displayNameOf(String userId) {
+        if (!isConfigured() || userId == null || userId.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            GoTrueUser user = http.get()
+                    .uri(URI.create(supabaseUrl + "/auth/v1/admin/users/" + userId))
+                    .header("apikey", serviceKey)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceKey)
+                    .retrieve()
+                    .body(GoTrueUser.class);
+            return Optional.ofNullable(user).map(u -> displayName(u.userMetadata()));
+        } catch (Exception e) {
+            log.warn("Couldn't resolve a display name for moderation: {}", e.toString());
+            return Optional.empty();
+        }
+    }
+
+    private boolean isConfigured() {
         boolean urlOk = supabaseUrl != null && !supabaseUrl.isBlank() && !supabaseUrl.contains("replace-me");
         boolean keyOk = serviceKey != null && !serviceKey.isBlank();
-        if (!urlOk || !keyOk) {
+        return urlOk && keyOk;
+    }
+
+    private void requireConfigured() {
+        if (!isConfigured()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                     "User management isn't configured on the server (missing service key).");
         }

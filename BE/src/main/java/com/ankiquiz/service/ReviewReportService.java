@@ -30,6 +30,10 @@ import java.util.stream.Collectors;
  * text: the author may clear the note (and the rater may delete the whole rating) the moment after
  * reporting it, and an admin judging an empty report would have to take the reporter's word for it.
  *
+ * <p>The report also records WHO wrote the note (admin queue only — the author's feedback page
+ * stays anonymous), because an admin takedown deletes the rating: without a snapshot, moderating
+ * would be the act that destroys the route back to the account.
+ *
  * <p>Deliberately separate from {@link ReportService}: deck reports are about something public that
  * anyone can go and look at, note reports are about text one person was shown. Sharing a table
  * would have meant widening a working flow to carry a column it has no use for.
@@ -43,14 +47,17 @@ public class ReviewReportService {
     private final DeckRatingRepository ratings;
     private final DeckRepository decks;
     private final NotificationService notifications;
+    private final AdminUserService adminUsers;
     private final Clock clock;
 
     public ReviewReportService(ReviewReportRepository reports, DeckRatingRepository ratings,
-                               DeckRepository decks, NotificationService notifications, Clock clock) {
+                               DeckRepository decks, NotificationService notifications,
+                               AdminUserService adminUsers, Clock clock) {
         this.reports = reports;
         this.ratings = ratings;
         this.decks = decks;
         this.notifications = notifications;
+        this.adminUsers = adminUsers;
         this.clock = clock;
     }
 
@@ -81,6 +88,12 @@ public class ReviewReportService {
         report.setDetails(trimToNull(details));
         // The snapshot is the whole point: the text has to survive being taken down.
         report.setNoteSnapshot(rating.getNote());
+        // And so does the writer. An admin takedown deletes the rating, so resolving identity
+        // through the rating later would fail exactly after the first moderation action — the
+        // obvious move would destroy what a ban needs. The name is best-effort: a Supabase outage
+        // must not stop somebody reporting abuse, so a failure leaves it null and keeps the id.
+        report.setWriterId(rating.getUserId());
+        report.setWriterName(adminUsers.displayNameOf(rating.getUserId()).orElse(null));
         report.setStatus("open");
         report.setCreatedAt(OffsetDateTime.now(clock));
         reports.save(report);
@@ -103,12 +116,14 @@ public class ReviewReportService {
 
         return found.stream().map(r -> {
             Deck deck = byId.get(r.getDeckId());
+            // Whether there is still a rating to act on. The note may already be cleared (by the
+            // author) while the star stands — that rating can still be taken down.
             boolean live = ratings.findByDeckIdAndPublicId(r.getDeckId(), r.getRatingPublicId())
-                    .map(rating -> rating.getNote() != null)
-                    .orElse(false);
+                    .isPresent();
             return new AdminReviewReportResponse(
                     r.getId(), r.getDeckId(), deck == null ? null : deck.getName(),
                     r.getReporterId(), r.getReason(), r.getDetails(), r.getNoteSnapshot(),
+                    r.getWriterId(), r.getWriterName(),
                     live, r.getStatus(), r.getCreatedAt());
         }).toList();
     }
@@ -131,23 +146,28 @@ public class ReviewReportService {
     }
 
     /**
-     * An admin takes the note down. Same rule as the author's own delete: <b>the rating survives</b>
-     * — moderation is about the text, and removing the score with it would hand anyone a way to
-     * scrub a bad rating by writing something reportable.
+     * An admin takes the whole rating down — <b>stars and note together</b> — and the deck's public
+     * score is recomputed without it.
      *
-     * @return whether text was actually cleared.
+     * <p>This is deliberately NOT the same as the author's own delete, which only ever clears text.
+     * The note is private and the star is public: clearing only the text would leave the abuser's
+     * mark on the score and remove the one thing the author could actually see, which rewards the
+     * abuse. The safeguard against an author using reports to scrub bad ratings is the report's
+     * reason box and an admin reading it — a person deciding, not a rule that ties their hands.
+     *
+     * @return whether a rating was actually removed.
      */
     @Transactional
-    public boolean deleteNote(UUID reportId) {
+    public boolean takeDownRating(UUID reportId) {
         ReviewReport report = require(reportId);
         Optional<DeckRating> found =
                 ratings.findByDeckIdAndPublicId(report.getDeckId(), report.getRatingPublicId());
-        if (found.isEmpty() || found.get().getNote() == null) {
+        if (found.isEmpty()) {
             return false;
         }
-        DeckRating rating = found.get();
-        rating.setNote(null);
-        ratings.save(rating);
+        ratings.delete(found.get());
+        // A star has gone, so the deck's public score is stale until this runs.
+        ratings.refreshAggregate(report.getDeckId());
         return true;
     }
 

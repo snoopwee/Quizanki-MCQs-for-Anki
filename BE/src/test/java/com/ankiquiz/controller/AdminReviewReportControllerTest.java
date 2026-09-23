@@ -54,7 +54,7 @@ class AdminReviewReportControllerTest {
     void listsReportedNotesWithTheirSnapshot() throws Exception {
         when(reviewReportService.list("open")).thenReturn(List.of(new AdminReviewReportResponse(
                 reportId, deckId, "JLPT N3 kanji", "author-9", "Abusive", null,
-                "this deck is rubbish and so are you", true, "open",
+                "this deck is rubbish and so are you", "rater-2", "Troublesome Tim", true, "open",
                 OffsetDateTime.parse("2026-09-23T09:00:00Z"))));
 
         mockMvc.perform(get("/api/v1/admin/review-reports").param("status", "open")
@@ -62,10 +62,10 @@ class AdminReviewReportControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].noteSnapshot").value("this deck is rubbish and so are you"))
                 .andExpect(jsonPath("$[0].deckName").value("JLPT N3 kanji"))
-                .andExpect(jsonPath("$[0].noteStillThere").value(true))
-                // The queue judges text: there is nowhere in the row for the writer's identity.
-                .andExpect(jsonPath("$[0].userId").doesNotExist())
-                .andExpect(jsonPath("$[0].writerId").doesNotExist());
+                .andExpect(jsonPath("$[0].ratingStillThere").value(true))
+                // Admin-only: the account behind the note, so the ban flow is reachable from here.
+                .andExpect(jsonPath("$[0].writerId").value("rater-2"))
+                .andExpect(jsonPath("$[0].writerName").value("Troublesome Tim"));
     }
 
     @Test
@@ -92,20 +92,20 @@ class AdminReviewReportControllerTest {
 
     @Test
     void anUnknownReportIs404() throws Exception {
-        when(reviewReportService.deleteNote(any())).thenThrow(new NotFoundException("Report not found"));
+        when(reviewReportService.takeDownRating(any())).thenThrow(new NotFoundException("Report not found"));
 
-        mockMvc.perform(delete("/api/v1/admin/review-reports/{id}/note", reportId)
+        mockMvc.perform(delete("/api/v1/admin/review-reports/{id}/rating", reportId)
                         .with(jwt().jwt(j -> j.subject("admin-1"))))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void takingTheNoteDownReturns204() throws Exception {
-        mockMvc.perform(delete("/api/v1/admin/review-reports/{id}/note", reportId)
+    void takingTheRatingDownReturns204() throws Exception {
+        mockMvc.perform(delete("/api/v1/admin/review-reports/{id}/rating", reportId)
                         .with(jwt().jwt(j -> j.subject("admin-1"))))
                 .andExpect(status().isNoContent());
 
-        verify(reviewReportService).deleteNote(reportId);
+        verify(reviewReportService).takeDownRating(reportId);
     }
 
     @Test
@@ -113,10 +113,10 @@ class AdminReviewReportControllerTest {
         mockMvc.perform(get("/api/v1/admin/review-reports")).andExpect(status().isUnauthorized());
         // csrf() because a @WebMvcTest slice doesn't load SecurityConfig (which disables CSRF), so
         // these would otherwise be refused as 403 before authentication is reached.
-        mockMvc.perform(delete("/api/v1/admin/review-reports/{id}/note", reportId).with(csrf()))
+        mockMvc.perform(delete("/api/v1/admin/review-reports/{id}/rating", reportId).with(csrf()))
                 .andExpect(status().isUnauthorized());
 
         verify(reviewReportService, never()).list(any());
-        verify(reviewReportService, never()).deleteNote(any());
+        verify(reviewReportService, never()).takeDownRating(any());
     }
 }

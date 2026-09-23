@@ -57,13 +57,14 @@ public class AdminReviewReportController {
         return ResponseEntity.noContent().build();
     }
 
-    @DeleteMapping("/{reportId}/note")
-    @Operation(summary = "Take the reported note down",
-            description = "Clears the text; the RATING it came with stands. Removing the score too "
-                    + "would hand anyone a way to scrub a bad rating by writing something "
-                    + "reportable. 204 whether or not text was still there.")
-    public ResponseEntity<Void> deleteNote(@PathVariable UUID reportId) {
-        reviewReportService.deleteNote(reportId);
+    @DeleteMapping("/{reportId}/rating")
+    @Operation(summary = "Take the reported rating down",
+            description = "Removes the rating outright — stars and note — and recomputes the deck's "
+                    + "score. Unlike the author's own delete, which only clears text: the note is "
+                    + "private and the star is public, so removing just the text would leave the "
+                    + "abuser's mark on the score. 204 whether or not it was still there.")
+    public ResponseEntity<Void> takeDownRating(@PathVariable UUID reportId) {
+        reviewReportService.takeDownRating(reportId);
         return ResponseEntity.noContent().build();
     }
 }

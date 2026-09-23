@@ -196,8 +196,9 @@ export interface DeckFeedbackResponse {
  * GET /api/v1/admin/review-reports — a note an author escalated.
  *
  * `noteSnapshot` is the text as it was when reported, so it survives being taken down;
- * `noteStillThere` says whether the live note is still there. There is no writer identity in this
- * row on purpose: the queue judges text, and acting on a person goes through the user tools.
+ * `ratingStillThere` says whether there is still a rating to act on (the author may have cleared
+ * the note while the star stands). There is no writer identity in this row on purpose: the queue
+ * judges text, and acting on a person goes through the user tools.
  */
 export interface AdminReviewReport {
   id: string;
@@ -207,7 +208,12 @@ export interface AdminReviewReport {
   reason: string | null;
   details: string | null;
   noteSnapshot: string;
-  noteStillThere: boolean;
+  // ADMIN-ONLY: who wrote it, as recorded when it was reported. `writerName` may be null (Supabase
+  // unreachable, or no name set); the id is what identifies the account. The author's feedback
+  // page shows neither — it has nowhere to put them.
+  writerId: string | null;
+  writerName: string | null;
+  ratingStillThere: boolean;
   status: string; // open | resolved | dismissed
   createdAt: string;
 }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ImportProvider, useImportContext } from "@/components/import/ImportProvider";
 import { useMe } from "@/hooks/useMe";
+import { useReportCounts } from "@/hooks/useReports";
 import { ADMIN_SECTIONS } from "@/lib/adminNav";
 import { AccountMenu } from "@/components/account/AccountMenu";
 import { BrandMark } from "@/components/ui/BrandMark";
@@ -246,6 +247,9 @@ function Sidebar({
   const me = useMe();
   const isAdmin = me.data?.isAdmin ?? false;
   const roleKnown = !me.isPending;
+  // Only asked for once we know they're an admin — the endpoint is ROLE_ADMIN-gated, so asking
+  // as anybody else is a guaranteed 403.
+  const openReports = useReportCounts(isAdmin).data?.total ?? 0;
   return (
     <aside
       onMouseEnter={onHoverChange ? () => onHoverChange(true) : undefined}
@@ -317,6 +321,9 @@ function Sidebar({
                 icon={s.icon}
                 expanded={expanded}
                 onNavigate={onNavigate}
+                // Reports is the only section with a queue behind it, so it is the only one that
+                // can be waiting on somebody. Open reports only — a closed one needs nobody.
+                badge={s.href === "/admin/reports" ? openReports : undefined}
               />
             ) : (
               <SoonNavItem key={s.href} label={s.label} icon={s.icon} expanded={expanded} />
@@ -382,6 +389,7 @@ function NavLink({
   label,
   icon,
   trailing,
+  badge,
   expanded = true,
   onNavigate,
 }: {
@@ -392,6 +400,9 @@ function NavLink({
   // Optional inline indicator (e.g. a "saving…" spinner) that follows the user
   // between pages. Only rendered when expanded.
   trailing?: React.ReactNode;
+  // A count that must survive the rail collapsing — `trailing` lives inside the label, which is
+  // exactly what disappears. Rendered as a number when there is room and a dot when there isn't.
+  badge?: number;
   expanded?: boolean;
   onNavigate?: () => void;
 }) {
@@ -400,18 +411,32 @@ function NavLink({
     <Link
       href={href}
       onClick={onNavigate}
-      title={expanded ? undefined : label}
+      title={expanded ? undefined : badge ? `${label} (${badge})` : label}
+      aria-label={expanded ? undefined : badge ? `${label}, ${badge} waiting` : label}
       className={`flex h-10 items-center rounded-input transition-colors ${
         active
           ? "bg-accent-soft font-semibold text-accent-ink"
           : "text-muted hover:bg-surface-2 hover:text-ink"
       }`}
     >
-      <span className="grid h-10 w-10 shrink-0 place-items-center">
+      <span className="relative grid h-10 w-10 shrink-0 place-items-center">
         <Icon name={icon} size={18} />
+        {/* Collapsed, there is no room for a number beside the label — and the label is gone
+            anyway. A dot on the icon still says "something is waiting here". */}
+        {!expanded && badge ? (
+          <span
+            aria-hidden
+            className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger ring-2 ring-surface"
+          />
+        ) : null}
       </span>
       <RevealLabel show={expanded} className="flex flex-1 items-center gap-2">
         <span className="flex-1">{label}</span>
+        {badge ? (
+          <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-danger px-1.5 py-0.5 text-[0.6875rem] font-semibold leading-none text-white">
+            {badge > 99 ? "99+" : badge}
+          </span>
+        ) : null}
         {trailing}
       </RevealLabel>
     </Link>

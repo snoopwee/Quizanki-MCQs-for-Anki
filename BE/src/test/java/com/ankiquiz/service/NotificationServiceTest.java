@@ -327,10 +327,10 @@ class NotificationServiceTest {
     @Test
     void everyKindsWireValueMatchesWhatTheMigrationAllows() {
         // The DB's check constraint lists exactly these; a drift here is a 500 on write. V27 set
-        // the first three, then V29, V30 and V34 each replaced the constraint to add one more.
+        // the first three, then V29, V30, V34 and V37 each replaced the constraint to add one more.
         assertThat(List.of(NotificationKind.values())).extracting(NotificationKind::wire)
                 .containsExactly("deck_shared", "author_published", "announcement", "deck_reviewed",
-                        "report_reviewed", "new_follower");
+                        "report_reviewed", "new_follower", "content_removed");
     }
 
     @Test
@@ -534,5 +534,29 @@ class NotificationServiceTest {
         // is something the person asked for themselves.
         assertThat(NotificationKind.ANNOUNCEMENT.mutable()).isFalse();
         assertThat(NotificationKind.REPORT_REVIEWED.mutable()).isFalse();
+    }
+
+    @Test
+    void contentRemovedNamesTheDeckButNeverTheReporter() {
+        assertThat(service.contentRemoved(USER, deckId, "JLPT N3 kanji", "Personal abuse, not feedback.")).isTrue();
+
+        Notification saved = captureSaved();
+        assertThat(saved.getKind()).isEqualTo("content_removed");
+        assertThat(saved.getTitle()).isEqualTo("Your rating was removed");
+        // The reporter is an author acting on their own deck. Naming them turns a moderation
+        // decision into a grudge, so the body says only which deck it was about.
+        // The admin's grounds travel with it — that is why the API refuses a takedown without one.
+        assertThat(saved.getBody())
+                .isEqualTo("It was on JLPT N3 kanji. Personal abuse, not feedback.");
+        assertThat(saved.getActorName()).isNull();
+    }
+
+    @Test
+    void contentRemovedWithNobodyToTellWritesNothing() {
+        // A report old enough to predate the writer snapshot has no recipient. One guard, here,
+        // so callers don't each need their own.
+        assertThat(service.contentRemoved(null, deckId, "JLPT N3 kanji", "why")).isFalse();
+        assertThat(service.contentRemoved("  ", deckId, "JLPT N3 kanji", "why")).isFalse();
+        verify(notifications, never()).save(any());
     }
 }

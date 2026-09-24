@@ -87,7 +87,7 @@ class ReportServiceTest {
         deck.setAuthorName("Alice");
         when(deckRepository.findAllById(any())).thenReturn(List.of(deck)); // otherDeck missing
 
-        List<AdminReportResponse> out = service().listReports("open");
+        List<AdminReportResponse> out = service().listReports("open", null);
 
         assertThat(out).hasSize(2);
         assertThat(out.get(0).deckName()).isEqualTo("JLPT N4");
@@ -101,7 +101,7 @@ class ReportServiceTest {
         DeckReport r = report(deckId, "spam");
         when(reportRepository.findById(reportId)).thenReturn(Optional.of(r));
 
-        service().updateStatus(reportId, "Resolved", "admin-1"); // case-insensitive
+        service().updateStatus(reportId, "Resolved", "admin-1", "Because."); // case-insensitive
 
         assertThat(r.getStatus()).isEqualTo("resolved");
         assertThat(r.getResolvedBy()).isEqualTo("admin-1");
@@ -111,7 +111,7 @@ class ReportServiceTest {
 
     @Test
     void updateStatus_rejectsAnythingButResolvedOrDismissed() {
-        assertThatThrownBy(() -> service().updateStatus(UUID.randomUUID(), "open", "admin-1"))
+        assertThatThrownBy(() -> service().updateStatus(UUID.randomUUID(), "open", "admin-1", "Because."))
                 .isInstanceOf(ResponseStatusException.class);
         verify(reportRepository, never()).save(any());
     }

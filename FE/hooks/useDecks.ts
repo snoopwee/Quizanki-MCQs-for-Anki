@@ -359,6 +359,11 @@ export function useUserPage(username: string) {
     queryKey: ["userPage", username],
     enabled: Boolean(username),
     retry: false,
+    // Carries the follower COUNT, which moves when somebody else follows you — nothing in this
+    // browser can know that, so coming back to the tab is the cue. Same reasoning as the follower
+    // list in useFollows.
+    refetchOnWindowFocus: true,
+    staleTime: 0,
     queryFn: async () => {
       const { data } = await api.get<AuthorPageResponse>(
         `/public/users/${encodeURIComponent(username)}`,

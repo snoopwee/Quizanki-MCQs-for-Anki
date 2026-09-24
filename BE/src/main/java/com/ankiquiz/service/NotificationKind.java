@@ -27,7 +27,16 @@ public enum NotificationKind {
     REPORT_REVIEWED("report_reviewed", false),
 
     /** Somebody started following this author. */
-    NEW_FOLLOWER("new_follower");
+    NEW_FOLLOWER("new_follower"),
+
+    /**
+     * An admin removed something this user wrote or published.
+     *
+     * <p>Not mutable. The reporter already hears the outcome; until this existed the person it
+     * actually happened to just found their rating gone. Somebody who broke a rule and is never
+     * told cannot do better next time, and somebody moderated by mistake has nothing to appeal.
+     */
+    CONTENT_REMOVED("content_removed", false);
 
     private final String wire;
     private final boolean mutable;

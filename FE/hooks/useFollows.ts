@@ -71,6 +71,12 @@ export function useFollowers(authorId: string, isSelf: boolean) {
   return useQuery({
     queryKey: ["followers", authorId],
     enabled: Boolean(authorId) && isSelf,
+    // Somebody following you happens in THEIR browser, so nothing here can invalidate this — the
+    // only cue we get is the viewer coming back to the tab. The app-wide default is
+    // refetchOnWindowFocus: false, which left this list showing yesterday's followers until a hard
+    // refresh. staleTime 0 is part of it: the global 60s would skip the focus refetch as fresh.
+    refetchOnWindowFocus: true,
+    staleTime: 0,
     queryFn: async () => {
       const { data } = await api.get<FollowerResponse[]>(`/authors/${authorId}/followers`);
       return data;

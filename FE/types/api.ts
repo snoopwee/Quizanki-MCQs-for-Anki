@@ -17,6 +17,13 @@ export interface MeResponse {
   usernameChosen: boolean;
 }
 
+// GET /api/v1/admin/reports/counts — outstanding moderation work, for the sidebar badge.
+export interface ReportCounts {
+  deckReports: number;
+  noteReports: number;
+  total: number;
+}
+
 // GET /api/v1/admin/reports — one row of the deck-report moderation queue.
 export interface AdminReport {
   id: string;
@@ -28,6 +35,8 @@ export interface AdminReport {
   details: string | null;
   status: string; // open | resolved | dismissed
   createdAt: string;
+  // Why an admin acted (V38). Null while open, and on rows predating the requirement.
+  resolutionNote: string | null;
 }
 
 // GET /api/v1/admin/users — a page of Supabase users (from the Admin API). No user
@@ -222,6 +231,8 @@ export interface AdminReviewReport {
   ratingStillThere: boolean;
   status: string; // open | resolved | dismissed
   createdAt: string;
+  // Why an admin acted (V38). Null while open, and on rows predating the requirement.
+  resolutionNote: string | null;
 }
 
 // ── Notification settings (V34) ─────────────────────────────────

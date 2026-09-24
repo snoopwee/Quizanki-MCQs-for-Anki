@@ -43,6 +43,9 @@ public class ReviewReportService {
 
     private static final Set<String> RESOLVABLE = Set.of("resolved", "dismissed");
 
+    /** How long a closed report is kept. Long enough to revisit a decision, short enough to forget. */
+    public static final int REPORT_RETENTION_DAYS = 15;
+
     private final ReviewReportRepository reports;
     private final DeckRatingRepository ratings;
     private final DeckRepository decks;
@@ -100,11 +103,36 @@ public class ReviewReportService {
         return true;
     }
 
+    /**
+     * Delete closed reports whose time is up. Called by the scheduler, and safe to run at any time:
+     * an open report has no date, so it can never be caught by this.
+     *
+     * @return how many were removed.
+     */
+    @Transactional
+    public int purgeExpired() {
+        return reports.deleteByPurgeAfterBefore(OffsetDateTime.now(clock));
+    }
+
     @Transactional(readOnly = true)
-    public List<AdminReviewReportResponse> list(String status) {
-        List<ReviewReport> found = (status == null || status.isBlank())
-                ? reports.findAllByOrderByCreatedAtDesc()
-                : reports.findByStatusOrderByCreatedAtDesc(status.trim());
+    public List<AdminReviewReportResponse> list(String status, String reason) {
+        String want = status == null ? "" : status.trim().toLowerCase();
+        // "closed" is resolved AND dismissed: an admin sorting finished work from outstanding work
+        // does not care which way it went, only that it is done.
+        List<ReviewReport> found = switch (want) {
+            case "" -> reports.findAllByOrderByCreatedAtDesc();
+            case "closed" -> reports.findByStatusNotOrderByCreatedAtDesc("open");
+            default -> reports.findByStatusOrderByCreatedAtDesc(want);
+        };
+        // Narrowed in memory rather than in SQL: the queue is small, the reason vocabulary is
+        // the client's, and a second index on a table that gets swept every fifteen days would
+        // cost more than it saves.
+        String wantReason = reason == null ? "" : reason.trim();
+        if (!wantReason.isEmpty()) {
+            found = found.stream()
+                    .filter(r -> wantReason.equalsIgnoreCase(r.getReason()))
+                    .toList();
+        }
         if (found.isEmpty()) {
             return List.of();
         }
@@ -124,21 +152,27 @@ public class ReviewReportService {
                     r.getId(), r.getDeckId(), deck == null ? null : deck.getName(),
                     r.getReporterId(), r.getReason(), r.getDetails(), r.getNoteSnapshot(),
                     r.getWriterId(), r.getWriterName(),
-                    live, r.getStatus(), r.getCreatedAt());
+                    live, r.getStatus(), r.getResolutionNote(), r.getCreatedAt());
         }).toList();
     }
 
     /** Resolve or dismiss, and tell whoever reported it — otherwise the queue is a black hole. */
     @Transactional
-    public void updateStatus(UUID reportId, String status, String adminId) {
+    public void updateStatus(UUID reportId, String status, String adminId, String note) {
         String next = status == null ? "" : status.trim().toLowerCase();
         if (!RESOLVABLE.contains(next)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Status must be resolved or dismissed.");
         }
         ReviewReport report = require(reportId);
+        OffsetDateTime now = OffsetDateTime.now(clock);
         report.setStatus(next);
-        report.setResolvedAt(OffsetDateTime.now(clock));
+        report.setResolvedAt(now);
         report.setResolvedBy(adminId);
+        // A closed report is evidence for a while and clutter afterwards. An OPEN one never gets a
+        // date: it is still somebody's outstanding work.
+        report.setPurgeAfter(now.plusDays(REPORT_RETENTION_DAYS));
+        // Internal: the next admin reading this row is the audience, not the reporter.
+        report.setResolutionNote(trimToNull(note));
         reports.save(report);
 
         notifications.reportReviewed(report.getReporterId(), report.getDeckId(),
@@ -158,7 +192,7 @@ public class ReviewReportService {
      * @return whether a rating was actually removed.
      */
     @Transactional
-    public boolean takeDownRating(UUID reportId) {
+    public boolean takeDownRating(UUID reportId, String note) {
         ReviewReport report = require(reportId);
         Optional<DeckRating> found =
                 ratings.findByDeckIdAndPublicId(report.getDeckId(), report.getRatingPublicId());
@@ -168,6 +202,17 @@ public class ReviewReportService {
         ratings.delete(found.get());
         // A star has gone, so the deck's public score is stale until this runs.
         ratings.refreshAggregate(report.getDeckId());
+        // And the writer is told. Until this existed only the REPORTER heard an outcome, and the
+        // person actually moderated just found their rating gone — no lesson, and nothing to
+        // appeal. The writer id is the snapshot taken when the report was filed, which is exactly
+        // why it is snapshotted: the rating it would otherwise be read from has just been deleted.
+        // The reason travels with it. That is why it is mandatory: "your rating was removed" with
+        // no grounds gives somebody moderated by mistake nothing to appeal.
+        String reason = trimToNull(note);
+        report.setResolutionNote(reason);
+        reports.save(report);
+        notifications.contentRemoved(report.getWriterId(), report.getDeckId(),
+                deckName(report.getDeckId()), reason);
         return true;
     }
 

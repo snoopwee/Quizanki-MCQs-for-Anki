@@ -40,6 +40,12 @@ export function useNotifications(open: boolean) {
   return useQuery({
     queryKey: [...NOTIFICATIONS_KEY, "page"],
     enabled: open,
+    // Opening the bell is an explicit "show me now", so it must never answer from cache. Without
+    // this the app-wide 60s staleTime applied: the badge (which polls, and opts out of that
+    // staleTime) would count a new notification while the panel underneath still showed the list
+    // from the last time it was opened — a number with no message behind it until a hard refresh.
+    staleTime: 0,
+    refetchOnMount: "always",
     queryFn: async () => {
       const { data } = await api.get<NotificationPageResponse>("/me/notifications", {
         params: { limit: 20 },

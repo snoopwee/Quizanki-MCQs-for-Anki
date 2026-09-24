@@ -283,5 +283,11 @@ function kindIcon(kind: string): IconName {
   if (kind === "deck_shared") return "cards";
   if (kind === "author_published") return "user";
   if (kind === "announcement") return "bolt";
+  if (kind === "new_follower") return "user";
+  if (kind === "deck_reviewed") return "star";
+  // Both sides of moderation. A takedown is the one row that is bad news for the reader, so it
+  // does not get the same bell glyph as a new follower.
+  if (kind === "report_reviewed") return "clipboard";
+  if (kind === "content_removed") return "alertTriangle";
   return "bell";
 }

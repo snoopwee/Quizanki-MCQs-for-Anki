@@ -2,7 +2,9 @@ package com.ankiquiz.controller;
 
 import com.ankiquiz.dto.request.UpdateReportRequest;
 import com.ankiquiz.dto.response.AdminReportResponse;
+import com.ankiquiz.dto.response.ReportCountsResponse;
 import com.ankiquiz.service.ReportService;
+import com.ankiquiz.service.ReviewReportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
@@ -31,15 +33,31 @@ import java.util.UUID;
 public class AdminReportController {
 
     private final ReportService reportService;
+    // The counts endpoint answers for BOTH queues, so the admin chrome asks once rather than
+    // twice; the note queue itself still lives on its own controller.
+    private final ReviewReportService reviewReportService;
 
-    public AdminReportController(ReportService reportService) {
+    public AdminReportController(ReportService reportService,
+                                 ReviewReportService reviewReportService) {
         this.reportService = reportService;
+        this.reviewReportService = reviewReportService;
+    }
+
+    @GetMapping("/counts")
+    @Operation(summary = "How many reports are still open",
+            description = "Open only, both queues: a badge counts what still needs somebody. "
+                    + "Cheap enough for the admin chrome to poll.")
+    public ReportCountsResponse counts() {
+        long decks = reportService.openCount();
+        long notes = reviewReportService.openCount();
+        return new ReportCountsResponse(decks, notes, decks + notes);
     }
 
     @GetMapping
     @Operation(summary = "List deck reports, optionally filtered by status (default: all)")
-    public List<AdminReportResponse> list(@RequestParam(required = false) String status) {
-        return reportService.listReports(status);
+    public List<AdminReportResponse> list(@RequestParam(required = false) String status,
+                                          @RequestParam(required = false) String reason) {
+        return reportService.listReports(status, reason);
     }
 
     @PutMapping("/{reportId}")
@@ -49,7 +67,7 @@ public class AdminReportController {
             @PathVariable UUID reportId,
             @Valid @RequestBody UpdateReportRequest request
     ) {
-        reportService.updateStatus(reportId, request.status(), jwt.getSubject());
+        reportService.updateStatus(reportId, request.status(), jwt.getSubject(), request.note());
         return ResponseEntity.noContent().build();
     }
 }

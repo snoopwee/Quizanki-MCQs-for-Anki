@@ -28,6 +28,9 @@ public record AdminReviewReportResponse(
         // the author while the star stands — that rating can still be taken down.
         boolean ratingStillThere,
         String status,
+        // Why an admin acted (V38). Null while the report is still open, and on rows that
+        // predate the requirement.
+        String resolutionNote,
         OffsetDateTime createdAt
 ) {
 }

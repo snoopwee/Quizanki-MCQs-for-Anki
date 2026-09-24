@@ -29,6 +29,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -210,7 +212,7 @@ class ReviewReportServiceTest {
         report.setWriterName("Troublesome Tim");
         note("this deck is rubbish and so are you");
 
-        service.takeDownRating(reportId);
+        service.takeDownRating(reportId, "Because.");
 
         // The whole reason for the snapshot: the rating is gone, and the account is still reachable.
         when(reports.findByStatusOrderByCreatedAtDesc("open")).thenReturn(List.of(report));
@@ -218,7 +220,7 @@ class ReviewReportServiceTest {
         when(decks.findAllById(List.of(deckId))).thenReturn(List.of(theDeck));
         when(ratings.findByDeckIdAndPublicId(deckId, noteId)).thenReturn(Optional.empty());
 
-        AdminReviewReportResponse row = service.list("open").getFirst();
+        AdminReviewReportResponse row = service.list("open", null).getFirst();
         assertThat(row.ratingStillThere()).isFalse();
         assertThat(row.writerId()).isEqualTo("rater-2");
         assertThat(row.writerName()).isEqualTo("Troublesome Tim");
@@ -234,7 +236,7 @@ class ReviewReportServiceTest {
         when(decks.findAllById(List.of(deckId))).thenReturn(List.of(theDeck));
         note("this deck is rubbish and so are you");
 
-        List<AdminReviewReportResponse> rows = service.list("open");
+        List<AdminReviewReportResponse> rows = service.list("open", null);
 
         assertThat(rows).hasSize(1);
         assertThat(rows.getFirst().noteSnapshot()).isEqualTo("this deck is rubbish and so are you");
@@ -251,7 +253,7 @@ class ReviewReportServiceTest {
         // Cleared by the author after reporting, or the rating deleted outright.
         when(ratings.findByDeckIdAndPublicId(deckId, noteId)).thenReturn(Optional.empty());
 
-        List<AdminReviewReportResponse> rows = service.list("open");
+        List<AdminReviewReportResponse> rows = service.list("open", null);
 
         assertThat(rows.getFirst().noteSnapshot()).isEqualTo("this deck is rubbish and so are you");
         assertThat(rows.getFirst().ratingStillThere()).isFalse();
@@ -265,7 +267,7 @@ class ReviewReportServiceTest {
         when(decks.findAllById(List.of(deckId))).thenReturn(List.of(theDeck));
         note("something nasty");
 
-        AdminReviewReportResponse row = service.list(null).getFirst();
+        AdminReviewReportResponse row = service.list(null, null).getFirst();
 
         // Both sides are named for the admin: the reporter (so they can be answered) and the
         // writer (so a repeat offender can be reached). The AUTHOR's own feedback page still shows
@@ -280,7 +282,7 @@ class ReviewReportServiceTest {
         filed("open");
         deck();
 
-        service.updateStatus(reportId, "resolved", ADMIN);
+        service.updateStatus(reportId, "resolved", ADMIN, "Because.");
 
         ReviewReport saved = captureSaved();
         assertThat(saved.getStatus()).isEqualTo("resolved");
@@ -294,7 +296,7 @@ class ReviewReportServiceTest {
         filed("open");
         deck();
 
-        service.updateStatus(reportId, "DISMISSED", ADMIN);
+        service.updateStatus(reportId, "DISMISSED", ADMIN, "Because.");
 
         assertThat(captureSaved().getStatus()).isEqualTo("dismissed");
         // Same notification, different outcome flag — a black hole is the thing being avoided.
@@ -305,9 +307,9 @@ class ReviewReportServiceTest {
     void onlyResolvedOrDismissedAreAcceptedStatuses() {
         filed("open");
 
-        assertThatThrownBy(() -> service.updateStatus(reportId, "deleted", ADMIN))
+        assertThatThrownBy(() -> service.updateStatus(reportId, "deleted", ADMIN, "Because."))
                 .isInstanceOf(ResponseStatusException.class);
-        assertThatThrownBy(() -> service.updateStatus(reportId, null, ADMIN))
+        assertThatThrownBy(() -> service.updateStatus(reportId, null, ADMIN, "Because."))
                 .isInstanceOf(ResponseStatusException.class);
         verify(reports, never()).save(any());
         verify(notifications, never()).reportReviewed(any(), any(), any(), anyBoolean());
@@ -317,9 +319,9 @@ class ReviewReportServiceTest {
     void anUnknownReportIs404() {
         when(reports.findById(reportId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.updateStatus(reportId, "resolved", ADMIN))
+        assertThatThrownBy(() -> service.updateStatus(reportId, "resolved", ADMIN, "Because."))
                 .isInstanceOf(NotFoundException.class);
-        assertThatThrownBy(() -> service.takeDownRating(reportId)).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> service.takeDownRating(reportId, "Because.")).isInstanceOf(NotFoundException.class);
     }
 
     @Test
@@ -327,7 +329,7 @@ class ReviewReportServiceTest {
         filed("open");
         DeckRating rating = note("this deck is rubbish and so are you");
 
-        assertThat(service.takeDownRating(reportId)).isTrue();
+        assertThat(service.takeDownRating(reportId, "Because.")).isTrue();
 
         // Stars and note together. The note is private and the star is public, so clearing only
         // the text would leave the abuser's mark on the score and take away the one thing the
@@ -344,7 +346,7 @@ class ReviewReportServiceTest {
         DeckRating starsOnly = note(null);
 
         // The star is the public half; it outlives the text and is still actionable.
-        assertThat(service.takeDownRating(reportId)).isTrue();
+        assertThat(service.takeDownRating(reportId, "Because.")).isTrue();
         verify(ratings).delete(starsOnly);
     }
 
@@ -353,8 +355,70 @@ class ReviewReportServiceTest {
         filed("open");
         when(ratings.findByDeckIdAndPublicId(deckId, noteId)).thenReturn(Optional.empty());
 
-        assertThat(service.takeDownRating(reportId)).isFalse();
+        assertThat(service.takeDownRating(reportId, "Because.")).isFalse();
         verify(ratings, never()).delete(any(DeckRating.class));
         verify(ratings, never()).refreshAggregate(any());
+    }
+
+    // ── telling the person it happened to, and forgetting closed reports (V37) ──
+
+    @Test
+    void aTakeDownTellsTheWriterTheirRatingWasRemoved() {
+        ReviewReport report = filed("open");
+        report.setWriterId("writer-1");
+        deck();
+        note("this deck is rubbish and so are you");
+
+        service.takeDownRating(reportId, "Because.");
+
+        // Until this existed only the REPORTER heard an outcome; the person actually moderated
+        // just found their rating gone, with no lesson and nothing to appeal.
+        // …and the admin's grounds go with it, which is why the API refuses a bare takedown.
+        verify(notifications).contentRemoved("writer-1", deckId, "JLPT N3 kanji", "Because.");
+    }
+
+    @Test
+    void aTakeDownOnAReportTooOldToNameTheWriterStillRemovesIt() {
+        filed("open");  // no writerId — predates the V31 snapshot
+        note("older than the writer column");
+
+        assertThat(service.takeDownRating(reportId, "Because.")).isTrue();
+
+        // The takedown does not depend on being able to tell anybody. It asks either way and
+        // NotificationService drops a delivery with no recipient — one guard, in one place.
+        verify(notifications).contentRemoved(isNull(), eq(deckId), any(), any());
+    }
+
+    @Test
+    void closingAReportStartsItsFifteenDayClock() {
+        filed("open");
+
+        service.updateStatus(reportId, "resolved", ADMIN, "Because.");
+
+        // Evidence while the decision is live, clutter afterwards.
+        assertThat(captureSaved().getPurgeAfter())
+                .isEqualTo(OffsetDateTime.now(clock).plusDays(15));
+    }
+
+    @Test
+    void thePurgeOnlyEverCatchesReportsPastTheirDate() {
+        when(reports.deleteByPurgeAfterBefore(any())).thenReturn(3);
+
+        assertThat(service.purgeExpired()).isEqualTo(3);
+
+        // An OPEN report has no date at all, so it can never be swept — it is still somebody's
+        // outstanding work.
+        verify(reports).deleteByPurgeAfterBefore(OffsetDateTime.now(clock));
+    }
+
+    @Test
+    void theClosedFilterIsResolvedAndDismissedTogether() {
+        when(reports.findByStatusNotOrderByCreatedAtDesc("open")).thenReturn(List.of());
+
+        service.list("closed", null);
+
+        // An admin sorting finished work from outstanding work doesn't care which way it went.
+        verify(reports).findByStatusNotOrderByCreatedAtDesc("open");
+        verify(reports, never()).findAllByOrderByCreatedAtDesc();
     }
 }

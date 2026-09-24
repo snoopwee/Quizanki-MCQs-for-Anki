@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.dto.request.TakedownRequest;
 import com.ankiquiz.dto.request.UpdateReportRequest;
 import com.ankiquiz.dto.response.AdminReviewReportResponse;
 import com.ankiquiz.exception.GlobalExceptionHandler;
@@ -27,6 +28,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -52,9 +54,9 @@ class AdminReviewReportControllerTest {
 
     @Test
     void listsReportedNotesWithTheirSnapshot() throws Exception {
-        when(reviewReportService.list("open")).thenReturn(List.of(new AdminReviewReportResponse(
+        when(reviewReportService.list("open", null)).thenReturn(List.of(new AdminReviewReportResponse(
                 reportId, deckId, "JLPT N3 kanji", "author-9", "Abusive", null,
-                "this deck is rubbish and so are you", "rater-2", "Troublesome Tim", true, "open",
+                "this deck is rubbish and so are you", "rater-2", "Troublesome Tim", true, "open", null,
                 OffsetDateTime.parse("2026-09-23T09:00:00Z"))));
 
         mockMvc.perform(get("/api/v1/admin/review-reports").param("status", "open")
@@ -69,14 +71,16 @@ class AdminReviewReportControllerTest {
     }
 
     @Test
-    void resolvingPassesTheAdminThrough() throws Exception {
+    void resolvingPassesTheAdminAndTheirReasonThrough() throws Exception {
         mockMvc.perform(put("/api/v1/admin/review-reports/{id}", reportId)
                         .with(jwt().jwt(j -> j.subject("admin-1")))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new UpdateReportRequest("resolved"))))
+                        .content(objectMapper.writeValueAsString(
+                                new UpdateReportRequest("resolved", "Clear personal attack."))))
                 .andExpect(status().isNoContent());
 
-        verify(reviewReportService).updateStatus(reportId, "resolved", "admin-1");
+        verify(reviewReportService).updateStatus(reportId, "resolved", "admin-1",
+                "Clear personal attack.");
     }
 
     @Test
@@ -84,28 +88,55 @@ class AdminReviewReportControllerTest {
         mockMvc.perform(put("/api/v1/admin/review-reports/{id}", reportId)
                         .with(jwt().jwt(j -> j.subject("admin-1")))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new UpdateReportRequest("  "))))
+                        .content(objectMapper.writeValueAsString(new UpdateReportRequest("  ", "why"))))
                 .andExpect(status().isBadRequest());
 
-        verify(reviewReportService, never()).updateStatus(any(), any(), any());
+        verify(reviewReportService, never()).updateStatus(any(), any(), any(), any());
+    }
+
+    @Test
+    void anActionWithNoReasonIsRejected() throws Exception {
+        // The report row is deleted after fifteen days, so an unexplained decision leaves nothing
+        // behind at all. Refused before it reaches the service.
+        mockMvc.perform(put("/api/v1/admin/review-reports/{id}", reportId)
+                        .with(jwt().jwt(j -> j.subject("admin-1")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new UpdateReportRequest("resolved", "  "))))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/v1/admin/review-reports/{id}/takedown", reportId).with(csrf())
+                        .with(jwt().jwt(j -> j.subject("admin-1")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TakedownRequest(""))))
+                .andExpect(status().isBadRequest());
+
+        verify(reviewReportService, never()).updateStatus(any(), any(), any(), any());
+        verify(reviewReportService, never()).takeDownRating(any(), any());
     }
 
     @Test
     void anUnknownReportIs404() throws Exception {
-        when(reviewReportService.takeDownRating(any())).thenThrow(new NotFoundException("Report not found"));
+        when(reviewReportService.takeDownRating(any(), any()))
+                .thenThrow(new NotFoundException("Report not found"));
 
-        mockMvc.perform(delete("/api/v1/admin/review-reports/{id}/rating", reportId)
-                        .with(jwt().jwt(j -> j.subject("admin-1"))))
+        mockMvc.perform(post("/api/v1/admin/review-reports/{id}/takedown", reportId).with(csrf())
+                        .with(jwt().jwt(j -> j.subject("admin-1")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TakedownRequest("Abusive."))))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void takingTheRatingDownReturns204() throws Exception {
-        mockMvc.perform(delete("/api/v1/admin/review-reports/{id}/rating", reportId)
-                        .with(jwt().jwt(j -> j.subject("admin-1"))))
+    void takingTheRatingDownReturns204_andCarriesTheReason() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/review-reports/{id}/takedown", reportId).with(csrf())
+                        .with(jwt().jwt(j -> j.subject("admin-1")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new TakedownRequest("Personal abuse, not feedback."))))
                 .andExpect(status().isNoContent());
 
-        verify(reviewReportService).takeDownRating(reportId);
+        // The reason is sent on to the person whose rating this was.
+        verify(reviewReportService).takeDownRating(reportId, "Personal abuse, not feedback.");
     }
 
     @Test
@@ -113,10 +144,10 @@ class AdminReviewReportControllerTest {
         mockMvc.perform(get("/api/v1/admin/review-reports")).andExpect(status().isUnauthorized());
         // csrf() because a @WebMvcTest slice doesn't load SecurityConfig (which disables CSRF), so
         // these would otherwise be refused as 403 before authentication is reached.
-        mockMvc.perform(delete("/api/v1/admin/review-reports/{id}/rating", reportId).with(csrf()))
+        mockMvc.perform(post("/api/v1/admin/review-reports/{id}/takedown", reportId).with(csrf()))
                 .andExpect(status().isUnauthorized());
 
-        verify(reviewReportService, never()).list(any());
-        verify(reviewReportService, never()).takeDownRating(any());
+        verify(reviewReportService, never()).list(any(), any());
+        verify(reviewReportService, never()).takeDownRating(any(), any());
     }
 }

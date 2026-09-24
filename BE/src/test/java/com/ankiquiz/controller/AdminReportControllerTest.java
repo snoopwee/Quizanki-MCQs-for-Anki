@@ -3,6 +3,7 @@ package com.ankiquiz.controller;
 import com.ankiquiz.dto.response.AdminReportResponse;
 import com.ankiquiz.exception.GlobalExceptionHandler;
 import com.ankiquiz.service.ReportService;
+import com.ankiquiz.service.ReviewReportService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -17,7 +18,10 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -35,6 +39,11 @@ class AdminReportControllerTest {
     @MockBean
     private ReportService reportService;
 
+    // The controller answers the counts endpoint for BOTH queues, so the slice needs this bean
+    // even though none of these tests touch it — without it the context fails to start.
+    @MockBean
+    private ReviewReportService reviewReportService;
+
     @MockBean
     private JwtDecoder jwtDecoder;
 
@@ -42,8 +51,8 @@ class AdminReportControllerTest {
     void list_returnsTheQueue() throws Exception {
         UUID reportId = UUID.randomUUID();
         UUID deckId = UUID.randomUUID();
-        when(reportService.listReports(eq("open"))).thenReturn(List.of(new AdminReportResponse(
-                reportId, deckId, "JLPT N4", "Alice", "user-9", "Spam", null, "open", OffsetDateTime.now())));
+        when(reportService.listReports(eq("open"), isNull())).thenReturn(List.of(new AdminReportResponse(
+                reportId, deckId, "JLPT N4", "Alice", "user-9", "Spam", null, "open", null, OffsetDateTime.now())));
 
         mockMvc.perform(get("/api/v1/admin/reports").param("status", "open")
                         .with(jwt().jwt(j -> j.subject("admin-1"))))
@@ -59,9 +68,36 @@ class AdminReportControllerTest {
         mockMvc.perform(put("/api/v1/admin/reports/{id}", reportId)
                         .with(jwt().jwt(j -> j.subject("admin-1")))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"status\":\"resolved\"}"))
+                        .content("{\"status\":\"resolved\",\"note\":\"Genuine spam.\"}"))
                 .andExpect(status().isNoContent());
 
-        verify(reportService).updateStatus(reportId, "resolved", "admin-1");
+        verify(reportService).updateStatus(reportId, "resolved", "admin-1", "Genuine spam.");
+    }
+
+    @Test
+    void update_refusesAnActionWithNoReason() throws Exception {
+        UUID reportId = UUID.randomUUID();
+
+        // The row is deleted after fifteen days (V37), so an unexplained decision leaves nothing
+        // behind at all.
+        mockMvc.perform(put("/api/v1/admin/reports/{id}", reportId)
+                        .with(jwt().jwt(j -> j.subject("admin-1")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"resolved\",\"note\":\"   \"}"))
+                .andExpect(status().isBadRequest());
+
+        verify(reportService, never()).updateStatus(any(), any(), any(), any());
+    }
+
+    @Test
+    void list_narrowsByReasonWhenAsked() throws Exception {
+        when(reportService.listReports(eq("open"), eq("Spam"))).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/admin/reports")
+                        .param("status", "open").param("reason", "Spam")
+                        .with(jwt().jwt(j -> j.subject("admin-1"))))
+                .andExpect(status().isOk());
+
+        verify(reportService).listReports("open", "Spam");
     }
 }

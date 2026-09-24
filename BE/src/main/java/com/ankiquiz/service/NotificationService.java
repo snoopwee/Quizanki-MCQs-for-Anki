@@ -175,6 +175,32 @@ public class NotificationService {
     }
 
     /**
+     * Tell somebody an admin removed what they wrote.
+     *
+     * <p>Deliberately says WHICH deck it was about and nothing about who reported it: the reporter
+     * is an author acting on their own deck, and naming them turns a moderation decision into a
+     * grudge. The link goes to the deck, which is the only context that helps.
+     */
+    @Transactional
+    public boolean contentRemoved(String writerId, UUID deckId, String deckName, String reason) {
+        if (!hasText(writerId)) {
+            // A report old enough to predate the writer snapshot has nobody to tell.
+            return false;
+        }
+        StringBuilder body = new StringBuilder();
+        if (hasText(deckName)) {
+            body.append("It was on ").append(deckName.strip()).append(". ");
+        }
+        // The admin's grounds, verbatim. Required at the API for exactly this: without it the
+        // message is "your rating was removed" and nothing to appeal.
+        body.append(hasText(reason) ? reason.strip() : "No reason was recorded.");
+
+        return deliver(writerId, NotificationKind.CONTENT_REMOVED,
+                "Your rating was removed", body.toString(),
+                deckId == null ? null : "/decks/" + deckId, null, null, deckId);
+    }
+
+    /**
      * Somebody started following this author.
      *
      * <p>Carries the follower so the author can go and look at who it was — which is also why this

@@ -5,8 +5,8 @@ import { Modal } from "@/components/shared/Modal";
 import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
 import { useReportDeck } from "@/hooks/useReports";
+import { DECK_REPORT_REASONS as REASONS } from "@/lib/reportReasons";
 
-const REASONS = ["Spam", "Inappropriate", "Copyright", "Wrong or misleading", "Other"];
 
 const fieldClasses =
   "focus-ring w-full rounded-input border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink outline-none placeholder:text-faint";
@@ -22,7 +22,7 @@ export function ReportDeckModal({
   deckName: string | null;
   onClose: () => void;
 }) {
-  const [reason, setReason] = useState(REASONS[0]);
+  const [reason, setReason] = useState<string>(REASONS[0]);
   const [details, setDetails] = useState("");
   const [done, setDone] = useState(false);
   const report = useReportDeck(deckId);

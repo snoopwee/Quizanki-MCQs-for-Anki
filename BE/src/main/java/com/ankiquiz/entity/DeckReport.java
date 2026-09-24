@@ -47,6 +47,20 @@ public class DeckReport {
     @Column(name = "resolved_by")
     private String resolvedBy;
 
+    /**
+     * When this report becomes deletable (V37). Null while it is open — an open report is somebody's
+     * outstanding work and never expires. Set when it is closed, swept by the scheduler.
+     */
+    @Column(name = "purge_after")
+    private OffsetDateTime purgeAfter;
+
+    /**
+     * Why the admin acted (V38). Internal for resolve/dismiss; for a takedown it is also sent to
+     * the person whose rating was removed. Null on rows that predate the requirement.
+     */
+    @Column(name = "resolution_note")
+    private String resolutionNote;
+
     public UUID getId() {
         return id;
     }
@@ -117,5 +131,21 @@ public class DeckReport {
 
     public void setResolvedBy(String resolvedBy) {
         this.resolvedBy = resolvedBy;
+    }
+
+    public OffsetDateTime getPurgeAfter() {
+        return purgeAfter;
+    }
+
+    public void setPurgeAfter(OffsetDateTime purgeAfter) {
+        this.purgeAfter = purgeAfter;
+    }
+
+    public String getResolutionNote() {
+        return resolutionNote;
+    }
+
+    public void setResolutionNote(String resolutionNote) {
+        this.resolutionNote = resolutionNote;
     }
 }

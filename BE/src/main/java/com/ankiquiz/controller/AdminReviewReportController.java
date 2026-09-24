@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.dto.request.TakedownRequest;
 import com.ankiquiz.dto.request.UpdateReportRequest;
 import com.ankiquiz.dto.response.AdminReviewReportResponse;
 import com.ankiquiz.service.ReviewReportService;
@@ -9,9 +10,9 @@ import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -41,8 +42,9 @@ public class AdminReviewReportController {
 
     @GetMapping
     @Operation(summary = "List reported notes, optionally filtered by status (default: all)")
-    public List<AdminReviewReportResponse> list(@RequestParam(required = false) String status) {
-        return reviewReportService.list(status);
+    public List<AdminReviewReportResponse> list(@RequestParam(required = false) String status,
+                                                @RequestParam(required = false) String reason) {
+        return reviewReportService.list(status, reason);
     }
 
     @PutMapping("/{reportId}")
@@ -53,18 +55,20 @@ public class AdminReviewReportController {
             @PathVariable UUID reportId,
             @Valid @RequestBody UpdateReportRequest request
     ) {
-        reviewReportService.updateStatus(reportId, request.status(), jwt.getSubject());
+        reviewReportService.updateStatus(reportId, request.status(), jwt.getSubject(), request.note());
         return ResponseEntity.noContent().build();
     }
 
-    @DeleteMapping("/{reportId}/rating")
-    @Operation(summary = "Take the reported rating down",
+    @PostMapping("/{reportId}/takedown")
+    @Operation(summary = "Take the reported rating down, with the reason why",
             description = "Removes the rating outright — stars and note — and recomputes the deck's "
                     + "score. Unlike the author's own delete, which only clears text: the note is "
                     + "private and the star is public, so removing just the text would leave the "
-                    + "abuser's mark on the score. 204 whether or not it was still there.")
-    public ResponseEntity<Void> takeDownRating(@PathVariable UUID reportId) {
-        reviewReportService.takeDownRating(reportId);
+                    + "abuser's mark on the score. The reason is REQUIRED and is sent to the person "
+                    + "whose rating this was. 204 whether or not it was still there.")
+    public ResponseEntity<Void> takeDownRating(@PathVariable UUID reportId,
+                                               @Valid @RequestBody TakedownRequest request) {
+        reviewReportService.takeDownRating(reportId, request.note());
         return ResponseEntity.noContent().build();
     }
 }

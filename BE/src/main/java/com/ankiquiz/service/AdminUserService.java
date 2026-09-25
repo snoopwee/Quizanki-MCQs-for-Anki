@@ -2,6 +2,7 @@ package com.ankiquiz.service;
 
 import com.ankiquiz.dto.response.AdminUserResponse;
 import com.ankiquiz.dto.response.AdminUsersPage;
+import com.ankiquiz.entity.UserBan;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,14 +44,18 @@ public class AdminUserService {
     private final String supabaseUrl;
     private final String serviceKey;
     private final RestClient http = RestClient.create();
+    /** Suspensions are ours; identity is Supabase's. This is where the two are joined. */
+    private final BanService bans;
 
     public AdminUserService(
             @Value("${supabase.url:}") String supabaseUrl,
             // Reuse the service-role key the avatar/TTS features already use.
-            @Value("${supabase.service-key:${tts.supabase.service-key:}}") String serviceKey
+            @Value("${supabase.service-key:${tts.supabase.service-key:}}") String serviceKey,
+            BanService bans
     ) {
         this.supabaseUrl = supabaseUrl;
         this.serviceKey = serviceKey;
+        this.bans = bans;
     }
 
     public AdminUsersPage listUsers(int page, int perPage) {
@@ -64,7 +69,13 @@ public class AdminUserService {
                     .body(GoTrueList.class);
 
             List<GoTrueUser> users = (body == null || body.users() == null) ? List.of() : body.users();
-            List<AdminUserResponse> mapped = users.stream().map(AdminUserService::toResponse).toList();
+            // Suspensions are ours, not Supabase's — overlaid here in ONE query for the page
+            // rather than one per row.
+            Map<String, UserBan> suspended =
+                    bans.activeBans(users.stream().map(GoTrueUser::id).toList());
+            List<AdminUserResponse> mapped = users.stream()
+                    .map(u -> toResponse(u, suspended.get(u.id())))
+                    .toList();
             // A full page back means there's probably another — good enough for a
             // Prev/Next pager without relying on a total-count header.
             return new AdminUsersPage(mapped, page, perPage, users.size() >= perPage);
@@ -120,32 +131,21 @@ public class AdminUserService {
         return ids;
     }
 
-    public void setBanned(String userId, boolean banned) {
-        requireConfigured();
-        try {
-            http.put()
-                    .uri(URI.create(supabaseUrl + "/auth/v1/admin/users/" + userId))
-                    .header("apikey", serviceKey)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceKey)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of("ban_duration", banned ? BAN_FOREVER : "none"))
-                    .retrieve()
-                    .toBodilessEntity();
-        } catch (RestClientResponseException e) {
-            log.error("Set ban failed {}: {}", e.getStatusCode(), snippet(e));
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Couldn't update the user in Supabase.");
-        } catch (Exception e) {
-            log.error("Set ban error", e);
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Couldn't reach Supabase.");
-        }
-    }
+    // NOTE: the Supabase `ban_duration` writer that used to live here was removed in V39.
+    // Suspensions are now recorded in our own `user_bans` and enforced by SuspendedUserFilter,
+    // because Supabase's ban blocks sign-in outright and a banned person then has no session —
+    // which makes the reason undeliverable. Two ban mechanisms, one invisible to the other, is
+    // exactly the drift worth avoiding, so there is only one. See BanService.
 
     // --- mapping (pure, unit-tested) ----------------------------------------
 
-    static AdminUserResponse toResponse(GoTrueUser u) {
+    static AdminUserResponse toResponse(GoTrueUser u, UserBan ban) {
         return new AdminUserResponse(
                 u.id(), u.email(), displayName(u.userMetadata()),
-                u.createdAt(), u.lastSignInAt(), isBanned(u.bannedUntil()));
+                u.createdAt(), u.lastSignInAt(),
+                ban != null,
+                ban == null ? null : ban.getReason(),
+                ban == null || ban.getBannedAt() == null ? null : ban.getBannedAt().toString());
     }
 
     // banned_until is a future timestamp while banned; absent/"none"/past = not.

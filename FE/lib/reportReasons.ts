@@ -51,3 +51,22 @@ export const TAKEDOWN_TEMPLATES = [
   "This was spam or advertising.",
   "This was unrelated to the deck.",
 ] as const;
+
+/**
+ * Quick-fill reasons for suspending an account. Written to be READ BY THE PERSON SUSPENDED — they
+ * see this verbatim on their next visit — so each one names the behaviour rather than labelling
+ * the person.
+ */
+export const SUSPEND_TEMPLATES = [
+  "Repeatedly uploaded copyrighted material after a warning.",
+  "Used ratings to harass other people.",
+  "Published spam or advertising as decks.",
+  "Created decks designed to mislead learners.",
+] as const;
+
+/** And for lifting one — this becomes the message in their "account restored" notification. */
+export const RESTORE_TEMPLATES = [
+  "Reviewed and lifted — thanks for your patience.",
+  "Suspended by mistake. Sorry about that.",
+  "Appealed successfully.",
+] as const;

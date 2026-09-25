@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.service.BanService;
 import com.ankiquiz.dto.request.TakedownRequest;
 import com.ankiquiz.dto.request.UpdateReportRequest;
 import com.ankiquiz.dto.response.AdminReviewReportResponse;
@@ -48,6 +49,9 @@ class AdminReviewReportControllerTest {
 
     @MockBean
     private JwtDecoder jwtDecoder;
+
+    @MockBean
+    private BanService banService;
 
     private final UUID reportId = UUID.randomUUID();
     private final UUID deckId = UUID.randomUUID();
@@ -111,12 +115,12 @@ class AdminReviewReportControllerTest {
                 .andExpect(status().isBadRequest());
 
         verify(reviewReportService, never()).updateStatus(any(), any(), any(), any());
-        verify(reviewReportService, never()).takeDownRating(any(), any());
+        verify(reviewReportService, never()).takeDownRating(any(), any(), any());
     }
 
     @Test
     void anUnknownReportIs404() throws Exception {
-        when(reviewReportService.takeDownRating(any(), any()))
+        when(reviewReportService.takeDownRating(any(), any(), any()))
                 .thenThrow(new NotFoundException("Report not found"));
 
         mockMvc.perform(post("/api/v1/admin/review-reports/{id}/takedown", reportId).with(csrf())
@@ -136,7 +140,7 @@ class AdminReviewReportControllerTest {
                 .andExpect(status().isNoContent());
 
         // The reason is sent on to the person whose rating this was.
-        verify(reviewReportService).takeDownRating(reportId, "Personal abuse, not feedback.");
+        verify(reviewReportService).takeDownRating(reportId, "Personal abuse, not feedback.", "admin-1");
     }
 
     @Test
@@ -148,6 +152,6 @@ class AdminReviewReportControllerTest {
                 .andExpect(status().isUnauthorized());
 
         verify(reviewReportService, never()).list(any(), any());
-        verify(reviewReportService, never()).takeDownRating(any(), any());
+        verify(reviewReportService, never()).takeDownRating(any(), any(), any());
     }
 }

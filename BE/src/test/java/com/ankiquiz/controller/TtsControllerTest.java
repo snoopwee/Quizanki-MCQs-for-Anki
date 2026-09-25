@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.service.BanService;
 import com.ankiquiz.config.AdminAccess;
 import com.ankiquiz.config.SecurityConfig;
 import com.ankiquiz.dto.response.TtsResponse;
@@ -41,6 +42,9 @@ class TtsControllerTest {
 
     @MockBean
     private TtsService ttsService;
+
+    @MockBean
+    private BanService banService;
 
     @MockBean
     private TtsRateLimiter rateLimiter;

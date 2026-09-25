@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.service.BanService;
 import com.ankiquiz.config.AdminAccess;
 import com.ankiquiz.config.SecurityConfig;
 import com.ankiquiz.dto.response.AuthorPageResponse;
@@ -50,6 +51,9 @@ class SharedDeckControllerTest {
 
     @MockBean
     private DeckService deckService;
+
+    @MockBean
+    private BanService banService;
 
     @MockBean
     private ProfileService profileService;
@@ -113,6 +117,35 @@ class SharedDeckControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.available").value(false))
                 .andExpect(jsonPath("$.reason").value("That username is reserved."));
+    }
+
+    @Test
+    void deckSummary_isTheLightweightOneForLinkPreviews() throws Exception {
+        UUID deckId = UUID.randomUUID();
+        when(deckService.getPublicDeckSummary(deckId)).thenReturn(
+                new PublicDeckSummary(deckId, "JLPT N4", 120, "author-1", "alice", "Alice", null,
+                        null, OffsetDateTime.now(), 3, 4.5));
+
+        // Exists because /shared/{id} returns every card — 3.8 MB for a large deck — and a title
+        // and one sentence should not cost that.
+        mockMvc.perform(get("/api/v1/public/shared/{deckId}/summary", deckId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("JLPT N4"))
+                .andExpect(jsonPath("$.cardCount").value(120))
+                .andExpect(jsonPath("$.authorUsername").value("alice"))
+                .andExpect(jsonPath("$.ratingAverage").value(4.5))
+                // No cards in it at all — that is the entire point.
+                .andExpect(jsonPath("$.notes").doesNotExist());
+    }
+
+    @Test
+    void deckSummary_is404ForADeckNobodyShared() throws Exception {
+        UUID deckId = UUID.randomUUID();
+        when(deckService.getPublicDeckSummary(deckId))
+                .thenThrow(new NotFoundException("Shared deck not found"));
+
+        mockMvc.perform(get("/api/v1/public/shared/{deckId}/summary", deckId))
+                .andExpect(status().isNotFound());
     }
 
     @Test

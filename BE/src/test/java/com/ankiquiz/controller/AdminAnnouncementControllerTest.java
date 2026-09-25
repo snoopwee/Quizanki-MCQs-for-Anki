@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.service.BanService;
 import com.ankiquiz.dto.request.AnnouncementRequest;
 import com.ankiquiz.exception.GlobalExceptionHandler;
 import com.ankiquiz.service.AdminUserService;
@@ -52,6 +53,9 @@ class AdminAnnouncementControllerTest {
 
     @MockBean
     private JwtDecoder jwtDecoder;
+
+    @MockBean
+    private BanService banService;
 
     private String body(String title, String text, String link, String audience) throws Exception {
         return objectMapper.writeValueAsString(new AnnouncementRequest(title, text, link, audience));

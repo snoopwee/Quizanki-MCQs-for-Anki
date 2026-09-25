@@ -3,6 +3,7 @@ package com.ankiquiz.service;
 import com.ankiquiz.dto.response.AdminReviewReportResponse;
 import com.ankiquiz.entity.Deck;
 import com.ankiquiz.entity.DeckRating;
+import com.ankiquiz.entity.Profile;
 import com.ankiquiz.entity.ReviewReport;
 import com.ankiquiz.exception.NotFoundException;
 import com.ankiquiz.repository.DeckRatingRepository;
@@ -51,16 +52,18 @@ public class ReviewReportService {
     private final DeckRepository decks;
     private final NotificationService notifications;
     private final AdminUserService adminUsers;
+    private final ProfileService profiles;
     private final Clock clock;
 
     public ReviewReportService(ReviewReportRepository reports, DeckRatingRepository ratings,
                                DeckRepository decks, NotificationService notifications,
-                               AdminUserService adminUsers, Clock clock) {
+                               AdminUserService adminUsers, ProfileService profiles, Clock clock) {
         this.reports = reports;
         this.ratings = ratings;
         this.decks = decks;
         this.notifications = notifications;
         this.adminUsers = adminUsers;
+        this.profiles = profiles;
         this.clock = clock;
     }
 
@@ -96,7 +99,14 @@ public class ReviewReportService {
         // obvious move would destroy what a ban needs. The name is best-effort: a Supabase outage
         // must not stop somebody reporting abuse, so a failure leaves it null and keeps the id.
         report.setWriterId(rating.getUserId());
-        report.setWriterName(adminUsers.displayNameOf(rating.getUserId()).orElse(null));
+        // Their username first — it is the one name this app has, and it is local. The Supabase
+        // Admin API is the fallback for somebody with no profile row; a failure there leaves this
+        // null and keeps the id, because an outage must not stop anybody reporting abuse.
+        report.setWriterName(profiles.find(rating.getUserId())
+                .map(Profile::getUsername)
+                .filter(name -> name != null && !name.isBlank())
+                .or(() -> adminUsers.displayNameOf(rating.getUserId()))
+                .orElse(null));
         report.setStatus("open");
         report.setCreatedAt(OffsetDateTime.now(clock));
         reports.save(report);
@@ -142,8 +152,21 @@ public class ReviewReportService {
                 .stream()
                 .collect(Collectors.toMap(Deck::getId, Function.identity()));
 
+        // One query for every writer's current name. The snapshot on the row is the fallback: it
+        // exists so a takedown cannot erase who wrote the thing, but a live profile is fresher and
+        // is what the admin will recognise.
+        Map<String, Profile> writers = profiles.findAll(found.stream()
+                .map(ReviewReport::getWriterId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList());
+
         return found.stream().map(r -> {
             Deck deck = byId.get(r.getDeckId());
+            Profile writer = r.getWriterId() == null ? null : writers.get(r.getWriterId());
+            String writerName = writer != null && writer.getUsername() != null
+                    ? writer.getUsername()
+                    : r.getWriterName();
             // Whether there is still a rating to act on. The note may already be cleared (by the
             // author) while the star stands — that rating can still be taken down.
             boolean live = ratings.findByDeckIdAndPublicId(r.getDeckId(), r.getRatingPublicId())
@@ -151,7 +174,7 @@ public class ReviewReportService {
             return new AdminReviewReportResponse(
                     r.getId(), r.getDeckId(), deck == null ? null : deck.getName(),
                     r.getReporterId(), r.getReason(), r.getDetails(), r.getNoteSnapshot(),
-                    r.getWriterId(), r.getWriterName(),
+                    r.getWriterId(), writerName,
                     live, r.getStatus(), r.getResolutionNote(), r.getCreatedAt());
         }).toList();
     }
@@ -163,20 +186,31 @@ public class ReviewReportService {
         if (!RESOLVABLE.contains(next)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Status must be resolved or dismissed.");
         }
-        ReviewReport report = require(reportId);
+        close(require(reportId), next, adminId, note);
+    }
+
+    /**
+     * Mark a report dealt with: status, who and when, the reason, and the retention clock — then
+     * tell whoever reported it.
+     *
+     * <p>Shared by {@link #updateStatus} and {@link #takeDownRating} so the two cannot drift. A
+     * takedown IS a resolution: removing the content is the most decisive answer a report can get,
+     * and leaving it open afterwards left the badge counting work already done and the row with no
+     * expiry, so it never aged out either.
+     */
+    private void close(ReviewReport report, String status, String adminId, String note) {
         OffsetDateTime now = OffsetDateTime.now(clock);
-        report.setStatus(next);
+        report.setStatus(status);
         report.setResolvedAt(now);
         report.setResolvedBy(adminId);
         // A closed report is evidence for a while and clutter afterwards. An OPEN one never gets a
         // date: it is still somebody's outstanding work.
         report.setPurgeAfter(now.plusDays(REPORT_RETENTION_DAYS));
-        // Internal: the next admin reading this row is the audience, not the reporter.
         report.setResolutionNote(trimToNull(note));
         reports.save(report);
 
         notifications.reportReviewed(report.getReporterId(), report.getDeckId(),
-                deckName(report.getDeckId()), "resolved".equals(next));
+                deckName(report.getDeckId()), "resolved".equals(status));
     }
 
     /**
@@ -192,11 +226,13 @@ public class ReviewReportService {
      * @return whether a rating was actually removed.
      */
     @Transactional
-    public boolean takeDownRating(UUID reportId, String note) {
+    public boolean takeDownRating(UUID reportId, String note, String adminId) {
         ReviewReport report = require(reportId);
         Optional<DeckRating> found =
                 ratings.findByDeckIdAndPublicId(report.getDeckId(), report.getRatingPublicId());
         if (found.isEmpty()) {
+            // Nothing was removed, so nothing is decided — the report stays open rather than being
+            // closed on the strength of an action that did not happen.
             return false;
         }
         ratings.delete(found.get());
@@ -209,10 +245,12 @@ public class ReviewReportService {
         // The reason travels with it. That is why it is mandatory: "your rating was removed" with
         // no grounds gives somebody moderated by mistake nothing to appeal.
         String reason = trimToNull(note);
-        report.setResolutionNote(reason);
-        reports.save(report);
         notifications.contentRemoved(report.getWriterId(), report.getDeckId(),
                 deckName(report.getDeckId()), reason);
+        // Removing the content settles the report, with the reason already given. Making the admin
+        // resolve it separately meant writing a second reason for the same decision, and until
+        // they did the queue kept counting it.
+        close(report, "resolved", adminId, reason);
         return true;
     }
 

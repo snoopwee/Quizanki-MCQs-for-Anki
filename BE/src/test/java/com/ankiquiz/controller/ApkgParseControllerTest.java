@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.service.BanService;
 import com.ankiquiz.config.AdminAccess;
 import com.ankiquiz.config.SecurityConfig;
 import com.ankiquiz.dto.response.ApkgNotesResponse;
@@ -42,6 +43,9 @@ class ApkgParseControllerTest {
 
     @MockBean
     private ApkgParserService parserService;
+
+    @MockBean
+    private BanService banService;
 
     @MockBean
     private ApkgParseRateLimiter rateLimiter;

@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import { useAdminUsers, useSetUserBanned } from "@/hooks/useAdmin";
+import { BanUserModal } from "@/components/admin/BanUserModal";
 import { useMe } from "@/hooks/useMe";
 import type { AdminUser } from "@/types/api";
 import { timeAgo } from "@/lib/relativeTime";
-import { Modal } from "@/components/shared/Modal";
-import { Spinner } from "@/components/ui/Spinner";
 
 // Manage users, backed live by the Supabase Admin API (no user table). Ban disables
 // sign-in; it's reversible (Unban). You can't ban your own account.
@@ -25,7 +24,8 @@ export default function AdminUsersPage() {
       <header>
         <h1 className="font-display text-xl font-bold tracking-tight text-ink">Users</h1>
         <p className="mt-1 text-sm text-muted">
-          Everyone with an account. Ban to block sign-in (reversible); accounts are managed in Supabase.
+          Everyone with an account. Suspending is reversible, and the reason you give is shown to
+          the person suspended.
         </p>
       </header>
 
@@ -64,26 +64,33 @@ export default function AdminUsersPage() {
                     {u.createdAt && <> · joined {timeAgo(u.createdAt)}</>}
                     {u.lastSignInAt && <> · last seen {timeAgo(u.lastSignInAt)}</>}
                   </p>
+                  {/* The standing reason, in the list: an admin reviewing suspensions shouldn't
+                      have to open anything to see why each one happened. */}
+                  {u.banned && u.banReason && (
+                    <p className="mt-1 truncate text-xs text-danger" title={u.banReason}>
+                      {u.banReason}
+                    </p>
+                  )}
                 </div>
                 <div className="shrink-0">
                   {u.banned ? (
                     <button
                       type="button"
-                      onClick={() => setBanned.mutate({ userId: u.id, banned: false })}
+                      onClick={() => setToBan(u)}
                       disabled={setBanned.isPending}
                       className="rounded-input border border-line-strong bg-surface px-2.5 py-1.5 text-sm font-medium text-muted transition hover:border-accent hover:text-accent disabled:opacity-50"
                     >
-                      Unban
+                      Restore
                     </button>
                   ) : (
                     <button
                       type="button"
                       onClick={() => setToBan(u)}
                       disabled={isSelf}
-                      title={isSelf ? "You can't ban your own account" : undefined}
+                      title={isSelf ? "You can't suspend your own account" : undefined}
                       className="rounded-input border border-line-strong bg-surface px-2.5 py-1.5 text-sm font-medium text-muted transition hover:border-danger hover:text-danger disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      Ban
+                      Suspend
                     </button>
                   )}
                 </div>
@@ -116,37 +123,20 @@ export default function AdminUsersPage() {
       )}
 
       {toBan && (
-        <Modal title="Ban this user?" onClose={setBanned.isPending ? () => {} : () => setToBan(null)}>
-          <p className="text-sm text-muted">
-            <span className="font-medium text-ink">{toBan.displayName || toBan.email}</span> won&apos;t be
-            able to sign in until you unban them. Their decks and data are untouched.
-          </p>
-          <div className="mt-5 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setToBan(null)}
-              disabled={setBanned.isPending}
-              className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-muted transition hover:text-ink disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setBanned.mutate(
-                  { userId: toBan.id, banned: true },
-                  { onSuccess: () => setToBan(null) },
-                )
-              }
-              disabled={setBanned.isPending}
-              className="inline-flex items-center gap-2 rounded-input bg-danger px-4 py-2 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-60"
-            >
-              {setBanned.isPending && <Spinner className="h-4 w-4" />}
-              Ban user
-            </button>
-          </div>
-        </Modal>
+        <BanUserModal
+          user={toBan}
+          pending={setBanned.isPending}
+          error={setBanned.isError ? "Couldn't save that. Try again." : null}
+          onConfirm={(reason) =>
+            setBanned.mutate(
+              { userId: toBan.id, banned: !toBan.banned, reason },
+              { onSuccess: () => setToBan(null) },
+            )
+          }
+          onClose={() => setToBan(null)}
+        />
       )}
+
     </div>
   );
 }

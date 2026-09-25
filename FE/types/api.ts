@@ -15,6 +15,9 @@ export interface MeResponse {
   // False when we GENERATED that handle and you've never seen it — the client then asks you to
   // confirm or change it once, pre-filled. True once you've typed one, confirmed one, or edited it.
   usernameChosen: boolean;
+  // Set while the account is suspended. /me is the ONE route a suspended account can still reach,
+  // precisely so the app can render the reason instead of a wall of 403s.
+  suspension: { reason: string; bannedAt: string } | null;
 }
 
 // GET /api/v1/admin/reports/counts — outstanding moderation work, for the sidebar badge.
@@ -48,6 +51,9 @@ export interface AdminUser {
   createdAt: string | null;
   lastSignInAt: string | null;
   banned: boolean;
+  // Why they were suspended, and when. Ours (V39), not Supabase's — null in good standing.
+  banReason: string | null;
+  bannedAt: string | null;
 }
 
 export interface AdminUsersPage {

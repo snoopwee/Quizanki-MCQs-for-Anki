@@ -26,13 +26,16 @@ class AdminUserServiceTest {
                 OffsetDateTime.now().plusYears(1).toString(),
                 Map.of("full_name", "Alice Anderson"));
 
-        AdminUserResponse r = AdminUserService.toResponse(u);
+        // Supabase's own banned_until is no longer what "banned" means — suspensions are ours
+        // (V39), passed in alongside. A live Supabase ban with no local suspension is not a ban.
+        AdminUserResponse r = AdminUserService.toResponse(u, null);
 
         assertThat(r.id()).isEqualTo("id-1");
         assertThat(r.email()).isEqualTo("alice@example.com");
         assertThat(r.displayName()).isEqualTo("Alice Anderson");
         assertThat(r.createdAt()).isEqualTo("2026-01-01T00:00:00Z");
-        assertThat(r.banned()).isTrue();
+        assertThat(r.banned()).isFalse();
+        assertThat(r.banReason()).isNull();
     }
 
     @Test
@@ -58,7 +61,7 @@ class AdminUserServiceTest {
     // takes a page-fetcher, so the stopping conditions are testable.
 
     private static AdminUserResponse user(String id) {
-        return new AdminUserResponse(id, id + "@example.com", null, null, null, false);
+        return new AdminUserResponse(id, id + "@example.com", null, null, null, false, null, null);
     }
 
     @Test
@@ -99,8 +102,8 @@ class AdminUserServiceTest {
     @Test
     void collectUserIds_skipsBlankIdsAndSurvivesAMissingPage() {
         AdminUsersPage withBlanks = new AdminUsersPage(
-                List.of(user("a"), new AdminUserResponse(null, null, null, null, null, false),
-                        new AdminUserResponse("  ", null, null, null, null, false), user("d")),
+                List.of(user("a"), new AdminUserResponse(null, null, null, null, null, false, null, null),
+                        new AdminUserResponse("  ", null, null, null, null, false, null, null), user("d")),
                 1, 4, false);
 
         assertThat(AdminUserService.collectUserIds(p -> withBlanks, 100, 50)).containsExactly("a", "d");

@@ -23,6 +23,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -53,6 +54,7 @@ class ReviewReportServiceTest {
     @Mock private DeckRepository decks;
     @Mock private NotificationService notifications;
     @Mock private AdminUserService adminUsers;
+    @Mock private ProfileService profiles;
 
     private final Instant nowInstant = Instant.parse("2026-09-23T09:00:00Z");
     private final Clock clock = Clock.fixed(nowInstant, ZoneOffset.UTC);
@@ -64,7 +66,8 @@ class ReviewReportServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ReviewReportService(reports, ratings, decks, notifications, adminUsers, clock);
+        service = new ReviewReportService(reports, ratings, decks, notifications, adminUsers,
+                profiles, clock);
     }
 
     private Deck deck() {
@@ -212,7 +215,7 @@ class ReviewReportServiceTest {
         report.setWriterName("Troublesome Tim");
         note("this deck is rubbish and so are you");
 
-        service.takeDownRating(reportId, "Because.");
+        service.takeDownRating(reportId, "Because.", ADMIN);
 
         // The whole reason for the snapshot: the rating is gone, and the account is still reachable.
         when(reports.findByStatusOrderByCreatedAtDesc("open")).thenReturn(List.of(report));
@@ -321,7 +324,7 @@ class ReviewReportServiceTest {
 
         assertThatThrownBy(() -> service.updateStatus(reportId, "resolved", ADMIN, "Because."))
                 .isInstanceOf(NotFoundException.class);
-        assertThatThrownBy(() -> service.takeDownRating(reportId, "Because.")).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> service.takeDownRating(reportId, "Because.", ADMIN)).isInstanceOf(NotFoundException.class);
     }
 
     @Test
@@ -329,7 +332,7 @@ class ReviewReportServiceTest {
         filed("open");
         DeckRating rating = note("this deck is rubbish and so are you");
 
-        assertThat(service.takeDownRating(reportId, "Because.")).isTrue();
+        assertThat(service.takeDownRating(reportId, "Because.", ADMIN)).isTrue();
 
         // Stars and note together. The note is private and the star is public, so clearing only
         // the text would leave the abuser's mark on the score and take away the one thing the
@@ -346,7 +349,7 @@ class ReviewReportServiceTest {
         DeckRating starsOnly = note(null);
 
         // The star is the public half; it outlives the text and is still actionable.
-        assertThat(service.takeDownRating(reportId, "Because.")).isTrue();
+        assertThat(service.takeDownRating(reportId, "Because.", ADMIN)).isTrue();
         verify(ratings).delete(starsOnly);
     }
 
@@ -355,7 +358,7 @@ class ReviewReportServiceTest {
         filed("open");
         when(ratings.findByDeckIdAndPublicId(deckId, noteId)).thenReturn(Optional.empty());
 
-        assertThat(service.takeDownRating(reportId, "Because.")).isFalse();
+        assertThat(service.takeDownRating(reportId, "Because.", ADMIN)).isFalse();
         verify(ratings, never()).delete(any(DeckRating.class));
         verify(ratings, never()).refreshAggregate(any());
     }
@@ -369,7 +372,7 @@ class ReviewReportServiceTest {
         deck();
         note("this deck is rubbish and so are you");
 
-        service.takeDownRating(reportId, "Because.");
+        service.takeDownRating(reportId, "Because.", ADMIN);
 
         // Until this existed only the REPORTER heard an outcome; the person actually moderated
         // just found their rating gone, with no lesson and nothing to appeal.
@@ -382,7 +385,7 @@ class ReviewReportServiceTest {
         filed("open");  // no writerId — predates the V31 snapshot
         note("older than the writer column");
 
-        assertThat(service.takeDownRating(reportId, "Because.")).isTrue();
+        assertThat(service.takeDownRating(reportId, "Because.", ADMIN)).isTrue();
 
         // The takedown does not depend on being able to tell anybody. It asks either way and
         // NotificationService drops a delivery with no recipient — one guard, in one place.
@@ -420,5 +423,66 @@ class ReviewReportServiceTest {
         // An admin sorting finished work from outstanding work doesn't care which way it went.
         verify(reports).findByStatusNotOrderByCreatedAtDesc("open");
         verify(reports, never()).findAllByOrderByCreatedAtDesc();
+    }
+
+    @Test
+    void aTakeDownResolvesTheReportItActedOn() {
+        ReviewReport report = filed("open");
+        report.setWriterId("writer-1");
+        deck();
+        note("this deck is rubbish and so are you");
+
+        service.takeDownRating(reportId, "Personal abuse.", ADMIN);
+
+        // Removing the content IS the decision. Leaving it open left the badge counting work
+        // already done, and with no purge_after the row would never have aged out either.
+        ReviewReport saved = captureSaved();
+        assertThat(saved.getStatus()).isEqualTo("resolved");
+        assertThat(saved.getResolvedBy()).isEqualTo(ADMIN);
+        assertThat(saved.getPurgeAfter()).isEqualTo(OffsetDateTime.now(clock).plusDays(15));
+        // One reason, not two: the same words settle the report and reach the writer.
+        assertThat(saved.getResolutionNote()).isEqualTo("Personal abuse.");
+        verify(notifications).reportReviewed(AUTHOR, deckId, "JLPT N3 kanji", true);
+    }
+
+    @Test
+    void aTakeDownThatRemovedNothingLeavesTheReportOpen() {
+        filed("open");
+        when(ratings.findByDeckIdAndPublicId(deckId, noteId)).thenReturn(Optional.empty());
+
+        assertThat(service.takeDownRating(reportId, "Personal abuse.", ADMIN)).isFalse();
+
+        // Nothing happened, so nothing is decided — it must not close on an action that failed.
+        verify(reports, never()).save(any());
+        verify(notifications, never()).reportReviewed(any(), any(), any(), anyBoolean());
+    }
+
+    @Test
+    void theQueueNamesWritersByTheirCurrentUsername() {
+        ReviewReport report = filed("open");
+        report.setWriterId("writer-1");
+        report.setWriterName("Old Snapshot Name");
+        when(reports.findByStatusOrderByCreatedAtDesc("open")).thenReturn(List.of(report));
+        com.ankiquiz.entity.Profile writer = new com.ankiquiz.entity.Profile();
+        writer.setUserId("writer-1");
+        writer.setUsername("tester");
+        when(profiles.findAll(List.of("writer-1"))).thenReturn(Map.of("writer-1", writer));
+
+        var rows = service.list("open", null);
+
+        // The snapshot exists so a takedown can't erase who wrote it, but a live profile is
+        // fresher — and an admin recognises "tester", not a uuid.
+        assertThat(rows.getFirst().writerName()).isEqualTo("tester");
+    }
+
+    @Test
+    void aWriterWithNoProfileFallsBackToTheSnapshot() {
+        ReviewReport report = filed("open");
+        report.setWriterId("writer-1");
+        report.setWriterName("Old Snapshot Name");
+        when(reports.findByStatusOrderByCreatedAtDesc("open")).thenReturn(List.of(report));
+        when(profiles.findAll(List.of("writer-1"))).thenReturn(Map.of());
+
+        assertThat(service.list("open", null).getFirst().writerName()).isEqualTo("Old Snapshot Name");
     }
 }

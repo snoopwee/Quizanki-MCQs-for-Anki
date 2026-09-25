@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.service.BanService;
 import com.ankiquiz.dto.request.AiDraftRequest;
 import com.ankiquiz.dto.response.AiDeckDraftResponse;
 import com.ankiquiz.dto.response.ApkgNotesResponse;
@@ -51,6 +52,9 @@ class AiControllerTest {
 
     @MockBean
     private JwtDecoder jwtDecoder;
+
+    @MockBean
+    private BanService banService;
 
     private AiDeckDraftResponse draft() {
         ApkgNotesResponse.ParsedNote note = new ApkgNotesResponse.ParsedNote(

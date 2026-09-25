@@ -8,6 +8,7 @@ import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.DeckResponse;
 import com.ankiquiz.dto.response.PublicDeckPage;
 import com.ankiquiz.entity.Deck;
+import com.ankiquiz.entity.Profile;
 import com.ankiquiz.entity.Note;
 import com.ankiquiz.entity.NoteType;
 import com.ankiquiz.entity.UserDeck;
@@ -42,6 +43,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -62,6 +64,8 @@ class DeckServiceTest {
     @Mock private NoteTypeRepository noteTypeRepository;
     @Mock private NoteRepository noteRepository;
     @Mock private UserDeckRepository userDeckRepository;
+    @Mock private FollowService followService;
+    @Mock private ProfileService profileService;
     @Mock private EntityManager entityManager;
     @Mock private Query query;
 
@@ -73,7 +77,11 @@ class DeckServiceTest {
     @BeforeEach
     void setUp() {
         service = new DeckService(deckRepository, noteTypeRepository, noteRepository,
-                userDeckRepository, entityManager);
+                userDeckRepository, followService, profileService, entityManager);
+        // Deck credit is stamped from the PROFILE now, not the token. Model that as "whatever
+        // this caller is called" so these tests keep asserting authorship, not plumbing.
+        when(profileService.creditName(any(Caller.class)))
+                .thenAnswer(i -> i.getArgument(0, Caller.class).displayName());
         // saveAll / save echo their argument; save assigns an id to new note types
         // so ensureBasicType can route new cards to it.
         when(noteRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -676,6 +684,93 @@ class DeckServiceTest {
     }
 
     @Test
+    void sharingADeckForTheFirstTimeTellsTheAuthorsFollowers() {
+        Deck deck = deck();
+        deck.setPublic(false);
+        deck.setAuthorId(deck.getUserId());
+        when(deckRepository.findByIdAndUserId(any(), any())).thenReturn(Optional.of(deck));
+        when(deckRepository.save(any(Deck.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.setDeckSharing(deck.getUserId(), deck.getId(), true);
+
+        verify(followService).announcePublished(deck);
+    }
+
+    @Test
+    void resharingADeckThatWasAlreadyPublicTellsNobody() {
+        Deck deck = deck();
+        deck.setPublic(true);
+        deck.setAuthorId(deck.getUserId());
+        when(deckRepository.findByIdAndUserId(any(), any())).thenReturn(Optional.of(deck));
+        when(deckRepository.save(any(Deck.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.setDeckSharing(deck.getUserId(), deck.getId(), true);
+
+        // Only the private -> public transition is news; toggling or re-saving must not spam an
+        // author's followers with the same deck.
+        verify(followService, never()).announcePublished(any());
+    }
+
+    @Test
+    void unsharingTellsNobody() {
+        Deck deck = deck();
+        deck.setPublic(true);
+        deck.setAuthorId(deck.getUserId());
+        when(deckRepository.findByIdAndUserId(any(), any())).thenReturn(Optional.of(deck));
+        when(deckRepository.save(any(Deck.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.setDeckSharing(deck.getUserId(), deck.getId(), false);
+
+        verify(followService, never()).announcePublished(any());
+    }
+
+    @Test
+    void getPublicDecks_ordersByRatingOnlyWhenAskedTo() {
+        when(deckRepository.findPublicDecksByRating(eq(""), isNull(), isNull(), anyInt(), any(Pageable.class)))
+                .thenReturn(pageOf(List.of(), 12, 0));
+
+        service.getPublicDecks(null, null, null, 12, 0, "rated");
+
+        // The floor travels with the query: without it one five-star rating owns Discover.
+        verify(deckRepository).findPublicDecksByRating(eq(""), isNull(), isNull(),
+                eq(DeckService.MIN_RATINGS_TO_RANK), any(Pageable.class));
+        verify(deckRepository, never()).findPublicDecks(any(), any(), any(), any(Pageable.class));
+    }
+
+    @Test
+    void getPublicDecks_keepsNewestFirstForEverythingElse() {
+        when(deckRepository.findPublicDecks(eq(""), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(pageOf(List.of(), 12, 0));
+
+        // Null, the old five-argument call, and an unrecognised value all mean the original listing.
+        service.getPublicDecks(null, null, null, 12, 0, null);
+        service.getPublicDecks(null, null, null, 12, 0);
+        service.getPublicDecks(null, null, null, 12, 0, "shiniest");
+
+        verify(deckRepository, org.mockito.Mockito.times(3))
+                .findPublicDecks(eq(""), isNull(), isNull(), any(Pageable.class));
+        verify(deckRepository, never())
+                .findPublicDecksByRating(any(), any(), any(), anyInt(), any(Pageable.class));
+    }
+
+    @Test
+    void aDiscoverRowCarriesTheDecksScore() {
+        Deck shared = deck();
+        shared.setPublic(true);
+        shared.setSharedAt(OffsetDateTime.now());
+        shared.setRatingCount(17);
+        shared.setRatingSum(71);
+        when(deckRepository.findPublicDecks(eq(""), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(pageOf(List.of(shared), 12, 1));
+
+        PublicDeckPage result = service.getPublicDecks(null, null, null, 12, 0);
+
+        assertThat(result.items().get(0).ratingCount()).isEqualTo(17);
+        // 71 / 17 = 4.176…, rounded once for display.
+        assertThat(result.items().get(0).ratingAverage()).isEqualTo(4.2);
+    }
+
+    @Test
     void getAuthorPage_listsPublicDecks_andTakesTheNameFromThem() {
         Deck a = deck();
         a.setPublic(true);
@@ -691,14 +786,49 @@ class DeckServiceTest {
     }
 
     @Test
-    void getAuthorPage_isEmpty_whenTheAuthorHasNoPublicDecks() {
-        when(deckRepository.findPublicByAuthor("nobody")).thenReturn(List.of());
+    void getAuthorPage_namesThemByTheirUsernameNotTheDecksCreditSnapshot() {
+        Deck a = deck();
+        a.setPublic(true);
+        a.setSharedAt(OffsetDateTime.now());
+        when(deckRepository.findPublicByAuthor("alice")).thenReturn(List.of(a));
+        when(profileService.find("alice")).thenReturn(Optional.of(profile("alice", "alicenguyen")));
 
-        var page = service.getAuthorPage("nobody");
+        // author_name on the deck is a CREDIT snapshot — it can even belong to somebody else after
+        // a copy — so the page shows the username, which is the one name this app has.
+        assertThat(service.getAuthorPage("alice").authorName()).isEqualTo("alicenguyen");
+    }
 
-        assertThat(page.authorName()).isNull();
+    @Test
+    void getAuthorPage_isARealPage_forSomebodyWhoHasPublishedNothing() {
+        when(deckRepository.findPublicByAuthor("learner")).thenReturn(List.of());
+        when(profileService.find("learner")).thenReturn(Optional.of(profile("learner", "thanh")));
+
+        var page = service.getAuthorPage("learner");
+
+        // Having published nothing is not the same as not existing: this is what makes a follower
+        // list worth clicking, and what you need to follow somebody back.
+        assertThat(page.authorName()).isEqualTo("thanh");
+        assertThat(page.username()).isEqualTo("thanh");
         assertThat(page.deckCount()).isZero();
         assertThat(page.decks()).isEmpty();
+    }
+
+    @Test
+    void getAuthorPage_is404_forAUserWeHaveNeverHeardOf() {
+        when(deckRepository.findPublicByAuthor("nobody")).thenReturn(List.of());
+        when(profileService.find("nobody")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getAuthorPage("nobody"))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    // One name: the username IS the display name, and the rename endpoint keeps them equal.
+    private static Profile profile(String userId, String username) {
+        Profile p = new Profile();
+        p.setUserId(userId);
+        p.setUsername(username);
+        p.setDisplayName(username);
+        return p;
     }
 
     @Test
@@ -761,36 +891,23 @@ class DeckServiceTest {
     // ── author-profile (name + avatar) propagation ───────────────────────────
 
     @Test
-    void syncAuthorProfile_stampsTheProvidedNameAndAvatarAcrossAuthoredDecks() {
+    void syncAuthorProfile_stampsTheResolvedNameAndAvatarAcrossAuthoredDecks() {
         when(deckRepository.updateAuthorProfile(eq(USER), eq("Alice Renamed"), eq("https://cdn/a.png")))
                 .thenReturn(3);
 
-        int updated = service.syncAuthorProfile(
-                new Caller(USER, "stale-jwt-name", null), "  Alice Renamed  ", "  https://cdn/a.png  ");
+        // The caller arrives already resolved (Caller.withOverrides decides whether the body or
+        // the token wins), so this method has one job: stamp it.
+        int updated = service.syncAuthorProfile(new Caller(USER, "Alice Renamed", "https://cdn/a.png"));
 
         assertThat(updated).isEqualTo(3);
-        // The client-supplied name/avatar win (trimmed) over the JWT's, so it works
-        // even before the token refreshes.
         verify(deckRepository).updateAuthorProfile(USER, "Alice Renamed", "https://cdn/a.png");
     }
 
     @Test
-    void syncAuthorProfile_fallsBackToTheJwtNameAndAvatar_whenBlank() {
-        when(deckRepository.updateAuthorProfile(eq(USER), eq("alice"), eq("https://oauth/pic.png")))
-                .thenReturn(0);
-
-        // Blank name/avatar → the (refreshed) JWT's values. This is the "removed my
-        // custom photo, keep my OAuth one" case: the caller carries the OAuth avatar.
-        service.syncAuthorProfile(new Caller(USER, "alice", "https://oauth/pic.png"), "   ", "  ");
-
-        verify(deckRepository).updateAuthorProfile(USER, "alice", "https://oauth/pic.png");
-    }
-
-    @Test
-    void syncAuthorProfile_clearsToNull_whenBlankAndTheJwtHasNoAvatar() {
+    void syncAuthorProfile_passesANullAvatarStraightThrough() {
         when(deckRepository.updateAuthorProfile(eq(USER), eq("alice"), isNull())).thenReturn(0);
 
-        service.syncAuthorProfile(new Caller(USER, "alice", null), "   ", "  ");
+        service.syncAuthorProfile(new Caller(USER, "alice", null));
 
         verify(deckRepository).updateAuthorProfile(USER, "alice", null);
     }

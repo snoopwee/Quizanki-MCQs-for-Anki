@@ -60,10 +60,23 @@ public class ReportService {
     }
 
     @Transactional(readOnly = true)
-    public List<AdminReportResponse> listReports(String status) {
-        List<DeckReport> reports = (status == null || status.isBlank())
-                ? reportRepository.findAllByOrderByCreatedAtDesc()
-                : reportRepository.findByStatusOrderByCreatedAtDesc(status.trim());
+    public List<AdminReportResponse> listReports(String status, String reason) {
+        String want = status == null ? "" : status.trim().toLowerCase();
+        // "closed" is resolved AND dismissed: an admin sorting finished work from outstanding work
+        // does not care which way it went, only that it is done.
+        List<DeckReport> reports = switch (want) {
+            case "" -> reportRepository.findAllByOrderByCreatedAtDesc();
+            case "closed" -> reportRepository.findByStatusNotOrderByCreatedAtDesc("open");
+            default -> reportRepository.findByStatusOrderByCreatedAtDesc(want);
+        };
+        // Narrowed in memory: small queue, client-owned vocabulary, and the table is swept every
+        // fifteen days — an index would cost more than it saves.
+        String wantReason = reason == null ? "" : reason.trim();
+        if (!wantReason.isEmpty()) {
+            reports = reports.stream()
+                    .filter(r -> wantReason.equalsIgnoreCase(r.getReason()))
+                    .toList();
+        }
         if (reports.isEmpty()) {
             return List.of();
         }
@@ -79,22 +92,44 @@ public class ReportService {
                     r.getId(), r.getDeckId(),
                     d == null ? null : d.getName(),
                     d == null ? null : d.getAuthorName(),
-                    r.getReporterId(), r.getReason(), r.getDetails(), r.getStatus(), r.getCreatedAt());
+                    r.getReporterId(), r.getReason(), r.getDetails(), r.getStatus(),
+                    r.getResolutionNote(), r.getCreatedAt());
         }).toList();
     }
 
     @Transactional
-    public void updateStatus(UUID reportId, String status, String adminId) {
+    public void updateStatus(UUID reportId, String status, String adminId, String note) {
         String next = status == null ? "" : status.trim().toLowerCase();
         if (!RESOLVABLE.contains(next)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Status must be resolved or dismissed.");
         }
         DeckReport report = reportRepository.findById(reportId)
                 .orElseThrow(() -> new NotFoundException("Report not found: " + reportId));
+        OffsetDateTime now = OffsetDateTime.now();
         report.setStatus(next);
-        report.setResolvedAt(OffsetDateTime.now());
+        report.setResolvedAt(now);
         report.setResolvedBy(adminId);
+        // A closed report is evidence for a while and clutter afterwards. An OPEN one never gets a
+        // date: it is still somebody's outstanding work.
+        report.setPurgeAfter(now.plusDays(ReviewReportService.REPORT_RETENTION_DAYS));
+        // Internal: the next admin reading this row is the audience.
+        report.setResolutionNote(trimToNull(note));
         reportRepository.save(report);
+    }
+
+    /** How many deck reports are still waiting — the admin badge. */
+    @Transactional(readOnly = true)
+    public long openCount() {
+        return reportRepository.countByStatus("open");
+    }
+
+    /**
+     * Delete closed reports whose time is up. Safe at any time: an open report has no date, so it
+     * can never be caught by this.
+     */
+    @Transactional
+    public int purgeExpired() {
+        return reportRepository.deleteByPurgeAfterBefore(OffsetDateTime.now());
     }
 
     private static String trimToNull(String value) {

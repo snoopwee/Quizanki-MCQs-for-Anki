@@ -9,6 +9,7 @@ import com.ankiquiz.dto.response.PublicDeckSummary;
 import com.ankiquiz.exception.GlobalExceptionHandler;
 import com.ankiquiz.exception.NotFoundException;
 import com.ankiquiz.service.DeckService;
+import com.ankiquiz.service.ProfileService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -21,8 +22,11 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -46,6 +50,9 @@ class SharedDeckControllerTest {
 
     @MockBean
     private DeckService deckService;
+
+    @MockBean
+    private ProfileService profileService;
 
     @Test
     void getSharedDeck_isReachableWithoutAuth() throws Exception {
@@ -77,9 +84,9 @@ class SharedDeckControllerTest {
     void discover_isReachableWithoutAuth_andReturnsAPage() throws Exception {
         UUID deckId = UUID.randomUUID();
         PublicDeckPage page = new PublicDeckPage(
-                List.of(new PublicDeckSummary(deckId, "JLPT N4", 120, "author-1", "Alice", null, null, OffsetDateTime.now())),
+                List.of(new PublicDeckSummary(deckId, "JLPT N4", 120, "author-1", "alice", "Alice", null, null, OffsetDateTime.now(), 0, 0.0)),
                 0, 12, 1, 1);
-        when(deckService.getPublicDecks(eq("jlpt"), eq(20), eq(50), eq(12), eq(0))).thenReturn(page);
+        when(deckService.getPublicDecks(eq("jlpt"), eq(20), eq(50), eq(12), eq(0), isNull())).thenReturn(page);
 
         // Browsing Discover is open to guests — only copying a deck needs an account.
         mockMvc.perform(get("/api/v1/public/discover")
@@ -92,16 +99,60 @@ class SharedDeckControllerTest {
     }
 
     @Test
+    void usernameAvailability_answersWithoutAnAccount_andSaysWhyNot() throws Exception {
+        // It runs from the SIGN-UP form, before the account it would belong to exists, so it
+        // cannot require a token.
+        when(profileService.unavailableBecause("pyrettt")).thenReturn(null);
+        when(profileService.unavailableBecause("admin")).thenReturn("That username is reserved.");
+
+        mockMvc.perform(get("/api/v1/public/usernames/{username}/available", "pyrettt"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.available").value(true));
+
+        mockMvc.perform(get("/api/v1/public/usernames/{username}/available", "admin"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.available").value(false))
+                .andExpect(jsonPath("$.reason").value("That username is reserved."));
+    }
+
+    @Test
+    void getUserPage_isTheReadableUrl_andNeedsNoAccount() throws Exception {
+        AuthorPageResponse page = new AuthorPageResponse("author-1", "pyrettt", "Alice", null, 0, 3,
+                List.of());
+        when(deckService.getUserPage(eq("pyrettt"))).thenReturn(page);
+
+        // /user/{username} is what people link to and say out loud; the uuid form stays an alias.
+        mockMvc.perform(get("/api/v1/public/users/{username}", "pyrettt"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("pyrettt"))
+                .andExpect(jsonPath("$.authorId").value("author-1"))
+                .andExpect(jsonPath("$.followers").value(3));
+    }
+
+    @Test
+    void getUserPage_is404ForAHandleNobodyHas() throws Exception {
+        when(deckService.getUserPage(eq("ghost")))
+                .thenThrow(new NotFoundException("No user called ghost"));
+
+        mockMvc.perform(get("/api/v1/public/users/{username}", "ghost"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void getAuthor_isReachableWithoutAuth_andListsTheAuthorsPublicDecks() throws Exception {
         UUID deckId = UUID.randomUUID();
-        AuthorPageResponse page = new AuthorPageResponse("author-1", "Alice", null, 1,
-                List.of(new PublicDeckSummary(deckId, "JLPT N4", 120, "author-1", "Alice", null, null,
-                        OffsetDateTime.now())));
+        AuthorPageResponse page = new AuthorPageResponse("author-1", "alice", "Alice", null, 1, 12,
+                List.of(new PublicDeckSummary(deckId, "JLPT N4", 120, "author-1", "alice", "Alice", null, null,
+                        OffsetDateTime.now(), 0, 0.0)));
         when(deckService.getAuthorPage(eq("author-1"))).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/public/authors/{authorId}", "author-1"))
                 .andExpect(status().isOk())
+                // The follower count is public: a guest sees it under the name. Whether THEY
+                // follow the author is personal and comes from the authenticated route.
+                .andExpect(jsonPath("$.followers").value(12))
                 .andExpect(jsonPath("$.authorName").value("Alice"))
+                .andExpect(jsonPath("$.username").value("alice"))
                 .andExpect(jsonPath("$.deckCount").value(1))
                 .andExpect(jsonPath("$.decks[0].id").value(deckId.toString()))
                 .andExpect(jsonPath("$.decks[0].authorId").value("author-1"));
@@ -109,12 +160,27 @@ class SharedDeckControllerTest {
 
     @Test
     void discover_defaultsPagingAndOmitsFiltersWhenNoParamsAreGiven() throws Exception {
-        when(deckService.getPublicDecks(isNull(), isNull(), isNull(), eq(12), eq(0)))
+        when(deckService.getPublicDecks(isNull(), isNull(), isNull(), eq(12), eq(0), isNull()))
                 .thenReturn(new PublicDeckPage(List.of(), 0, 12, 0, 0));
 
         mockMvc.perform(get("/api/v1/public/discover"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items").isArray())
                 .andExpect(jsonPath("$.total").value(0));
+    }
+
+    @Test
+    void theSortChoiceReachesTheService() throws Exception {
+        when(deckService.getPublicDecks(any(), any(), any(), anyInt(), anyInt(), any()))
+                .thenReturn(new PublicDeckPage(java.util.List.of(), 0, 12, 0, 0));
+
+        mockMvc.perform(get("/api/v1/public/discover").param("sort", "rated"))
+                .andExpect(status().isOk());
+        verify(deckService).getPublicDecks(null, null, null, 12, 0, "rated");
+
+        // Absent means the default listing, and the controller passes that through rather than
+        // inventing a value.
+        mockMvc.perform(get("/api/v1/public/discover")).andExpect(status().isOk());
+        verify(deckService).getPublicDecks(null, null, null, 12, 0, null);
     }
 }

@@ -17,5 +17,6 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   { href: "/admin/decks", label: "Moderate decks", icon: "layers", ready: true },
   { href: "/admin/users", label: "Users", icon: "user", ready: true },
   { href: "/admin/reports", label: "Reports", icon: "clipboard", ready: true },
+  { href: "/admin/announcements", label: "Announcements", icon: "mail", ready: true },
   { href: "/admin/config", label: "Site config", icon: "settings", ready: true },
 ];

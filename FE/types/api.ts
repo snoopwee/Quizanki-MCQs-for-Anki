@@ -9,6 +9,19 @@ export interface MeResponse {
   userId: string;
   email: string;
   isAdmin: boolean;
+  // Your public handle — the /user/{username} half of your profile URL. Null only for a profile
+  // written before V35 assigned one.
+  username: string | null;
+  // False when we GENERATED that handle and you've never seen it — the client then asks you to
+  // confirm or change it once, pre-filled. True once you've typed one, confirmed one, or edited it.
+  usernameChosen: boolean;
+}
+
+// GET /api/v1/admin/reports/counts — outstanding moderation work, for the sidebar badge.
+export interface ReportCounts {
+  deckReports: number;
+  noteReports: number;
+  total: number;
 }
 
 // GET /api/v1/admin/reports — one row of the deck-report moderation queue.
@@ -22,6 +35,8 @@ export interface AdminReport {
   details: string | null;
   status: string; // open | resolved | dismissed
   createdAt: string;
+  // Why an admin acted (V38). Null while open, and on rows predating the requirement.
+  resolutionNote: string | null;
 }
 
 // GET /api/v1/admin/users — a page of Supabase users (from the Admin API). No user
@@ -103,6 +118,11 @@ export interface DeckResponse {
   // Home / deck cards next to the name. Null → the client renders initials.
   authorAvatarUrl: string | null;
   sourceAuthorName: string | null;
+  // The public rating (V28). count 0 means nobody has rated it yet, and the average is then 0 —
+  // the UI says "Not rated yet" rather than showing zero stars. The notes people write with a
+  // rating are private to the deck's author and never appear here.
+  ratingCount: number;
+  ratingAverage: number;
 }
 
 export interface NoteResponse {
@@ -138,6 +158,201 @@ export interface DeckHistoryPoint {
   accuracy: number; // 0–1
   // Which surface the session was. Optional: a backend from before Phase 7 doesn't send it.
   source?: AnswerSource;
+}
+
+// ── Folders (Phase 10) ────────────────────────────────────────────────────────
+// A folder is the VIEWER's own grouping: it can hold a deck they merely saved, and filing one
+// changes nothing for its owner. A deck may sit in several folders.
+export interface FolderResponse {
+  id: string;
+  name: string;
+  deckCount: number;
+  updatedAt: string;
+  // Only meaningful when the list was fetched for one deck (the deck page's picker).
+  containsDeck: boolean;
+}
+
+export interface FolderDetailResponse {
+  id: string;
+  name: string;
+  decks: DeckResponse[];
+}
+
+// ── Deck ratings (V28) ───────────────────────────────────────────
+// One deck's score, plus the caller's OWN rating. `myNote` is their own note echoed back so they
+// can edit it — never anyone else's. Only the deck's author can read other people's notes.
+export interface DeckRatingResponse {
+  count: number;
+  average: number;
+  myStars: number | null;
+  myNote: string | null;
+  // How many notes are waiting on the feedback page. Only ever non-zero for the deck's author —
+  // nobody else may read them, so nobody else is told how many there are.
+  notesForAuthor: number;
+}
+
+/**
+ * The author's feedback page. Notes carry NO name and no user id: candid feedback needs cover, and
+ * one rating per person per deck already makes each note a different voice. `id` is an opaque
+ * handle — the only thing needed to clear a note.
+ */
+export interface DeckFeedbackResponse {
+  count: number;
+  average: number;
+  notes: {
+    id: string;
+    stars: number;
+    note: string;
+    writtenAt: string;
+  }[];
+}
+
+/**
+ * GET /api/v1/admin/review-reports — a note an author escalated.
+ *
+ * `noteSnapshot` is the text as it was when reported, so it survives being taken down;
+ * `ratingStillThere` says whether there is still a rating to act on (the author may have cleared
+ * the note while the star stands). There is no writer identity in this row on purpose: the queue
+ * judges text, and acting on a person goes through the user tools.
+ */
+export interface AdminReviewReport {
+  id: string;
+  deckId: string;
+  deckName: string | null;
+  reporterId: string;
+  reason: string | null;
+  details: string | null;
+  noteSnapshot: string;
+  // ADMIN-ONLY: who wrote it, as recorded when it was reported. `writerName` may be null (Supabase
+  // unreachable, or no name set); the id is what identifies the account. The author's feedback
+  // page shows neither — it has nowhere to put them.
+  writerId: string | null;
+  writerName: string | null;
+  ratingStillThere: boolean;
+  status: string; // open | resolved | dismissed
+  createdAt: string;
+  // Why an admin acted (V38). Null while open, and on rows predating the requirement.
+  resolutionNote: string | null;
+}
+
+// ── Notification settings (V34) ─────────────────────────────────
+// Only kinds a person may switch off are listed — announcements are operational and the outcome of
+// a report you filed is something you asked for, so neither is offered. Stored as a mute list, so
+// "not listed as muted" means on.
+export interface NotificationSettingResponse {
+  kind: string;
+  muted: boolean;
+}
+
+// ── Follows (Phase 11) ─────────────────────────────────────────
+// Following is one-sided: a subscription to an author page. The author is never asked and is never
+// told who followed them.
+export interface FollowStatusResponse {
+  following: boolean;
+  followers: number;
+  // True when you ARE the author, so the client shows no button rather than one that gets refused.
+  self: boolean;
+}
+
+/**
+ * One of your followers. Only ever served to you — public counts, private lists. `displayName` can
+ * be null, and the row stays anyway: a follower who is hard to name is still a follower.
+ */
+export interface FollowerResponse {
+  userId: string;
+  username: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+}
+
+export interface FollowedAuthorResponse {
+  authorId: string;
+  username: string | null;
+  // Null for an author whose public decks have all gone — the follow outlives them.
+  authorName: string | null;
+  authorAvatarUrl: string | null;
+  publicDecks: number;
+}
+
+// ── Notifications (Phase 10) ─────────────────────────────────────────────────
+// Rows are snapshots the backend wrote: `title` / `body` are its wording, while `kind`,
+// `actorName` and `deckId` come along so the UI can word a row differently without a migration.
+export type NotificationKind = "deck_shared" | "author_published" | "announcement";
+
+export interface NotificationResponse {
+  id: string;
+  // Widened to string: an older client must render a row whose kind it has never heard of.
+  kind: NotificationKind | string;
+  title: string;
+  body: string | null;
+  /** An in-app route ("/decks/<id>"), never absolute — and checked again by `inAppHref`. */
+  link: string | null;
+  actorId: string | null;
+  actorName: string | null;
+  deckId: string | null;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface NotificationPageResponse {
+  items: NotificationResponse[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  /** ALL of this user's unread notifications, not just the ones on this page — the badge number. */
+  unread: number;
+}
+
+export interface UnreadCountResponse {
+  unread: number;
+}
+
+/** POST /api/v1/admin/announcements — what the broadcast actually did. */
+export interface AnnouncementResultResponse {
+  // "all" or "me"; echoed back so the UI reports what was really sent, not what was typed.
+  audience: string;
+  recipients: number;
+  sent: number;
+}
+
+/** GET /api/v1/admin/announcements/audience — how many a broadcast would reach. */
+export interface AudienceResponse {
+  recipients: number;
+}
+
+// ── AI deck generation (Phase 9) ──────────────────────────────────────────────
+// Whose key paid for a generation: our shared free-tier pool, or the user's own.
+export type AiKeyOwner = "shared" | "user";
+
+export interface AiDeckDraftMeta {
+  provider: string;
+  model: string;
+  keyOwner: AiKeyOwner;
+  // Generations left today after this one.
+  remainingToday: number;
+  cards: number;
+  // How many provider calls it took — long material is split.
+  chunks: number;
+  // The material was longer than the server was willing to send.
+  inputTruncated: boolean;
+  // A later chunk failed; these are the cards that did come back.
+  partial: boolean;
+}
+
+/** The draft arrives in the .apkg parser's shape, so `fromParsed` opens it in the review editor. */
+export interface AiDeckDraftResponse {
+  draft: ApkgParseResponse;
+  meta: AiDeckDraftMeta;
+}
+
+/** Never carries the key itself — `hint` is its last four characters. */
+export interface AiKeyStatusResponse {
+  // False when the server has no encryption key, so nobody can store one.
+  supported: boolean;
+  configured: boolean;
+  provider: string | null;
+  hint: string | null;
 }
 
 export interface NoteRequest {
@@ -398,21 +613,32 @@ export interface PublicDeckSummary {
   cardCount: number | null;
   // The credited author's id — lets the author name link to their author page.
   authorId: string;
+  // Their public handle, so the row links straight to /user/{username} rather than bouncing
+  // through the id alias. Null falls back to that alias.
+  authorUsername: string | null;
   authorName: string | null;
   // The author's profile picture (null → initials).
   authorAvatarUrl: string | null;
   sourceAuthorName: string | null;
-  sharedAt: string | null;
+  sharedAt: string | null;  // The public rating, so a browser can judge a deck before opening it.
+  ratingCount: number;
+  ratingAverage: number;
 }
 
-// GET /api/v1/public/authors/{authorId} — an author's public decks + who they are.
+// GET /api/v1/public/users/{username} (and the /public/authors/{authorId} alias) — somebody's
+// public profile page: who they are, plus the decks they've published.
 export interface AuthorPageResponse {
   authorId: string;
+  // The handle in the page's real URL, /user/{username}. Null only for a profile written before
+  // one was assigned; the client falls back to the /authors/{authorId} form.
+  username: string | null;
   authorName: string | null;
   // The author's profile picture for the page header (null → initials).
   authorAvatarUrl: string | null;
   deckCount: number;
-  decks: PublicDeckSummary[];
+  decks: PublicDeckSummary[];  // How many people follow them. Public — it sits under the name for guests too; whether YOU
+  // follow them is personal and comes from /authors/{id}/follow.
+  followers: number;
 }
 
 // GET /api/v1/public/discover — one page of the directory plus the counts the

@@ -16,8 +16,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
 import java.time.OffsetDateTime;
+import java.util.Optional;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntFunction;
 
 /**
  * User management via the Supabase (GoTrue) Admin API. There's no user table here —
@@ -32,6 +35,10 @@ public class AdminUserService {
     private static final Logger log = LoggerFactory.getLogger(AdminUserService.class);
     // A ban far enough out to be "indefinite"; "none" clears it.
     private static final String BAN_FOREVER = "876000h"; // ~100 years
+    /** Page size when walking every user; the Admin API's own ceiling is higher but this is plenty. */
+    private static final int WALK_PAGE_SIZE = 200;
+    /** Hard stop on the walk so a paging bug can't loop against Supabase forever. */
+    private static final int WALK_MAX_PAGES = 50;
 
     private final String supabaseUrl;
     private final String serviceKey;
@@ -70,6 +77,47 @@ public class AdminUserService {
             log.error("List users error", e);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Couldn't reach Supabase.");
         }
+    }
+
+    /**
+     * Every user id in the project, for fanning something out to all of them (an admin broadcast).
+     * There is no user table here, so this walks the Admin API a page at a time.
+     *
+     * @param cap stop after this many ids — an announcement writes one row per recipient, so the
+     *            caller decides how large a fan-out it is willing to perform.
+     */
+    public List<String> allUserIds(int cap) {
+        requireConfigured();
+        return collectUserIds(page -> listUsers(page, WALK_PAGE_SIZE), cap, WALK_MAX_PAGES);
+    }
+
+    /**
+     * The paging walk itself, kept free of HTTP so it can be tested: pages until the API says
+     * there is no more, the cap is reached, or the page ceiling is hit.
+     */
+    static List<String> collectUserIds(IntFunction<AdminUsersPage> fetchPage, int cap, int maxPages) {
+        List<String> ids = new ArrayList<>();
+        if (cap <= 0) {
+            return ids;
+        }
+        for (int page = 1; page <= maxPages; page++) {
+            AdminUsersPage fetched = fetchPage.apply(page);
+            if (fetched == null) {
+                break;
+            }
+            for (AdminUserResponse user : fetched.users()) {
+                if (user.id() != null && !user.id().isBlank()) {
+                    ids.add(user.id());
+                }
+                if (ids.size() >= cap) {
+                    return ids;
+                }
+            }
+            if (!fetched.hasMore()) {
+                break;
+            }
+        }
+        return ids;
     }
 
     public void setBanned(String userId, boolean banned) {
@@ -126,10 +174,39 @@ public class AdminUserService {
         return null;
     }
 
-    private void requireConfigured() {
+    /**
+     * One user's display name, or empty when it can't be had.
+     *
+     * <p>Deliberately soft: this is called while somebody is REPORTING ABUSE, and a Supabase
+     * outage must not stop that report being filed. The id is what identifies the account; the
+     * name is a convenience for whoever reads the queue.
+     */
+    public Optional<String> displayNameOf(String userId) {
+        if (!isConfigured() || userId == null || userId.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            GoTrueUser user = http.get()
+                    .uri(URI.create(supabaseUrl + "/auth/v1/admin/users/" + userId))
+                    .header("apikey", serviceKey)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceKey)
+                    .retrieve()
+                    .body(GoTrueUser.class);
+            return Optional.ofNullable(user).map(u -> displayName(u.userMetadata()));
+        } catch (Exception e) {
+            log.warn("Couldn't resolve a display name for moderation: {}", e.toString());
+            return Optional.empty();
+        }
+    }
+
+    private boolean isConfigured() {
         boolean urlOk = supabaseUrl != null && !supabaseUrl.isBlank() && !supabaseUrl.contains("replace-me");
         boolean keyOk = serviceKey != null && !serviceKey.isBlank();
-        if (!urlOk || !keyOk) {
+        return urlOk && keyOk;
+    }
+
+    private void requireConfigured() {
+        if (!isConfigured()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                     "User management isn't configured on the server (missing service key).");
         }

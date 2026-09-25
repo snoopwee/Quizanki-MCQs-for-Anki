@@ -296,12 +296,17 @@ export function useCloneDeck() {
   });
 }
 
+export type DiscoverSort = "new" | "rated";
+
 export interface DiscoverParams {
   q: string;
   minCards: number | null;
   maxCards: number | null;
   page: number; // zero-based
   pageSize: number;
+  // "new" (the backend default, newest-shared first) or "rated" (best score first, with decks
+  // that have too few ratings to rank listed below the ones that do).
+  sort?: DiscoverSort;
 }
 
 // The public Discover directory. Unauthenticated — guests browse the same list
@@ -321,6 +326,9 @@ export function useDiscoverDecks(params: DiscoverParams) {
           maxCards: params.maxCards ?? undefined,
           limit: params.pageSize,
           offset: params.page * params.pageSize,
+          // Omitted rather than sent as "new": the backend's default IS newest-first, and a param
+          // it does not recognise would silently mean the same thing.
+          sort: params.sort === "rated" ? "rated" : undefined,
         },
       });
       return data;
@@ -337,6 +345,29 @@ export function useAuthorPage(authorId: string) {
     retry: false,
     queryFn: async () => {
       const { data } = await api.get<AuthorPageResponse>(`/public/authors/${authorId}`);
+      return data;
+    },
+  });
+}
+
+/**
+ * The same page by handle — the URL people actually link to. Separate from useAuthorPage so the
+ * two cache under different keys; the uuid route only exists to redirect here.
+ */
+export function useUserPage(username: string) {
+  return useQuery({
+    queryKey: ["userPage", username],
+    enabled: Boolean(username),
+    retry: false,
+    // Carries the follower COUNT, which moves when somebody else follows you — nothing in this
+    // browser can know that, so coming back to the tab is the cue. Same reasoning as the follower
+    // list in useFollows.
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+    queryFn: async () => {
+      const { data } = await api.get<AuthorPageResponse>(
+        `/public/users/${encodeURIComponent(username)}`,
+      );
       return data;
     },
   });

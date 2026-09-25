@@ -5,6 +5,8 @@ import { useTheme } from "@/hooks/useTheme";
 import { useTextSize } from "@/hooks/useTextSize";
 import { createClient } from "@/lib/supabase/client";
 import { AccountSection, accountInputClasses } from "@/components/account/AccountSection";
+import { AiKeySection } from "@/components/settings/AiKeySection";
+import { NotificationSettingsSection } from "@/components/settings/NotificationSettingsSection";
 import { Toast } from "@/components/shared/Toast";
 import { Segmented, Slider, SoonTag } from "@/components/ui/controls";
 import { buttonClasses } from "@/components/ui/Button";
@@ -117,6 +119,11 @@ export default function SettingsPage() {
           Saved to this browser only.
         </p>
       </AccountSection>
+
+      {/* AI generation + bring-your-own-key */}
+      <NotificationSettingsSection />
+
+      <AiKeySection />
 
       {/* change password */}
       <AccountSection

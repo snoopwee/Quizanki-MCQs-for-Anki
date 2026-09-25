@@ -37,3 +37,40 @@ services:
       # Optional — only if/when Redis-backed features are enabled.
       - key: UPSTASH_REDIS_URL
         sync: false
+
+      # ── AI deck generation (Phase 9) ──────────────────────────────────────
+      # Two ways to pay for a generation, and they run side by side:
+      #   * the SHARED key below — our own free-tier key, used by anyone who hasn't
+      #     brought their own. It is ONE pool for every user, which is why the
+      #     quotas exist: keep AI_GLOBAL_PER_DAY under the provider's real daily
+      #     free quota so users hit our message, not the provider's 429.
+      #   * bring-your-own-key — each user pastes their own key in Settings; it is
+      #     encrypted with AI_KEY_ENCRYPTION_KEY and used instead of the shared one.
+      # A user's own key always wins when present.
+      # Dashboard-owned (sync: false) on purpose: a blueprint sync must never switch AI on
+      # before the keys below are in place, or users get a generate button that always fails.
+      # Set it to "true" in the dashboard once AI_API_KEY (and/or AI_KEY_ENCRYPTION_KEY) exist.
+      - key: AI_ENABLED
+        sync: false
+      # ⚠ Confirm the exact model id against the provider's docs — free daily
+      # quotas differ sharply between models.
+      - key: AI_MODEL
+        value: gemini-2.5-flash
+      # Per user, per THEIR day, on the shared pool: enough to try the feature.
+      - key: AI_SHARED_PER_DAY
+        value: "5"
+      # The whole pool's ceiling, on the provider's reset day (midnight Pacific).
+      - key: AI_GLOBAL_PER_DAY
+        value: "200"
+      # Their key, their bill — this is only an abuse backstop on our server.
+      - key: AI_BYOK_PER_DAY
+        value: "100"
+      # Secrets — dashboard only, never in git.
+      # AI_API_KEY: the shared free-tier key. Leave unset to run BYOK-only.
+      - key: AI_API_KEY
+        sync: false
+      # AI_KEY_ENCRYPTION_KEY: base64 of 32 random bytes; encrypts users' own keys.
+      # Generate: openssl rand -base64 32   (PowerShell equivalent in the runbook.)
+      # Unset ⇒ bring-your-own-key is switched off; keys are NEVER stored in plaintext.
+      - key: AI_KEY_ENCRYPTION_KEY
+        sync: false

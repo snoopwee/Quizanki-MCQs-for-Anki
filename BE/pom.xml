@@ -78,6 +78,16 @@
             <version>1.5.6-9</version>
         </dependency>
 
+        <!-- AI deck generation (Phase 9 S3): pull the text layer out of an uploaded PDF so the
+             provider seam stays text-only. Sending the PDF itself would tie us to one multimodal
+             provider, cost many times the tokens on a free tier, and make the tests need a
+             network. Trade-off: no OCR, so a scanned PDF is rejected with an explanation. -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.3</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>

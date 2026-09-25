@@ -11,9 +11,19 @@ import { Icon } from "@/components/ui/icons";
 type ToastKind = "pending" | "success" | "error";
 
 const KIND_STYLES: Record<ToastKind, string> = {
-  pending: "border-line bg-surface text-ink",
-  success: "border-success/30 bg-success/10 text-success",
-  error: "border-danger/30 bg-danger/10 text-danger",
+  pending: "border-line text-ink",
+  success: "border-success/30 text-success",
+  error: "border-danger/30 text-danger",
+};
+
+// The background is set as a colour, not a utility, because a toast floats over page content: the
+// old `bg-success/10` was a 10% tint of transparent, so whatever it covered showed through and the
+// text sat on top of it. Mixing the same tint INTO `--surface` keeps the colour cue and stays
+// opaque, in both themes.
+const KIND_BACKGROUNDS: Record<ToastKind, string> = {
+  pending: "var(--surface)",
+  success: "color-mix(in oklab, var(--success) 12%, var(--surface))",
+  error: "color-mix(in oklab, var(--danger) 12%, var(--surface))",
 };
 
 const SUCCESS_AUTO_DISMISS_MS = 3000;
@@ -49,6 +59,7 @@ export function Toast({
     <div
       role="status"
       aria-live="polite"
+      style={{ background: KIND_BACKGROUNDS[kind] }}
       className={`fixed top-6 right-6 z-50 flex items-center gap-3 rounded-lg border px-4 py-2.5 text-sm shadow-lg transition-all duration-200 ${
         KIND_STYLES[kind]
       } ${entered ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0"}`}

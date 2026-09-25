@@ -25,6 +25,10 @@ import { IconButton, iconButtonIconSize } from "@/components/ui/IconButton";
 import { ExportDeckModal } from "@/components/deck/ExportDeckModal";
 import { ShareDeckModal } from "@/components/deck/ShareDeckModal";
 import { ReportDeckModal } from "@/components/deck/ReportDeckModal";
+import { AddToFolderModal } from "@/components/deck/AddToFolderModal";
+import { RateDeckModal } from "@/components/deck/RateDeckModal";
+import { StarRating } from "@/components/ui/StarRating";
+import { useDeckRating } from "@/hooks/useDeckRating";
 import { DeckAuthor } from "@/components/deck/DeckAuthor";
 import { Card } from "@/components/ui/Card";
 import { Icon, type IconName } from "@/components/ui/icons";
@@ -61,6 +65,9 @@ function DeckDetail() {
   const saveDeck = useSaveDeck(deckId);
   const openDeck = useOpenDeck();
   const copies = useDeckCopies(deckId).data ?? 0;
+  // Shared with the rating modal — one request feeds the score in the header and the modal's form.
+  const deckRating = useDeckRating(deckId).data;
+  const [rateOpen, setRateOpen] = useState(false);
   const toggleStar = useToggleStar(deckId);
 
   // The viewer's relationship to this deck (from the studiable read). A non-owner
@@ -87,6 +94,7 @@ function DeckDetail() {
   const [exportOpen, setExportOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [folderOpen, setFolderOpen] = useState(false);
   // Anchor for the "Flashcards" study mode — scrolls to the flashcard player.
   const cardsRef = useRef<HTMLDivElement>(null);
   const scrollToCards = () => cardsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -289,6 +297,9 @@ function DeckDetail() {
                               onClick: () => router.push(`/decks/${deckId}/edit`),
                             },
                             { label: "Export", icon: "download", onClick: () => setExportOpen(true) },
+                            // Folders are the viewer's own grouping, so this sits in BOTH
+                            // branches — you can file a deck you only saved.
+                            { label: "Folders", icon: "folder", onClick: () => setFolderOpen(true) },
                             {
                               label: "Delete",
                               icon: "trash",
@@ -300,6 +311,7 @@ function DeckDetail() {
                             // Not the owner: they can keep it in their library or fork
                             // an editable copy — but never edit/delete the original.
                             { label: "Duplicate", icon: "copy", onClick: handleDuplicate },
+                            { label: "Folders", icon: "folder", onClick: () => setFolderOpen(true) },
                             {
                               label: "Report",
                               icon: "alertTriangle",
@@ -336,6 +348,35 @@ function DeckDetail() {
                     <Icon name="copy" size={15} />
                     {copies} cop{copies === 1 ? "y" : "ies"}
                   </span>
+                )}
+                {/* Always shown, even at zero: five hollow stars say "this can be rated" where a
+                    missing row says nothing. The author sees it too — it is their deck's score,
+                    they just cannot add to it. */}
+                {deckRating && (
+                  <span className="inline-flex items-center gap-2">
+                    <StarRating average={deckRating.average} count={deckRating.count} size={15} />
+                    {!owned && (
+                      <button
+                        type="button"
+                        onClick={() => setRateOpen(true)}
+                        className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface px-2.5 py-1 text-xs font-semibold text-ink transition hover:border-accent hover:text-accent"
+                      >
+                        <Icon name="star" size={13} />
+                        {deckRating.myStars != null ? "Your rating" : "Rate it"}
+                      </button>
+                    )}
+                  </span>
+                )}
+                {/* Only the author is told notes exist, and only when some do — there is nothing
+                    to open otherwise. notesForAuthor is 0 for everyone else by construction. */}
+                {(deckRating?.notesForAuthor ?? 0) > 0 && (
+                  <Link
+                    href={`/decks/${deckId}/feedback`}
+                    className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface px-2.5 py-1 text-xs font-semibold text-ink transition hover:border-accent hover:text-accent"
+                  >
+                    <Icon name="star" size={13} />
+                    {deckRating?.notesForAuthor} note{deckRating?.notesForAuthor === 1 ? "" : "s"}
+                  </Link>
                 )}
               </div>
             </div>
@@ -426,6 +467,12 @@ function DeckDetail() {
           {/* "Cards in this deck" list is portaled here by FlashcardViewer above. */}
           <div ref={setPreviewSlot} />
 
+          {/* Opened from the score in the header. Owners never get here — the backend refuses a
+              rating on your own deck anyway. */}
+          {rateOpen && !owned && (
+            <RateDeckModal deckId={deckId} onClose={() => setRateOpen(false)} />
+          )}
+
           <FloatingStudyRail
             visible={railVisible}
             onQuiz={goToSetup}
@@ -464,6 +511,14 @@ function DeckDetail() {
         <ExportDeckModal
           contents={contentsQuery.data}
           onClose={() => setExportOpen(false)}
+        />
+      )}
+
+      {folderOpen && (
+        <AddToFolderModal
+          deckId={deckId}
+          deckName={deckName}
+          onClose={() => setFolderOpen(false)}
         />
       )}
 

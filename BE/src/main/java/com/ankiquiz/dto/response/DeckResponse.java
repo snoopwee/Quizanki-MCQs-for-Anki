@@ -30,7 +30,13 @@ public record DeckResponse(
         // Home / deck cards can show it next to the name. Null → the client shows
         // initials.
         String authorAvatarUrl,
-        String sourceAuthorName
+        String sourceAuthorName,
+        // The public rating (V28). `ratingCount` 0 means nobody has rated it yet, and
+        // `ratingAverage` is then 0 - the client shows "not rated", never zero stars. The written
+        // notes that come with ratings are NOT here and never will be: only the deck's author may
+        // read those, through its own endpoint.
+        int ratingCount,
+        double ratingAverage
 ) {
     // For freshly-imported decks (no card_stats yet) completion is 0.
     public static DeckResponse from(Deck deck) {
@@ -52,7 +58,9 @@ public record DeckResponse(
                 deck.getAuthorId(),
                 deck.getAuthorName(),
                 deck.getAuthorAvatarUrl(),
-                deck.getSourceAuthorName()
+                deck.getSourceAuthorName(),
+                deck.getRatingCount(),
+                deck.ratingAverage()
         );
     }
 }

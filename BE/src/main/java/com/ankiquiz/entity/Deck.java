@@ -76,6 +76,15 @@ public class Deck {
     // The credited author's profile picture (denormalised like author_name — no
     // user table to join). Snapshotted at write, refreshed on profile change.
     // Null = no photo (client shows initials).
+    // Denormalised rating aggregate (V28). Kept on the deck because Discover sorts by it; the sum
+    // rather than an average so the maths stays exact, and DeckRatingService recomputes both from
+    // deck_ratings after every write, which cannot drift.
+    @Column(name = "rating_count", nullable = false)
+    private int ratingCount;
+
+    @Column(name = "rating_sum", nullable = false)
+    private int ratingSum;
+
     @Column(name = "author_avatar_url")
     private String authorAvatarUrl;
 
@@ -205,5 +214,30 @@ public class Deck {
 
     public void setAuthorAvatarUrl(String authorAvatarUrl) {
         this.authorAvatarUrl = authorAvatarUrl;
+    }
+
+    public int getRatingCount() {
+        return ratingCount;
+    }
+
+    public void setRatingCount(int ratingCount) {
+        this.ratingCount = ratingCount;
+    }
+
+    public int getRatingSum() {
+        return ratingSum;
+    }
+
+    /**
+     * The public score: the exact integer sum over the count, rounded to one decimal for display.
+     * 0 means nobody has rated yet, which the client renders as "not rated" rather than as zero
+     * stars. Deliberately not named getXxx so Hibernate can never mistake it for a mapped property.
+     */
+    public double ratingAverage() {
+        return ratingCount == 0 ? 0 : Math.round((ratingSum * 10.0) / ratingCount) / 10.0;
+    }
+
+    public void setRatingSum(int ratingSum) {
+        this.ratingSum = ratingSum;
     }
 }

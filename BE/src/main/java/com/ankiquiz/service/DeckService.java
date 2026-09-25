@@ -14,6 +14,7 @@ import com.ankiquiz.dto.response.PublicDeckPage;
 import com.ankiquiz.dto.response.PublicDeckSummary;
 import com.ankiquiz.entity.Deck;
 import com.ankiquiz.entity.Note;
+import com.ankiquiz.entity.Profile;
 import com.ankiquiz.entity.NoteType;
 import com.ankiquiz.exception.ApkgParseException;
 import com.ankiquiz.exception.ConflictException;
@@ -51,17 +52,25 @@ public class DeckService {
     private final NoteTypeRepository noteTypeRepository;
     private final NoteRepository noteRepository;
     private final UserDeckRepository userDeckRepository;
+    // Followers are told when one of this author's decks becomes public.
+    private final FollowService followService;
+    // What people are called now, so a page exists for somebody who has published nothing.
+    private final ProfileService profileService;
     private final EntityManager entityManager;
 
     public DeckService(DeckRepository deckRepository,
                        NoteTypeRepository noteTypeRepository,
                        NoteRepository noteRepository,
                        UserDeckRepository userDeckRepository,
+                       FollowService followService,
+                       ProfileService profileService,
                        EntityManager entityManager) {
         this.deckRepository = deckRepository;
         this.noteTypeRepository = noteTypeRepository;
         this.noteRepository = noteRepository;
         this.userDeckRepository = userDeckRepository;
+        this.followService = followService;
+        this.profileService = profileService;
         this.entityManager = entityManager;
     }
 
@@ -89,15 +98,10 @@ public class DeckService {
      * means "no photo" (null → initials). Returns the rows updated.
      */
     @Transactional
-    public int syncAuthorProfile(Caller caller, String rawName, String rawAvatarUrl) {
-        String name = (rawName != null && !rawName.isBlank()) ? rawName.trim() : caller.displayName();
-        // Blank avatar → fall back to the (refreshed) JWT's avatar, symmetric with
-        // the name. This is what makes "remove custom photo" reveal an OAuth default
-        // rather than wiping the credit to initials — the caller cleared the custom
-        // key and refreshed before this call, so caller.avatarUrl() is now the
-        // effective one (OAuth photo, or null when there's none).
-        String avatar = (rawAvatarUrl != null && !rawAvatarUrl.isBlank()) ? rawAvatarUrl.trim() : caller.avatarUrl();
-        return deckRepository.updateAuthorProfile(caller.id(), name, avatar);
+    public int syncAuthorProfile(Caller caller) {
+        // The caller arrives already resolved (see Caller.withOverrides), so the deck credit and
+        // the profile row can never be written from different answers to "what are they called".
+        return deckRepository.updateAuthorProfile(caller.id(), caller.displayName(), caller.avatarUrl());
     }
 
     /** The Saved tab: decks the user has bookmarked but doesn't own. */
@@ -143,6 +147,28 @@ public class DeckService {
         ud.setDeckId(deckId);
         ud.setSaved(false);
         return ud;
+    }
+
+    /**
+     * The named decks, in the order asked for, with this viewer's completion. Folders store deck
+     * ids and nothing else, so this is how a folder's contents are rendered.
+     *
+     * A deck that has since been deleted, or made private by someone else, simply drops out of the
+     * result rather than raising: a folder is a view over decks, not a claim on them.
+     */
+    @Transactional(readOnly = true)
+    public List<DeckResponse> getDecksByIds(String userId, List<UUID> deckIds) {
+        if (deckIds.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, Deck> visible = new java.util.HashMap<>();
+        for (Deck deck : deckRepository.findAllById(deckIds)) {
+            if (deck.getUserId().equals(userId) || deck.isPublic()) {
+                visible.put(deck.getId(), deck);
+            }
+        }
+        List<Deck> ordered = deckIds.stream().map(visible::get).filter(java.util.Objects::nonNull).toList();
+        return withViewerCompletion(userId, ordered);
     }
 
     // Attach each deck's completion for THIS viewer (their own per-user mastery),
@@ -311,9 +337,18 @@ public class DeckService {
             throw new ConflictException(
                     "This is a copy of someone else's deck. Edit it to make it your own before sharing it.");
         }
+        // Captured before the write: only the PRIVATE -> PUBLIC transition is news. Re-sharing a
+        // deck that was already public, or toggling it off and on, must not spam an author's
+        // followers with the same deck.
+        boolean newlyPublished = isPublic && !deck.isPublic();
+
         deck.setPublic(isPublic);
         deck.setSharedAt(isPublic ? OffsetDateTime.now() : null);
         Deck saved = deckRepository.save(deck);
+
+        if (newlyPublished) {
+            followService.announcePublished(saved);
+        }
         return DeckResponse.from(saved, completionForDeck(userId, deckId));
     }
 
@@ -342,6 +377,16 @@ public class DeckService {
     @Transactional(readOnly = true)
     public PublicDeckPage getPublicDecks(String query, Integer minCards, Integer maxCards,
                                          int limit, int offset) {
+        return getPublicDecks(query, minCards, maxCards, limit, offset, null);
+    }
+
+    /**
+     * @param sort "rated" orders by the deck's score; anything else (including null) keeps the
+     *             original newest-shared-first listing.
+     */
+    @Transactional(readOnly = true)
+    public PublicDeckPage getPublicDecks(String query, Integer minCards, Integer maxCards,
+                                         int limit, int offset, String sort) {
         int size = Math.max(1, Math.min(limit, MAX_DISCOVER_PAGE));
         // Spring Data pages by page number, so translate the caller's row offset.
         // Snapping to a page boundary keeps the contract honest for the paging the
@@ -349,40 +394,92 @@ public class DeckService {
         Pageable pageable = PageRequest.of(Math.max(0, offset) / size, size);
         String q = query == null ? "" : query.trim();
 
-        Page<Deck> page = deckRepository.findPublicDecks(q, minCards, maxCards, pageable);
-        List<PublicDeckSummary> items = page.getContent().stream()
-                .map(DeckService::toSummary)
-                .toList();
+        Page<Deck> page = "rated".equals(sort)
+                ? deckRepository.findPublicDecksByRating(q, minCards, maxCards, MIN_RATINGS_TO_RANK, pageable)
+                : deckRepository.findPublicDecks(q, minCards, maxCards, pageable);
+        List<PublicDeckSummary> items = withHandles(page.getContent());
         return new PublicDeckPage(items, page.getNumber(), size,
                 page.getTotalElements(), page.getTotalPages());
     }
 
-    private static PublicDeckSummary toSummary(Deck d) {
+    /**
+     * Summaries with each author's public handle attached, in ONE extra query for the whole
+     * listing — a per-deck lookup would be an N+1 on the busiest read in the app.
+     */
+    private List<PublicDeckSummary> withHandles(List<Deck> decks) {
+        if (decks.isEmpty()) {
+            return List.of();
+        }
+        Map<String, Profile> named = profileService.findAll(decks.stream()
+                .map(Deck::getAuthorId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList());
+        return decks.stream()
+                .map(d -> toSummary(d, named.get(d.getAuthorId())))
+                .toList();
+    }
+
+    private static PublicDeckSummary toSummary(Deck d, Profile author) {
         return new PublicDeckSummary(
                 d.getId(),
                 d.getName(),
                 d.getCardCount(),
                 d.getAuthorId(),
+                author == null ? null : author.getUsername(),
                 d.getAuthorName(),
                 d.getAuthorAvatarUrl(),
                 d.getSourceAuthorName(),
-                d.getSharedAt());
+                d.getSharedAt(),
+                d.getRatingCount(),
+                d.ratingAverage());
     }
 
     /**
-     * A public author page: an author's published decks + their current name. No
-     * user table, so the name comes off their decks' denormalised author_name
-     * (kept current by the profile-rename propagation). Public decks only — you
-     * can't expose an author's private decks to other viewers. An author with no
-     * public decks yields a null name + empty list (the page reads as empty).
+     * A public author page — which is also this app's public profile page: who somebody is, plus
+     * the decks they have published. Public decks only; you can't expose an author's private decks
+     * to other viewers.
+     *
+     * <p><b>Having published nothing is not the same as not existing.</b> Since V33 every
+     * signed-in user has a {@code profiles} row, so a learner with no decks still gets a real page
+     * with a name, an avatar, a follower count and a Follow button — which is what makes a
+     * follower list worth clicking. Only a user we have never heard of is a 404.
      */
     @Transactional(readOnly = true)
     public AuthorPageResponse getAuthorPage(String authorId) {
         List<Deck> decks = deckRepository.findPublicByAuthor(authorId);
-        List<PublicDeckSummary> summaries = decks.stream().map(DeckService::toSummary).toList();
-        String authorName = decks.isEmpty() ? null : decks.get(0).getAuthorName();
-        String avatarUrl = decks.isEmpty() ? null : decks.get(0).getAuthorAvatarUrl();
-        return new AuthorPageResponse(authorId, authorName, avatarUrl, summaries.size(), summaries);
+        List<PublicDeckSummary> summaries = withHandles(decks);
+        // The USERNAME is the name — there is only one, by design: it is what people are called,
+        // what credits their decks, and how they are found. A deck's author_name is only a credit
+        // snapshot (a copy keeps crediting its original author), so it is the last fallback, for
+        // an author with no profile row at all.
+        Profile profile = profileService.find(authorId).orElse(null);
+        if (profile == null && decks.isEmpty()) {
+            throw new NotFoundException("Author not found: " + authorId);
+        }
+        String authorName = profile != null && profile.getUsername() != null
+                ? profile.getUsername()
+                : (decks.isEmpty() ? null : decks.get(0).getAuthorName());
+        String avatarUrl = profile != null && profile.getAvatarUrl() != null
+                ? profile.getAvatarUrl()
+                : (decks.isEmpty() ? null : decks.get(0).getAuthorAvatarUrl());
+        return new AuthorPageResponse(authorId,
+                profile == null ? null : profile.getUsername(),
+                authorName, avatarUrl, summaries.size(),
+                followService.followerCount(authorId), summaries);
+    }
+
+    /**
+     * The same page, reached the way people actually link to it: {@code /user/{username}}.
+     *
+     * <p>The handle is resolved to a user id and everything downstream stays keyed by the id, so a
+     * rename changes one column and nothing else.
+     */
+    @Transactional(readOnly = true)
+    public AuthorPageResponse getUserPage(String username) {
+        return getAuthorPage(profileService.findByUsername(username)
+                .orElseThrow(() -> new NotFoundException("No user called " + username))
+                .getUserId());
     }
 
     /** How many people have taken a copy of this deck — shown on the deck page,
@@ -458,6 +555,13 @@ public class DeckService {
 
     // Ceiling on a single Discover page, so a hand-crafted ?limit= can't ask the
     // public endpoint to serialise the whole directory.
+    /**
+     * How many ratings a deck needs before its score ranks it on Discover. Below this it still
+     * appears, just under the decks with enough ratings to mean something — otherwise one
+     * five-star rating would own the top of the page.
+     */
+    static final int MIN_RATINGS_TO_RANK = 3;
+
     private static final int MAX_DISCOVER_PAGE = 60;
 
     /**
@@ -575,14 +679,16 @@ public class DeckService {
      * content change: re-saving without touching a card, or only renaming the
      * deck, is not authorship.
      *
-     * <p>For a deck you already author this just refreshes the stored display
-     * name, so a later profile rename propagates on the next save.
+     * <p>For a deck you already author this just refreshes the stored name, so a rename
+     * propagates on the next save even if nothing else pushed it.
      */
-    private static void claimAuthorship(Deck deck, Caller caller) {
+    private void claimAuthorship(Deck deck, Caller caller) {
         if (!caller.id().equals(deck.getAuthorId())) {
             deck.setAuthorId(caller.id());
         }
-        deck.setAuthorName(caller.displayName());
+        // The username, read from the profile row — never the token's display name, which a client
+        // that has drifted would stamp wrong and leave stamped.
+        deck.setAuthorName(profileService.creditName(caller));
         deck.setAuthorAvatarUrl(caller.avatarUrl());
     }
 

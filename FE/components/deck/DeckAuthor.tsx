@@ -2,8 +2,9 @@ import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
 import { initialsFrom } from "@/lib/userDisplay";
 import { timeAgo } from "@/lib/relativeTime";
+import { profileUrl } from "@/lib/profileUrl";
 
-type Variant = "inline" | "dot" | "detailed";
+type Variant = "inline" | "dot" | "plain" | "detailed";
 
 /**
  * Who made a deck, plus "Original deck by Bob" when it started life as a copy of
@@ -13,16 +14,20 @@ type Variant = "inline" | "dot" | "detailed";
  *   and the general case).
  * - `dot`: no avatar — a "·" separator + "by Alice", meant to sit inline after the
  *   card count (Discover cards, where a per-card avatar is visual noise).
+ * - `plain`: just "by Alice" — for a line of its own, where a leading separator
+ *   would dangle at the start of the line with nothing before it.
  * - `detailed`: a larger avatar next to two stacked rows — the author's name, then
  *   the deck's creation time ("2 days ago") — for the deck-page header. Pass
  *   `createdAt` (the deck's importedAt) for the second row.
  *
- * When `authorId` is given the name links to that author's page. The source line is
+ * When `authorId` is given the name links to that author's page — by handle when the caller has
+ * one (deck listings carry it), by id otherwise, which redirects. The source line is
  * suppressed when it matches the author — an unedited copy credits its original
  * author on both, and "by Alice · Original deck by Alice" would just read as a bug.
  */
 export function DeckAuthor({
   authorId,
+  authorUsername,
   authorName,
   authorAvatarUrl,
   sourceAuthorName,
@@ -31,6 +36,7 @@ export function DeckAuthor({
   className = "",
 }: {
   authorId?: string | null;
+  authorUsername?: string | null;
   authorName: string | null;
   authorAvatarUrl?: string | null;
   sourceAuthorName: string | null;
@@ -46,7 +52,7 @@ export function DeckAuthor({
 
   const nameNode = authorId ? (
     <Link
-      href={`/authors/${authorId}`}
+      href={profileUrl(authorId, authorUsername)}
       onClick={(e) => e.stopPropagation()}
       className="font-medium text-ink underline-offset-2 hover:text-accent hover:underline"
     >
@@ -76,10 +82,10 @@ export function DeckAuthor({
     );
   }
 
-  // A dot stands in for the avatar on Discover, where it reads as a separator
-  // between the card count and the author.
+  // A dot stands in for the avatar where the author follows something else on the
+  // same line; `plain` drops both, for an author that starts its own line.
   const leading =
-    variant === "dot" ? (
+    variant === "plain" ? null : variant === "dot" ? (
       <span aria-hidden className="text-faint">
         ·
       </span>

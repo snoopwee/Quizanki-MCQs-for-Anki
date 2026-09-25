@@ -87,7 +87,7 @@ class DeckControllerTest {
         UUID deckId = UUID.randomUUID();
         DeckResponse response = new DeckResponse(
                 deckId, "JLPT N4", "Japanese::N4", "n4.apkg", 1, OffsetDateTime.now(), 0.0, "ja", "en",
-                true, "user-123", "Alice", null, null
+                true, "user-123", "Alice", null, null, 0, 0.0
         );
         when(deckService.importDeck(eq(CALLER), any())).thenReturn(response);
 
@@ -136,7 +136,7 @@ class DeckControllerTest {
         UUID deckId = UUID.randomUUID();
         DeckResponse response = new DeckResponse(
                 deckId, "JLPT N3", "Japanese::N4", "n4.apkg", 1, OffsetDateTime.now(), 42.0, null, null,
-                false, "user-123", "Alice", null, null
+                false, "user-123", "Alice", null, null, 0, 0.0
         );
         when(deckService.renameDeck(eq("user-123"), eq(deckId), eq("JLPT N3"))).thenReturn(response);
 
@@ -268,7 +268,7 @@ class DeckControllerTest {
         UUID deckId = UUID.randomUUID();
         DeckResponse response = new DeckResponse(
                 deckId, "JLPT N4", null, null, 1, OffsetDateTime.now(), 0.0, null, null,
-                true, "user-123", "Alice", null, null
+                true, "user-123", "Alice", null, null, 0, 0.0
         );
         when(deckService.setDeckSharing(eq("user-123"), eq(deckId), eq(true))).thenReturn(response);
 
@@ -369,7 +369,7 @@ class DeckControllerTest {
         UUID deckId = UUID.randomUUID();
         when(deckService.getSavedDecks("user-123")).thenReturn(List.of(new DeckResponse(
                 deckId, "JLPT N4", null, null, 12, OffsetDateTime.now(), 30.0, "ja", "en",
-                true, "user-999", "Alice", null, null)));
+                true, "user-999", "Alice", null, null, 0, 0.0)));
 
         mockMvc.perform(get("/api/v1/decks/saved").with(jwt().jwt(j -> j.subject("user-123"))))
                 .andExpect(status().isOk())
@@ -392,7 +392,7 @@ class DeckControllerTest {
         UUID cloneId = UUID.randomUUID();
         DeckResponse response = new DeckResponse(
                 cloneId, "JLPT N4", null, null, 12, OffsetDateTime.now(), 0.0, "ja", "en",
-                false, "user-123", "Alice", null, "Alice"
+                false, "user-123", "Alice", null, "Alice", 0, 0.0
         );
         when(deckService.cloneDeck(eq(OTHER_CALLER), eq(sourceId))).thenReturn(response);
 

@@ -12,6 +12,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { ApkgUploader } from "@/components/deck/ApkgUploader";
 import { DeckReviewEditor } from "@/components/deck/DeckReviewEditor";
+import { AiGenerateImport } from "@/components/import/AiGenerateImport";
 import { Spinner } from "@/components/ui/Spinner";
 import { Icon } from "@/components/ui/icons";
 import { ConfirmLeaveModal } from "@/components/shared/ConfirmLeaveModal";
@@ -42,7 +43,7 @@ type Step =
   | { kind: "import" }
   | { kind: "review" };
 
-type Source = "file" | "text" | "scratch";
+type Source = "file" | "text" | "ai" | "scratch";
 
 const AUTOSAVE_DELAY_MS = 600;
 
@@ -279,11 +280,15 @@ function ImportFlow() {
           <div className="inline-flex rounded-input border border-line bg-surface p-0.5 text-sm">
             <SourceTab label="Upload .apkg" active={source === "file"} onClick={() => setSource("file")} />
             <SourceTab label="Paste text" active={source === "text"} onClick={() => setSource("text")} />
+            <SourceTab label="Generate with AI" active={source === "ai"} onClick={() => setSource("ai")} />
             <SourceTab label="Create from scratch" active={source === "scratch"} onClick={() => setSource("scratch")} />
           </div>
 
           {source === "file" && <ApkgUploader onContinue={handleParsed} />}
           {source === "text" && <PasteTextImport onImport={handlePasted} />}
+          {/* The AI draft arrives in the .apkg parser's shape, so it goes through exactly the
+              same review-and-edit step as an imported deck — nothing generated is saved unread. */}
+          {source === "ai" && <AiGenerateImport onDraft={(response) => handleParsed(response.draft, null)} />}
           {source === "scratch" && <CreateScratchPanel onStart={handleCreateScratch} />}
         </div>
       )}

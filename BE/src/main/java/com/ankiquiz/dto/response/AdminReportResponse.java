@@ -18,6 +18,9 @@ public record AdminReportResponse(
         String reason,
         String details,
         String status,
+        // Why an admin acted (V38). Null while the report is still open, and on rows that
+        // predate the requirement.
+        String resolutionNote,
         OffsetDateTime createdAt
 ) {
 }

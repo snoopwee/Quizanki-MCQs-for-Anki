@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useDiscoverDecks } from "@/hooks/useDecks";
+import { useDiscoverDecks, type DiscoverSort } from "@/hooks/useDecks";
 import { AppChrome } from "@/components/layout/AppChrome";
 import { DeckAuthor } from "@/components/deck/DeckAuthor";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/icons";
+import { StarRating } from "@/components/ui/StarRating";
 import { SIZE_FILTERS, sizeFilterById } from "@/lib/discoverFilters";
 
 // Every deck people have chosen to publish. Open to everyone — a guest browses
@@ -31,6 +32,7 @@ function DiscoverContent() {
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
   const [sizeId, setSizeId] = useState("all");
+  const [sort, setSort] = useState<DiscoverSort>("new");
   const [page, setPage] = useState(0); // zero-based
 
   // Debounced so typing doesn't fire a request per keystroke.
@@ -41,12 +43,12 @@ function DiscoverContent() {
 
   // Any change to what's being asked for resets to the first page — otherwise a
   // filter could land you on a page that no longer exists.
-  useEffect(() => setPage(0), [query, sizeId]);
+  useEffect(() => setPage(0), [query, sizeId, sort]);
 
   const size = sizeFilterById(sizeId);
   const params = useMemo(
-    () => ({ q: query, minCards: size.min, maxCards: size.max, page, pageSize: PAGE_SIZE }),
-    [query, size.min, size.max, page],
+    () => ({ q: query, minCards: size.min, maxCards: size.max, page, pageSize: PAGE_SIZE, sort }),
+    [query, size.min, size.max, page, sort],
   );
 
   const decksQuery = useDiscoverDecks(params);
@@ -101,6 +103,28 @@ function DiscoverContent() {
             </button>
           ))}
         </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-1 font-mono text-xs uppercase tracking-[0.08em] text-faint">Sort</span>
+          {([
+            { id: "new", label: "Newest" },
+            { id: "rated", label: "Best rated" },
+          ] as const).map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              aria-pressed={option.id === sort}
+              onClick={() => setSort(option.id)}
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                option.id === sort
+                  ? "border-accent bg-accent-soft text-accent-ink"
+                  : "border-line bg-surface text-muted hover:border-line-strong hover:text-ink"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {decksQuery.isLoading && <p className="text-sm text-muted">Loading decks…</p>}
@@ -144,21 +168,24 @@ function DiscoverContent() {
                     >
                       {deck.name}
                     </p>
-                    {/* Card count and author share a row; DeckAuthor's "·" (dot
-                        variant) separates them — no avatar on Discover. */}
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    {/* Card count and score share a row, as on every other deck surface. */}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                       <span className="inline-flex items-center gap-1.5 font-mono text-xs text-faint">
                         <Icon name="layers" size={13} />
                         {deck.cardCount ?? 0} card{deck.cardCount === 1 ? "" : "s"}
                       </span>
-                      <DeckAuthor
-                        authorId={deck.authorId}
-                        authorName={deck.authorName}
-                        sourceAuthorName={deck.sourceAuthorName}
-                        variant="dot"
-                        className="relative z-20"
-                      />
+                      <StarRating average={deck.ratingAverage} count={deck.ratingCount} size={13} />
                     </div>
+                    {/* Its own line, so `plain` rather than `dot` — a separator at the start of a
+                        line has nothing to separate it from. No avatar on Discover. */}
+                    <DeckAuthor
+                      authorId={deck.authorId}
+                      authorUsername={deck.authorUsername}
+                      authorName={deck.authorName}
+                      sourceAuthorName={deck.sourceAuthorName}
+                      variant="plain"
+                      className="relative z-20"
+                    />
                   </div>
                   <Link
                     href={`/shared/${deck.id}`}

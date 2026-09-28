@@ -50,7 +50,7 @@ export default function AdminUsersPage() {
                     {u.displayName || u.email || "Unknown"}
                     {u.banned && (
                       <span className="rounded-full bg-danger/10 px-2 py-0.5 text-[0.6875rem] font-semibold text-danger">
-                        Banned
+                        Suspended
                       </span>
                     )}
                     {isSelf && (

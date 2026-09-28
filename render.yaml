@@ -55,7 +55,7 @@ services:
       # ⚠ Confirm the exact model id against the provider's docs — free daily
       # quotas differ sharply between models.
       - key: AI_MODEL
-        value: gemini-2.5-flash
+        value: gemini-3.5-flash
       # Per user, per THEIR day, on the shared pool: enough to try the feature.
       - key: AI_SHARED_PER_DAY
         value: "5"

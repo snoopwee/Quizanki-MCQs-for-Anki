@@ -1,6 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useMe } from "@/hooks/useMe";
+import { createClient } from "@/lib/supabase/client";
+import { buttonClasses } from "@/components/ui/Button";
+import { Spinner } from "@/components/ui/Spinner";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { Icon } from "@/components/ui/icons";
 
@@ -14,9 +18,14 @@ import { Icon } from "@/components/ui/icons";
  *
  * Undismissable by design — no close, no escape, no backdrop. There is nothing behind it they are
  * allowed to do, and a dismissable overlay would just reveal an app that answers 403 to everything.
+ *
+ * It does offer ONE action: signing out. The overlay covers the account menu, so without this a
+ * suspended person is stuck on this screen with no way off it but clearing their cookies — which
+ * is a worse experience than the suspension itself.
  */
 export function SuspendedGate() {
   const me = useMe();
+  const [signingOut, setSigningOut] = useState(false);
   const suspension = me.data?.suspension;
 
   if (!suspension) {
@@ -61,6 +70,25 @@ export function SuspendedGate() {
           If you think this is a mistake, reply to the email you signed up with and an admin will
           take another look.
         </p>
+
+        <button
+          type="button"
+          disabled={signingOut}
+          onClick={async () => {
+            setSigningOut(true);
+            try {
+              await createClient().auth.signOut();
+            } finally {
+              // A full reload rather than a router push: every cached query belongs to the
+              // suspended session and none of it should survive.
+              window.location.href = "/";
+            }
+          }}
+          className={buttonClasses({ variant: "ghost", className: "mt-5 w-full" })}
+        >
+          {signingOut && <Spinner className="h-4 w-4 text-muted" label="Signing out" />}
+          Sign out
+        </button>
       </div>
     </div>
   );

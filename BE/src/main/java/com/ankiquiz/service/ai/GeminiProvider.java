@@ -50,7 +50,7 @@ public class GeminiProvider implements AiProvider {
             RestClient.Builder builder,
             ObjectMapper mapper,
             @Value("${ai.gemini.base-url:https://generativelanguage.googleapis.com}") String baseUrl,
-            @Value("${ai.model:gemini-2.5-flash}") String model
+            @Value("${ai.model:gemini-3.5-flash}") String model
     ) {
         this.http = builder.baseUrl(baseUrl).build();
         this.mapper = mapper;

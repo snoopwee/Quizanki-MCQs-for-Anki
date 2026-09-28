@@ -201,6 +201,20 @@ public class NotificationService {
     }
 
     /**
+     * Tell somebody their account is back.
+     *
+     * <p>The suspension itself cannot be a notification — the bell is behind the gate they were
+     * just refused at — so the ban reason is the screen, and this is the other half.
+     */
+    @Transactional
+    public boolean accountRestored(String userId, String note) {
+        return deliver(userId, NotificationKind.ACCOUNT_RESTORED,
+                "Your account has been restored",
+                hasText(note) ? note.strip() : "You can use Quizanki again.",
+                "/home", null, null, null);
+    }
+
+    /**
      * Somebody started following this author.
      *
      * <p>Carries the follower so the author can go and look at who it was — which is also why this

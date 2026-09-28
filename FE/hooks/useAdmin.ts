@@ -27,12 +27,20 @@ export function useAdminUsers(page: number) {
 export function useSetUserBanned() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ userId, banned }: { userId: string; banned: boolean }) => {
-      await api.put(`/admin/users/${userId}/ban`, { banned });
+    // `reason` is required when suspending and is SHOWN TO THE PERSON SUSPENDED — the backend
+    // refuses a blank one. When restoring it is the optional note in their notification.
+    mutationFn: async ({
+      userId,
+      banned,
+      reason,
+    }: {
+      userId: string;
+      banned: boolean;
+      reason: string;
+    }) => {
+      await api.put(`/admin/users/${userId}/ban`, { banned, reason });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin", "users"] }),
   });
 }
 

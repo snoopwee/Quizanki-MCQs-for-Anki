@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.service.BanService;
 import com.ankiquiz.dto.request.DeckRatingRequest;
 import com.ankiquiz.dto.response.DeckFeedbackResponse;
 import com.ankiquiz.dto.response.DeckRatingResponse;
@@ -54,6 +55,9 @@ class DeckRatingControllerTest {
 
     @MockBean
     private JwtDecoder jwtDecoder;
+
+    @MockBean
+    private BanService banService;
 
     private final UUID deckId = UUID.randomUUID();
 

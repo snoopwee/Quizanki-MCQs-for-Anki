@@ -3,6 +3,7 @@ package com.ankiquiz.controller;
 import com.ankiquiz.dto.response.AuthorPageResponse;
 import com.ankiquiz.dto.response.DeckContentsResponse;
 import com.ankiquiz.dto.response.PublicDeckPage;
+import com.ankiquiz.dto.response.PublicDeckSummary;
 import com.ankiquiz.service.DeckService;
 import com.ankiquiz.service.ProfileService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -55,6 +56,15 @@ public class SharedDeckController {
                     + "404 only for a user with neither a profile nor a public deck.")
     public AuthorPageResponse getAuthor(@PathVariable String authorId) {
         return deckService.getAuthorPage(authorId);
+    }
+
+    @GetMapping("/shared/{deckId}/summary")
+    @Operation(summary = "A shared deck in one line (public, no auth)",
+            description = "Name, card count, who made it, its score — what a link preview and a "
+                    + "search engine need. Separate from /shared/{deckId} because that returns "
+                    + "every card: 3.8 MB for a large deck, to build a title.")
+    public PublicDeckSummary getSharedDeckSummary(@PathVariable UUID deckId) {
+        return deckService.getPublicDeckSummary(deckId);
     }
 
     @GetMapping("/users/{username}")

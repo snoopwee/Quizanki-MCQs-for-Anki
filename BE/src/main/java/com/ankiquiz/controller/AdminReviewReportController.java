@@ -65,10 +65,12 @@ public class AdminReviewReportController {
                     + "score. Unlike the author's own delete, which only clears text: the note is "
                     + "private and the star is public, so removing just the text would leave the "
                     + "abuser's mark on the score. The reason is REQUIRED and is sent to the person "
-                    + "whose rating this was. 204 whether or not it was still there.")
-    public ResponseEntity<Void> takeDownRating(@PathVariable UUID reportId,
+                    + "whose rating this was, and RESOLVES the report with that same reason — "
+                    + "removing the content is the decision. 204 whether or not it was still there.")
+    public ResponseEntity<Void> takeDownRating(@AuthenticationPrincipal Jwt jwt,
+                                               @PathVariable UUID reportId,
                                                @Valid @RequestBody TakedownRequest request) {
-        reviewReportService.takeDownRating(reportId, request.note());
+        reviewReportService.takeDownRating(reportId, request.note(), jwt.getSubject());
         return ResponseEntity.noContent().build();
     }
 }

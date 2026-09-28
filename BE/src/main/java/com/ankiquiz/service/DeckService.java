@@ -370,6 +370,21 @@ public class DeckService {
     }
 
     /**
+     * Just enough about a shared deck to describe it — name, card count, who made it, its score.
+     *
+     * <p>Exists because {@link #getPublicDeckContents} returns every card: 8 KB for a small deck
+     * and <b>3.8 MB</b> for a 3,787-card one. Link previews and search engines need a title and a
+     * sentence, and pulling four megabytes to build them would be indefensible.
+     */
+    @Transactional(readOnly = true)
+    public PublicDeckSummary getPublicDeckSummary(UUID deckId) {
+        Deck deck = deckRepository.findById(deckId)
+                .filter(Deck::isPublic)
+                .orElseThrow(() -> new NotFoundException("Shared deck not found: " + deckId));
+        return withHandles(List.of(deck)).getFirst();
+    }
+
+    /**
      * The public Discover directory: every deck whose owner has shared it, newest
      * first, optionally narrowed by a name fragment. No authentication — browsing
      * is open to guests; only copying a deck requires an account.

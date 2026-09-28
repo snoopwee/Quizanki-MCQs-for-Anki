@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.service.BanService;
 import com.ankiquiz.config.AdminAccess;
 import com.ankiquiz.config.SecurityConfig;
 import com.ankiquiz.service.AdminService;
@@ -39,6 +40,9 @@ class AdminControllerSecurityTest {
 
     @MockBean
     private DeckService deckService;
+
+    @MockBean
+    private BanService banService;
 
     @MockBean
     private AdminService adminService;

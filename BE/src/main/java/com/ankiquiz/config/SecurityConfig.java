@@ -15,6 +15,8 @@ import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
+import com.ankiquiz.service.BanService;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -29,15 +31,18 @@ public class SecurityConfig {
     private final String supabaseUrl;
     private final List<String> allowedOrigins;
     private final AdminAccess adminAccess;
+    private final BanService banService;
 
     public SecurityConfig(
             @Value("${supabase.url}") String supabaseUrl,
             @Value("${app.cors.allowed-origins}") List<String> allowedOrigins,
-            AdminAccess adminAccess
+            AdminAccess adminAccess,
+            BanService banService
     ) {
         this.supabaseUrl = supabaseUrl;
         this.allowedOrigins = allowedOrigins;
         this.adminAccess = adminAccess;
+        this.banService = banService;
     }
 
     @Bean
@@ -70,6 +75,11 @@ public class SecurityConfig {
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt
                         .decoder(jwtDecoder())
                         .jwtAuthenticationConverter(adminAwareConverter())))
+                // After authentication, so the subject is known: a suspended account can still
+                // sign in (that is how it learns WHY it is suspended) and this is what stops it
+                // doing anything. See SuspendedUserFilter and V39.
+                .addFilterAfter(new SuspendedUserFilter(banService),
+                        BearerTokenAuthenticationFilter.class)
                 .build();
     }
 

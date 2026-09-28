@@ -4,6 +4,7 @@ import com.ankiquiz.dto.response.AdminUserResponse;
 import com.ankiquiz.dto.response.AdminUsersPage;
 import com.ankiquiz.exception.GlobalExceptionHandler;
 import com.ankiquiz.service.AdminUserService;
+import com.ankiquiz.service.BanService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -15,6 +16,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -34,30 +37,50 @@ class AdminUserControllerTest {
     private AdminUserService adminUserService;
 
     @MockBean
+    private BanService banService;
+
+    @MockBean
     private JwtDecoder jwtDecoder;
 
     @Test
     void list_returnsThePageOfUsers() throws Exception {
         when(adminUserService.listUsers(1, 50)).thenReturn(new AdminUsersPage(
                 List.of(new AdminUserResponse("id-1", "alice@example.com", "Alice",
-                        "2026-01-01T00:00:00Z", null, false)),
+                        "2026-01-01T00:00:00Z", null, true, "Uploaded copyrighted decks.",
+                        "2026-09-25T09:00:00Z")),
                 1, 50, false));
 
         mockMvc.perform(get("/api/v1/admin/users").with(jwt().jwt(j -> j.subject("admin-1"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.users[0].email").value("alice@example.com"))
-                .andExpect(jsonPath("$.users[0].banned").value(false))
+                .andExpect(jsonPath("$.users[0].banned").value(true))
+                // The reason travels with the row so the admin list can show WHY at a glance.
+                .andExpect(jsonPath("$.users[0].banReason").value("Uploaded copyrighted decks."))
                 .andExpect(jsonPath("$.hasMore").value(false));
     }
 
     @Test
-    void ban_returns204_andDelegates() throws Exception {
+    void suspending_passesTheReasonAndTheActingAdmin() throws Exception {
         mockMvc.perform(put("/api/v1/admin/users/{id}/ban", "id-1")
                         .with(jwt().jwt(j -> j.subject("admin-1")))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"banned\":true}"))
+                        .content("{\"banned\":true,\"reason\":\"Uploaded copyrighted decks.\"}"))
                 .andExpect(status().isNoContent());
 
-        verify(adminUserService).setBanned("id-1", true);
+        // The reason is shown to the person suspended, which is the whole point of the ban living
+        // in our database rather than at Supabase.
+        verify(banService).ban("id-1", "Uploaded copyrighted decks.", "admin-1");
+    }
+
+    @Test
+    void restoring_liftsTheSuspensionWithItsNote() throws Exception {
+        mockMvc.perform(put("/api/v1/admin/users/{id}/ban", "id-1")
+                        .with(jwt().jwt(j -> j.subject("admin-1")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"banned\":false,\"reason\":\"Appealed successfully.\"}"))
+                .andExpect(status().isNoContent());
+
+        verify(banService).lift("id-1", "admin-1", "Appealed successfully.");
+        verify(banService, never()).ban(any(), any(), any());
     }
 }

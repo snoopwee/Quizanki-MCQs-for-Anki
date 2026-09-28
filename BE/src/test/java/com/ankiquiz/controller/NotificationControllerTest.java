@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.service.BanService;
 import com.ankiquiz.dto.response.NotificationPage;
 import com.ankiquiz.dto.response.NotificationResponse;
 import com.ankiquiz.exception.GlobalExceptionHandler;
@@ -43,6 +44,9 @@ class NotificationControllerTest {
 
     @MockBean
     private JwtDecoder jwtDecoder;
+
+    @MockBean
+    private BanService banService;
 
     private final UUID notificationId = UUID.randomUUID();
     private final UUID deckId = UUID.randomUUID();

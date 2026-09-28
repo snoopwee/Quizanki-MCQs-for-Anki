@@ -4,6 +4,8 @@ import {
   DISMISS_TEMPLATES,
   NOTE_REPORT_REASONS,
   RESOLVE_TEMPLATES,
+  RESTORE_TEMPLATES,
+  SUSPEND_TEMPLATES,
   TAKEDOWN_TEMPLATES,
   reasonsFor,
 } from "./reportReasons";
@@ -36,5 +38,23 @@ describe("action templates", () => {
   it("writes takedown reasons for the person who receives them", () => {
     // These go into the removed rating's author's notification, so they explain rather than label.
     expect(TAKEDOWN_TEMPLATES.every((t) => t.trim().endsWith("."))).toBe(true);
+  });
+});
+
+describe("suspension templates", () => {
+  it("names the behaviour, because the suspended person reads it verbatim", () => {
+    // Not "you are a spammer" — a moderation reason is shown to the person it happened to, and
+    // has to be something they can act on or appeal.
+    for (const t of SUSPEND_TEMPLATES) {
+      expect(t.trim().length).toBeGreaterThan(0);
+      expect(t.trim().endsWith(".")).toBe(true);
+      expect(t.toLowerCase()).not.toMatch(/you are|you're/);
+    }
+  });
+
+  it("offers a way back that isn't grudging", () => {
+    expect(RESTORE_TEMPLATES.length).toBeGreaterThan(0);
+    // Including one that admits a mistake — a restore flow with no apology is a bad look.
+    expect(RESTORE_TEMPLATES.some((t) => /mistake/i.test(t))).toBe(true);
   });
 });

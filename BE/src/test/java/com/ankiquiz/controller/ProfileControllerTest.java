@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.service.BanService;
 import com.ankiquiz.config.AdminAccess;
 import com.ankiquiz.dto.request.AuthorProfileRequest;
 import com.ankiquiz.dto.request.UsernameRequest;
@@ -49,6 +50,9 @@ class ProfileControllerTest {
 
     @MockBean
     private JwtDecoder jwtDecoder;
+
+    @MockBean
+    private BanService banService;
 
     // Same as elsewhere: a bare test JWT resolves to (subject, Anonymous, no avatar).
     private static final Caller CALLER = new Caller("user-123", Caller.ANONYMOUS, null);

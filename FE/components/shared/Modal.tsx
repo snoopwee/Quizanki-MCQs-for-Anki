@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useId, type ReactNode } from "react";
 import { Icon } from "@/components/ui/icons";
 import { IconButton, iconButtonIconSize } from "@/components/ui/IconButton";
 
@@ -15,6 +15,8 @@ export function Modal({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const titleId = useId();
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -28,12 +30,23 @@ export function Modal({
       className="nice-scroll fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/40 p-4 backdrop-blur-sm sm:p-8"
       onClick={onClose}
     >
+      {/* A dialog, and announced as one. AuthModal has always said so; this one did not, which
+          left every modal built on it — report, rating, moderation — unannounced to a screen
+          reader. `aria-labelledby` points at the heading when there is one. */}
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        aria-label={title ? undefined : "Dialog"}
         className="my-4 w-full max-w-2xl rounded-card border border-line bg-surface p-6 shadow-card"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          {title && <h2 className="font-display text-lg font-semibold tracking-tight">{title}</h2>}
+          {title && (
+            <h2 id={titleId} className="font-display text-lg font-semibold tracking-tight">
+              {title}
+            </h2>
+          )}
           {/* A lone control, so no border — but the same circle and size as every
               other icon button, per DESIGN_SYSTEM → Alignment. */}
           <IconButton

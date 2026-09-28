@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.service.BanService;
 import com.ankiquiz.dto.response.FollowStatusResponse;
 import com.ankiquiz.dto.response.FollowedAuthorResponse;
 import com.ankiquiz.dto.response.FollowerResponse;
@@ -41,6 +42,9 @@ class FollowControllerTest {
 
     @MockBean
     private JwtDecoder jwtDecoder;
+
+    @MockBean
+    private BanService banService;
 
     @Test
     void reportsWhetherYouFollowAnAuthorAndHowManyDo() throws Exception {

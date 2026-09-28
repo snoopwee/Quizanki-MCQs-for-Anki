@@ -162,8 +162,9 @@ ai:
   enabled: ${AI_ENABLED:false}
   provider: ${AI_PROVIDER:gemini}
   # ⚠ Confirm the exact model id against the provider's docs before enabling — free-tier daily
-  # quotas differ sharply between models (Gemini 3 Flash ~1,500/day vs 2.5 Flash ~250/day).
-  model: ${AI_MODEL:gemini-2.5-flash}
+  # quotas differ sharply. NOTE: the 2.5 models are now legacy and only reachable by
+  # accounts that already used them, so a fresh key cannot select one.
+  model: ${AI_MODEL:gemini-3.5-flash}
   api-key: ${AI_API_KEY:}
   key-encryption-key: ${AI_KEY_ENCRYPTION_KEY:}
   gemini:

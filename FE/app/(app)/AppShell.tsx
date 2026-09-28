@@ -13,6 +13,7 @@ import { DeckSearch } from "@/components/search/DeckSearch";
 import { StreakChip } from "@/components/layout/StreakChip";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import { ChooseUsernameGate } from "@/components/auth/ChooseUsernameGate";
+import { SuspendedGate } from "@/components/auth/SuspendedGate";
 import { Icon, type IconName } from "@/components/ui/icons";
 
 // True for any URL a full-screen study mode takes over — sidebar is hidden so the
@@ -112,6 +113,10 @@ export function AppShell({
 
   return (
     <ImportProvider>
+      {/* Before anything else: a suspended account gets the reason and nothing else. It sits
+          above the username prompt on purpose — asking somebody to pick a handle for an account
+          they cannot use would be absurd. */}
+      <SuspendedGate />
       {/* Anybody whose handle we generated confirms it once, here — the one place every
           signed-in route passes through, so an OAuth sign-up can't slip past a sign-up form it
           never saw. Deliberately not on the immersive branch: interrupting a quiz to ask for a

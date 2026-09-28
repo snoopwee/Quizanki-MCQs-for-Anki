@@ -3,6 +3,7 @@ package com.ankiquiz.controller;
 import com.ankiquiz.config.AdminAccess;
 import com.ankiquiz.dto.request.AuthorProfileRequest;
 import com.ankiquiz.dto.request.UsernameRequest;
+import com.ankiquiz.service.BanService;
 import com.ankiquiz.service.Caller;
 import com.ankiquiz.service.DeckService;
 import com.ankiquiz.service.ProfileService;
@@ -33,12 +34,14 @@ public class ProfileController {
     private final DeckService deckService;
     private final ProfileService profileService;
     private final AdminAccess adminAccess;
+    private final BanService banService;
 
     public ProfileController(DeckService deckService, ProfileService profileService,
-                             AdminAccess adminAccess) {
+                             AdminAccess adminAccess, BanService banService) {
         this.deckService = deckService;
         this.profileService = profileService;
         this.adminAccess = adminAccess;
+        this.banService = banService;
     }
 
     @GetMapping
@@ -66,6 +69,14 @@ public class ProfileController {
         // False means we picked their handle and they have never seen it — the client asks them to
         // confirm it once, pre-filled, rather than making them invent one mid-signup.
         me.put("usernameChosen", profile != null && profile.isUsernameChosen());
+        // This endpoint is the ONE thing SuspendedUserFilter lets a suspended account reach — it
+        // is how the client learns it is suspended and what the reason was. Everything else is
+        // refused, so without this there would be a wall of 403s and nothing to display.
+        me.put("suspension", banService.activeBan(jwt.getSubject())
+                .map(ban -> Map.of(
+                        "reason", ban.getReason(),
+                        "bannedAt", String.valueOf(ban.getBannedAt())))
+                .orElse(null));
         return me;
     }
 

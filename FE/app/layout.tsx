@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import { TEXT_SIZE_INIT_SCRIPT } from "@/lib/textSize";
+import { siteUrl } from "@/lib/siteUrl";
 
 // Warm "study desk" type system (see FE/DESIGN_SYSTEM.md):
 //   Space Grotesk — display / headings (tight, academic)
@@ -31,8 +32,31 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Quizanki — Anki decks, as quizzes",
+  // Absolute base for every relative URL below and in each route's own metadata. Open Graph tags
+  // must be absolute, so without this a link preview gets no image and no canonical.
+  metadataBase: new URL(siteUrl()),
+  title: {
+    default: "Quizanki — Anki decks, as quizzes",
+    // Deck and profile pages set only their own name; the brand is appended once, here, so no
+    // route has to remember to.
+    template: "%s · Quizanki",
+  },
   description: "Turn your Anki flashcard decks into multiple-choice quizzes.",
+  applicationName: "Quizanki",
+  openGraph: {
+    type: "website",
+    siteName: "Quizanki",
+    title: "Quizanki — Anki decks, as quizzes",
+    description: "Turn your Anki flashcard decks into multiple-choice quizzes.",
+    url: "/",
+  },
+  twitter: {
+    // No image yet, so a summary card: the large variant reserves a picture slot and renders a
+    // grey box when there is none, which looks worse than the plain card.
+    card: "summary",
+    title: "Quizanki — Anki decks, as quizzes",
+    description: "Turn your Anki flashcard decks into multiple-choice quizzes.",
+  },
 };
 
 export default function RootLayout({

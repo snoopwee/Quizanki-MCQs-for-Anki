@@ -1,5 +1,6 @@
 package com.ankiquiz.controller;
 
+import com.ankiquiz.service.BanService;
 import com.ankiquiz.config.AdminAccess;
 import com.ankiquiz.config.SecurityConfig;
 import com.ankiquiz.dto.response.SiteConfigResponse;
@@ -36,6 +37,9 @@ class ConfigControllerTest {
 
     @MockBean
     private SiteConfigService siteConfigService;
+
+    @MockBean
+    private BanService banService;
 
     @Test
     void publicConfig_isReachableWithoutAuth() throws Exception {

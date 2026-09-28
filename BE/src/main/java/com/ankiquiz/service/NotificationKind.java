@@ -36,7 +36,16 @@ public enum NotificationKind {
      * actually happened to just found their rating gone. Somebody who broke a rule and is never
      * told cannot do better next time, and somebody moderated by mistake has nothing to appeal.
      */
-    CONTENT_REMOVED("content_removed", false);
+    CONTENT_REMOVED("content_removed", false),
+
+    /**
+     * A suspension has been lifted. Not mutable: it is the answer to something that happened to
+     * them, and it is the first thing they see on return.
+     *
+     * <p>There is deliberately no matching "you were suspended" kind — they cannot reach the bell
+     * while suspended, so that message has to be the screen itself.
+     */
+    ACCOUNT_RESTORED("account_restored", false);
 
     private final String wire;
     private final boolean mutable;

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Quizanki">
+  <!--
+    ⚠ THE FILE MUST START WITH THIS <svg> TAG. Next's metadata image loader reads the SVG's
+    dimensions before serving it, and it only finds them when the element is the first thing in
+    the file. A leading XML comment makes it throw "is not a valid image file" — and that error
+    does not just break the icon, it 500s EVERY page on the site. Keep all commentary in here.
+
+    The browser-tab icon: the same mark as `components/ui/BrandMark.tsx` — a rounded terracotta
+    tile with a white "Q" — so the tab, the sidebar and the landing header read as one identity.
+
+    SVG rather than .ico: it is text in git (reviewable, diffable), sharp at every size a browser
+    asks for, and Next's `app/icon.svg` convention emits the icon link tag itself. That tag is
+    also what stops the browser probing /favicon.ico and logging a 404.
+
+    The Q is DRAWN, not set in type. A favicon renders outside the page, so the Space Grotesk
+    webfont behind `font-display` is unavailable here — a text element would fall back to
+    whatever the OS supplies and change shape per platform.
+
+    Colours are the literal values of the `accent` and `accent-2` custom properties in
+    globals.css, not var() references: this file is served standalone, so it inherits no custom
+    properties. Keep the two in step by hand. (An XML comment may not contain a double hyphen,
+    which is why those tokens are written without their leading dashes.)
+  -->
+  <defs>
+    <!-- Matches BrandMark's `bg-linear-to-br from-accent to-accent-2`. -->
+    <linearGradient id="q" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d97757" />
+      <stop offset="1" stop-color="#e8916f" />
+    </linearGradient>
+  </defs>
+
+  <!-- rx tracks the mark's rounded tile (rounded-xl on the 40px variant, scaled to 32). -->
+  <rect width="32" height="32" rx="9" fill="url(#q)" />
+
+  <!--
+    Bowl and tail share one stroke width so they read as a single drawn letter.
+
+    The tail STARTS INSIDE the counter and ends barely past the bowl (about 1px of overhang).
+    An earlier version ran it far out at 45 degrees, which turned the mark into a magnifying
+    glass — the tail has to cross the stroke, not hang off it. The glyph is sized to fill most
+    of the tile, because the size that has to survive is 16px, not 128.
+  -->
+  <g fill="none" stroke="#ffffff" stroke-width="3.8" stroke-linecap="round">
+    <circle cx="16" cy="15.2" r="7.4" />
+    <path d="M17.9 16.9 L23.4 22.4" />
+  </g>
+</svg>

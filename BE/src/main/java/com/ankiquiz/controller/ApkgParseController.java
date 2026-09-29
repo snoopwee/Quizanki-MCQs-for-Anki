@@ -4,6 +4,7 @@ import com.ankiquiz.dto.response.ApkgNotesResponse;
 import com.ankiquiz.exception.RateLimitExceededException;
 import com.ankiquiz.service.ApkgParseRateLimiter;
 import com.ankiquiz.service.ApkgParserService;
+import com.ankiquiz.service.RateLimitKey;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
@@ -16,8 +17,9 @@ import org.springframework.web.multipart.MultipartFile;
 /**
  * Public, unauthenticated .apkg parsing for guest "try-before-signup" and for
  * logged-in import alike. Stateless — persists nothing. Whitelisted in
- * {@code SecurityConfig} under {@code /api/v1/public/**}; per-IP rate limited so
- * an anonymous flood can't exhaust a free-tier host's compute budget.
+ * {@code SecurityConfig} under {@code /api/v1/public/**}; rate limited per signed-in user,
+ * or per IP for a guest ({@link RateLimitKey}), so an anonymous flood can't exhaust a free-tier
+ * host's compute budget.
  */
 @RestController
 @RequestMapping("/api/v1/public")
@@ -37,20 +39,10 @@ public class ApkgParseController {
                     + "cleans the values, and returns them grouped by note type (sampled). "
                     + "Per-IP rate limited.")
     public ApkgNotesResponse parseApkg(@RequestParam("file") MultipartFile file, HttpServletRequest http) {
-        if (!rateLimiter.tryAcquire(clientIp(http))) {
+        if (!rateLimiter.tryAcquire(RateLimitKey.forRequest(http))) {
             throw new RateLimitExceededException(
                     "Too many uploads from your network. Please wait a few minutes and try again.");
         }
         return parserService.parseNotes(file);
-    }
-
-    // Behind Render / Cloudflare the socket address is the proxy; the real
-    // client IP is the first hop in X-Forwarded-For.
-    private static String clientIp(HttpServletRequest http) {
-        String forwarded = http.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return http.getRemoteAddr();
     }
 }

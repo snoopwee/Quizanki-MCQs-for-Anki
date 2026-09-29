@@ -3,6 +3,7 @@ package com.ankiquiz.controller;
 import com.ankiquiz.dto.request.TtsRequest;
 import com.ankiquiz.dto.response.TtsResponse;
 import com.ankiquiz.exception.RateLimitExceededException;
+import com.ankiquiz.service.RateLimitKey;
 import com.ankiquiz.service.TtsRateLimiter;
 import com.ankiquiz.service.TtsService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,7 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
  * Public, unauthenticated cloud text-to-speech for the flashcard speaker. The FE
  * only calls this for a language segment the visitor's device has no voice for, so
  * synthesis stays the exception, not the rule. Whitelisted in {@code SecurityConfig}
- * under {@code /api/v1/public/**}; per-IP rate limited.
+ * under {@code /api/v1/public/**}; rate limited per signed-in user, or per IP for a guest
+ * ({@link RateLimitKey}).
  */
 @RestController
 @RequestMapping("/api/v1/public")
@@ -38,19 +40,9 @@ public class TtsController {
                     + "or an inline data URL when caching isn't configured. 503 when cloud TTS "
                     + "is not configured (the FE then stays on device voices).")
     public TtsResponse synthesize(@Valid @RequestBody TtsRequest request, HttpServletRequest http) {
-        if (!rateLimiter.tryAcquire(clientIp(http))) {
+        if (!rateLimiter.tryAcquire(RateLimitKey.forRequest(http))) {
             throw new RateLimitExceededException("Too many text-to-speech requests. Please slow down.");
         }
         return ttsService.synthesizeToUrl(request.text(), request.lang());
-    }
-
-    // Behind Render / Cloudflare the socket address is the proxy; the real client
-    // IP is the first hop in X-Forwarded-For.
-    private static String clientIp(HttpServletRequest http) {
-        String forwarded = http.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return http.getRemoteAddr();
     }
 }

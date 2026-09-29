@@ -2,40 +2,33 @@ package com.ankiquiz.service;
 
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.time.Clock;
 
 /**
- * Lightweight in-memory per-IP rate limiter for the public TTS endpoint — a
- * fixed window of {@value #MAX_PER_WINDOW} requests per minute. This is a
- * cost/abuse backstop for the unauthenticated endpoint; the real synthesis-cost
- * control is the Storage cache (each unique string is synthesized once). A
- * production-grade distributed limiter (Bucket4j + Redis / Cloudflare) is the
- * later hardening item. Single-instance only — state isn't shared across nodes.
+ * Rate limit for the public TTS endpoint — {@value #MAX_PER_WINDOW} requests per minute per caller.
+ *
+ * <p>A cost/abuse backstop only; the real synthesis-cost control is the Storage cache, which
+ * synthesizes each unique string once. Looser than {@link ApkgParseRateLimiter} because a single
+ * study session legitimately fires many short requests.
+ *
+ * <p><b>A caller is a signed-in user where possible, and only an IP otherwise</b> — see
+ * {@link RateLimitKey}.
+ *
+ * <p>Single-instance only; the mechanism and its limits are in {@link FixedWindowRateLimiter}.
  */
 @Component
-public class TtsRateLimiter {
+public class TtsRateLimiter extends FixedWindowRateLimiter {
 
     private static final int MAX_PER_WINDOW = 60;
     private static final long WINDOW_MS = 60_000L;
-    // Crude memory bound: if too many distinct IPs accumulate, drop all windows.
     private static final int MAX_KEYS = 10_000;
 
-    // value = [windowStartMillis, countInWindow]
-    private final Map<String, long[]> windows = new ConcurrentHashMap<>();
+    public TtsRateLimiter() {
+        this(Clock.systemUTC());
+    }
 
-    public boolean tryAcquire(String key) {
-        if (windows.size() > MAX_KEYS) {
-            windows.clear();
-        }
-        long now = System.currentTimeMillis();
-        long[] window = windows.compute(key, (k, current) -> {
-            if (current == null || now - current[0] >= WINDOW_MS) {
-                return new long[]{now, 1};
-            }
-            current[1]++;
-            return current;
-        });
-        return window[1] <= MAX_PER_WINDOW;
+    /** Test seam: a fixed clock makes window expiry assertable without sleeping. */
+    public TtsRateLimiter(Clock clock) {
+        super(MAX_PER_WINDOW, WINDOW_MS, MAX_KEYS, clock);
     }
 }

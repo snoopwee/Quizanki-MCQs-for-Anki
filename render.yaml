@@ -34,10 +34,6 @@ services:
         sync: false
       - key: APP_CORS_ALLOWED_ORIGINS  # https://<your-app>.vercel.app  (comma-separated for several)
         sync: false
-      # Optional — only if/when Redis-backed features are enabled.
-      - key: UPSTASH_REDIS_URL
-        sync: false
-
       # ── AI deck generation (Phase 9) ──────────────────────────────────────
       # Two ways to pay for a generation, and they run side by side:
       #   * the SHARED key below — our own free-tier key, used by anyone who hasn't

@@ -3,6 +3,8 @@ package com.ankiquiz.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.core.Ordered;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -108,6 +110,26 @@ public class SecurityConfig {
                 .build();
         decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(issuer));
         return decoder;
+    }
+
+    /**
+     * Registers {@link ClientIpFilter} ahead of everything else.
+     *
+     * <p>Order matters and is the whole point: in prod {@code forward-headers-strategy: framework}
+     * puts Spring's {@code ForwardedHeaderFilter} in the chain, which removes
+     * {@code X-Forwarded-For} and rewrites {@code getRemoteAddr()} from its LEFTMOST (client-written)
+     * hop. Anything reading the caller's IP after that point reads a value the caller chose. Running
+     * at {@code HIGHEST_PRECEDENCE} captures the proxy's own hop before that happens.
+     *
+     * <p>A {@code FilterRegistrationBean} rather than a {@code @Component} so the order is explicit
+     * instead of whatever Boot's default happens to be.
+     */
+    @Bean
+    public FilterRegistrationBean<ClientIpFilter> clientIpFilter() {
+        FilterRegistrationBean<ClientIpFilter> registration =
+                new FilterRegistrationBean<>(new ClientIpFilter());
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        return registration;
     }
 
     @Bean

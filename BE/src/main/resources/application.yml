@@ -59,10 +59,6 @@ spring:
     baseline-on-migrate: true
     baseline-version: 0
 
-  data:
-    redis:
-      url: ${UPSTASH_REDIS_URL:redis://localhost:6379}
-
 supabase:
   # Project URL, e.g. https://<project-ref>.supabase.co
   # The JWKS endpoint and JWT issuer are derived from this.
@@ -141,10 +137,6 @@ management:
     health:
       # Surface which sub-component is DOWN. Safe in dev; tighten in prod.
       show-details: always
-  health:
-    redis:
-      # Phase 0 doesn't use Redis yet, so don't gate /actuator/health on it.
-      enabled: false
 
 # ── AI deck generation (Phase 9) ─────────────────────────────────────────────
 # Dormant by default: with ai.enabled=false nothing ever calls a provider, and the FE keeps the

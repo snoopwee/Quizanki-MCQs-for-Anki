@@ -10,6 +10,18 @@ import type { AuthorPageResponse, PublicDeckPage, PublicDeckSummary } from "@/ty
  * Everything here returns null rather than throwing. Metadata must never be the reason a page
  * fails to render: the backend sleeps on Render's free tier, so a cold start can be slow or time
  * out, and the right answer then is a generic title, not a 500.
+ *
+ * ── Why `FE/vercel.json` pins the region ────────────────────────────────────────────────────
+ * These fetches run in a Vercel function, and Vercel's default compute region is `iad1`
+ * (Washington DC) while this backend and its database are both in Singapore. Measured 2026-09-30
+ * on a cache-busted deck page: `x-vercel-id: hkg1::iad1::…`, i.e. an Asian visitor hit the Hong
+ * Kong edge, was routed to Washington DC to run this, which then reached back across the Pacific
+ * to Singapore. TTFB 0.49–0.94s against 0.30s calling the backend directly.
+ *
+ * `vercel.json` sets `regions: ["sin1"]` so the function runs beside the backend. That file
+ * cannot hold comments, which is why the reasoning lives here — this is the code it protects.
+ * It matters most for TIMEOUT_MS below: geography was eating a slice of a 4s budget, and running
+ * out of that budget is what drops a deck page to generic copy plus `noindex`.
  */
 
 const TIMEOUT_MS = 4000;

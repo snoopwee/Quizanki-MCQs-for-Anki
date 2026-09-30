@@ -31,6 +31,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: absoluteUrl("/discover"), lastModified: now, changeFrequency: "daily", priority: 0.8 },
   ];
 
+  let reachedCap = false;
   const decks: MetadataRoute.Sitemap = [];
   const authors = new Map<string, Date | undefined>();
 
@@ -57,7 +58,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }
     }
 
+    // A full page means there is probably more; the loop condition is what stops us.
     if (page.items.length < PAGE_SIZE) break;
+    reachedCap = offset + PAGE_SIZE >= MAX_DECKS;
+  }
+
+  if (reachedCap) {
+    // The cap is deliberate (see MAX_DECKS) but it truncates SILENTLY, and a sitemap that quietly
+    // stops listing decks is invisible until someone notices the new ones were never indexed.
+    // This is the only signal that the ceiling has been reached and it is time for a sitemap index.
+    console.warn(
+      `[sitemap] hit MAX_DECKS (${MAX_DECKS}); newer decks are NOT being listed. ` +
+        `Split into a sitemap index — see the note on MAX_DECKS.`,
+    );
   }
 
   const profiles: MetadataRoute.Sitemap = Array.from(authors, ([username, lastShared]) => ({

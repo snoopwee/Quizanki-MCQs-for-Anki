@@ -130,13 +130,15 @@ public class ReviewReportService {
         // "closed" is resolved AND dismissed: an admin sorting finished work from outstanding work
         // does not care which way it went, only that it is done.
         List<ReviewReport> found = switch (want) {
-            case "" -> reports.findAllByOrderByCreatedAtDesc();
-            case "closed" -> reports.findByStatusNotOrderByCreatedAtDesc("open");
-            default -> reports.findByStatusOrderByCreatedAtDesc(want);
+            case "" -> reports.findAllByOrderByCreatedAtDesc(AdminListLimit.NEWEST);
+            case "closed" -> reports.findByStatusNotOrderByCreatedAtDesc("open", AdminListLimit.NEWEST);
+            default -> reports.findByStatusOrderByCreatedAtDesc(want, AdminListLimit.NEWEST);
         };
-        // Narrowed in memory rather than in SQL: the queue is small, the reason vocabulary is
-        // the client's, and a second index on a table that gets swept every fifteen days would
-        // cost more than it saves.
+        // Narrowed in memory, not in SQL: the reason vocabulary belongs to the client and the
+        // table is swept every fifteen days, so a second index would cost more than it saves.
+        // ⚠ This runs AFTER AdminListLimit.NEWEST has capped the rows, so a reason filter
+        // searches the newest AdminListLimit.MAX_ROWS reports rather than the whole table. Deliberate: the
+        // cap is set far above a workable queue. Past that, this needs real pagination.
         String wantReason = reason == null ? "" : reason.trim();
         if (!wantReason.isEmpty()) {
             found = found.stream()

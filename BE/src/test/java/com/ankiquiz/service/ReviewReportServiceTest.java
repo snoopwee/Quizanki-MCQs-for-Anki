@@ -218,7 +218,7 @@ class ReviewReportServiceTest {
         service.takeDownRating(reportId, "Because.", ADMIN);
 
         // The whole reason for the snapshot: the rating is gone, and the account is still reachable.
-        when(reports.findByStatusOrderByCreatedAtDesc("open")).thenReturn(List.of(report));
+        when(reports.findByStatusOrderByCreatedAtDesc(eq("open"), any())).thenReturn(List.of(report));
         Deck theDeck = deck();
         when(decks.findAllById(List.of(deckId))).thenReturn(List.of(theDeck));
         when(ratings.findByDeckIdAndPublicId(deckId, noteId)).thenReturn(Optional.empty());
@@ -234,7 +234,7 @@ class ReviewReportServiceTest {
     @Test
     void theQueueShowsTheSnapshotAndWhetherTheNoteIsStillLive() {
         ReviewReport report = filed("open");
-        when(reports.findByStatusOrderByCreatedAtDesc("open")).thenReturn(List.of(report));
+        when(reports.findByStatusOrderByCreatedAtDesc(eq("open"), any())).thenReturn(List.of(report));
         Deck theDeck = deck();
         when(decks.findAllById(List.of(deckId))).thenReturn(List.of(theDeck));
         note("this deck is rubbish and so are you");
@@ -250,7 +250,7 @@ class ReviewReportServiceTest {
     @Test
     void aQueueRowSurvivesTheNoteBeingTakenDown() {
         ReviewReport report = filed("open");
-        when(reports.findByStatusOrderByCreatedAtDesc("open")).thenReturn(List.of(report));
+        when(reports.findByStatusOrderByCreatedAtDesc(eq("open"), any())).thenReturn(List.of(report));
         Deck theDeck = deck();
         when(decks.findAllById(List.of(deckId))).thenReturn(List.of(theDeck));
         // Cleared by the author after reporting, or the rating deleted outright.
@@ -265,7 +265,7 @@ class ReviewReportServiceTest {
     @Test
     void theQueueNamesBothSidesForTheAdmin() {
         ReviewReport report = filed("open");
-        when(reports.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(report));
+        when(reports.findAllByOrderByCreatedAtDesc(any())).thenReturn(List.of(report));
         Deck theDeck = deck();
         when(decks.findAllById(List.of(deckId))).thenReturn(List.of(theDeck));
         note("something nasty");
@@ -416,13 +416,13 @@ class ReviewReportServiceTest {
 
     @Test
     void theClosedFilterIsResolvedAndDismissedTogether() {
-        when(reports.findByStatusNotOrderByCreatedAtDesc("open")).thenReturn(List.of());
+        when(reports.findByStatusNotOrderByCreatedAtDesc(eq("open"), any())).thenReturn(List.of());
 
         service.list("closed", null);
 
         // An admin sorting finished work from outstanding work doesn't care which way it went.
-        verify(reports).findByStatusNotOrderByCreatedAtDesc("open");
-        verify(reports, never()).findAllByOrderByCreatedAtDesc();
+        verify(reports).findByStatusNotOrderByCreatedAtDesc(eq("open"), any());
+        verify(reports, never()).findAllByOrderByCreatedAtDesc(any());
     }
 
     @Test
@@ -462,7 +462,7 @@ class ReviewReportServiceTest {
         ReviewReport report = filed("open");
         report.setWriterId("writer-1");
         report.setWriterName("Old Snapshot Name");
-        when(reports.findByStatusOrderByCreatedAtDesc("open")).thenReturn(List.of(report));
+        when(reports.findByStatusOrderByCreatedAtDesc(eq("open"), any())).thenReturn(List.of(report));
         com.ankiquiz.entity.Profile writer = new com.ankiquiz.entity.Profile();
         writer.setUserId("writer-1");
         writer.setUsername("tester");
@@ -480,7 +480,7 @@ class ReviewReportServiceTest {
         ReviewReport report = filed("open");
         report.setWriterId("writer-1");
         report.setWriterName("Old Snapshot Name");
-        when(reports.findByStatusOrderByCreatedAtDesc("open")).thenReturn(List.of(report));
+        when(reports.findByStatusOrderByCreatedAtDesc(eq("open"), any())).thenReturn(List.of(report));
         when(profiles.findAll(List.of("writer-1"))).thenReturn(Map.of());
 
         assertThat(service.list("open", null).getFirst().writerName()).isEqualTo("Old Snapshot Name");

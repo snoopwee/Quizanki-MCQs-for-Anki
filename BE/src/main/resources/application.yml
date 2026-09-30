@@ -22,7 +22,39 @@ spring:
     password: ${DATABASE_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
-      # Don't block startup if the DB is briefly unreachable.
+      # ── Sized for the DEPLOY OVERLAP, not for steady state ──────────────────
+      # During a zero-downtime deploy the OLD instance is still running and still
+      # holding its pool while the new one boots, so the connection demand briefly
+      # DOUBLES. Both go through Supabase's session pooler (Supavisor), whose client
+      # limit is far lower than Postgres' max_connections (60) — it was observed
+      # holding 15 server connections. At Hikari's default of 10 per instance that
+      # overlap wants 20 slots and the new instance simply waits.
+      #
+      # Measured on 2026-09-29 (deploy dep-dathumj…), and it is not subtle:
+      #   02:18:47  HikariPool-1 - Start completed
+      #             ← 10m10s blocked, waiting for a connection ←
+      #   02:28:57  Flyway finally connects
+      #   02:30:45  Started AnkiQuizApplication in 781.1 seconds
+      # It went live 97 seconds before Render's 15-minute deploy timeout. The same
+      # deploy LOST that race on 2026-09-25 and 2026-09-28 — "Timed Out", backend
+      # down. Alone, this app boots in ~4 minutes.
+      #
+      # Why it unblocked at ten minutes: Hikari's DEFAULT idle-timeout is 600s, so
+      # that is when the old instance began releasing connections. Hence both knobs:
+      # cap what each instance takes, and let an idle instance give connections back
+      # quickly instead of sitting on them for ten minutes.
+      #
+      # 5 is also simply right for this box: one shared CPU. A large pool cannot help
+      # a machine that can only run a couple of queries at once.
+      maximum-pool-size: 5
+      # minimum-idle MUST be below maximum-pool-size or idle-timeout does nothing —
+      # Hikari keeps a fixed-size pool when they are equal (the default).
+      minimum-idle: 1
+      idle-timeout: 60000
+      # -1 means "do not try to acquire a connection at startup" — the pool reports
+      # "Start completed" without touching the database, which is why the stall above
+      # showed up in Flyway rather than here. Kept so a brief DB blip can't fail a
+      # boot outright; the pool sizing above is what prevents the stall.
       initialization-fail-timeout: -1
       data-source-properties:
         # Rewrite a batch of single-row INSERTs into ONE multi-row INSERT. Turns an

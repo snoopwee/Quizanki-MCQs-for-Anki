@@ -52,6 +52,14 @@ public class NotificationService {
     static final int MAX_TITLE = 120;
     static final int MAX_BODY = 500;
     static final int RETENTION_DAYS = 90;
+    /**
+     * How long one actor stays "already announced" to one recipient, for a kind with no deck to
+     * deduplicate on. Comfortably inside {@link #RETENTION_DAYS}, which matters: the guard reads
+     * existing rows, so a cooldown longer than retention would silently stop working once the row
+     * it was looking for had been swept. A month also leaves a genuine re-follow months later able
+     * to say so, which is not spam — it is news by then.
+     */
+    static final int ACTOR_REPEAT_COOLDOWN_DAYS = 30;
 
     private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
 
@@ -219,6 +227,9 @@ public class NotificationService {
      *
      * <p>Carries the follower so the author can go and look at who it was — which is also why this
      * one is mutable: it names a person, and not everybody wants that arriving.
+     *
+     * <p>This is the kind the actor cooldown in {@link #deliver} exists for: it is the only one
+     * with an actor and no deck, and the follow it reports can be deleted and remade at will.
      */
     @Transactional
     public boolean newFollower(String authorId, String followerId, String followerName) {
@@ -267,6 +278,18 @@ public class NotificationService {
         }
         if (deckId != null
                 && notifications.existsByUserIdAndKindAndDeckIdAndReadAtIsNull(recipientId, kind.wire(), deckId)) {
+            return false;
+        }
+        // No deck to key on, but somebody caused it: dedupe on the ACTOR over a time window
+        // instead. Without this a kind like new_follower has no repeat guard at all — following is
+        // idempotent, but unfollowing DELETES the row, so follow/unfollow/follow writes a fresh
+        // notification every cycle and one person can fill another's bell on a loop. The window is
+        // what makes it hold: an unread-only test (the one above) would be re-armed the moment the
+        // author read the row, which is exactly when they are looking at it.
+        if (deckId == null && actorId != null
+                && notifications.existsByUserIdAndKindAndActorIdAndCreatedAtAfter(
+                        recipientId, kind.wire(), actorId,
+                        OffsetDateTime.now(clock).minusDays(ACTOR_REPEAT_COOLDOWN_DAYS))) {
             return false;
         }
         // Asked not to hear about this. Checked at the source so no caller has to remember, and

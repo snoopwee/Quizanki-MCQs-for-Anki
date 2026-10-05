@@ -1,5 +1,6 @@
 package com.ankiquiz.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -129,6 +130,25 @@ public class SecurityConfig {
         FilterRegistrationBean<ClientIpFilter> registration =
                 new FilterRegistrationBean<>(new ClientIpFilter());
         registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        return registration;
+    }
+
+    /**
+     * Registers {@link RequestSizeLimitFilter} early — right behind {@link ClientIpFilter}.
+     *
+     * <p>The point of a size limit is to spend as little as possible on a body we are going to
+     * refuse, so it belongs in front of authentication: validating a JWT on a 200 MB request only
+     * to reject the request is work an attacker gets for free. Nothing it does depends on knowing
+     * who is calling.
+     *
+     * <p>It stays BEHIND ClientIpFilter so a refused oversized request still has its client IP
+     * recorded, which is what makes it attributable.
+     */
+    @Bean
+    public FilterRegistrationBean<RequestSizeLimitFilter> requestSizeLimitFilter(ObjectMapper json) {
+        FilterRegistrationBean<RequestSizeLimitFilter> registration =
+                new FilterRegistrationBean<>(new RequestSizeLimitFilter(json));
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 1);
         return registration;
     }
 

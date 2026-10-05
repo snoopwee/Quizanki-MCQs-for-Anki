@@ -495,8 +495,69 @@ class NotificationServiceTest {
         assertThat(saved.getTitle()).isEqualTo("Thanh started following you");
         assertThat(saved.getLink()).isEqualTo("/authors/user-3");
         assertThat(saved.getActorId()).isEqualTo("user-3");
-        // No deck involved, so the no-two-unread-about-one-deck rule does not apply here.
+        // No deck, so the no-two-unread-about-one-deck rule cannot apply here — the actor cooldown
+        // below is what guards this kind instead.
         assertThat(saved.getDeckId()).isNull();
+    }
+
+    // ── follow / unfollow / follow cannot fill somebody's bell ───────────────
+
+    @Test
+    void theSameFollowerIsNotAnnouncedTwiceInsideTheCooldown() {
+        // Unfollowing deletes the follow row, so a re-follow looks brand new to FollowService and
+        // calls this again. The guard is here, not there, so every caller gets it.
+        when(notifications.existsByUserIdAndKindAndActorIdAndCreatedAtAfter(
+                eq(USER), eq("new_follower"), eq("user-3"), any()))
+                .thenReturn(true);
+
+        assertThat(service.newFollower(USER, "user-3", "Thanh")).isFalse();
+
+        verify(notifications, never()).save(any());
+    }
+
+    @Test
+    void theCooldownIsMeasuredFromTheFixedClockNotWallTime() {
+        service.newFollower(USER, "user-3", "Thanh");
+
+        ArgumentCaptor<OffsetDateTime> cutoff = ArgumentCaptor.forClass(OffsetDateTime.class);
+        verify(notifications).existsByUserIdAndKindAndActorIdAndCreatedAtAfter(
+                eq(USER), eq("new_follower"), eq("user-3"), cutoff.capture());
+        assertThat(cutoff.getValue())
+                .isEqualTo(OffsetDateTime.ofInstant(nowInstant, ZoneOffset.UTC)
+                        .minusDays(NotificationService.ACTOR_REPEAT_COOLDOWN_DAYS));
+    }
+
+    @Test
+    void aDifferentFollowerIsStillAnnounced() {
+        // The cooldown is per actor. One person going quiet must not silence everybody else.
+        when(notifications.existsByUserIdAndKindAndActorIdAndCreatedAtAfter(
+                eq(USER), eq("new_follower"), eq("user-3"), any()))
+                .thenReturn(true);
+        when(notifications.existsByUserIdAndKindAndActorIdAndCreatedAtAfter(
+                eq(USER), eq("new_follower"), eq("user-9"), any()))
+                .thenReturn(false);
+
+        assertThat(service.newFollower(USER, "user-9", "Mai")).isTrue();
+        assertThat(captureSaved().getActorId()).isEqualTo("user-9");
+    }
+
+    @Test
+    void theCooldownIsNotConsultedForAKindThatHasADeckToDedupeOn() {
+        // deck_shared already has the stronger per-deck guard; asking both would be a second query
+        // on the app's commonest notification for nothing.
+        service.deckShared(USER, "author-9", "Mai", deckId, "JLPT N3");
+
+        verify(notifications, never()).existsByUserIdAndKindAndActorIdAndCreatedAtAfter(
+                any(), any(), any(), any());
+    }
+
+    @Test
+    void theCooldownIsNotConsultedForAnActorlessKind() {
+        // An announcement has no actor to key on, and there are more of those rows than any other.
+        service.announce(List.of(USER), "Scheduled maintenance", null, null);
+
+        verify(notifications, never()).existsByUserIdAndKindAndActorIdAndCreatedAtAfter(
+                any(), any(), any(), any());
     }
 
     @Test

@@ -160,6 +160,25 @@ server:
   # back to 8080 for local dev.
   port: ${PORT:8080}
 
+  # ── Response compression ──────────────────────────────────────────────────
+  # Off by default in Boot, and this app serves exactly the payload it is for:
+  # GET /public/shared/{id} returns every card, measured at 3,776,272 bytes
+  # (3.8 MB) of JSON for the largest public deck, previously uncompressed —
+  # verified 2026-10-05, the response carried no Content-Encoding at all.
+  #
+  # It is repetitive text (the same field names 3,787 times), so it compresses
+  # heavily. On the measured 1.9 MB/s connection transfer was only ~0.35s of a
+  # 2.0s request, so this is NOT where that time goes — the win is for everyone
+  # NOT on a fast line. At a mobile 200 KB/s, 3.8 MB is ~19 seconds; a tenth of
+  # that is ~2. The CPU to gzip it is cheap next to that.
+  #
+  # min-response-size keeps it off the small JSON the app mostly serves, where
+  # the compression would cost more than the bytes it saves.
+  compression:
+    enabled: true
+    mime-types: application/json,application/problem+json,text/plain,text/css,text/javascript,application/javascript
+    min-response-size: 2KB
+
 management:
   endpoints:
     web:

@@ -49,6 +49,32 @@ describe("normalizeField", () => {
   it("leaves an unknown entity alone rather than mangling it", () => {
     expect(normalizeField("100&fake;200")).toBe("100&fake;200");
   });
+  // A scraped study set is prose from a rich-text editor, so these arrive named far
+  // more often than the structural escapes above.
+  it("decodes the typographic entities a rich-text editor emits", () => {
+    expect(normalizeField("it&rsquo;s")).toBe("it’s");
+    expect(normalizeField("&ldquo;quoted&rdquo;")).toBe("“quoted”");
+    expect(normalizeField("1990&ndash;1995")).toBe("1990–1995");
+    expect(normalizeField("wait&hellip;")).toBe("wait…");
+  });
+  // Entities with a digit in the name: the named branch must allow digits after the
+  // first letter, or these fall through undecoded.
+  it("decodes science and maths entities, digits in the name included", () => {
+    expect(normalizeField("48&times;48")).toBe("48×48");
+    expect(normalizeField("H&sub;O")).toBe("H&sub;O"); // not in the shortlist
+    expect(normalizeField("cm&sup3;")).toBe("cm³");
+    expect(normalizeField("&frac12; cup")).toBe("½ cup");
+    expect(normalizeField("25&deg;C &plusmn;2")).toBe("25°C ±2");
+    expect(normalizeField("A &rarr; B")).toBe("A → B");
+    expect(normalizeField("x &le; y &ne; z")).toBe("x ≤ y ≠ z");
+  });
+  // HTML entity names are case-sensitive and several differ only by case, so the
+  // lookup must not fold case: &Prime; (″) must never become &prime; (′).
+  it("does not fold case between entities that differ only by case", () => {
+    expect(normalizeField("5&Prime;")).toBe("5&Prime;");
+    expect(normalizeField("a&Rarr;b")).toBe("a&Rarr;b");
+    expect(normalizeField("&AMP;")).toBe("&AMP;");
+  });
 });
 
 describe("normalizePairs", () => {

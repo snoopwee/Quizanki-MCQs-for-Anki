@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -52,6 +53,31 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleTooLarge(MaxUploadSizeExceededException ex) {
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
                 .body(error(HttpStatus.PAYLOAD_TOO_LARGE, "Uploaded file exceeds the size limit.", null));
+    }
+
+    @ExceptionHandler(PayloadTooLargeException.class)
+    public ResponseEntity<Map<String, Object>> handlePayloadTooLarge(PayloadTooLargeException ex) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(error(HttpStatus.PAYLOAD_TOO_LARGE, ex.getMessage(), null));
+    }
+
+    /**
+     * A body Jackson could not read.
+     *
+     * <p>Unwraps first: {@code RequestSizeLimitFilter} enforces the byte cap from inside the input
+     * stream, so for a request that understated or omitted its {@code Content-Length} the failure
+     * surfaces here, wrapped, rather than as the 413 it is. Without this check an oversized chunked
+     * body would be reported as malformed JSON — true in a sense, and useless to the caller.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, Object>> handleUnreadableBody(HttpMessageNotReadableException ex) {
+        for (Throwable cause = ex.getCause(); cause != null; cause = cause.getCause()) {
+            if (cause instanceof PayloadTooLargeException tooLarge) {
+                return handlePayloadTooLarge(tooLarge);
+            }
+        }
+        return ResponseEntity.badRequest()
+                .body(error(HttpStatus.BAD_REQUEST, "Request body could not be read.", null));
     }
 
     @ExceptionHandler(TtsUnavailableException.class)

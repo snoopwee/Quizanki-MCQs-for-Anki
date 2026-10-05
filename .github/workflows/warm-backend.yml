@@ -1,0 +1,63 @@
+name: Warm backend
+
+# Keeps the Render free instance from going to sleep during the hours anyone might use the app.
+#
+# WHY THIS IS SEPARATE FROM keepalive.yml
+# ---------------------------------------
+# They solve different problems on different timescales and should not be merged:
+#   * keepalive.yml  — every 3 days. Stops the SUPABASE free project auto-pausing after 7 days
+#                      of inactivity. Three days is correct for that and costs nothing.
+#   * this file      — every 10 minutes. Stops the RENDER instance sleeping after ~15 minutes
+#                      idle, which costs a 90+ second cold start on the next visit.
+#
+# WHY A WINDOW AND NOT 24/7
+# -------------------------
+# Render free allows 750 instance-hours per month. Awake around the clock is ~730h — it fits, but
+# with ~20h of margin, and going over SUSPENDS the service until the next month. That is a far
+# worse outcome than a cold start. This window is 00:00–16:59 UTC = 07:00–23:59 ICT (UTC+7), so
+# roughly 17h/day ≈ 520h/month, leaving ~230h for deploys, testing, and the occasional late-night
+# visitor waking it. quizki-be is the only service in the account, so the whole allowance is its.
+#
+# ⚠ HONEST LIMIT: GitHub's scheduled workflows are best-effort and are often delayed, sometimes
+# past 15 minutes when the platform is busy. This will cut cold starts a lot; it will not abolish
+# them. An external monitor (UptimeRobot, free, 5-minute checks — see DEPLOY.md) is more punctual.
+# This exists because it needs no third-party signup and lives with the code.
+#
+# Actions minutes are free because this repository is public. If it is ever made private, the
+# 2,000 free minutes a month will NOT cover a 10-minute cron (~3,100 runs) — move to UptimeRobot.
+
+on:
+  schedule:
+    # Every 10 minutes, 00:00–16:59 UTC (07:00–23:59 Indochina Time).
+    - cron: "*/10 0-16 * * *"
+  workflow_dispatch: {}
+
+# A ping is worthless if it is queued behind an older one; keep only the newest.
+concurrency:
+  group: warm-backend
+  cancel-in-progress: true
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping backend health endpoint
+        run: |
+          set -euo pipefail
+          URL="https://quizki-be.onrender.com/actuator/health"
+          # Retries cover the case where this ping is the one paying for the cold start:
+          # the instance needs 90s+ to boot, so a single 30s attempt would report failure
+          # while the service was in fact coming up correctly.
+          for attempt in 1 2 3 4 5; do
+            start=$(date +%s)
+            if curl --fail --silent --show-error --max-time 45 "$URL"; then
+              echo ""
+              echo "OK on attempt $attempt after $(( $(date +%s) - start ))s"
+              exit 0
+            fi
+            echo "Attempt $attempt failed; the instance is probably cold. Retrying in 20s..."
+            sleep 20
+          done
+          echo "Backend did not answer after 5 attempts (~5 minutes)."
+          exit 1

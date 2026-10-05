@@ -27,6 +27,7 @@ import { parsePlainText, type ParsedPair } from "@/lib/parsePlainText";
 import {
   APP_MSG_SOURCE,
   isExtensionImportMessage,
+  normalizeField,
   normalizePairs,
 } from "@/lib/extensionImport";
 import type { ApkgParseResponse } from "@/types/api";
@@ -216,7 +217,13 @@ function ImportFlow() {
       const pairs = normalizePairs(e.data.pairs);
       if (pairs.length === 0) return;
       extHandledRef.current = true;
-      handlePastedRef.current(e.data.name?.trim() || "Imported set", pairs);
+      // The title gets the same clean as the faces. It arrives as page markup like
+      // any other scraped field, so a set called "Physics &amp; Chemistry" would
+      // otherwise be SAVED with the entity showing — verified 2026-09-30, it
+      // reached the decks row raw. normalizeField can empty a title that was only
+      // markup, so the fallback is applied after it, not before.
+      const name = normalizeField(e.data.name ?? "");
+      handlePastedRef.current(name || "Imported set", pairs);
     };
     window.addEventListener("message", onMessage);
     // Tell the extension's on-page content script we're mounted and listening, so

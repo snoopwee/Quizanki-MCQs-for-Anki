@@ -30,6 +30,9 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -215,5 +218,51 @@ class SharedDeckControllerTest {
         // inventing a value.
         mockMvc.perform(get("/api/v1/public/discover")).andExpect(status().isOk());
         verify(deckService).getPublicDecks(null, null, null, 12, 0, null);
+    }
+
+    // ── caching ──────────────────────────────────────────────────────────────
+    // These matter because of an interaction that is easy to get wrong: Spring Security sets
+    // "Cache-Control: no-cache, no-store, max-age=0, must-revalidate" on every response by default
+    // (verified against production 2026-10-05 — it was on the 3.8 MB deck read). Its
+    // CacheControlHeadersWriter skips when the header is already present, which is what lets a
+    // controller opt one response into caching. This test imports the REAL SecurityConfig, so it
+    // proves that rather than trusting it.
+
+    @Test
+    void aSharedDeckMayBeCachedBrieflyAndSpringSecurityDoesNotOverrideIt() throws Exception {
+        UUID deckId = UUID.randomUUID();
+        when(deckService.getPublicDeckContents(eq(deckId))).thenReturn(new DeckContentsResponse(
+                deckId, "JLPT N4", null, "n4.apkg", 12, OffsetDateTime.now(), 0.0, "ja", "en",
+                true, "user-1", "Alice", null, null, false, false, List.of()));
+
+        mockMvc.perform(get("/api/v1/public/shared/{deckId}", deckId))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", containsString("max-age=60")))
+                .andExpect(header().string("Cache-Control", containsString("public")))
+                // The whole point: the framework default must not have won.
+                .andExpect(header().string("Cache-Control", not(containsString("no-store"))));
+    }
+
+    @Test
+    void theSummaryIsCachedLongerThanTheDeckItself() throws Exception {
+        UUID deckId = UUID.randomUUID();
+        when(deckService.getPublicDeckSummary(eq(deckId))).thenReturn(
+                new PublicDeckSummary(deckId, "JLPT N4", 120, "author-1", "alice", "Alice", null,
+                        null, OffsetDateTime.now(), 3, 4.5));
+
+        mockMvc.perform(get("/api/v1/public/shared/{deckId}/summary", deckId))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", containsString("max-age=300")));
+    }
+
+    @Test
+    void theHandleAvailabilityCheckIsNeverCached() throws Exception {
+        // A stale "that handle is taken" is the worst answer this endpoint can give, so it keeps
+        // the framework's no-store rather than opting in like its neighbours.
+        when(profileService.unavailableBecause("alice")).thenReturn(null);
+
+        mockMvc.perform(get("/api/v1/public/usernames/{username}/available", "alice"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", containsString("no-store")));
     }
 }

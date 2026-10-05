@@ -16,7 +16,6 @@ import com.ankiquiz.entity.Deck;
 import com.ankiquiz.entity.Note;
 import com.ankiquiz.entity.Profile;
 import com.ankiquiz.entity.NoteType;
-import com.ankiquiz.exception.ApkgParseException;
 import com.ankiquiz.exception.ConflictException;
 import com.ankiquiz.exception.NotFoundException;
 import com.ankiquiz.entity.UserDeck;
@@ -274,6 +273,15 @@ public class DeckService {
         int totalNotes = request.noteTypes().stream()
                 .mapToInt(t -> t.notes().size())
                 .sum();
+        // This total used to be computed for `cardCount` and never checked, so POST /decks would
+        // take as many notes as a caller chose to send — the editor's save path was the only one
+        // with a ceiling. The clone path arrives here too, but its input is a deck already stored
+        // under these same limits, so it cannot be what trips them.
+        DeckContentLimits.checkNoteCount(totalNotes);
+        DeckContentLimits.checkFields(request.noteTypes().stream()
+                .flatMap(t -> t.notes().stream())
+                .map(NoteRequest::fields)
+                .toList());
 
         Deck deck = new Deck();
         deck.setUserId(userId);
@@ -566,8 +574,6 @@ public class DeckService {
         );
     }
 
-    private static final int MAX_NOTES = 5_000;
-
     // Ceiling on a single Discover page, so a hand-crafted ?limit= can't ask the
     // public endpoint to serialise the whole directory.
     /**
@@ -592,9 +598,9 @@ public class DeckService {
         String userId = caller.id();
         Deck deck = deckRepository.findByIdAndUserId(deckId, userId)
                 .orElseThrow(() -> new NotFoundException("Deck not found: " + deckId));
-        if (req.notes().size() > MAX_NOTES) {
-            throw new ApkgParseException("Too many cards (max " + MAX_NOTES + ").");
-        }
+        DeckContentLimits.checkNoteCount(req.notes().size());
+        DeckContentLimits.checkFields(
+                req.notes().stream().map(UpdateDeckContentsRequest.NoteEntry::fields).toList());
         deck.setName(req.name().trim());
 
         Map<UUID, NoteType> typeById = noteTypeRepository.findAllByDeckId(deckId).stream()

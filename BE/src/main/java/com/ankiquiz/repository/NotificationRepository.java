@@ -33,6 +33,19 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
     boolean existsByUserIdAndKindAndDeckIdAndReadAtIsNull(String userId, String kind, UUID deckId);
 
     /**
+     * Whether this user has been told about this actor, for this kind, since {@code cutoff} — the
+     * check for a kind that has an actor but no deck to key on, which today means
+     * {@code new_follower}.
+     *
+     * <p>Read state is deliberately NOT part of this. The guard above lets a read notification
+     * through because a second deck share really is news again; here the repeat is somebody
+     * re-following on purpose, so reading it must not re-arm the announcement. Served by
+     * {@code notifications_actor_repeat_idx} (V41).
+     */
+    boolean existsByUserIdAndKindAndActorIdAndCreatedAtAfter(
+            String userId, String kind, String actorId, OffsetDateTime cutoff);
+
+    /**
      * The same question for a whole fan-out, in one query. Publishing to an author's followers is
      * the first write that scales with someone's popularity, so it must not ask per recipient.
      */

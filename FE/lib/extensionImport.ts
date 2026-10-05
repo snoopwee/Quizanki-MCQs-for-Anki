@@ -86,6 +86,11 @@ export function isExtensionImportMessage(data: unknown): data is ExtensionImport
   );
 }
 
+// The structural five, plus the typographic entities a copy-pasted study set
+// actually carries. Quizlet/Knowt content is prose written in a rich-text editor,
+// so curly quotes, dashes and ellipses arrive named far more often than the escapes
+// below them. An entity that is not here is left verbatim rather than guessed at
+// (see the test) — this is a deliberate shortlist, not an HTML parser.
 const NAMED_ENTITIES: Record<string, string> = {
   amp: "&",
   lt: "<",
@@ -93,13 +98,53 @@ const NAMED_ENTITIES: Record<string, string> = {
   quot: '"',
   apos: "'",
   nbsp: " ",
+  // Punctuation a rich-text editor emits constantly.
+  rsquo: "’",
+  lsquo: "‘",
+  rdquo: "”",
+  ldquo: "“",
+  ndash: "–",
+  mdash: "—",
+  hellip: "…",
+  // Common in science and maths decks, which is much of what gets imported.
+  times: "×",
+  divide: "÷",
+  minus: "−",
+  plusmn: "±",
+  deg: "°",
+  micro: "µ",
+  // No prime/Prime: the lookup below is case-insensitive, and those two entities
+  // differ only by case (′ vs ″), so either would silently mistranslate the other.
+  rarr: "→",
+  larr: "←",
+  harr: "↔",
+  le: "≤",
+  ge: "≥",
+  ne: "≠",
+  asymp: "≈",
+  infin: "∞",
+  sup2: "²",
+  sup3: "³",
+  frac12: "½",
+  frac14: "¼",
+  bull: "•",
+  middot: "·",
+  trade: "™",
+  reg: "®",
+  copy: "©",
+  euro: "€",
+  pound: "£",
+  yen: "¥",
+  cent: "¢",
 };
 
 // Decode the handful of HTML entities that survive a source's markup, plus numeric
 // (&#39; / &#x2019;) forms. Kept regex-based (no DOM) so it runs the same in the
 // browser and in node tests.
 function decodeEntities(s: string): string {
-  return s.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (whole, body: string) => {
+  // The named branch allows digits after the first letter (`sup2`, `frac12`) —
+  // `[a-z]+` alone would never match those.
+  return s.replace(/&(#x?[0-9a-f]+|[a-z][a-z0-9]*);/gi, (whole, body: string) => {
     if (body[0] === "#") {
       const cp =
         body[1] === "x" || body[1] === "X"
@@ -107,7 +152,11 @@ function decodeEntities(s: string): string {
           : parseInt(body.slice(1), 10);
       return Number.isFinite(cp) ? String.fromCodePoint(cp) : whole;
     }
-    const named = NAMED_ENTITIES[body.toLowerCase()];
+    // Looked up case-SENSITIVELY on purpose. HTML entity names are case-sensitive
+    // and several differ only by case (&prime; ′ vs &Prime; ″, &rarr; → vs &Rarr; ⇛),
+    // so folding case here would translate one into the other. An unmatched entity
+    // is returned verbatim, which is the safe outcome for a shortlist like this.
+    const named = NAMED_ENTITIES[body];
     return named ?? whole;
   });
 }

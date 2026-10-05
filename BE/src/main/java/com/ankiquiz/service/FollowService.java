@@ -24,7 +24,10 @@ import java.util.stream.Collectors;
  *
  * <p>A follow is a subscription to an author page, not a friendship: nothing is mutual, the author
  * is never asked to accept it, and unfollowing tells them nothing. That is why there is no request
- * state here and no notification when somebody follows you.
+ * state here. The author IS told that somebody followed them (asked for 2026-09-23, reversing the
+ * original decision not to) — but only once per person per cooldown window, because unfollowing
+ * deletes the row and a re-follow would otherwise announce itself all over again; the guard lives
+ * in {@link NotificationService} so every caller gets it.
  *
  * <p>Anybody the app knows can be followed — that is, anybody with a {@code profiles} row or a
  * published deck. It used to require a published deck, because author pages were built from deck

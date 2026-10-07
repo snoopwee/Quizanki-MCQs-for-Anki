@@ -656,3 +656,19 @@ export interface PublicDeckPage {
   total: number;
   totalPages: number;
 }
+
+/**
+ * What an MCQ export of a deck would contain — asked before the download.
+ *
+ * `skippedReasons` maps a human-readable reason to how many cards it accounted for, so the UI can
+ * explain a partial export rather than silently handing over fewer cards than the deck has.
+ */
+export interface McqExportReport {
+  deckName: string;
+  totalCards: number;
+  exportedCards: number;
+  skippedCards: number;
+  skippedReasons: Record<string, number>;
+  mediaFiles: number;
+  mediaSkipped: number;
+}

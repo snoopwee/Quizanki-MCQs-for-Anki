@@ -16,6 +16,7 @@ import com.ankiquiz.exception.NotFoundException;
 import com.ankiquiz.service.ApkgAudioImportService;
 import com.ankiquiz.service.ApkgExportService;
 import com.ankiquiz.service.Caller;
+import com.ankiquiz.service.DeckMcqExportService;
 import com.ankiquiz.service.DeckService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -64,6 +65,9 @@ class DeckControllerTest {
 
     @MockBean
     private ApkgAudioImportService apkgAudioImportService;
+
+    @MockBean
+    private DeckMcqExportService mcqExportService;
 
     @MockBean
     private JwtDecoder jwtDecoder;

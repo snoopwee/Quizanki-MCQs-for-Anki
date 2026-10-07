@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Modal } from "@/components/shared/Modal";
+import { Spinner } from "@/components/ui/Spinner";
 import { buildFlashcards } from "@/lib/flashcards";
 import { deckContentsToParsed } from "@/lib/deckContents";
 import {
@@ -12,16 +13,21 @@ import {
   interpretEscapes,
   type CsvDelimiter,
 } from "@/lib/exportDeck";
-import { useExportApkg } from "@/hooks/useDecks";
+import { useExportApkg, useExportMcqApkg, useMcqExportPreview } from "@/hooks/useDecks";
 import type { DeckContentsResponse } from "@/types/api";
 
-type Format = "delimited" | "apkg" | "text";
+type Format = "delimited" | "apkg" | "mcq" | "text";
 type TermPreset = "tab" | "comma" | "custom";
 type RowPreset = "newline" | "semicolon" | "custom";
 
 const FORMATS: { value: Format; label: string; hint: string }[] = [
   { value: "delimited", label: "CSV / TSV", hint: "Spreadsheet or Anki re-import — one row per card." },
   { value: "apkg", label: "Anki .apkg", hint: "A real Anki package that opens straight back in Anki." },
+  {
+    value: "mcq",
+    label: "Anki multiple choice",
+    hint: "Every card becomes a quiz question you answer inside Anki.",
+  },
   { value: "text", label: "Plain text", hint: "Quizlet-style — paste into Quizlet's import box." },
 ];
 
@@ -46,6 +52,10 @@ export function ExportDeckModal({
 
   const [copied, setCopied] = useState(false);
   const exportApkg = useExportApkg(contents.id);
+  const exportMcq = useExportMcqApkg(contents.id);
+  // Only asked for once that format is chosen — no point costing a request for a deck the user is
+  // exporting as CSV.
+  const mcqPreview = useMcqExportPreview(contents.id, format === "mcq");
 
   const cards = useMemo(
     () => buildFlashcards(deckContentsToParsed(contents).noteTypes),
@@ -83,6 +93,10 @@ export function ExportDeckModal({
   function handleDownload() {
     if (format === "apkg") {
       exportApkg.mutate(`${stem}.apkg`);
+      return;
+    }
+    if (format === "mcq") {
+      exportMcq.mutate(`${stem}-mcq.apkg`);
       return;
     }
     const { content, filename, mime, bom } = textPayload();
@@ -135,6 +149,55 @@ export function ExportDeckModal({
             ))}
           </div>
         </fieldset>
+
+        {format === "mcq" && (
+          <div className="space-y-2 rounded-card border border-line bg-surface p-3 text-sm">
+            {mcqPreview.isLoading && (
+              <p className="flex items-center gap-2 text-muted">
+                <Spinner className="h-3.5 w-3.5" /> Checking which cards can become questions…
+              </p>
+            )}
+
+            {mcqPreview.isError && (
+              <p className="text-danger">
+                Could not check this deck. Try again, or download and see what you get.
+              </p>
+            )}
+
+            {mcqPreview.data && (
+              <>
+                {mcqPreview.data.exportedCards > 0 ? (
+                  <p className="font-medium">
+                    {mcqPreview.data.exportedCards} of {mcqPreview.data.totalCards} cards become
+                    multiple-choice questions.
+                  </p>
+                ) : (
+                  /* Being explicit beats handing over an empty package and letting them find out
+                     in Anki. */
+                  <p className="font-medium text-danger">
+                    None of this deck&apos;s cards can become questions.
+                  </p>
+                )}
+
+                {/* Naming WHY, not just how many — "2 skipped" with no reason reads like a bug. */}
+                {Object.entries(mcqPreview.data.skippedReasons).length > 0 && (
+                  <ul className="space-y-0.5 text-xs text-muted">
+                    {Object.entries(mcqPreview.data.skippedReasons).map(([reason, count]) => (
+                      <li key={reason}>
+                        {count} skipped — {reason.toLowerCase()}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <p className="text-xs text-muted">
+                  The wrong answers come from this deck&apos;s own other cards, and Anki shuffles
+                  them on every review. Pictures and audio travel with it.
+                </p>
+              </>
+            )}
+          </div>
+        )}
 
         {format === "delimited" && (
           <div className="space-y-3 rounded-card border border-line bg-surface p-3">
@@ -249,14 +312,23 @@ export function ExportDeckModal({
           <button
             type="button"
             onClick={handleDownload}
-            disabled={exportApkg.isPending}
+            disabled={
+              exportApkg.isPending ||
+              exportMcq.isPending ||
+              // Nothing to download, so do not offer it.
+              (format === "mcq" && mcqPreview.data?.exportedCards === 0)
+            }
             className="focus-ring rounded-input bg-accent px-3 py-1.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-60"
           >
             {format === "apkg"
               ? exportApkg.isPending
                 ? "Building…"
                 : "Download .apkg"
-              : "Download"}
+              : format === "mcq"
+                ? exportMcq.isPending
+                  ? "Building…"
+                  : "Download quiz deck"
+                : "Download"}
           </button>
         </div>
       </div>

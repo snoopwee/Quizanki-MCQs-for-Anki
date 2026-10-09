@@ -371,6 +371,17 @@ function Sidebar({
               onNavigate={onNavigate}
               trailing={<ImportPendingDot />}
             />
+            {/* The other direction. It sits beside Import on purpose: the pair is the whole
+                Anki round trip, and a feature only reachable from one deck's ⋯ menu is one
+                most people never discover. */}
+            <NavLink
+              href="/export"
+              pathname={pathname}
+              label="Make a quiz deck"
+              icon="download"
+              expanded={expanded}
+              onNavigate={onNavigate}
+            />
           </nav>
         </>
       )}

@@ -14,6 +14,7 @@ import com.ankiquiz.dto.response.DeckResponse;
 import com.ankiquiz.service.ApkgAudioImportService;
 import com.ankiquiz.service.ApkgExportService;
 import com.ankiquiz.service.Caller;
+import com.ankiquiz.service.DeckMcqExportService;
 import com.ankiquiz.service.DeckService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -32,6 +33,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -48,13 +50,16 @@ public class DeckController {
     private final DeckService deckService;
     private final ApkgExportService apkgExportService;
     private final ApkgAudioImportService apkgAudioImportService;
+    private final DeckMcqExportService mcqExportService;
 
     public DeckController(DeckService deckService,
                           ApkgExportService apkgExportService,
-                          ApkgAudioImportService apkgAudioImportService) {
+                          ApkgAudioImportService apkgAudioImportService,
+                          DeckMcqExportService mcqExportService) {
         this.deckService = deckService;
         this.apkgExportService = apkgExportService;
         this.apkgAudioImportService = apkgAudioImportService;
+        this.mcqExportService = mcqExportService;
     }
 
     @GetMapping
@@ -149,6 +154,64 @@ public class DeckController {
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"deck.apkg\"")
                 .body(body);
+    }
+
+    @GetMapping("/{deckId}/export/mcq/preview")
+    @Operation(summary = "What an MCQ export of this deck would contain",
+            description = "How many cards would become multiple-choice questions, and why any were "
+                    + "left out. Asked before the download so the user is never handed a package "
+                    + "that silently dropped half their deck.")
+    public DeckMcqExportService.ExportReport previewMcqExport(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId
+    ) {
+        return mcqExportService.preview(jwt.getSubject(), deckId);
+    }
+
+    @GetMapping(value = "/{deckId}/export/mcq.apkg",
+            produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    @Operation(summary = "Export a deck as MULTIPLE-CHOICE Anki cards",
+            description = "Every card becomes a question with options drawn from the deck's other "
+                    + "answers, so it can be answered inside Anki with Anki's own scheduler. The "
+                    + "card template ships inside the package, so no add-on is needed. Pictures and "
+                    + "audio travel with it.")
+    public ResponseEntity<byte[]> exportMcqApkg(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID deckId
+    ) {
+        DeckMcqExportService.ExportResult result = mcqExportService.export(jwt.getSubject(), deckId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"deck-mcq.apkg\"")
+                // So a client that downloads without previewing can still tell the user what
+                // happened; the body is a file, which has nowhere to carry this.
+                .header("X-Export-Cards", String.valueOf(result.report().exportedCards()))
+                .header("X-Export-Skipped", String.valueOf(result.report().skippedCards()))
+                .body(result.apkg());
+    }
+
+    @PostMapping(value = "/export/mcq.apkg",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+            produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    @Operation(summary = "Convert an uploaded .apkg into MULTIPLE-CHOICE Anki cards",
+            description = "For a deck the user has NOT imported: the file is parsed, converted and "
+                    + "handed straight back. Nothing is stored. Pictures from the uploaded package "
+                    + "are not carried across — they live inside the upload rather than in our "
+                    + "storage; the X-Export-* headers report what was converted.")
+    public ResponseEntity<byte[]> exportMcqFromUpload(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam("file") MultipartFile file
+    ) {
+        DeckMcqExportService.ExportResult result = mcqExportService.exportFromUpload(file);
+        String stem = DeckMcqExportService.deckNameFrom(file.getOriginalFilename());
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + stem.replaceAll("[\"\\r\\n]", "") + "-mcq.apkg\"")
+                .header("X-Export-Cards", String.valueOf(result.report().exportedCards()))
+                .header("X-Export-Skipped", String.valueOf(result.report().skippedCards()))
+                .header("X-Export-Total", String.valueOf(result.report().totalCards()))
+                .body(result.apkg());
     }
 
     @PutMapping("/{deckId}/contents")

@@ -45,7 +45,11 @@ class ApkgExportServiceTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private ApkgExportService service() {
-        return new ApkgExportService(deckRepository, noteTypeRepository, noteRepository, objectMapper);
+        // A real writer, not a mock: this service is now a MAPPER onto it, so stubbing the writer
+        // would leave the test asserting nothing but its own stubs. The package these tests open is
+        // the one a user downloads.
+        return new ApkgExportService(deckRepository, noteTypeRepository, noteRepository,
+                new ApkgWriterService(objectMapper));
     }
 
     private NoteType type(UUID id, UUID deckId, String name, boolean cloze, String... fieldNames) {

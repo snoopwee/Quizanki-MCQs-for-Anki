@@ -9,6 +9,7 @@ import type {
   DeckContentsResponse,
   DeckResponse,
   ImportDeckRequest,
+  McqExportReport,
   PublicDeckPage,
   UpdateDeckContentsRequest,
 } from "@/types/api";
@@ -237,16 +238,79 @@ export function useExportApkg(deckId: string) {
       const { data } = await api.get<Blob>(`/decks/${deckId}/export.apkg`, {
         responseType: "blob",
       });
-      const url = URL.createObjectURL(data);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      saveBlob(data, filename);
     },
   });
+}
+
+/**
+ * What an MCQ export of this deck would contain, asked before the download.
+ *
+ * Not every card can become a multiple-choice question — the wrong answers come from the deck's own
+ * other cards, so a small deck may yield none at all. Showing the count first means the user is
+ * never handed a package that quietly dropped half their deck.
+ *
+ * `enabled` so the request only fires once that format is actually selected.
+ */
+export function useMcqExportPreview(deckId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["mcq-export-preview", deckId],
+    queryFn: async () => {
+      const { data } = await api.get<McqExportReport>(`/decks/${deckId}/export/mcq/preview`);
+      return data;
+    },
+    enabled,
+    // The answer depends on the deck's contents, which can change in another tab.
+    staleTime: 0,
+  });
+}
+
+export function useExportMcqApkg(deckId: string) {
+  return useMutation({
+    mutationFn: async (filename: string) => {
+      const { data } = await api.get<Blob>(`/decks/${deckId}/export/mcq.apkg`, {
+        responseType: "blob",
+      });
+      saveBlob(data, filename);
+    },
+  });
+}
+
+/**
+ * Converts an uploaded `.apkg` into a multiple-choice one, without importing it.
+ *
+ * The response is the file itself, so the counts can only ride on headers — there is nowhere else
+ * to put them. Returns them so the page can say what happened rather than just starting a download.
+ */
+export function useExportMcqFromUpload() {
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await api.post<Blob>("/decks/export/mcq.apkg", body, {
+        responseType: "blob",
+      });
+      saveBlob(res.data, `${file.name.replace(/\.apkg$/i, "")}-mcq.apkg`);
+      const count = (name: string) => Number(res.headers[name] ?? 0);
+      return {
+        exported: count("x-export-cards"),
+        skipped: count("x-export-skipped"),
+        total: count("x-export-total"),
+      };
+    },
+  });
+}
+
+/** Hands a downloaded blob to the browser as a file. */
+function saveBlob(data: Blob, filename: string) {
+  const url = URL.createObjectURL(data);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 // Turn this deck's public share link on or off. Refreshes the deck list (so a

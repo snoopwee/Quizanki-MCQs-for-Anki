@@ -18,16 +18,22 @@ package com.ankiquiz.service;
  * between the question and answer renders on every platform, so the answer side is plain static HTML
  * built from the {@code Answer} field. Nothing to synchronise, nothing to get out of step.
  *
- * <p><b>2. It does not auto-flip the card.</b> Flipping from JavaScript means platform-specific calls
- * — {@code pycmd('ans')} on desktop, {@code showAnswer()} on AnkiDroid, a tap setting on iOS — and
- * those are exactly what breaks across Anki releases. Clicking an option grades it in place; the
- * learner then reveals and rates the card with Anki's own controls. Ordinary Anki, which is the goal:
- * the scheduler stays Anki's.
+ * <p><b>2. It does not auto-flip the card.</b> Flipping from JavaScript means reaching into Anki's
+ * own internals — {@code pycmd('ans')} on desktop — and that is exactly the kind of call that breaks
+ * across Anki releases. Clicking an option grades it in place; the learner then reveals and rates the
+ * card with Anki's own controls. Ordinary Anki, which is the goal: the scheduler stays Anki's.
  *
  * <p><b>3. ES5 only.</b> No arrow functions, no template literals, no {@code let}/{@code const}, no
- * optional chaining. AnkiDroid renders cards in the Android System WebView, whose version is whatever
- * the device happens to have. Modern syntax would work on most and fail silently — a blank card — on
- * the rest.
+ * optional chaining. Anki Desktop renders cards in QtWebEngine, which is modern Chromium, so this is
+ * <i>not</i> required for the supported target — it is kept deliberately as cheap insurance. The code
+ * is written, tested, and verified through Anki's own renderer; modernising it would be churn with a
+ * real regression risk and no user-visible gain, and it keeps the door open if phones are ever in
+ * scope again.
+ *
+ * <p><b>Scope: Anki DESKTOP.</b> User decision 2026-10-09 — phones are explicitly out of scope, so
+ * nothing here should be traded away for AnkiDroid or AnkiMobile, and no claim of mobile support
+ * should be made that has not been tested on a device. The {@code .night_mode} selectors in
+ * {@link #css()} stay only because they cost nothing.
  *
  * <p>Choices are split on line breaks and each one is kept as HTML, so inline formatting inside an
  * option survives. Anki's editor stores manual line breaks as {@code <br>} or wraps lines in
@@ -189,9 +195,10 @@ final class AnkiMcqTemplate {
     /**
      * Styling for both of Anki's themes.
      *
-     * <p>Anki adds {@code .nightMode} (desktop) and {@code .night_mode} (AnkiDroid) to the card, so
-     * both spellings are handled — a palette that only covers one leaves half the users reading dark
-     * text on a dark background.
+     * <p>{@code .nightMode} is the one that matters: it is what Anki Desktop stamps on the card, and
+     * a palette that misses it leaves dark text on a dark background. {@code .night_mode} is the
+     * AnkiDroid spelling, kept alongside it purely because duplicating a selector costs nothing — not
+     * because mobile is supported (it is out of scope, 2026-10-09).
      */
     static String css() {
         return """

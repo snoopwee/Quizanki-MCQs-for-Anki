@@ -33,6 +33,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -186,6 +187,30 @@ public class DeckController {
                 // happened; the body is a file, which has nowhere to carry this.
                 .header("X-Export-Cards", String.valueOf(result.report().exportedCards()))
                 .header("X-Export-Skipped", String.valueOf(result.report().skippedCards()))
+                .body(result.apkg());
+    }
+
+    @PostMapping(value = "/export/mcq.apkg",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+            produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    @Operation(summary = "Convert an uploaded .apkg into MULTIPLE-CHOICE Anki cards",
+            description = "For a deck the user has NOT imported: the file is parsed, converted and "
+                    + "handed straight back. Nothing is stored. Pictures from the uploaded package "
+                    + "are not carried across — they live inside the upload rather than in our "
+                    + "storage; the X-Export-* headers report what was converted.")
+    public ResponseEntity<byte[]> exportMcqFromUpload(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam("file") MultipartFile file
+    ) {
+        DeckMcqExportService.ExportResult result = mcqExportService.exportFromUpload(file);
+        String stem = DeckMcqExportService.deckNameFrom(file.getOriginalFilename());
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + stem.replaceAll("[\"\\r\\n]", "") + "-mcq.apkg\"")
+                .header("X-Export-Cards", String.valueOf(result.report().exportedCards()))
+                .header("X-Export-Skipped", String.valueOf(result.report().skippedCards()))
+                .header("X-Export-Total", String.valueOf(result.report().totalCards()))
                 .body(result.apkg());
     }
 

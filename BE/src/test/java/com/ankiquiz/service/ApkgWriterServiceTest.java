@@ -492,14 +492,15 @@ class ApkgWriterServiceTest {
         assertThat(qfmt).contains("{{Question}}").contains("{{Choices}}");
         // Auto-flipping needs platform-specific calls, which is what breaks across Anki releases.
         assertThat(qfmt).doesNotContain("pycmd").doesNotContain("showAnswer");
-        // ES5 only: AnkiDroid uses whatever System WebView the device has.
+        // ES5 only. Not required by Anki Desktop (QtWebEngine is modern Chromium) — kept as cheap
+        // insurance, and asserted so nobody modernises it without deciding to.
         assertThat(qfmt).doesNotContain("=>").doesNotContain("const ").doesNotContain("let ");
     }
 
     @Test
     void theStylingCoversBothOfAnkisNightModeClassNames() {
-        // Desktop writes .nightMode, AnkiDroid writes .night_mode. Covering one leaves half the
-        // users reading dark text on a dark background.
+        // .nightMode is the one Anki Desktop stamps on the card — missing it means dark text on a
+        // dark background. .night_mode is kept beside it only because a duplicate selector is free.
         String css = ApkgWriterService.NoteType.mcq("Quizanki MCQ").css();
 
         assertThat(css).contains(".nightMode").contains(".night_mode");

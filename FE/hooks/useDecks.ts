@@ -276,6 +276,31 @@ export function useExportMcqApkg(deckId: string) {
   });
 }
 
+/**
+ * Converts an uploaded `.apkg` into a multiple-choice one, without importing it.
+ *
+ * The response is the file itself, so the counts can only ride on headers — there is nowhere else
+ * to put them. Returns them so the page can say what happened rather than just starting a download.
+ */
+export function useExportMcqFromUpload() {
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await api.post<Blob>("/decks/export/mcq.apkg", body, {
+        responseType: "blob",
+      });
+      saveBlob(res.data, `${file.name.replace(/\.apkg$/i, "")}-mcq.apkg`);
+      const count = (name: string) => Number(res.headers[name] ?? 0);
+      return {
+        exported: count("x-export-cards"),
+        skipped: count("x-export-skipped"),
+        total: count("x-export-total"),
+      };
+    },
+  });
+}
+
 /** Hands a downloaded blob to the browser as a file. */
 function saveBlob(data: Blob, filename: string) {
   const url = URL.createObjectURL(data);

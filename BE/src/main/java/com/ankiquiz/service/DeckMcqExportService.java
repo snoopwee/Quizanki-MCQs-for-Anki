@@ -1,5 +1,6 @@
 package com.ankiquiz.service;
 
+import com.ankiquiz.dto.response.ApkgNotesResponse;
 import com.ankiquiz.entity.Deck;
 import com.ankiquiz.entity.Note;
 import com.ankiquiz.entity.NoteType;
@@ -50,17 +51,20 @@ public class DeckMcqExportService {
     private final NoteRepository noteRepository;
     private final ApkgWriterService writer;
     private final StorageObjectReader storage;
+    private final ApkgParserService parser;
 
     public DeckMcqExportService(DeckRepository deckRepository,
                                 NoteTypeRepository noteTypeRepository,
                                 NoteRepository noteRepository,
                                 ApkgWriterService writer,
-                                StorageObjectReader storage) {
+                                StorageObjectReader storage,
+                                ApkgParserService parser) {
         this.deckRepository = deckRepository;
         this.noteTypeRepository = noteTypeRepository;
         this.noteRepository = noteRepository;
         this.writer = writer;
         this.storage = storage;
+        this.parser = parser;
     }
 
     /**
@@ -102,13 +106,21 @@ public class DeckMcqExportService {
     /** Builds the package. */
     @Transactional(readOnly = true)
     public ExportResult export(String userId, UUID deckId) {
-        Prepared prepared = prepare(userId, deckId);
+        return build(prepare(userId, deckId), null);
+    }
 
+    /**
+     * Writes a prepared selection into a package.
+     *
+     * <p>Shared by the owned-deck and uploaded-file paths so there is one place that decides how a
+     * package is named and assembled.
+     */
+    private ExportResult build(Prepared prepared, String uploadName) {
         ApkgWriterService.DeckSpec spec = new ApkgWriterService.DeckSpec(
-                prepared.deckName + " (MCQ)",
+                prepared.deckName() + " (MCQ)",
                 ApkgWriterService.NoteType.mcq("Quizanki MCQ"),
-                prepared.notes,
-                mediaSources(prepared.mediaRefs()));
+                prepared.notes(),
+                uploadName == null ? mediaSources(prepared.mediaRefs()) : List.of());
 
         Path tmp = null;
         try {
@@ -128,6 +140,104 @@ public class DeckMcqExportService {
                 }
             }
         }
+    }
+
+    /**
+     * The same conversion, for an {@code .apkg} the user has just uploaded rather than a deck they
+     * own.
+     *
+     * <p>Lets somebody turn an Anki deck into a quiz without importing it first — the file is parsed,
+     * converted and handed back, and nothing is stored. The parse is the existing one, so a file this
+     * accepts is exactly a file the Import screen would accept.
+     *
+     * <p>Media is NOT carried across: the parse extracts text, and the pictures live inside the
+     * uploaded package rather than in our Storage. Keeping them would mean holding the upload open
+     * while the new package is written. The report says so rather than leaving it to be discovered.
+     */
+    public ExportResult exportFromUpload(org.springframework.web.multipart.MultipartFile file) {
+        ApkgNotesResponse parsed = parser.parseNotes(file);
+
+        List<String> allAnswers = new ArrayList<>();
+        Map<String, List<String>> answersByType = new LinkedHashMap<>();
+        for (ApkgNotesResponse.NoteTypeNotes type : parsed.noteTypes()) {
+            List<String> pool = answersByType.computeIfAbsent(type.name(), k -> new ArrayList<>());
+            for (ApkgNotesResponse.ParsedNote note : type.notes()) {
+                String answer = pick(note.fields(), type.backFields(), type.fieldNames(), 1);
+                if (!answer.isBlank()) {
+                    pool.add(answer);
+                    allAnswers.add(answer);
+                }
+            }
+        }
+
+        String deckName = deckNameFrom(file.getOriginalFilename());
+        List<ApkgWriterService.Note> out = new ArrayList<>();
+        Map<McqDistractorSelector.Rejection, Integer> rejections =
+                new EnumMap<>(McqDistractorSelector.Rejection.class);
+        int total = 0;
+
+        for (ApkgNotesResponse.NoteTypeNotes type : parsed.noteTypes()) {
+            for (ApkgNotesResponse.ParsedNote note : type.notes()) {
+                total++;
+                if (type.cloze()) {
+                    rejections.merge(McqDistractorSelector.Rejection.NO_ANSWER, 1, Integer::sum);
+                    continue;
+                }
+                String question = pick(note.fields(), type.frontFields(), type.fieldNames(), 0);
+                String answer = pick(note.fields(), type.backFields(), type.fieldNames(), 1);
+                // No stored id to key on, so the guid comes from the content. Same file in, same
+                // guids out — which is what keeps a re-export from duplicating.
+                String guid = ApkgWriterService.stableGuid(deckName, question + "" + answer);
+
+                McqDistractorSelector.Result picked = McqDistractorSelector.select(question, answer,
+                        answersByType.getOrDefault(type.name(), List.of()), allAnswers, guid);
+                if (!picked.usable()) {
+                    rejections.merge(picked.rejection(), 1, Integer::sum);
+                    continue;
+                }
+
+                List<String> choices = new ArrayList<>();
+                choices.add(answer);
+                choices.addAll(picked.distractors());
+                out.add(new ApkgWriterService.Note(guid, List.of(
+                        question, String.join("\n", choices), answer, "",
+                        "Converted from " + deckName + " by Quizanki"), List.of("quizanki")));
+            }
+        }
+
+        Prepared prepared = new Prepared(deckName, total, out, rejections, Map.of());
+        return build(prepared, deckName);
+    }
+
+    /** A field's value: the configured face first, else by position. */
+    private static String pick(Map<String, String> fields, List<String> face,
+                               List<String> fieldNames, int fallbackIndex) {
+        if (fields == null || fields.isEmpty()) {
+            return "";
+        }
+        if (face != null) {
+            for (String name : face) {
+                String value = fields.get(name);
+                if (value != null && !value.isBlank()) {
+                    return value;
+                }
+            }
+        }
+        if (fieldNames != null && !fieldNames.isEmpty()) {
+            String name = fieldNames.get(Math.min(fallbackIndex, fieldNames.size() - 1));
+            String value = fields.get(name);
+            return value == null ? "" : value;
+        }
+        return "";
+    }
+
+    /** "JLPT N5.apkg" → "JLPT N5". The uploaded filename is the only name the file carries. */
+    public static String deckNameFrom(String filename) {
+        if (filename == null || filename.isBlank()) {
+            return "Imported deck";
+        }
+        String name = filename.replaceAll("(?i)\\.apkg$", "").strip();
+        return name.isEmpty() ? "Imported deck" : name;
     }
 
     /**

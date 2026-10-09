@@ -57,7 +57,7 @@ class DeckMcqExportServiceTest {
     @BeforeEach
     void setUp() {
         service = new DeckMcqExportService(deckRepository, noteTypeRepository, noteRepository,
-                new ApkgWriterService(objectMapper), storage);
+                new ApkgWriterService(objectMapper), storage, parser);
         when(storage.isConfigured()).thenReturn(false);
     }
 
@@ -283,5 +283,102 @@ class DeckMcqExportServiceTest {
                 .isEqualTo("card-audio");
         assertThat(DeckMcqExportService.bucketOf("https://x/storage/v1/object/card-images/a"))
                 .isEqualTo("card-images");
+    }
+
+    // ── converting an uploaded file (no deck of your own needed) ─────────────
+
+    /** Builds a real .apkg to upload, using the writer — the same shape a user's file has. */
+    private byte[] uploadable(String... frontBackPairs) throws Exception {
+        List<ApkgWriterService.Note> notes = new ArrayList<>();
+        for (int i = 0; i < frontBackPairs.length; i += 2) {
+            notes.add(new ApkgWriterService.Note("guid" + i,
+                    List.of(frontBackPairs[i], frontBackPairs[i + 1]), List.of()));
+        }
+        java.nio.file.Path tmp = java.nio.file.Files.createTempFile("upload-", ".apkg");
+        new ApkgWriterService(objectMapper).write(
+                new ApkgWriterService.DeckSpec("Source deck",
+                        ApkgWriterService.NoteType.basic("Basic"), notes), tmp);
+        byte[] bytes = java.nio.file.Files.readAllBytes(tmp);
+        java.nio.file.Files.deleteIfExists(tmp);
+        return bytes;
+    }
+
+    @Test
+    void anUploadedDeckIsConvertedWithoutBeingStored() throws Exception {
+        byte[] upload = uploadable(
+                "Ribosome", "Assembles proteins from amino acids",
+                "Golgi apparatus", "Packages proteins for transport",
+                "Lysosome", "Breaks down waste and worn organelles",
+                "Nucleolus", "Where ribosomes are assembled",
+                "Cytoskeleton", "Gives the cell its shape");
+
+        var result = service.exportFromUpload(new MockMultipartFile(
+                "file", "Cell Biology.apkg", "application/octet-stream", upload));
+
+        assertThat(result.report().exportedCards()).isEqualTo(5);
+        assertThat(result.report().skippedCards()).isZero();
+        // Nothing was written to any repository — this path must not touch the database.
+        org.mockito.Mockito.verifyNoInteractions(deckRepository, noteRepository, noteTypeRepository);
+    }
+
+    @Test
+    void theConvertedUploadIsAValidPackageOurParserCanRead() throws Exception {
+        byte[] upload = uploadable(
+                "One", "The first answer here",
+                "Two", "The second answer here",
+                "Three", "The third answer here",
+                "Four", "The fourth answer here");
+
+        var result = service.exportFromUpload(new MockMultipartFile(
+                "file", "Numbers.apkg", "application/octet-stream", upload));
+
+        ApkgNotesResponse parsed = parser.parseNotes(new MockMultipartFile(
+                "file", "out.apkg", "application/octet-stream", result.apkg()));
+        assertThat(parsed.totalNotes()).isEqualTo(4);
+        assertThat(parsed.noteTypes().get(0).name()).isEqualTo("Quizanki MCQ");
+    }
+
+    @Test
+    void convertingTheSameFileTwiceGivesTheSameGuids() throws Exception {
+        // No stored ids to key on here, so the guid comes from the content. Same file in, same
+        // guids out — otherwise a user converting twice would duplicate their own cards.
+        byte[] upload = uploadable(
+                "One", "The first answer here", "Two", "The second answer here",
+                "Three", "The third answer here", "Four", "The fourth answer here");
+        var a = service.exportFromUpload(new MockMultipartFile("file", "n.apkg", "x", upload));
+        var b = service.exportFromUpload(new MockMultipartFile("file", "n.apkg", "x", upload));
+
+        assertThat(guidsOf(b.apkg())).isEqualTo(guidsOf(a.apkg()));
+    }
+
+    private List<String> guidsOf(byte[] apkg) throws Exception {
+        java.nio.file.Path tmp = java.nio.file.Files.createTempFile("read-", ".apkg");
+        java.nio.file.Files.write(tmp, apkg);
+        List<String> guids = new ArrayList<>();
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(tmp.toFile())) {
+            java.nio.file.Path db = java.nio.file.Files.createTempFile("col-", ".anki2");
+            try (java.io.InputStream in = zip.getInputStream(zip.getEntry("collection.anki2"))) {
+                java.nio.file.Files.copy(in, db, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+            try (java.sql.Connection c = java.sql.DriverManager.getConnection(
+                         "jdbc:sqlite:" + db.toAbsolutePath());
+                 java.sql.Statement st = c.createStatement();
+                 java.sql.ResultSet rs = st.executeQuery("select guid from notes order by id")) {
+                while (rs.next()) {
+                    guids.add(rs.getString(1));
+                }
+            }
+            java.nio.file.Files.deleteIfExists(db);
+        }
+        java.nio.file.Files.deleteIfExists(tmp);
+        return guids;
+    }
+
+    @Test
+    void theDeckIsNamedAfterTheUploadedFile() {
+        assertThat(DeckMcqExportService.deckNameFrom("JLPT N5.apkg")).isEqualTo("JLPT N5");
+        assertThat(DeckMcqExportService.deckNameFrom("deck.APKG")).isEqualTo("deck");
+        assertThat(DeckMcqExportService.deckNameFrom("")).isEqualTo("Imported deck");
+        assertThat(DeckMcqExportService.deckNameFrom(null)).isEqualTo("Imported deck");
     }
 }

@@ -836,9 +836,15 @@ public class ApkgWriterService {
      * {@code req} tells Anki which fields a template needs before it will generate a card. One entry
      * per template: {@code [ord, "any"|"all"|"none", [fieldOrds]]}.
      *
-     * <p>{@code "all"} rather than {@code "any"}: the required fields are the ones the card cannot do
-     * without, so every one of them has to be filled. With {@code "any"} an MCQ whose {@code Choices}
-     * were empty would still generate — a question with nothing to pick from.
+     * <p>We write {@code "all"} — the required fields are the ones the card cannot do without — but
+     * <b>do not rely on it.</b> Verified 2026-10-09 by importing a package with the real Anki
+     * library (26.09.3): Anki RECOMPUTES {@code req} from the template on import and stored
+     * {@code [[0, "any", [0, 1]]]} over our {@code "all"}. So this value is a hint at best, and the
+     * actual guarantee that a note has both a question and choices comes from
+     * {@link McqDistractorSelector} refusing to export one that doesn't.
+     *
+     * <p>It still matters that the ORDINALS are right: Anki keeps the field list it derives, and a
+     * cloze model's empty {@code req} is honoured (a non-empty one suppresses every card).
      */
     private ArrayNode requirements(NoteType type) {
         // A cloze model's req must be EMPTY. Its cards come from the {{c1::}} markers, and a

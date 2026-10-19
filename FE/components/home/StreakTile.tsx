@@ -29,7 +29,13 @@ export function StreakTile({ className = "" }: { className?: string }) {
       {data ? (
         // Seven equal grid columns, not justify-between: the weekday letters differ in
         // width ("M" vs "T"), which would space the dots unevenly.
-        <ol aria-label="Study days this week" className="mt-3 grid grid-cols-7 gap-1">
+        //
+        // "the last 7 days", not "this week": the strip ENDS on today and rolls, so on a Monday
+        // it reads T W T F S S M. Labelled as a week, that looks like a calendar that starts on
+        // Tuesday; labelled as a rolling window it reads correctly. The visible caption below
+        // says the same thing to everyone else.
+        <>
+          <ol aria-label="Your study days over the last 7 days" className="mt-3 grid grid-cols-7 gap-1">
           {data.last7Days.map((day, i) => {
             const isToday = i === data.last7Days.length - 1;
             const name = isToday ? "Today" : weekdayLabel(day.date, "long");
@@ -62,7 +68,11 @@ export function StreakTile({ className = "" }: { className?: string }) {
               </li>
             );
           })}
-        </ol>
+          </ol>
+          <p aria-hidden className="mt-1.5 text-center font-mono text-[0.625rem] text-faint">
+            last 7 days
+          </p>
+        </>
       ) : isError ? null : (
         // Loading skeleton with the real strip's footprint, so nothing jumps when it loads.
         <ol aria-hidden className="mt-3 grid grid-cols-7 gap-1">

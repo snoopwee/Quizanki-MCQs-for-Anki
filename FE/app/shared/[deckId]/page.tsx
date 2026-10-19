@@ -7,24 +7,41 @@ import { useSharedDeck } from "@/hooks/useDecks";
 import { useSession } from "@/hooks/useSession";
 import { deckContentsToParsed } from "@/lib/deckContents";
 import { buildFlashcards } from "@/lib/flashcards";
+import { buildGuestPresetQuiz, GUEST_DEMO_QUESTIONS } from "@/lib/guestDemo";
+import { reshuffleQuestions } from "@/lib/buildQuestions";
+import { useGuestMastery } from "@/stores/guestMasteryStore";
+import { useGuestStars } from "@/stores/guestStarStore";
+import { useGuestDemo } from "@/stores/guestDemoStore";
+import { useQuizStore } from "@/stores/quizStore";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { AppChrome } from "@/components/layout/AppChrome";
 import { CardPreviewRow } from "@/components/deck/CardPreview";
 import { DeckAuthor } from "@/components/deck/DeckAuthor";
+import { FlashcardViewer } from "@/components/deck/FlashcardViewer";
+import { QuizSession } from "@/components/quiz/QuizSession";
 import { Card } from "@/components/ui/Card";
 import { Icon, type IconName } from "@/components/ui/icons";
+import type { NoteStatsLookup } from "@/lib/quizDeckSpecs";
 
 // A deck someone shared. What you see depends on who you are:
-//   * Signed in  → redirected to /decks/{id}, the full study experience where your
-//     own progress lives (studying a shared deck is a first-class thing now).
-//   * Guest      → this login-walled preview: you can see what the deck is, but the
-//     cards are blurred and any study mode prompts you to sign in. There's no
-//     client-side trial on someone else's deck — the only no-account quiz is the
-//     landing page with your OWN imported deck.
+//   * Signed in  → redirected to /decks/{id}, the full study experience where your own progress
+//     lives (studying a shared deck is a first-class thing).
+//   * Guest      → the demo, below.
+//
+// THE GUEST DEMO (2026-10-19). Flashcards are open and the cards are readable, because the point
+// is to let somebody judge whether the deck is any good before committing to an account — and
+// because the cards are served by a public, unauthenticated endpoint anyway, so the blur this
+// page used to show protected nothing and could be removed from devtools in seconds. On top of
+// that, one preset quiz per deck: multiple choice, auto-detected fields, no setup screen.
+// CHOOSING how to study is what an account buys. Match stays signed-in only.
+//
+// The same rules run on the landing page for an uploaded deck, so there is one guest model.
 //
 // Outside the (app) route group so guests can reach it at all.
 
 const PREVIEW_ROWS = 6;
+
+type Step = "browse" | "flashcards" | "quiz";
 
 export default function SharedDeckPage() {
   const { deckId } = useParams<{ deckId: string }>();
@@ -33,6 +50,23 @@ export default function SharedDeckPage() {
 
   const deckQuery = useSharedDeck(deckId);
   const [authOpen, setAuthOpen] = useState(false);
+  // Why the sign-up prompt opened, so it can say something true rather than one generic line.
+  const [authReason, setAuthReason] = useState<AuthReason>("study");
+  const [step, setStep] = useState<Step>("browse");
+
+  const guestMastery = useGuestMastery();
+  const guestStars = useGuestStars();
+  const guestDemo = useGuestDemo();
+  const startStoreSession = useQuizStore((s) => s.startSession);
+
+  const demoSource = { kind: "shared" as const, deckId };
+  // Read through the store's own state so this re-renders the moment the run is spent.
+  const demoUsed = useGuestDemo((s) => Object.hasOwn(s.usedByDeck, `shared:${deckId}`));
+
+  const getStats: NoteStatsLookup = (noteId) => ({
+    ...guestMastery.getStats(noteId),
+    starred: guestStars.isStarred(noteId),
+  });
 
   // Send signed-in users to the real deck page (their progress tracks there).
   useEffect(() => {
@@ -41,17 +75,85 @@ export default function SharedDeckPage() {
     }
   }, [sessionLoading, user, deckId, router]);
 
-  const cards = useMemo(
-    () => (deckQuery.data ? buildFlashcards(deckContentsToParsed(deckQuery.data).noteTypes) : []),
+  const parsed = useMemo(
+    () => (deckQuery.data ? deckContentsToParsed(deckQuery.data) : null),
     [deckQuery.data],
   );
+  const cards = useMemo(() => (parsed ? buildFlashcards(parsed.noteTypes) : []), [parsed]);
 
-  // While the session resolves — or once we know they're signed in and are about
-  // to redirect — don't flash the guest wall.
+  function promptSignUp(reason: AuthReason) {
+    setAuthReason(reason);
+    setAuthOpen(true);
+  }
+
+  function startDemoQuiz() {
+    if (!parsed) return;
+    if (demoUsed) {
+      promptSignUp("again");
+      return;
+    }
+    const questions = buildGuestPresetQuiz(parsed, { getStats });
+    if (questions.length === 0) {
+      // Nothing askable in this deck — say so rather than opening an empty quiz.
+      promptSignUp("unquizable");
+      return;
+    }
+    // Spent on start, not on finish: the run IS the attempt, and marking it at the end would let
+    // a restart-before-finishing loop forever. Abandoning costs the run, but never the cards —
+    // flashcards stay open either way.
+    guestDemo.markUsed(demoSource);
+    startStoreSession(reshuffleQuestions(questions), ""); // empty sessionId ⇒ guest mode
+    setStep("quiz");
+  }
+
+  // While the session resolves — or once we know they're signed in and are about to redirect —
+  // don't flash the guest view.
   if (sessionLoading || user) {
     return (
       <AppChrome>
         <p className="mx-auto max-w-3xl text-sm text-muted">Loading deck…</p>
+      </AppChrome>
+    );
+  }
+
+  if (step === "flashcards" && parsed) {
+    return (
+      <AppChrome>
+        <div className="mx-auto max-w-3xl">
+          <FlashcardViewer
+            parsed={parsed}
+            getStats={getStats}
+            getStarred={(noteId) => guestStars.isStarred(noteId)}
+            onToggleStar={(noteId, next) => guestStars.setStarred(noteId, next)}
+            backLabel="Back to deck"
+            onBack={() => setStep("browse")}
+            onStartTest={startDemoQuiz}
+            startTestLabel={demoUsed ? "Sign up to quiz again →" : "Start the free quiz →"}
+          />
+        </div>
+        {authOpen && <SignUpPrompt reason={authReason} deckId={deckId} onClose={() => setAuthOpen(false)} />}
+      </AppChrome>
+    );
+  }
+
+  if (step === "quiz") {
+    return (
+      <AppChrome>
+        <div className="mx-auto max-w-7xl">
+          <QuizSession
+            getStats={getStats}
+            getStarred={(noteId) => guestStars.isStarred(noteId)}
+            onToggleStar={(noteId, next) => guestStars.setStarred(noteId, next)}
+            // The run is already spent, so every replay path is a sign-up moment.
+            replayLocked
+            onReplayLocked={() => promptSignUp("again")}
+            onRetry={() => promptSignUp("again")}
+            onExit={() => setStep("browse")}
+            onEndTest={() => setStep("browse")}
+            onFinish={() => promptSignUp("finished")}
+          />
+        </div>
+        {authOpen && <SignUpPrompt reason={authReason} deckId={deckId} onClose={() => setAuthOpen(false)} />}
       </AppChrome>
     );
   }
@@ -102,100 +204,151 @@ export default function SharedDeckPage() {
               </div>
             </Card>
 
-            {/* study modes — each nudges the guest to sign in */}
+            {/* study modes */}
             <div>
               <p className="mb-3 font-mono text-xs font-semibold uppercase tracking-[0.06em] text-muted">
                 Study modes
               </p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <LockedMode
+                <ModeTile
                   primary
                   icon="clipboard"
                   label="Quiz me — Multiple choice"
-                  desc="Log in to take the MCQ exam and track your progress"
-                  onClick={() => setAuthOpen(true)}
+                  desc={
+                    demoUsed
+                      ? "You've used this deck's free quiz — sign up to keep going"
+                      : `Free quiz: ${Math.min(GUEST_DEMO_QUESTIONS, cards.length)} questions, no account needed`
+                  }
+                  locked={demoUsed}
+                  onClick={startDemoQuiz}
                 />
-                <LockedMode
+                <ModeTile
                   icon="cards"
                   color="var(--info)"
                   label="Flashcards"
-                  desc="Log in to flip through every card"
-                  onClick={() => setAuthOpen(true)}
+                  desc="Flip through every card — free, no account"
+                  onClick={() => setStep("flashcards")}
                 />
-                <LockedMode
+                <ModeTile
                   icon="shuffle"
                   color="var(--success)"
                   label="Match"
-                  desc="Log in to race the pairing game"
-                  onClick={() => setAuthOpen(true)}
+                  desc="Sign up to race the pairing game"
+                  locked
+                  onClick={() => promptSignUp("match")}
                 />
               </div>
+              {demoUsed && (
+                <p className="mt-3 text-xs leading-relaxed text-muted">
+                  Free quizzes are one per deck. An account gives you unlimited runs, your own
+                  question types and card counts, saved progress, and Match.{" "}
+                  <button
+                    type="button"
+                    onClick={() => promptSignUp("again")}
+                    className="focus-ring font-semibold text-accent-ink underline underline-offset-2"
+                  >
+                    Create one free
+                  </button>
+                </p>
+              )}
             </div>
 
-            {/* cards list — blurred behind a sign-in prompt */}
+            {/* cards — readable. The whole point of the preview is judging the deck. */}
             <div>
               <p className="mb-3 font-mono text-xs font-semibold uppercase tracking-[0.06em] text-muted">
                 Cards in this deck
               </p>
-              <div className="relative">
-                <ul className="space-y-2 blur-sm select-none" aria-hidden>
-                  {cards.slice(0, PREVIEW_ROWS).map((c, i) => (
-                    <CardPreviewRow key={`${c.id}#${i}`} front={c.front} back={c.back} />
-                  ))}
-                </ul>
-                <div className="absolute inset-0 grid place-items-center">
-                  <div className="rounded-card border border-line bg-surface/95 p-6 text-center shadow-card backdrop-blur">
-                    <span className="mx-auto grid h-11 w-11 place-items-center rounded-full bg-accent-soft text-accent-ink">
-                      <Icon name="lock" size={20} />
-                    </span>
-                    <p className="mt-3 text-sm font-semibold text-ink">
-                      Log in to study this deck
-                    </p>
-                    <p className="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-muted">
-                      Create a free account (or log in) to see every card, quiz yourself, and keep
-                      your progress.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setAuthOpen(true)}
-                      className="focus-ring mt-4 inline-flex rounded-input bg-accent px-4 py-2 text-sm font-semibold text-white shadow-btn transition hover:opacity-95"
-                    >
-                      Log in or sign up
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <ul className="space-y-2">
+                {cards.slice(0, PREVIEW_ROWS).map((c, i) => (
+                  <CardPreviewRow key={`${c.id}#${i}`} front={c.front} back={c.back} />
+                ))}
+              </ul>
+              {cards.length > PREVIEW_ROWS && (
+                <button
+                  type="button"
+                  onClick={() => setStep("flashcards")}
+                  className="focus-ring mt-3 text-sm font-medium text-accent-ink underline underline-offset-2"
+                >
+                  See all {cards.length} cards in flashcards →
+                </button>
+              )}
             </div>
           </>
         )}
       </div>
 
-      {authOpen && (
-        <AuthModal
-          title="Study this deck"
-          description="Create an account (or log in) to study this deck and keep your progress."
-          loginLabel="Log in"
-          signupLabel="Sign up"
-          onClose={() => setAuthOpen(false)}
-          onAuthed={() => {
-            // Now signed in — the real deck page takes over (progress + all modes).
-            router.push(`/decks/${deckId}`);
-            router.refresh();
-          }}
-        />
-      )}
+      {authOpen && <SignUpPrompt reason={authReason} deckId={deckId} onClose={() => setAuthOpen(false)} />}
     </AppChrome>
   );
 }
 
-// A study-mode tile that looks live but is locked for guests — a small lock badge
-// marks it, and the whole tile opens the sign-in modal.
-function LockedMode({
+// Why we're asking. A prompt that names the thing the learner just tried to do converts better
+// than one generic "sign in to continue", and costs nothing but a string.
+type AuthReason = "study" | "again" | "finished" | "match" | "unquizable";
+
+const REASONS: Record<AuthReason, { title: string; description: string }> = {
+  study: {
+    title: "Study this deck",
+    description: "Create a free account (or log in) to study this deck and keep your progress.",
+  },
+  again: {
+    title: "Keep going on this deck",
+    description:
+      "Free quizzes are one per deck. With an account you get unlimited runs, your own question types and card counts, and progress that's saved.",
+  },
+  finished: {
+    title: "Nice work — keep this progress",
+    description:
+      "Your score for this run isn't saved yet. Create a free account to keep it, study this deck again, and choose how you're quizzed.",
+  },
+  match: {
+    title: "Play Match",
+    description: "Match is for signed-in learners. Creating an account is free and takes a moment.",
+  },
+  unquizable: {
+    title: "This deck can't be quizzed",
+    description:
+      "Its cards don't have a question and answer pair we can build questions from. You can still read them in flashcards, or sign up to bring your own deck.",
+  },
+};
+
+function SignUpPrompt({
+  reason,
+  deckId,
+  onClose,
+}: {
+  reason: AuthReason;
+  deckId: string;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const { title, description } = REASONS[reason];
+  return (
+    <AuthModal
+      title={title}
+      description={description}
+      loginLabel="Log in"
+      signupLabel="Sign up"
+      initialMode="signup"
+      onClose={onClose}
+      onAuthed={() => {
+        // Now signed in — the real deck page takes over (progress + all modes).
+        router.push(`/decks/${deckId}`);
+        router.refresh();
+      }}
+    />
+  );
+}
+
+// A study-mode tile. `locked` only changes how it LOOKS — the click handler decides what happens,
+// because a locked tile still needs to open the sign-up prompt rather than do nothing.
+function ModeTile({
   icon,
   label,
   desc,
   color = "var(--accent)",
   primary = false,
+  locked = false,
   onClick,
 }: {
   icon: IconName;
@@ -203,6 +356,7 @@ function LockedMode({
   desc: string;
   color?: string;
   primary?: boolean;
+  locked?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -210,7 +364,7 @@ function LockedMode({
       type="button"
       onClick={onClick}
       className={`relative flex items-center gap-3.5 rounded-card border p-4 text-left transition ${
-        primary
+        primary && !locked
           ? "border-transparent bg-accent shadow-btn hover:opacity-95"
           : "border-line bg-surface hover:-translate-y-0.5 hover:border-line-strong"
       }`}
@@ -218,7 +372,7 @@ function LockedMode({
       <span
         className="grid h-10 w-10 shrink-0 place-items-center rounded-input"
         style={
-          primary
+          primary && !locked
             ? { background: "rgba(255,255,255,0.16)", color: "#fff" }
             : { background: `color-mix(in oklab, ${color} 16%, transparent)`, color }
         }
@@ -226,15 +380,23 @@ function LockedMode({
         <Icon name={icon} size={21} />
       </span>
       <span className="min-w-0">
-        <span className={`flex items-center gap-2 text-sm font-bold ${primary ? "text-white" : "text-ink"}`}>
+        <span
+          className={`flex items-center gap-2 text-sm font-bold ${
+            primary && !locked ? "text-white" : "text-ink"
+          }`}
+        >
           {label}
         </span>
-        <span className={`mt-0.5 block text-xs ${primary ? "text-white/80" : "text-muted"}`}>
+        <span
+          className={`mt-0.5 block text-xs ${primary && !locked ? "text-white/80" : "text-muted"}`}
+        >
           {desc}
         </span>
       </span>
-      <span className={`ml-auto shrink-0 ${primary ? "text-white/90" : "text-faint"}`}>
-        <Icon name="lock" size={16} />
+      <span
+        className={`ml-auto shrink-0 ${primary && !locked ? "text-white/90" : "text-faint"}`}
+      >
+        <Icon name={locked ? "lock" : "chevronRight"} size={16} />
       </span>
     </button>
   );

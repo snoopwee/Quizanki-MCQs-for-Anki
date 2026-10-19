@@ -4,6 +4,7 @@ import { Ring } from "@/components/ui/Ring";
 import { Icon } from "@/components/ui/icons";
 import { buttonClasses } from "@/components/ui/Button";
 import { CardPreviewRow } from "@/components/deck/CardPreview";
+import { RichText } from "@/components/shared/RichText";
 
 export function ResultsSummary({
   answers,
@@ -101,6 +102,20 @@ export function ResultsSummary({
               front={a.prompt.map((seg) => seg.value)}
               back={[a.correct]}
               stats={{ mastery: a.newMastery, timesSeen: 1 }}
+              // On a missed card the right answer alone doesn't teach anything — you can't see
+              // what you got wrong. `selected` has always been recorded "for display"; this is
+              // the display. Skipped when correct (you'd be reading your own right answer twice)
+              // and when nothing was picked, which a timed-out or skipped question leaves empty.
+              footer={
+                !a.wasCorrect && a.selected ? (
+                  <p className="border-t border-line pt-2 text-xs text-muted">
+                    You answered{" "}
+                    <span className="font-medium text-danger">
+                      <RichText text={a.selected} />
+                    </span>
+                  </p>
+                ) : null
+              }
               action={
                 <span
                   className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${

@@ -110,7 +110,7 @@ export default function UserProfilePage() {
                       <Card hover className="overflow-hidden p-0">
                         <div className="h-1.5 bg-accent" />
                         <div className="space-y-2 p-5">
-                          <p className="truncate font-display text-base font-semibold text-ink">
+                          <p className="line-clamp-2 break-words font-display text-base font-semibold text-ink">
                             {deck.name}
                           </p>
                           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-faint">

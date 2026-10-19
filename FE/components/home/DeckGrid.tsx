@@ -54,7 +54,7 @@ export function DeckGrid({
                 <div className="min-w-0 flex-1">
                   <p
                     title={deck.name}
-                    className="truncate font-display text-base font-semibold text-ink"
+                    className="line-clamp-2 break-words font-display text-base font-semibold text-ink"
                   >
                     {deck.name}
                   </p>

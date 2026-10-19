@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 import axios from "axios";
 import { useParseApkg } from "@/hooks/useParseApkg";
@@ -124,19 +125,30 @@ export function ApkgUploader({
       {validationError && <p className="text-sm text-danger">{validationError}</p>}
       {parse.isError && <p className="text-sm text-danger">{errorMessage(parse.error)}</p>}
 
-      {/* AnkiWeb only lets you download shared decks from its own site, so we point
-          there rather than fetching for you — grab the .apkg, then drop it above. */}
+      {/* Our own decks lead. This used to offer ONLY the AnkiWeb link, which made it the single
+          outbound link on the landing page — so a visitor who arrived without a file was sent
+          straight to somebody else's site. AnkiWeb stays because it genuinely is where .apkg
+          files come from, and it only lets you download from its own site (we can't fetch for
+          you), but it is the second option now, not the only one. */}
       <p className="text-xs text-muted">
         Need a deck?{" "}
+        <Link href="/discover" className="font-medium text-accent underline-offset-2 hover:underline">
+          Browse decks shared here
+        </Link>{" "}
+        — study one straight away, no file needed. Or grab an{" "}
+        <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[0.6875rem] text-ink">
+          .apkg
+        </code>{" "}
+        from{" "}
         <a
           href="https://ankiweb.net/shared/decks"
           target="_blank"
           rel="noopener noreferrer"
           className="font-medium text-accent underline-offset-2 hover:underline"
         >
-          Browse AnkiWeb shared decks ↗
+          AnkiWeb ↗
         </a>{" "}
-        — download the .apkg from AnkiWeb, then upload it here.
+        and upload it above.
       </p>
 
       {parse.data && <ApkgSummary result={parse.data} file={pickedFile} onContinue={onContinue} />}

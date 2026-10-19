@@ -60,11 +60,20 @@ describe("ratingSummary", () => {
     expect(ratingSummary(5, 1)).toBe("5.0 (1)");
   });
 
-  it("says 0.0 (0) for a deck nobody has rated", () => {
-    // Not blank and not hidden: an unrated deck is a fact about the deck.
-    expect(ratingSummary(0, 0)).toBe("0.0 (0)");
+  it("says 'Not rated yet' rather than a number for a deck nobody has rated", () => {
+    // Not blank and not hidden — an unrated deck is a fact about the deck — but not a NUMBER
+    // either: "0.0 (0)" is read as a score of zero, which is the opposite of "no score".
+    expect(ratingSummary(0, 0)).toBe("Not rated yet");
     // A count of zero wins over a stale average.
-    expect(ratingSummary(4.5, 0)).toBe("0.0 (0)");
+    expect(ratingSummary(4.5, 0)).toBe("Not rated yet");
+    expect(ratingSummary(4.5, -1)).toBe("Not rated yet");
+    expect(ratingSummary(4.5, Number.NaN)).toBe("Not rated yet");
+  });
+
+  it("matches what screen readers were already being told", () => {
+    // The visible string and the accessible label disagreed before this: one said "0.0 (0)",
+    // the other "Not rated yet".
+    expect(ratingSummary(0, 0)).toBe(ratingLabel(0, 0));
   });
 });
 

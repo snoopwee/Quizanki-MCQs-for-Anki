@@ -15,6 +15,8 @@ import { NotificationBell } from "@/components/layout/NotificationBell";
 import { ChooseUsernameGate } from "@/components/auth/ChooseUsernameGate";
 import { SuspendedGate } from "@/components/auth/SuspendedGate";
 import { Icon, type IconName } from "@/components/ui/icons";
+import { useFolders } from "@/hooks/useFolders";
+import { folderHref, navMatches, railFolders } from "@/lib/folderNav";
 
 // True for any URL a full-screen study mode takes over — sidebar is hidden so the
 // test / match game / learn session occupies the full screen (less chrome, fewer
@@ -362,6 +364,20 @@ function Sidebar({
           <nav className="mt-6 flex flex-col gap-1 text-sm">
             <NavLink href="/home" pathname={pathname} label="Home" icon="home" expanded={expanded} onNavigate={onNavigate} />
             <NavLink href="/discover" pathname={pathname} label="Discover" icon="search" expanded={expanded} onNavigate={onNavigate} />
+            {/* Folders were built months ago and reachable only from Home's fourth tab and a
+                deck's ⋯ dialog — which is how a finished feature goes unused. Quizlet and Knowt
+                both keep them in the rail, so the section lives here, with the user's actual
+                folders beneath it. */}
+            <NavLink
+              href="/folders"
+              pathname={pathname}
+              label="Folders"
+              icon="folder"
+              expanded={expanded}
+              onNavigate={onNavigate}
+              ownsSubRoutes
+            />
+            <RailFolders pathname={pathname} expanded={expanded} onNavigate={onNavigate} />
             <NavLink
               href="/import"
               pathname={pathname}
@@ -407,12 +423,17 @@ function NavLink({
   trailing,
   badge,
   expanded = true,
+  ownsSubRoutes = false,
   onNavigate,
 }: {
   href: string;
   pathname: string;
   label: string;
   icon: IconName;
+  // True for an entry that owns a whole section (/folders owns /folders/{id}), so it stays
+  // highlighted while the user is inside it. Off by default — every other entry wants an exact
+  // match, and /home must not light up for /home-ish siblings.
+  ownsSubRoutes?: boolean;
   // Optional inline indicator (e.g. a "saving…" spinner) that follows the user
   // between pages. Only rendered when expanded.
   trailing?: React.ReactNode;
@@ -422,7 +443,7 @@ function NavLink({
   expanded?: boolean;
   onNavigate?: () => void;
 }) {
-  const active = pathname === href;
+  const active = navMatches(pathname, href, ownsSubRoutes);
   return (
     <Link
       href={href}
@@ -456,6 +477,74 @@ function NavLink({
         {trailing}
       </RevealLabel>
     </Link>
+  );
+}
+
+/**
+ * The user's own folders, listed under the Folders entry.
+ *
+ * <p>This is the part that makes the rail useful rather than just complete: a named folder you can
+ * click is a shortcut, a generic "Folders" link is one more hop. Capped by `railFolders` — a rail
+ * is navigation, not a second copy of the page, and the account menu has to stay reachable at the
+ * bottom.
+ *
+ * <p><b>It renders nothing while collapsed, but stays mounted.</b> That matters: the hover rail
+ * expands and collapses constantly, and unmounting would re-run the query on every pass. Mounted
+ * and empty costs one fetch for the session.
+ *
+ * <p>Only ever rendered inside the non-admin branch, so an admin account never asks for folders it
+ * has no rail entry for.
+ */
+function RailFolders({
+  pathname,
+  expanded,
+  onNavigate,
+}: {
+  pathname: string;
+  expanded: boolean;
+  onNavigate?: () => void;
+}) {
+  const folders = useFolders();
+  const { shown, overflow } = railFolders(folders.data);
+
+  if (!expanded || shown.length === 0) return null;
+
+  return (
+    <ul className="mb-1 ml-5 space-y-0.5 border-l border-line pl-2">
+      {shown.map((folder) => {
+        const href = folderHref(folder.id);
+        const active = navMatches(pathname, href);
+        return (
+          <li key={folder.id}>
+            <Link
+              href={href}
+              onClick={onNavigate}
+              title={folder.name}
+              className={`flex h-8 items-center gap-2 rounded-input px-2 text-[0.8125rem] transition-colors ${
+                active
+                  ? "bg-accent-soft font-semibold text-accent-ink"
+                  : "text-muted hover:bg-surface-2 hover:text-ink"
+              }`}
+            >
+              <Icon name="folder" size={14} />
+              <span className="min-w-0 flex-1 truncate">{folder.name}</span>
+            </Link>
+          </li>
+        );
+      })}
+      {overflow > 0 && (
+        <li>
+          <Link
+            href="/folders"
+            onClick={onNavigate}
+            className="flex h-8 items-center gap-2 rounded-input px-2 text-[0.8125rem] text-faint transition-colors hover:bg-surface-2 hover:text-ink"
+          >
+            <span className="w-3.5" aria-hidden />
+            <span className="truncate">{overflow} more…</span>
+          </Link>
+        </li>
+      )}
+    </ul>
   );
 }
 

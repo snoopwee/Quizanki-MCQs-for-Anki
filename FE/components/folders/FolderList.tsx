@@ -1,34 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { DeckGrid } from "@/components/home/DeckGrid";
+import Link from "next/link";
 import { KebabMenu } from "@/components/shared/KebabMenu";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/Spinner";
 import { buttonClasses } from "@/components/ui/Button";
 import { deckCountLabel, folderErrorMessage, normalizeFolderName } from "@/lib/folderDisplay";
-import {
-  useCreateFolder,
-  useDeleteFolder,
-  useFolder,
-  useFolders,
-  useRenameFolder,
-} from "@/hooks/useFolders";
+import { folderHref } from "@/lib/folderNav";
+import { useCreateFolder, useDeleteFolder, useFolders, useRenameFolder } from "@/hooks/useFolders";
 
-// Home's Folders tab. Two views in one: the folder list, and one folder's decks — which render
-// through the same DeckGrid as every other tab, so a folder isn't a second kind of deck list.
-export function FoldersTab() {
-  const [openId, setOpenId] = useState<string | null>(null);
-
-  return openId ? (
-    <OpenFolder folderId={openId} onBack={() => setOpenId(null)} />
-  ) : (
-    <FolderList onOpen={setOpenId} />
-  );
-}
-
-function FolderList({ onOpen }: { onOpen: (folderId: string) => void }) {
+/**
+ * The folder list, plus creating, renaming and deleting one.
+ *
+ * <p>Lives here rather than inside Home's tab because folders are reachable from three places now
+ * — the sidebar, `/folders`, and Home — and a second copy of this would drift from the first.
+ *
+ * <p>Opening a folder is a **link**, not component state. It used to be state, which meant a folder
+ * had no URL: you couldn't bookmark one, send one to yourself, or press Back to get out of it.
+ */
+export function FolderList() {
   const folders = useFolders();
   const create = useCreateFolder();
   const [newName, setNewName] = useState("");
@@ -62,7 +54,11 @@ function FolderList({ onOpen }: { onOpen: (folderId: string) => void }) {
           disabled={!newName.trim() || create.isPending}
           className={buttonClasses({ variant: "soft", size: "sm" })}
         >
-          {create.isPending ? <Spinner className="h-4 w-4 text-accent" label="Creating" /> : <Icon name="plus" size={15} />}
+          {create.isPending ? (
+            <Spinner className="h-4 w-4 text-accent" label="Creating" />
+          ) : (
+            <Icon name="plus" size={15} />
+          )}
           New folder
         </button>
       </div>
@@ -76,7 +72,7 @@ function FolderList({ onOpen }: { onOpen: (folderId: string) => void }) {
       )}
 
       {folders.isLoading ? (
-        <p className="text-sm text-muted">Loading…</p>
+        <FolderListSkeleton />
       ) : folders.isError ? (
         <p className="text-sm text-danger">Could not load folders.</p>
       ) : (folders.data ?? []).length === 0 ? (
@@ -94,12 +90,7 @@ function FolderList({ onOpen }: { onOpen: (folderId: string) => void }) {
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {(folders.data ?? []).map((folder) => (
             <li key={folder.id}>
-              <FolderCard
-                id={folder.id}
-                name={folder.name}
-                deckCount={folder.deckCount}
-                onOpen={() => onOpen(folder.id)}
-              />
+              <FolderCard id={folder.id} name={folder.name} deckCount={folder.deckCount} />
             </li>
           ))}
         </ul>
@@ -108,17 +99,27 @@ function FolderList({ onOpen }: { onOpen: (folderId: string) => void }) {
   );
 }
 
-function FolderCard({
-  id,
-  name,
-  deckCount,
-  onOpen,
-}: {
-  id: string;
-  name: string;
-  deckCount: number;
-  onOpen: () => void;
-}) {
+// Folder cards are a fixed, small height, so a skeleton that matches them is honest about what is
+// coming — better than a bare "Loading…", which gives the layout no hint and jumps when it lands.
+function FolderListSkeleton() {
+  return (
+    <ul aria-hidden className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <li key={i}>
+          <Card className="flex items-center gap-3 p-4">
+            <span className="h-10 w-10 shrink-0 animate-pulse rounded-input bg-surface-2" />
+            <span className="min-w-0 flex-1 space-y-2">
+              <span className="block h-3.5 w-2/3 animate-pulse rounded bg-surface-2" />
+              <span className="block h-2.5 w-16 animate-pulse rounded bg-surface-2" />
+            </span>
+          </Card>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function FolderCard({ id, name, deckCount }: { id: string; name: string; deckCount: number }) {
   const rename = useRenameFolder();
   const remove = useDeleteFolder();
   const [editing, setEditing] = useState(false);
@@ -153,7 +154,11 @@ function FolderCard({
             className="focus-ring w-full rounded-input border border-line-strong bg-surface px-2.5 py-1.5 text-sm text-ink"
           />
           <div className="flex gap-2">
-            <button type="button" onClick={() => setEditing(false)} className={buttonClasses({ variant: "ghost", size: "sm" })}>
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              className={buttonClasses({ variant: "ghost", size: "sm" })}
+            >
               Cancel
             </button>
             <button
@@ -166,7 +171,9 @@ function FolderCard({
             </button>
           </div>
           {rename.isError && (
-            <p className="text-xs text-danger">{folderErrorMessage(rename.error, "Couldn't rename it.")}</p>
+            <p className="text-xs text-danger">
+              {folderErrorMessage(rename.error, "Couldn't rename it.")}
+            </p>
           )}
         </div>
       ) : confirming ? (
@@ -174,7 +181,11 @@ function FolderCard({
           <p className="text-sm font-semibold text-ink">Delete “{name}”?</p>
           <p className="text-xs text-muted">The decks inside it stay in your library.</p>
           <div className="flex gap-2">
-            <button type="button" onClick={() => setConfirming(false)} className={buttonClasses({ variant: "ghost", size: "sm" })}>
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              className={buttonClasses({ variant: "ghost", size: "sm" })}
+            >
               Cancel
             </button>
             <button
@@ -190,53 +201,41 @@ function FolderCard({
         </div>
       ) : (
         <div className="flex items-center gap-3">
-          <button type="button" onClick={onOpen} className="focus-ring flex min-w-0 flex-1 items-center gap-3 text-left">
+          <Link
+            href={folderHref(id)}
+            className="focus-ring flex min-w-0 flex-1 items-center gap-3 text-left"
+          >
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-input bg-accent-soft text-accent">
               <Icon name="folder" size={20} />
             </span>
             <span className="min-w-0">
-              <span title={name} className="block truncate font-display text-[0.9375rem] font-semibold text-ink">
+              <span
+                title={name}
+                className="block truncate font-display text-[0.9375rem] font-semibold text-ink"
+              >
                 {name}
               </span>
               <span className="mt-0.5 block font-mono text-xs text-faint">
                 {deckCountLabel(deckCount)}
               </span>
             </span>
-          </button>
+          </Link>
           <KebabMenu
             label={`${name} options`}
             items={[
-              { label: "Rename", icon: "pencil", onClick: () => { setDraftName(name); setEditing(true); } },
+              {
+                label: "Rename",
+                icon: "pencil",
+                onClick: () => {
+                  setDraftName(name);
+                  setEditing(true);
+                },
+              },
               { label: "Delete", icon: "trash", danger: true, onClick: () => setConfirming(true) },
             ]}
           />
         </div>
       )}
     </Card>
-  );
-}
-
-function OpenFolder({ folderId, onBack }: { folderId: string; onBack: () => void }) {
-  const folder = useFolder(folderId);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <button type="button" onClick={onBack} className={buttonClasses({ variant: "ghost", size: "sm" })}>
-          <Icon name="chevronLeft" size={15} />
-          All folders
-        </button>
-        <h2 className="min-w-0 truncate font-display text-lg font-bold tracking-tight text-ink">
-          {folder.data?.name ?? "…"}
-        </h2>
-      </div>
-
-      <DeckGrid
-        query={{ data: folder.data?.decks, isLoading: folder.isLoading, isError: folder.isError }}
-        showAuthor
-        emptyTitle="This folder is empty."
-        emptyHint="Open a deck and use its ⋯ menu to file it here."
-      />
-    </div>
   );
 }

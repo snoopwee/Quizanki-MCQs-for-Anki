@@ -8,7 +8,7 @@ import { Icon, type IconName } from "@/components/ui/icons";
 import { StatTile } from "@/components/ui/StatTile";
 import { StreakTile } from "@/components/home/StreakTile";
 import { DeckGrid } from "@/components/home/DeckGrid";
-import { FoldersTab } from "@/components/home/FoldersTab";
+import { FolderList } from "@/components/folders/FolderList";
 import { buttonClasses } from "@/components/ui/Button";
 
 type Tab = "yours" | "saved" | "recent" | "folders";
@@ -121,7 +121,7 @@ export default function HomePage() {
         )}
         {tab === "saved" && <SavedTab />}
         {tab === "recent" && <RecentTab />}
-        {tab === "folders" && <FoldersTab />}
+        {tab === "folders" && <FolderList />}
       </div>
     </div>
   );

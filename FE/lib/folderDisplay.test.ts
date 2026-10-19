@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { AxiosError, AxiosHeaders } from "axios";
-import { deckCountLabel, folderErrorMessage, normalizeFolderName } from "./folderDisplay";
+import {
+  deckCountLabel,
+  folderErrorMessage,
+  isMissingFolderError,
+  normalizeFolderName,
+} from "./folderDisplay";
 
 function axiosError(status: number, data: unknown): AxiosError {
   const err = new AxiosError("Request failed");
@@ -34,6 +39,21 @@ describe("folderErrorMessage", () => {
   it("uses the fallback for anything that isn't an axios error", () => {
     expect(folderErrorMessage(new Error("boom"), "Couldn't delete it.")).toBe("Couldn't delete it.");
     expect(folderErrorMessage(null, "Couldn't delete it.")).toBe("Couldn't delete it.");
+  });
+});
+
+describe("isMissingFolderError", () => {
+  it("recognises the 404 a deleted or bookmarked-away folder returns", () => {
+    expect(isMissingFolderError(axiosError(404, { message: "Folder not found" }))).toBe(true);
+  });
+
+  it("does not mistake other failures for a missing folder", () => {
+    expect(isMissingFolderError(axiosError(500, {}))).toBe(false);
+    expect(isMissingFolderError(axiosError(401, {}))).toBe(false);
+    // No response at all is an unreachable server, which must not read as "deleted".
+    expect(isMissingFolderError(new AxiosError("Network Error"))).toBe(false);
+    expect(isMissingFolderError(new Error("boom"))).toBe(false);
+    expect(isMissingFolderError(null)).toBe(false);
   });
 });
 

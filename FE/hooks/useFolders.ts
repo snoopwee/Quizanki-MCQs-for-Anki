@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/axios";
+import { isMissingFolderError } from "@/lib/folderDisplay";
 import type { FolderDetailResponse, FolderResponse } from "@/types/api";
 
 export const FOLDERS_KEY = ["folders"] as const;
@@ -29,6 +30,11 @@ export function useFolder(folderId: string | null) {
       const { data } = await api.get<FolderDetailResponse>(`/me/folders/${folderId}`);
       return data;
     },
+    // A folder has its own URL now, so "this folder is gone" is a normal thing to land on — and
+    // the default three retries made it take ~4s of "Loading…" to say so. A 404 is the server's
+    // final answer; retrying it only delays the page that explains it. Everything else still
+    // retries, because a flaky connection is worth a second attempt.
+    retry: (failureCount, error) => !isMissingFolderError(error) && failureCount < 3,
   });
 }
 

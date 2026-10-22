@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useDecks, useRecentDecks, useSavedDecks } from "@/hooks/useDecks";
+import { quickQuizDeck, quickQuizDescription } from "@/lib/quickQuiz";
 import { Card } from "@/components/ui/Card";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { StatTile } from "@/components/ui/StatTile";
@@ -23,21 +24,23 @@ export default function HomePage() {
   const avgCompletion = deckCount
     ? Math.round(decks.reduce((sum, d) => sum + (d.completion ?? 0), 0) / deckCount)
     : 0;
-  const firstDeckId = decks[0]?.id;
+  // The quick-quiz tile used to open decks[0] — whichever deck the API listed first — and never
+  // said which one it meant. Recent is already fetched for the tab below, so preferring the deck
+  // you last opened costs no extra request.
+  const recentForQuiz = useRecentDecks();
+  const quizDeck = quickQuizDeck(recentForQuiz.data, decksQuery.data);
 
   const [tab, setTab] = useState<Tab>("yours");
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
-      {/* header */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-display text-3xl font-bold tracking-tight text-ink">Welcome back</h1>
-          <p className="mt-1 text-sm text-muted">Pick up where you left off.</p>
-        </div>
-        <Link href="/import" className={buttonClasses({ variant: "primary" })}>
-          <Icon name="upload" size={17} /> Import deck
-        </Link>
+      {/* header. No "Import deck" button here: the top bar's "New deck" goes to the same screen
+          and sits directly above this one, so the two read as a single action duplicated. The
+          sidebar link and the Quick actions tile below still reach /import — four routes to one
+          screen on one viewport was the problem, not having more than one. */}
+      <div>
+        <h1 className="font-display text-3xl font-bold tracking-tight text-ink">Welcome back</h1>
+        <p className="mt-1 text-sm text-muted">Pick up where you left off.</p>
       </div>
 
       {/* stats: your study streak, then your own decks. On phones the streak takes the full
@@ -76,9 +79,9 @@ export default function HomePage() {
             icon="clipboard"
             color="var(--warning)"
             title="Start a quick quiz"
-            desc="Jump straight into an MCQ test built from one of your decks."
-            cta="New quiz"
-            href={firstDeckId ? `/decks/${firstDeckId}?step=setup` : undefined}
+            desc={quickQuizDescription(quizDeck)}
+            cta={quizDeck ? "Quiz this deck" : "New quiz"}
+            href={quizDeck ? `/decks/${quizDeck.id}?step=setup` : undefined}
           />
           <QuickAction
             icon="search"

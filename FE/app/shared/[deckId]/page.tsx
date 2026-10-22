@@ -195,11 +195,16 @@ export default function SharedDeckPage() {
                     <Icon name="layers" size={15} />
                     {cards.length} card{cards.length === 1 ? "" : "s"}
                   </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Icon name="cards" size={15} />
-                    {deckQuery.data.noteTypes.length} note type
-                    {deckQuery.data.noteTypes.length === 1 ? "" : "s"}
-                  </span>
+                  {/* See the deck page: only worth saying when the deck mixes types. */}
+                  {deckQuery.data.noteTypes.length > 1 && (
+                    <span
+                      className="inline-flex items-center gap-1.5"
+                      title="This deck mixes Anki note types (e.g. Basic and Cloze)"
+                    >
+                      <Icon name="cards" size={15} />
+                      {deckQuery.data.noteTypes.length} card types
+                    </span>
+                  )}
                 </div>
               </div>
             </Card>

@@ -27,8 +27,10 @@ export function QuestionTypeChips({
   );
 }
 
-// Icon + label for each question format, in canonical order.
-const KIND_META: Record<QuestionKind, { icon: IconName; label: string }> = {
+// Icon + label for each question format, in canonical order. Exported so the quiz setup's
+// "Ready" bar names the chosen format with the SAME words as the chips above it — two copies of
+// these strings would drift.
+export const KIND_META: Record<QuestionKind, { icon: IconName; label: string }> = {
   mcq: { icon: "clipboard", label: "Multiple choice" },
   truefalse: { icon: "check", label: "True / false" },
   written: { icon: "pencil", label: "Written" },

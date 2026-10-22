@@ -22,7 +22,7 @@ import { folderHref, navMatches, railFolders } from "@/lib/folderNav";
 // test / match game / learn session occupies the full screen (less chrome, fewer
 // distractions). Other deck sub-routes (detail, settings) keep the sidebar.
 function isImmersiveRoute(pathname: string): boolean {
-  return /\/decks\/[^/]+\/(test|match|learn)\b/.test(pathname);
+  return /\/decks\/[^/]+\/(test|match|learn|practice)\b/.test(pathname);
 }
 
 const PIN_KEY = "quizanki:sidebar-pinned";

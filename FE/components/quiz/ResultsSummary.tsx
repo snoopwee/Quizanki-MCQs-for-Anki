@@ -13,6 +13,7 @@ export function ResultsSummary({
   onRetakeSame,
   onRetakeWrong,
   onRetakeNew,
+  newLabel = "New quiz",
   onEndTest,
 }: {
   answers: AnswerRecord[];
@@ -24,6 +25,9 @@ export function ResultsSummary({
   onRetakeWrong: () => void;
   // Build a fresh quiz from the deck.
   onRetakeNew: () => void;
+  // What the primary action is called. The practice test reuses this whole screen, and
+  // "New quiz" is the wrong noun there.
+  newLabel?: string;
   // End the test and return to the deck's flashcard list.
   onEndTest: () => void;
 }) {
@@ -87,7 +91,7 @@ export function ResultsSummary({
           Retake
         </button>
         <button onClick={onRetakeNew} className={buttonClasses({ variant: "primary", className: "grow basis-32" })}>
-          New quiz
+          {newLabel}
         </button>
       </div>
 

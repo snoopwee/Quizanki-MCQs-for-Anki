@@ -1,0 +1,164 @@
+name: Backup database
+
+# A nightly pg_dump of the production database, encrypted, kept as a workflow artifact.
+#
+# WHY THIS EXISTS
+# ---------------
+# There were no backups at all. Supabase's free plan has no point-in-time recovery, dev and
+# production share ONE database, and a local backend run applies Flyway straight to production —
+# V41 reached prod that way on 2026-10-05, before the code using it was deployed. Roughly 18,700
+# live notes depend on nobody making a mistake. This is the cheapest thing that changes that.
+#
+# ⚠ THE DUMP IS ENCRYPTED BECAUSE THIS REPOSITORY IS PUBLIC
+# ---------------------------------------------------------
+# Artifacts of a public repository can be downloaded by ANYONE who can see the Actions tab. An
+# unencrypted dump here would publish every user's email address and every private deck. So the
+# dump is encrypted with GPG (AES-256, symmetric) BEFORE it is uploaded, and the plaintext never
+# leaves the runner. The passphrase lives in a repository secret.
+#
+# If this repository is ever made private, the encryption is still worth keeping — but note the
+# Actions-minutes maths changes (see warm-backend.yml, which is the expensive one).
+#
+# SECRETS THIS NEEDS (Settings → Secrets and variables → Actions)
+# ---------------------------------------------------------------
+#   SUPABASE_DB_URL     The SESSION pooler connection string, e.g.
+#                       postgresql://postgres.<project-ref>:<password>@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres
+#                       ⚠ Port 5432 (session mode), NOT 6543 (transaction mode) — pg_dump needs
+#                         session features the transaction pooler does not provide.
+#                       ⚠ The pooler, NOT db.<ref>.supabase.co — the direct host is IPv6-only on
+#                         the free plan and GitHub runners are IPv4, so it simply times out.
+#                       ⚠ Username is `postgres.<project-ref>`, not `postgres`.
+#   BACKUP_PASSPHRASE   A long random string. WRITE IT DOWN SOMEWHERE THAT IS NOT THIS REPO AND
+#                       NOT THIS DATABASE — a passphrase stored only in the thing you are backing
+#                       up protects nothing.
+#
+# WHAT IS AND IS NOT IN THE DUMP
+# ------------------------------
+# IN:     the `public` schema — every table Flyway manages, which is all of the app's data
+#         (decks, notes, folders, ratings, follows, study history, profiles).
+# NOT IN: Supabase's own `auth` schema (the user accounts themselves). It is owned by
+#         supabase_auth_admin and is not readable by the app's role, so it cannot be dumped from
+#         here. Losing it would mean users have to sign up again while their DECKS survive, since
+#         rows key off the auth UUID. Supabase manages that schema; if that risk ever needs
+#         closing, it needs their Admin API or a paid plan, not this file.
+#
+# HOW TO RESTORE
+# --------------
+#   1. Download the artifact from the workflow run, unzip it.
+#   2. gpg --decrypt --batch --passphrase "<BACKUP_PASSPHRASE>" \
+#        quizanki-public-YYYY-MM-DD.dump.gpg > restore.dump
+#   3. Inspect before you touch anything:   pg_restore --list restore.dump
+#   4. Restore into a SCRATCH database first and look at it. Never practise on production.
+#        pg_restore --no-owner --no-privileges -d "<scratch-connection-string>" restore.dump
+#
+# ⚠ A backup nobody has ever restored is a hope, not a backup. Do step 4 once, on purpose, soon.
+
+on:
+  schedule:
+    # 19:00 UTC = 02:00 ICT — after the day's activity, before the morning.
+    - cron: "0 19 * * *"
+  workflow_dispatch: {}
+
+# Never let two dumps overlap; the newer one is the one worth having.
+concurrency:
+  group: backup-database
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    # A dump of this size takes well under a minute; the cap is here so a hung connection cannot
+    # sit burning Actions minutes until the 6-hour default.
+    timeout-minutes: 15
+
+    steps:
+      - name: Fail early if the secrets are missing
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          # Without this the run fails later with a confusing libpq error instead of saying what
+          # is actually wrong.
+          missing=0
+          [ -n "$DB_URL" ]     || { echo "::error::SUPABASE_DB_URL is not set"; missing=1; }
+          [ -n "$PASSPHRASE" ] || { echo "::error::BACKUP_PASSPHRASE is not set"; missing=1; }
+          [ "$missing" -eq 0 ] || exit 1
+
+      - name: Install PostgreSQL 17 client
+        run: |
+          # The database is PostgreSQL 17. Ubuntu runners ship an older client, and pg_dump
+          # REFUSES to dump a server newer than itself ("server version mismatch"), so the
+          # version here is not cosmetic.
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq curl ca-certificates gnupg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
+          echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      - name: Dump, verify, encrypt
+        env:
+          # Passed as env, never on the command line — anything in `run:` is visible in the log,
+          # and a connection string is a password.
+          PGCONNECT_TIMEOUT: "30"
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          STAMP="$(date -u +%Y-%m-%d)"
+          NAME="quizanki-public-${STAMP}.dump"
+
+          # -Fc  custom format: compressed, and pg_restore can list/filter it before restoring.
+          # --no-owner / --no-privileges: Supabase's roles do not exist in a scratch database, and
+          #   without these a restore drowns in "role does not exist" errors.
+          # -n public: see the header — the auth schema is not ours to read.
+          pg_dump "$DB_URL" \
+            --format=custom \
+            --no-owner \
+            --no-privileges \
+            --schema=public \
+            --file="$NAME"
+
+          # A file that exists is not a backup. Prove it is a readable archive with tables in it,
+          # here, while the run can still fail loudly — not in six months during an incident.
+          TABLES="$(pg_restore --list "$NAME" | grep -c 'TABLE DATA' || true)"
+          echo "archive lists $TABLES tables with data"
+          if [ "$TABLES" -lt 1 ]; then
+            echo "::error::The dump contains no table data — refusing to upload a useless backup."
+            exit 1
+          fi
+          echo "BYTES=$(stat -c%s "$NAME")" >> "$GITHUB_ENV"
+
+          # Encrypt before upload. --batch with --passphrase needs the loopback pinentry mode.
+          gpg --batch --yes --symmetric --cipher-algo AES256 \
+              --pinentry-mode loopback --passphrase "$PASSPHRASE" \
+              --output "${NAME}.gpg" "$NAME"
+
+          # Shred the plaintext so a later step or a cached workspace cannot pick it up.
+          shred -u "$NAME"
+          echo "ARTIFACT=${NAME}.gpg" >> "$GITHUB_ENV"
+          echo "STAMP=${STAMP}" >> "$GITHUB_ENV"
+
+      - name: Upload encrypted dump
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ env.STAMP }}
+          path: ${{ env.ARTIFACT }}
+          # The longest GitHub allows. Past that the artifact is deleted automatically, which is
+          # also the retention policy — there is nowhere else this is kept.
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Summary
+        run: |
+          {
+            echo "### Database backup"
+            echo
+            echo "- Archive: \`${ARTIFACT}\`"
+            echo "- Uncompressed dump: ${BYTES} bytes"
+            echo "- Encrypted with AES-256; decrypt with the \`BACKUP_PASSPHRASE\` secret."
+            echo "- Kept for 90 days, then deleted by GitHub. There is no other copy."
+          } >> "$GITHUB_STEP_SUMMARY"

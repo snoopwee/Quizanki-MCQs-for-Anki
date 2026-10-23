@@ -5,6 +5,7 @@ import { Icon } from "@/components/ui/icons";
 import { buttonClasses } from "@/components/ui/Button";
 import { CardPreviewRow } from "@/components/deck/CardPreview";
 import { RichText } from "@/components/shared/RichText";
+import { ExplainCard } from "@/components/quiz/ExplainCard";
 
 export function ResultsSummary({
   answers,
@@ -111,13 +112,21 @@ export function ResultsSummary({
               // the display. Skipped when correct (you'd be reading your own right answer twice)
               // and when nothing was picked, which a timed-out or skipped question leaves empty.
               footer={
-                !a.wasCorrect && a.selected ? (
-                  <p className="border-t border-line pt-2 text-xs text-muted">
-                    You answered{" "}
-                    <span className="font-medium text-danger">
-                      <RichText text={a.selected} />
-                    </span>
-                  </p>
+                !a.wasCorrect ? (
+                  <div className="border-t border-line pt-2">
+                    {a.selected && (
+                      <p className="text-xs text-muted">
+                        You answered{" "}
+                        <span className="font-medium text-danger">
+                          <RichText text={a.selected} />
+                        </span>
+                      </p>
+                    )}
+                    {/* Only on cards they got WRONG — the reason is worth most at the moment of
+                        the mistake, and asking about a card they already knew spends a shared
+                        generation on nothing. */}
+                    <ExplainCard question={a.question} answer={a.correct} />
+                  </div>
                 ) : null
               }
               action={

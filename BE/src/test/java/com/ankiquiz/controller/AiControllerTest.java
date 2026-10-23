@@ -8,6 +8,7 @@ import com.ankiquiz.exception.AiUnavailableException;
 import com.ankiquiz.exception.GlobalExceptionHandler;
 import com.ankiquiz.exception.RateLimitExceededException;
 import com.ankiquiz.service.ai.AiDeckDraftService;
+import com.ankiquiz.service.ai.CardExplanationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,6 +50,9 @@ class AiControllerTest {
 
     @MockBean
     private AiDeckDraftService draftService;
+
+    @MockBean
+    private CardExplanationService explanationService;
 
     @MockBean
     private JwtDecoder jwtDecoder;
@@ -208,5 +212,61 @@ class AiControllerTest {
                 .andExpect(status().isUnauthorized());
 
         verify(draftService, never()).fromText(any(), any(), any());
+    }
+
+    // ── POST /ai/explain ─────────────────────────────────────────────────────────────────────
+
+    private static String explainBody(String question, String answer) {
+        return "{\"question\":\"" + question + "\",\"answer\":\"" + answer + "\"}";
+    }
+
+    @Test
+    void explainsACardAndSaysWhetherItCameFromTheCache() throws Exception {
+        when(explanationService.explain(any(), any(), any(), any()))
+                .thenReturn(new CardExplanationService.Explanation("It makes ATP.", true));
+
+        mockMvc.perform(post("/api/v1/ai/explain")
+                        .with(jwt().jwt(j -> j.subject("user-1")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(explainBody("Mitochondrion", "Produces ATP")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.explanation").value("It makes ATP."))
+                .andExpect(jsonPath("$.cached").value(true));
+    }
+
+    @Test
+    void explainingIsForSignedInUsersOnly() throws Exception {
+        // csrf() only so CSRF doesn't answer 403 first — same reason as the draft test above.
+        // What is asserted is the 401.
+        mockMvc.perform(post("/api/v1/ai/explain")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(explainBody("Q", "A")))
+                .andExpect(status().isUnauthorized());
+
+        verify(explanationService, never()).explain(any(), any(), any(), any());
+    }
+
+    @Test
+    void anEmptyCardIsRejectedBeforeTheServiceCanSpendAnything() throws Exception {
+        mockMvc.perform(post("/api/v1/ai/explain")
+                        .with(jwt().jwt(j -> j.subject("user-1")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(explainBody("", "A")))
+                .andExpect(status().isBadRequest());
+
+        verify(explanationService, never()).explain(any(), any(), any(), any());
+    }
+
+    @Test
+    void aSpentQuotaOnExplainIs429_notA500() throws Exception {
+        when(explanationService.explain(any(), any(), any(), any()))
+                .thenThrow(new RateLimitExceededException("No generations left today."));
+
+        mockMvc.perform(post("/api/v1/ai/explain")
+                        .with(jwt().jwt(j -> j.subject("user-1")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(explainBody("Q", "A")))
+                .andExpect(status().isTooManyRequests());
     }
 }

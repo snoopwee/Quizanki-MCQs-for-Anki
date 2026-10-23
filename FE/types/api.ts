@@ -672,3 +672,9 @@ export interface McqExportReport {
   mediaFiles: number;
   mediaSkipped: number;
 }
+
+/** One card's explanation. `cached` is true when it was served without a provider call. */
+export interface ExplainCardResponse {
+  explanation: string;
+  cached: boolean;
+}

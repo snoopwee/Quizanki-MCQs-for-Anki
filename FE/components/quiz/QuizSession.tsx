@@ -9,6 +9,7 @@ import { useWrittenAnswer } from "@/hooks/useWrittenAnswer";
 import { cancelSpeech } from "@/lib/tts";
 import { reshuffleQuestions } from "@/lib/buildQuestions";
 import { isAnswerCorrect, trueFalseLabel, writtenIsCorrect } from "@/lib/questionAnswer";
+import { quizKeyAction, quizKeyHint } from "@/lib/quizKeys";
 import { applyAnswer } from "@/lib/mastery";
 import { QuestionCard } from "./QuestionCard";
 import { QuestionBody } from "./questions/QuestionBody";
@@ -33,6 +34,8 @@ export function QuizSession({
   onEndTest,
   onOpenSettings,
   onFinish,
+  replayLocked = false,
+  onReplayLocked,
   getStats,
   getStarred,
   onToggleStar,
@@ -49,6 +52,12 @@ export function QuizSession({
   // Fired once when the quiz reaches the results screen. Used by the guest trial
   // to prompt sign-up; fires again after a retake completes.
   onFinish?: () => void;
+  // The guest demo gives one run per deck, so the results screen's replay buttons must not
+  // silently start a second one. Locked, they call `onReplayLocked` (a sign-up prompt) instead
+  // of restarting — the buttons stay visible because they are the clearest statement of what an
+  // account is for.
+  replayLocked?: boolean;
+  onReplayLocked?: () => void;
   // Per-card mastery lookup used to compute the post-answer mastery shown on
   // the results screen. Optional so callers without a lookup (e.g. mid-rebuild)
   // still get a working quiz — answers default to mastery 0.
@@ -95,12 +104,38 @@ export function QuizSession({
     }
   }, [finished, onFinish]);
 
+  // Keyboard answering. The listener is registered ONCE and delegates through a ref, because this
+  // sits above the `finished` early return — a hook cannot be called conditionally, and the real
+  // handler needs `question` and `answered`, which are only known below it. Same pattern the
+  // flashcard player uses to keep its arrow keys pointed at the latest `go`.
+  const keyHandlerRef = useRef<(e: globalThis.KeyboardEvent) => void>(() => {});
+  useEffect(() => {
+    function onKey(e: globalThis.KeyboardEvent) {
+      keyHandlerRef.current(e);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
   if (finished) {
+    // The results screen has its own buttons; leave its keys alone.
+    keyHandlerRef.current = () => {};
+
     // Same/wrong-only replays run locally (empty sessionId), so they don't append
     // answers to an already-finished backend session. "New test" is a full rebuild
     // delegated to the parent (re-shuffles cards, creates a fresh session).
-    const retakeSame = () => startStoreSession(reshuffleQuestions(questions), "");
+    // One guard for all three replay paths, so a locked demo can't be restarted from any of them.
+    const blocked = () => {
+      if (!replayLocked) return false;
+      onReplayLocked?.();
+      return true;
+    };
+    const retakeSame = () => {
+      if (blocked()) return;
+      startStoreSession(reshuffleQuestions(questions), "");
+    };
     const retakeWrong = () => {
+      if (blocked()) return;
       const wrongIds = new Set(answers.filter((a) => !a.wasCorrect).map((a) => a.noteId));
       startStoreSession(
         reshuffleQuestions(questions.filter((q) => wrongIds.has(q.noteId))),
@@ -115,7 +150,10 @@ export function QuizSession({
         total={questions.length}
         onRetakeSame={retakeSame}
         onRetakeWrong={retakeWrong}
-        onRetakeNew={onRetry}
+        onRetakeNew={() => {
+          if (blocked()) return;
+          onRetry();
+        }}
         onEndTest={onEndTest}
       />
     );
@@ -177,6 +215,30 @@ export function QuizSession({
   }
 
   const answeredCorrect = answered && isAnswerCorrect(question, selectedAnswer, written.result);
+
+  // The live handler the registered listener calls. Reassigned every render so it always closes
+  // over the current question and the current handlers.
+  keyHandlerRef.current = (e) => {
+    // Never steal a key from someone typing, or from a browser shortcut.
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const el = document.activeElement;
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return;
+    if (el instanceof HTMLElement && el.isContentEditable) return;
+
+    const action = quizKeyAction(e.key, {
+      kind: question.kind,
+      optionCount: question.kind === "mcq" ? question.options.length : 2,
+      answered,
+    });
+    if (!action) return;
+    e.preventDefault();
+
+    if (action.type === "advance") handleNext();
+    else if (action.type === "truefalse") handleTrueFalse(action.value);
+    else if (question.kind === "mcq") handleOption(question.options[action.index]!);
+  };
+
+  const keyHint = quizKeyHint({ kind: question.kind, answered });
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-10rem)] w-full max-w-3xl flex-col">
@@ -250,6 +312,12 @@ export function QuizSession({
       <div className="mt-5 flex min-h-[3.25rem] shrink-0 items-center gap-4 border-t border-line pt-4">
         <AnswerFeedback question={question} answered={answered} isCorrect={answeredCorrect} />
         <div className="flex-1" />
+        {/* A shortcut nobody is told about may as well not exist — the deck page's player lists
+            its keys for the same reason. Hidden on narrow screens, where there is no keyboard
+            and the row has no room. */}
+        {keyHint && (
+          <span className="hidden shrink-0 font-mono text-xs text-faint sm:inline">{keyHint}</span>
+        )}
         <button
           type="button"
           onClick={handleNext}

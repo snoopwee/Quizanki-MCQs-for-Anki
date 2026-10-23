@@ -16,6 +16,8 @@ import { useSession } from "@/hooks/useSession";
 import { useQuizStore } from "@/stores/quizStore";
 import { useGuestMastery } from "@/stores/guestMasteryStore";
 import { useGuestStars } from "@/stores/guestStarStore";
+import { useGuestDemo } from "@/stores/guestDemoStore";
+import { buildGuestPresetQuiz, guestDemoKey, type GuestDemoSource } from "@/lib/guestDemo";
 import type { ApkgParseResponse } from "@/types/api";
 import { Icon } from "@/components/ui/icons";
 
@@ -46,6 +48,14 @@ function Landing() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(Boolean(next));
+  // Which tab the auth modal opens on. A "Sign up" button that lands you on the log-in form is
+  // a small betrayal of the click.
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+
+  function openAuth(mode: "login" | "signup") {
+    setAuthMode(mode);
+    setAuthOpen(true);
+  }
   const startSession = useQuizStore((s) => s.startSession);
   // Trial stars DO subscribe (toggling one should re-render the ★ immediately),
   // unlike mastery which is read via getState() so answering a question doesn't
@@ -58,6 +68,9 @@ function Landing() {
   const guestGetStarred = (noteId: string) => guestStars.isStarred(noteId);
   const guestToggleStar = (noteId: string, next: boolean) =>
     guestStars.setStarred(noteId, next);
+  const guestDemo = useGuestDemo();
+  // Subscribed, not read through getState(): spending the run has to re-render the buttons.
+  const guestDemoUsed = useGuestDemo((s) => s.usedByDeck);
 
   // Trial quiz: empty sessionId so QuizSession never records answers.
   function startTrial(parsed: ApkgParseResponse, questions: Question[]) {
@@ -65,6 +78,37 @@ function Landing() {
     const shuffled = reshuffleQuestions(questions);
     startSession(shuffled, "");
     setStep({ kind: "quiz", parsed, questions: shuffled });
+  }
+
+  // ── the guest demo ────────────────────────────────────────────────────────────────────────
+  // One model across the whole site (2026-10-19): a guest gets open flashcards plus ONE preset
+  // quiz per deck, and choosing question types / counts / fields is what an account buys. This
+  // page used to hand guests the full setup screen, which made the landing trial more generous
+  // than a shared deck and gave away the thing the sign-up is for.
+  //
+  // A signed-in user who happens to be here keeps the full setup — they already have the account.
+  function demoSourceFor(parsed: ApkgParseResponse): GuestDemoSource {
+    // An uploaded file has no id, so it is identified by name and size.
+    return { kind: "upload", filename: parsed.filename, noteCount: parsed.totalNotes };
+  }
+
+  function demoSpent(parsed: ApkgParseResponse): boolean {
+    return Object.hasOwn(guestDemoUsed, guestDemoKey(demoSourceFor(parsed)));
+  }
+
+  function startStudy(parsed: ApkgParseResponse) {
+    if (user) {
+      setStep({ kind: "setup", parsed });
+      return;
+    }
+    if (demoSpent(parsed)) {
+      setSaveOpen(true);
+      return;
+    }
+    const questions = buildGuestPresetQuiz(parsed, { getStats: guestGetStats });
+    if (questions.length === 0) return; // nothing askable — the flashcards still work
+    guestDemo.markUsed(demoSourceFor(parsed));
+    startTrial(parsed, questions);
   }
 
   const headerCta = loading ? (
@@ -77,13 +121,31 @@ function Landing() {
       Home →
     </Link>
   ) : (
-    <button
-      type="button"
-      onClick={() => setAuthOpen(true)}
-      className="rounded-full border border-line-strong bg-surface px-4 py-1.5 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent"
-    >
-      Log in
-    </button>
+    // A visitor with no .apkg used to have exactly one link on this page, and it pointed at
+    // AnkiWeb. Discover is ours and needs no file, so it belongs in the header; and "Sign up" is
+    // its own button rather than something to be discovered inside the log-in modal.
+    <div className="flex items-center gap-2">
+      <Link
+        href="/discover"
+        className="hidden rounded-full px-3 py-1.5 text-sm font-semibold text-muted transition hover:text-ink sm:inline-flex"
+      >
+        Browse decks
+      </Link>
+      <button
+        type="button"
+        onClick={() => openAuth("login")}
+        className="rounded-full border border-line-strong bg-surface px-4 py-1.5 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent"
+      >
+        Log in
+      </button>
+      <button
+        type="button"
+        onClick={() => openAuth("signup")}
+        className="rounded-full bg-accent px-4 py-1.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95"
+      >
+        Sign up
+      </button>
+    </div>
   );
 
   const goHome = () => {
@@ -114,9 +176,13 @@ function Landing() {
             className="rise mx-auto mt-6 max-w-md text-base leading-relaxed text-muted"
             style={{ animationDelay: "140ms" }}
           >
-            Upload a <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-sm text-ink">.apkg</code> file
-            and start a multiple-choice quiz in seconds. No account needed — sign up later to save
-            your decks and track progress.
+            {/* This said "No account needed", which was only ever true for a deck you uploaded
+                here — a shared deck was fully locked. Now the offer is the same everywhere, so
+                the copy states it plainly instead of over-promising. */}
+            Drop in a <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-sm text-ink">.apkg</code>{" "}
+            — or open a deck someone shared — and start a multiple-choice quiz in seconds. Every
+            deck gets a free quiz, no account. Sign up for unlimited runs, your own question types,
+            and progress that&apos;s saved.
           </p>
           <ul
             className="rise mt-6 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-muted"
@@ -142,7 +208,7 @@ function Landing() {
               />
             </div>
             <p className="mt-3 text-center text-xs text-faint">
-              Preview it instantly — no sign-up needed.
+              Read every card and take one quiz free — no sign-up.
             </p>
           </div>
         </section>
@@ -160,7 +226,14 @@ function Landing() {
               onToggleStar={guestToggleStar}
               backLabel="Start over"
               onBack={() => setStep({ kind: "import" })}
-              onStartTest={() => setStep({ kind: "setup", parsed: step.parsed })}
+              onStartTest={() => startStudy(step.parsed)}
+              startTestLabel={
+                user
+                  ? undefined // signed in: the setup screen is real, so the default label is true
+                  : demoSpent(step.parsed)
+                    ? "Sign up to quiz again →"
+                    : "Start the free quiz →"
+              }
             />
           )}
 
@@ -177,16 +250,31 @@ function Landing() {
           {step.kind === "quiz" && (
             <>
               <QuizSession
-                onRetry={() => startTrial(step.parsed, step.questions)}
+                onRetry={() => {
+                  if (!user) {
+                    setSaveOpen(true);
+                    return;
+                  }
+                  startTrial(step.parsed, step.questions);
+                }}
                 onExit={() => {
                   setSettingsOpen(false);
-                  setStep({ kind: "setup", parsed: step.parsed });
+                  // A guest has no setup screen to go back to — the cards are the way back.
+                  setStep(
+                    user
+                      ? { kind: "setup", parsed: step.parsed }
+                      : { kind: "flashcards", parsed: step.parsed },
+                  );
                 }}
                 onEndTest={() => {
                   setSettingsOpen(false);
                   setStep({ kind: "flashcards", parsed: step.parsed });
                 }}
-                onOpenSettings={() => setSettingsOpen(true)}
+                // Live settings are the customisation an account buys, so guests don't get the
+                // button at all — offering it and then blocking it would be worse than its absence.
+                onOpenSettings={user ? () => setSettingsOpen(true) : undefined}
+                replayLocked={!user}
+                onReplayLocked={() => setSaveOpen(true)}
                 onFinish={() => !user && setSaveOpen(true)}
                 getStats={guestGetStats}
                 getStarred={guestGetStarred}
@@ -234,7 +322,7 @@ function Landing() {
 
       {authOpen && (
         <AuthModal
-          initialMode="login"
+          initialMode={authMode}
           onClose={() => setAuthOpen(false)}
           onAuthed={() => {
             router.push(next ?? "/home");
@@ -288,6 +376,48 @@ function Shell({
         </div>
       </header>
       <main>{children}</main>
+      <LandingFooter />
     </div>
+  );
+}
+
+// The landing page had no footer at all, so the page simply ended — nothing to go to, nothing
+// about what this is. Deliberately links ONLY to routes that exist: adding "Privacy" or "About"
+// here before those pages are written would just move the dead end rather than close it. (A
+// privacy policy does have to exist before the browser extension can be listed — see the
+// roadmap — and this is where it will go.)
+function LandingFooter() {
+  return (
+    <footer className="mt-20 border-t border-line">
+      <div className="mx-auto flex max-w-5xl flex-col gap-4 px-6 py-10 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-8">
+        <p className="text-muted">
+          <span className="font-display font-semibold text-ink">
+            Quizanki<span className="text-accent">.</span>
+          </span>{" "}
+          — your Anki decks, as multiple-choice quizzes.
+        </p>
+        <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-muted">
+          <Link href="/discover" className="transition hover:text-ink">
+            Browse decks
+          </Link>
+          <a
+            href="https://ankiweb.net/shared/decks"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition hover:text-ink"
+          >
+            AnkiWeb ↗
+          </a>
+          <a
+            href="https://apps.ankiweb.net/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition hover:text-ink"
+          >
+            Get Anki ↗
+          </a>
+        </nav>
+      </div>
+    </footer>
   );
 }

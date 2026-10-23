@@ -14,6 +14,7 @@
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Icon } from "@/components/ui/icons";
+import { initialHighlight, selectedOption } from "@/lib/selectOption";
 import {
   MENU_ITEM,
   MENU_ITEM_ACTIVE,
@@ -67,15 +68,15 @@ export function Select<T extends string | number>({
   const optionId = (i: number) => `${baseId}-opt-${i}`;
   const s = SIZES[size];
 
-  const selectedIndex = Math.max(
-    0,
-    options.findIndex((o) => o.value === value),
-  );
-  const selected = options[selectedIndex];
+  // `undefined` when nothing is chosen — that is what lets the trigger fall through to the
+  // placeholder. Both helpers are pure and tested in lib/selectOption.test.ts; the distinction
+  // between them (display must allow "no match", the menu highlight must not) is the bug that
+  // was here before.
+  const selected = selectedOption(options, value);
 
   function openMenu() {
     if (disabled) return;
-    setHighlight(selectedIndex);
+    setHighlight(initialHighlight(options, value));
     setOpen(true);
   }
 
@@ -183,7 +184,11 @@ export function Select<T extends string | number>({
               </span>
             ))}
           </span>
-          <span className="block truncate">{selected ? selected.label : placeholder}</span>
+          {/* A placeholder is not a value, so it must not read like one — muted type is the
+              difference between "pick something" and "this is your choice". */}
+          <span className={`block truncate ${selected ? "" : "text-faint"}`}>
+            {selected ? selected.label : placeholder}
+          </span>
         </span>
         <Icon
           name="chevronDown"

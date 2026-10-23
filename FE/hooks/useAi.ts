@@ -1,7 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/axios";
 import { browserTimezone } from "@/lib/timezone";
-import type { AiDeckDraftResponse, AiKeyStatusResponse } from "@/types/api";
+import type {
+  AiDeckDraftResponse,
+  AiKeyStatusResponse,
+  ExplainCardResponse,
+} from "@/types/api";
 
 export const AI_KEY_STATUS_KEY = ["ai-key"] as const;
 
@@ -71,6 +75,28 @@ export function useGenerateDeckFromPdf() {
 
       const { data } = await api.post<AiDeckDraftResponse>("/ai/decks/draft/pdf", form, {
         timeout: GENERATION_TIMEOUT_MS,
+      });
+      return data;
+    },
+  });
+}
+
+/**
+ * "Why is this the right answer?" for one card.
+ *
+ * <p>Sends the card's TEXT rather than its note id, because the server caches by
+ * (question, answer) — the same card in a cloned or shared deck then shares one cached
+ * explanation instead of being a fresh miss for every copy.
+ *
+ * <p>A cache hit returns in milliseconds and costs the learner no quota, so this needs none of
+ * the long timeout deck generation does.
+ */
+export function useExplainCard() {
+  return useMutation({
+    mutationFn: async (card: { question: string; answer: string }) => {
+      const { data } = await api.post<ExplainCardResponse>("/ai/explain", {
+        ...card,
+        timezone: browserTimezone(),
       });
       return data;
     },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "@/hooks/useSession";
 import { useDecks } from "@/hooks/useDecks";
@@ -34,6 +34,18 @@ export default function ProfilePage() {
 
   const [photoOpen, setPhotoOpen] = useState(false);
   const [toast, setToast] = useState<{ kind: "success" | "error"; message: string } | null>(null);
+
+  // The host this page is actually being served from. It used to be the literal string
+  // "quizanki.app", a domain we do not own — so the one line telling people where their public
+  // page lives pointed nowhere, and anyone who copied it shared a dead link.
+  //
+  // `siteUrl()` is the wrong tool HERE: it resolves VERCEL_* variables, which exist only on the
+  // server, so this client component would print "localhost:3000" in production. The browser
+  // already knows the answer. Read after mount so the server and first client render agree (no
+  // hydration mismatch); until then show the path alone, which is true at any host. When a custom
+  // domain is bought this starts showing it with no code change.
+  const [publicHost, setPublicHost] = useState("");
+  useEffect(() => setPublicHost(window.location.host), []);
 
   const joined = formatJoined(user?.created_at);
   const verified = Boolean(user?.email_confirmed_at ?? user?.confirmed_at);
@@ -104,7 +116,7 @@ export default function ProfilePage() {
             <span className="block text-sm font-medium text-ink">Your public page</span>
             <span className="block text-xs text-muted">
               {me.data?.username
-                ? `quizanki.app/user/${me.data.username}`
+                ? `${publicHost}/user/${me.data.username}`
                 : "Your decks as other people see them, plus your followers and who you follow."}
             </span>
           </span>

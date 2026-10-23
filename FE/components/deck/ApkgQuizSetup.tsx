@@ -26,7 +26,7 @@ import { ConfidenceBadge } from "@/components/shared/ConfidenceBadge";
 import { FieldSelect } from "@/components/deck/FieldSelect";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/icons";
-import { QuestionTypeChips } from "@/components/quiz/QuestionTypeChips";
+import { KIND_META, QuestionTypeChips } from "@/components/quiz/QuestionTypeChips";
 import { buttonClasses } from "@/components/ui/Button";
 import { Segmented, SoonTag } from "@/components/ui/controls";
 import type { ApkgNoteType, ApkgParseResponse } from "@/types/api";
@@ -282,8 +282,12 @@ export function ApkgQuizSetup({
       <div className="mt-2 flex items-center gap-3 rounded-card border border-line-strong bg-surface p-4 shadow-card">
         <div className="min-w-0">
           <div className="font-mono text-[0.6875rem] uppercase tracking-wide text-faint">Ready</div>
+          {/* Was "· untimed", which advertised a timer this app has never had — a setting the
+              reader then goes looking for. The formats they just picked are the useful
+              confirmation, and they change as the toggles above change. */}
           <div className="mt-0.5 truncate text-sm font-bold text-ink">
-            {effCount} question{effCount === 1 ? "" : "s"} · untimed
+            {effCount} question{effCount === 1 ? "" : "s"} ·{" "}
+            {enabledKinds.length > 1 ? "mixed formats" : KIND_META[enabledKinds[0]!].label}
           </div>
         </div>
         <div className="flex-1" />
@@ -355,17 +359,15 @@ function BasicTypeSection({
 
   return (
     <div className="space-y-4 rounded-card border border-line bg-surface p-4">
-      {showName && (
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium">{noteType.name}</h3>
-          {!hasTemplate && <ConfidenceBadge confidence={detection.confidence} />}
-        </div>
-      )}
-      {!showName && !hasTemplate && (
-        <div className="flex justify-end">
-          <ConfidenceBadge confidence={detection.confidence} />
-        </div>
-      )}
+      {/* Always a heading. With several note types the NAME is what distinguishes the sections;
+          with one it was previously headless — the only section on this screen that opened with a
+          grey hint instead of a title, which read as part of the section above it. */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium">
+          {showName ? noteType.name : "Question and answer fields"}
+        </h3>
+        {!hasTemplate && <ConfidenceBadge confidence={detection.confidence} />}
+      </div>
 
       {hasTemplate ? (
         <p className="text-xs text-muted">

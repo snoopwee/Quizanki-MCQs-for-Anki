@@ -41,6 +41,9 @@ export function TrueFalseChoice({
           if (showCorrect) cls += "border-success bg-success/10 text-ink";
           else if (showWrong) cls += "border-danger bg-danger/10 text-ink";
           else if (answered) cls += "border-line text-faint";
+          // Chosen but not graded — the Practice Test state, matching OptionButton. Accent, not
+          // green: it says "this is your answer", never "this answer is right".
+          else if (isPicked) cls += "border-accent bg-accent-soft text-ink";
           else cls += "border-line-strong bg-surface text-ink hover:border-accent hover:bg-accent-soft";
           return (
             <button key={label} type="button" disabled={answered} onClick={() => onPick(val)} className={cls}>

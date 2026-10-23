@@ -71,6 +71,7 @@ export function CardPreviewRow({
   backAudioUrl = null,
   stats,
   action,
+  footer = null,
   hiddenSide = null,
 }: {
   front: string[];
@@ -84,6 +85,10 @@ export function CardPreviewRow({
   backAudioUrl?: string | null;
   stats?: { mastery?: number; timesSeen?: number };
   action?: ReactNode;
+  // Optional line under the two faces. The quiz's results list uses it to say what the learner
+  // actually answered — which belongs below the card, not in the `action` pill beside the badge,
+  // because it is a sentence rather than a status.
+  footer?: ReactNode;
   hiddenSide?: "front" | "back" | null;
 }) {
   const info = stats ? classifyMastery(stats) : null;
@@ -121,6 +126,7 @@ export function CardPreviewRow({
           {hideBack && <Cover onReveal={() => setRevealed(true)} />}
         </div>
       </div>
+      {footer}
     </li>
   );
 }

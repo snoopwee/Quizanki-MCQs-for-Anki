@@ -32,14 +32,21 @@ export function formatAverage(average: number): string {
 }
 
 /**
- * "4.2 (17)" — the score and how many gave it, including "0.0 (0)".
+ * "4.2 (17)" — the score and how many gave it. Unrated reads "Not rated yet", not "0.0 (0)".
  *
  * No "stars" in the string: it sits beside five star glyphs that already say so, and the word was
  * long enough to push the whole score onto a second line on a narrow deck card.
+ *
+ * <p><b>Why not "0.0 (0)".</b> Keeping a row for an unrated deck is right — its absence explains
+ * nothing. But a NUMBER there is read as a score, and 0.0 out of 5 beside five hollow stars reads
+ * as "everyone hated this", which is the opposite of the truth. Every deck on Discover showed it.
+ * {@link ratingLabel} already told screen readers "Not rated yet"; this just makes the visible
+ * text agree with what the accessible text has always said.
  */
 export function ratingSummary(average: number, count: number): string {
   const rated = Number.isFinite(count) && count > 0;
-  return `${formatAverage(rated ? average : 0)} (${rated ? Math.floor(count) : 0})`;
+  if (!rated) return "Not rated yet";
+  return `${formatAverage(average)} (${Math.floor(count)})`;
 }
 
 /** "Not rated yet" / "1 rating" / "12 ratings". */

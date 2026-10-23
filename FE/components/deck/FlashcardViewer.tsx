@@ -69,6 +69,7 @@ export function FlashcardViewer({
   getStats,
   onBack,
   onStartTest,
+  startTestLabel = "Set up a quiz →",
   onSave,
   backLabel = "Import another",
   hideActions = false,
@@ -90,9 +91,12 @@ export function FlashcardViewer({
   // scan progress at a glance.
   getStats?: StatsLookup;
   onBack: () => void;
-  // Optional: when absent, the bottom row drops the "Set up a quiz" button.
+  // Optional: when absent, the bottom row drops the start-a-quiz button.
   // Used by the auth /import flow, which keeps quiz launches on the dashboard.
   onStartTest?: () => void;
+  // What that button says. The guest demo goes STRAIGHT into a preset quiz with no setup screen,
+  // so the default "Set up a quiz" would promise a screen it never shows.
+  startTestLabel?: string;
   onSave?: () => void;
   backLabel?: string;
   // When true, suppress the bottom Back/Save/Start-quiz row — the surrounding
@@ -1083,7 +1087,7 @@ export function FlashcardViewer({
               onClick={onStartTest}
               className="focus-ring ml-auto rounded-input bg-accent px-4 py-2 text-sm font-semibold text-white shadow-btn transition hover:opacity-95"
             >
-              Set up a quiz →
+              {startTestLabel}
             </button>
           )}
         </div>

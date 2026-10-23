@@ -1,10 +1,13 @@
 package com.ankiquiz.controller;
 
 import com.ankiquiz.dto.request.AiDraftRequest;
+import com.ankiquiz.dto.request.ExplainCardRequest;
 import com.ankiquiz.dto.response.AiDeckDraftResponse;
+import com.ankiquiz.dto.response.ExplainCardResponse;
 import com.ankiquiz.exception.AiInputException;
 import com.ankiquiz.service.ClientZone;
 import com.ankiquiz.service.ai.AiDeckDraftService;
+import com.ankiquiz.service.ai.CardExplanationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
@@ -35,14 +38,35 @@ import java.util.Locale;
 public class AiController {
 
     private final AiDeckDraftService draftService;
+    private final CardExplanationService explanationService;
     private final long maxPdfBytes;
 
     public AiController(
             AiDeckDraftService draftService,
+            CardExplanationService explanationService,
             @Value("${ai.request.max-pdf-bytes:20971520}") long maxPdfBytes
     ) {
         this.draftService = draftService;
+        this.explanationService = explanationService;
         this.maxPdfBytes = maxPdfBytes;
+    }
+
+    @PostMapping("/explain")
+    @Operation(summary = "Explain why a card's answer is correct",
+            description = "Two or three sentences for a learner who just missed the card. Cached per "
+                    + "(question, answer) in object storage, so a card is explained once ever and every "
+                    + "later request is free — a CACHE HIT SPENDS NO QUOTA and makes no provider call. "
+                    + "503 when AI is off or the provider fails, 429 when the daily quota is spent.")
+    public ExplainCardResponse explain(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody ExplainCardRequest request
+    ) {
+        CardExplanationService.Explanation result = explanationService.explain(
+                jwt.getSubject(),
+                ClientZone.parse(request.timezone()),
+                request.question(),
+                request.answer());
+        return new ExplainCardResponse(result.text(), result.cached());
     }
 
     @PostMapping("/decks/draft")

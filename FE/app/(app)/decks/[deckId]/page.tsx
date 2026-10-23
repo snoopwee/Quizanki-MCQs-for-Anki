@@ -162,6 +162,9 @@ function DeckDetail() {
   function goToMatch() {
     router.push(`/decks/${deckId}/match`);
   }
+  function goToPractice() {
+    router.push(`/decks/${deckId}/practice`);
+  }
   function goToLearn() {
     router.push(`/decks/${deckId}/learn`);
   }
@@ -337,10 +340,17 @@ function DeckDetail() {
                   <Icon name="layers" size={15} />
                   {cardCount} card{cardCount === 1 ? "" : "s"}
                 </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <Icon name="cards" size={15} />
-                  {noteTypeCount} note type{noteTypeCount === 1 ? "" : "s"}
-                </span>
+                {/* Only shown when the deck MIXES types. "1 note type" is true of almost every
+                    deck, so it informed nobody and spent a slot in the header. */}
+                {noteTypeCount > 1 && (
+                  <span
+                    className="inline-flex items-center gap-1.5"
+                    title="This deck mixes Anki note types (e.g. Basic and Cloze)"
+                  >
+                    <Icon name="cards" size={15} />
+                    {noteTypeCount} card types
+                  </span>
+                )}
                 {/* Real "N copies" now that clone provenance is tracked — this
                     replaced the old placeholder "Learners · Soon" chip. */}
                 {copies > 0 && (
@@ -394,6 +404,13 @@ function DeckDetail() {
                 label="Quiz me — Multiple choice"
                 desc="Quizanki's signature MCQ exam with smart distractors"
                 onClick={goToSetup}
+              />
+              <StudyMode
+                icon="clipboard"
+                color="var(--info)"
+                label="Practice test"
+                desc="Answer the whole paper, then get a score"
+                onClick={goToPractice}
               />
               <StudyMode
                 icon="brain"

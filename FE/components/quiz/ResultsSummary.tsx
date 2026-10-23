@@ -4,6 +4,8 @@ import { Ring } from "@/components/ui/Ring";
 import { Icon } from "@/components/ui/icons";
 import { buttonClasses } from "@/components/ui/Button";
 import { CardPreviewRow } from "@/components/deck/CardPreview";
+import { RichText } from "@/components/shared/RichText";
+import { ExplainCard } from "@/components/quiz/ExplainCard";
 
 export function ResultsSummary({
   answers,
@@ -12,6 +14,7 @@ export function ResultsSummary({
   onRetakeSame,
   onRetakeWrong,
   onRetakeNew,
+  newLabel = "New quiz",
   onEndTest,
 }: {
   answers: AnswerRecord[];
@@ -23,6 +26,9 @@ export function ResultsSummary({
   onRetakeWrong: () => void;
   // Build a fresh quiz from the deck.
   onRetakeNew: () => void;
+  // What the primary action is called. The practice test reuses this whole screen, and
+  // "New quiz" is the wrong noun there.
+  newLabel?: string;
   // End the test and return to the deck's flashcard list.
   onEndTest: () => void;
 }) {
@@ -86,7 +92,7 @@ export function ResultsSummary({
           Retake
         </button>
         <button onClick={onRetakeNew} className={buttonClasses({ variant: "primary", className: "grow basis-32" })}>
-          New quiz
+          {newLabel}
         </button>
       </div>
 
@@ -101,6 +107,28 @@ export function ResultsSummary({
               front={a.prompt.map((seg) => seg.value)}
               back={[a.correct]}
               stats={{ mastery: a.newMastery, timesSeen: 1 }}
+              // On a missed card the right answer alone doesn't teach anything — you can't see
+              // what you got wrong. `selected` has always been recorded "for display"; this is
+              // the display. Skipped when correct (you'd be reading your own right answer twice)
+              // and when nothing was picked, which a timed-out or skipped question leaves empty.
+              footer={
+                !a.wasCorrect ? (
+                  <div className="border-t border-line pt-2">
+                    {a.selected && (
+                      <p className="text-xs text-muted">
+                        You answered{" "}
+                        <span className="font-medium text-danger">
+                          <RichText text={a.selected} />
+                        </span>
+                      </p>
+                    )}
+                    {/* Only on cards they got WRONG — the reason is worth most at the moment of
+                        the mistake, and asking about a card they already knew spends a shared
+                        generation on nothing. */}
+                    <ExplainCard question={a.question} answer={a.correct} />
+                  </div>
+                ) : null
+              }
               action={
                 <span
                   className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${

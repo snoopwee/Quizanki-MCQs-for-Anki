@@ -164,7 +164,7 @@ function DiscoverContent() {
                   <div className="space-y-2 p-5">
                     <p
                       title={deck.name}
-                      className="truncate font-display text-base font-semibold text-ink"
+                      className="line-clamp-2 break-words font-display text-base font-semibold text-ink"
                     >
                       {deck.name}
                     </p>

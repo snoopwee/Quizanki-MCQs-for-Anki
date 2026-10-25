@@ -10,7 +10,20 @@ type CookieToSet = { name: string; value: string; options: CookieOptions };
 // the whole point); they host the auth modal themselves for the "save a copy"
 // step.
 // "/user" is the profile page people actually link to; "/authors" is its permanent id alias.
-const PUBLIC_PATHS = ["/", "/try", "/auth/callback", "/shared", "/discover", "/authors", "/user"];
+// "/auth/reset" is public ON PURPOSE even though it needs a session to do anything: the one case
+// worth explaining is a link that has EXPIRED or was already used, and that case has no session.
+// Guarding it here would bounce exactly those people to the landing page's login modal, which
+// tells them nothing about why. The page reads the session itself and says which it is.
+const PUBLIC_PATHS = [
+  "/",
+  "/try",
+  "/auth/callback",
+  "/auth/reset",
+  "/shared",
+  "/discover",
+  "/authors",
+  "/user",
+];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });

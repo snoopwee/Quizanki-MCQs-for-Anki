@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { useTextSize } from "@/hooks/useTextSize";
 import { createClient } from "@/lib/supabase/client";
+import { MIN_PASSWORD, validateNewPassword } from "@/lib/passwordReset";
 import { AccountSection, accountInputClasses } from "@/components/account/AccountSection";
 import { AiKeySection } from "@/components/settings/AiKeySection";
 import { NotificationSettingsSection } from "@/components/settings/NotificationSettingsSection";
@@ -20,7 +21,6 @@ import {
   TEXT_SIZE_STEP,
 } from "@/lib/textSize";
 
-const MIN_PASSWORD = 8;
 
 export default function SettingsPage() {
   const { pref, resolved, setPref } = useTheme();
@@ -35,12 +35,10 @@ export default function SettingsPage() {
   async function changePassword(e: FormEvent) {
     e.preventDefault();
     setPwError(null);
-    if (pw.length < MIN_PASSWORD) {
-      setPwError(`Password must be at least ${MIN_PASSWORD} characters.`);
-      return;
-    }
-    if (pw !== confirm) {
-      setPwError("The two passwords don't match.");
+    // Shared with the reset page, so the two places that set a password cannot drift apart.
+    const problem = validateNewPassword(pw, confirm);
+    if (problem) {
+      setPwError(problem);
       return;
     }
     setSavingPw(true);

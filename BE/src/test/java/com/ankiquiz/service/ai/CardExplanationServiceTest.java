@@ -165,4 +165,44 @@ class CardExplanationServiceTest {
         // 50 chars of question + the labels and the answer — nowhere near the 5,000 sent in.
         assertThat(prompt.getValue().userText().length()).isLessThan(200);
     }
+
+    @Test
+    void aLedgerFailureDoesNotDestroyAnAnswerTheLearnerALREADYPaidFor() {
+        // The production bug, 2026-10-23: ai_generations.source_kind had a CHECK constraint from
+        // V25 permitting only 'text' and 'pdf', so recording an 'explain' row threw — AFTER the
+        // model had answered. The learner spent a generation and got a 500 with nothing cached.
+        // V42 widens the constraint; this asserts the ordering that makes the class of failure
+        // harmless regardless.
+        when(provider.complete(any(), anyString())).thenReturn(new AiCompletion("Because ATP.", 1, 2));
+        org.mockito.Mockito.doThrow(new org.springframework.dao.DataIntegrityViolationException("check constraint"))
+                .when(usage).record(anyString(), anyString(), anyString(), anyString(), anyString(),
+                        anyInt(), anyInt(), anyString(), any());
+
+        CardExplanationService.Explanation result = service.explain(USER, ZONE, Q, A);
+
+        assertThat(result.text()).isEqualTo("Because ATP.");
+        // And it still reached the cache, so the next learner pays nothing.
+        verify(cache).put("ab/abc.txt", "Because ATP.");
+    }
+
+    @Test
+    void theAnswerIsCachedBEFORETheLedgerIsWritten() {
+        // Ordering is the point: the generation is already spent by now, so making it reusable
+        // must not sit behind bookkeeping that might fail.
+        when(provider.complete(any(), anyString())).thenReturn(new AiCompletion("Prose.", 1, 2));
+
+        service.explain(USER, ZONE, Q, A);
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(cache, usage);
+        order.verify(cache).put(anyString(), anyString());
+        order.verify(usage).record(anyString(), anyString(), anyString(), anyString(), anyString(),
+                anyInt(), anyInt(), anyString(), any());
+    }
+
+    @Test
+    void logsExplanationsUnderASourceKindTheDatabaseAccepts() {
+        // Guards the V25/V42 constraint from the Java side: ai_generations_source_kind_check
+        // permits exactly these. A new value here needs a migration, not just a constant.
+        assertThat(CardExplanationService.SOURCE_KIND).isIn("text", "pdf", "explain");
+    }
 }

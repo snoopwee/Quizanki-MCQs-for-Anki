@@ -110,6 +110,17 @@ public class CardExplanationService {
             if (text.isEmpty()) {
                 throw new AiUnavailableException("The model returned an empty explanation.");
             }
+            // A cut-off answer is NOT an answer, and must never reach the cache — a cache entry is
+            // forever, so half a sentence written once is half a sentence served to everybody who
+            // ever meets that card. Found in production 2026-10-26: every explanation came back
+            // truncated at 37-50 characters because a thinking model spends maxOutputTokens on
+            // reasoning before writing, and nothing noticed because the text was not blank.
+            if (completion.truncated()) {
+                log.warn("Explanation truncated (finishReason={}, {} chars) — not cached",
+                        completion.finishReason(), text.length());
+                throw new AiUnavailableException(
+                        "The explanation was cut off. Try again, or report it if it keeps happening.");
+            }
             // Cache BEFORE bookkeeping. The generation has already been spent; writing it where
             // the next learner can find it is the thing that makes that spend worth something.
             cache.put(path, text);

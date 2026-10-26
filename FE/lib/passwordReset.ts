@@ -47,6 +47,15 @@ export function validateNewPassword(password: string, confirm: string): string |
  * <p>Built from the live {@code origin} rather than a constant, so it is correct on the custom
  * domain, on a Vercel preview and on localhost without a build-time flag. The origin must be in
  * Supabase's redirect allow-list or the link silently falls back to the project's Site URL.
+ *
+ * <p><b>This only governs the two link shapes Supabase produces on its own.</b> The third and best
+ * shape — {@code ?token_hash=}, the only one that works on a different device — has to be asked
+ * for in the <i>email template</i> (Supabase → Authentication → Emails → Reset Password):
+ *
+ * <pre>{@code <a href="{{ .SiteURL }}/auth/reset?token_hash={{ .TokenHash }}&type=recovery">}</pre>
+ *
+ * <p>Until that template says so, recovery emails carry {@code ?code=} and a reset requested on
+ * one device cannot be completed on another. The page handles all three either way.
  */
 export function passwordResetRedirect(origin: string): string {
   const base = origin.replace(/\/+$/, "");
@@ -73,6 +82,7 @@ export type RecoveryProblem = "expired" | "wrong-browser" | "missing";
  * and a malformed link — neither can produce a session, and neither is worth separate copy.
  */
 export type RecoveryLink =
+  | { kind: "hash"; tokenHash: string }
   | { kind: "code"; code: string }
   | { kind: "tokens"; accessToken: string; refreshToken: string }
   | { kind: "error"; reason: RecoveryProblem }
@@ -96,6 +106,13 @@ export function readRecoveryLink(search: string, hash: string): RecoveryLink {
     // "otp_expired", and "access_denied" for a link that was already spent.
     return { kind: "error", reason: /expired/i.test(errorCode) ? "expired" : "missing" };
   }
+
+  // Checked FIRST, because it is the only shape that survives being opened somewhere else.
+  // `token_hash` is verified server-side against the account, with no PKCE verifier and no prior
+  // browser state — proven 2026-10-26 with a bare POST carrying only the publishable key, which
+  // returned a full session. A `?code=` cannot do that; see RECOVERY_PROBLEMS["wrong-browser"].
+  const tokenHash = pick("token_hash");
+  if (tokenHash) return { kind: "hash", tokenHash };
 
   const code = pick("code");
   if (code) return { kind: "code", code };

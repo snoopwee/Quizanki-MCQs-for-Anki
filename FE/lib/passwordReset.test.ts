@@ -71,6 +71,36 @@ describe("passwordResetRedirect", () => {
 });
 
 describe("readRecoveryLink", () => {
+  it("reads a token_hash, the only shape that works on another device", () => {
+    expect(readRecoveryLink("?token_hash=abc&type=recovery", "")).toEqual({
+      kind: "hash",
+      tokenHash: "abc",
+    });
+  });
+
+  it("prefers token_hash over a code when both are present", () => {
+    // Verified server-side against the account with no PKCE verifier, so it is the shape that
+    // still completes when the reset was requested in a different browser.
+    expect(readRecoveryLink("?token_hash=abc&code=xyz", "")).toEqual({
+      kind: "hash",
+      tokenHash: "abc",
+    });
+  });
+
+  it("reads a token_hash from the fragment too, not just the query", () => {
+    expect(readRecoveryLink("", "#token_hash=abc&type=recovery")).toEqual({
+      kind: "hash",
+      tokenHash: "abc",
+    });
+  });
+
+  it("still calls an expired token_hash expired rather than spending it", () => {
+    expect(readRecoveryLink("?token_hash=abc", "#error_code=otp_expired")).toEqual({
+      kind: "error",
+      reason: "expired",
+    });
+  });
+
   it("reads a PKCE code out of the query string", () => {
     expect(readRecoveryLink("?code=abc123", "")).toEqual({ kind: "code", code: "abc123" });
   });

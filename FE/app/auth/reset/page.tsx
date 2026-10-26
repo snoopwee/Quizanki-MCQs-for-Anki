@@ -61,7 +61,13 @@ export default function ResetPasswordPage() {
       // Spend whatever the link carried. Failures are deliberately NOT fatal here: the Supabase
       // client auto-exchanges a ?code= during its own start-up, so losing the race and being told
       // the code is already spent is a success in disguise. getUser() below is the real verdict.
-      if (link.kind === "code") {
+      if (link.kind === "hash") {
+        // The device-independent shape. Verified server-side against the account, so unlike a
+        // ?code= this completes even when the reset was requested in a different browser.
+        await supabase.auth
+          .verifyOtp({ type: "recovery", token_hash: link.tokenHash })
+          .catch(() => undefined);
+      } else if (link.kind === "code") {
         await supabase.auth.exchangeCodeForSession(link.code).catch(() => undefined);
       } else if (link.kind === "tokens") {
         // The implicit shape. supabase-js refuses to read it itself — @supabase/ssr defaults to
@@ -88,8 +94,15 @@ export default function ResetPasswordPage() {
 
       // A code that would not exchange almost always means the PKCE verifier lives in another
       // browser — the reset was requested somewhere else. That has a different fix from an
-      // expired link, so it gets different words.
-      setProblem(link.kind === "code" ? "wrong-browser" : link.kind === "tokens" ? "expired" : "missing");
+      // expired link, so it gets different words. A token_hash or a token pair, by contrast,
+      // needs nothing from this browser, so the only reason either fails is age.
+      setProblem(
+        link.kind === "code"
+          ? "wrong-browser"
+          : link.kind === "hash" || link.kind === "tokens"
+            ? "expired"
+            : "missing",
+      );
       setStatus("invalid");
     })();
     return () => {

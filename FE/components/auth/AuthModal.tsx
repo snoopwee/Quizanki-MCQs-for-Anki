@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { UsernameField } from "@/components/auth/UsernameField";
 import { useUsernameAvailability } from "@/hooks/useUsernameAvailability";
 import { Icon } from "@/components/ui/icons";
 import { looksAlreadySent, passwordResetRedirect, RESET_SENT_MESSAGE } from "@/lib/passwordReset";
+import { CONFIRM_EMAIL_MESSAGE, oauthRedirectTo } from "@/lib/authCallback";
+import { GoogleMark } from "@/components/auth/GoogleMark";
+import { buttonClasses } from "@/components/ui/Button";
 
 type Mode = "signup" | "login" | "forgot";
 
@@ -22,6 +26,8 @@ export function AuthModal({
   initialMode = "signup",
   loginLabel = "Log in",
   signupLabel = "Sign up",
+  confirmNotice = CONFIRM_EMAIL_MESSAGE,
+  oauthNext,
 }: {
   title?: string;
   description?: string;
@@ -32,6 +38,15 @@ export function AuthModal({
   // "Log in & save") to make the follow-up action explicit.
   loginLabel?: string;
   signupLabel?: string;
+  // Shown when sign-up needs an email confirmation before it can continue. Overridable because
+  // the right words depend on what the caller was in the middle of — a guest saving a deck needs
+  // to be told the deck is safe, which the generic sentence cannot say.
+  confirmNotice?: string;
+  // Where to land after signing in with Google. Needed as a PATH, not a callback, because an
+  // OAuth sign-in navigates away from this page — `onAuthed` cannot survive the round trip to
+  // Google and back. Defaults to wherever the modal was opened, which is right for the callers
+  // whose follow-up work is simply "be here, signed in".
+  oauthNext?: string;
 }) {
   const [mode, setMode] = useState<Mode>(initialMode);
   const [username, setUsername] = useState("");
@@ -65,6 +80,9 @@ export function AuthModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    // Any new submit supersedes the last outcome. Without this, signing up (which leaves the
+    // green "check your inbox") and then failing the login below would show both boxes at once.
+    setNotice(null);
     setBusy(true);
 
     const supabase = createClient();
@@ -99,10 +117,11 @@ export function AuthModal({
           options: { data: { username: username.trim(), display_name: username.trim() } },
         });
         if (signUpError) throw signUpError;
-        // Email-confirmation projects return no session; we can't continue until
-        // they confirm and log in.
+        // Email-confirmation projects return no session; we can't continue until they confirm
+        // and log in. That is the account being created CORRECTLY, so it goes through `notice`,
+        // not `error` — the red box is for "that password is wrong", not for good news.
         if (!data.session) {
-          setError("Check your email to confirm your account, then log in.");
+          setNotice(confirmNotice);
           setMode("login");
           setBusy(false);
           return;
@@ -111,6 +130,23 @@ export function AuthModal({
       await onAuthed();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      setBusy(false);
+    }
+  }
+
+  async function signInWithGoogle() {
+    setError(null);
+    setNotice(null);
+    setBusy(true);
+    const here = `${window.location.pathname}${window.location.search}`;
+    const { error: oauthError } = await createClient().auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: oauthRedirectTo(window.location.origin, oauthNext ?? here) },
+    });
+    // On success the browser is already leaving for Google, so `busy` deliberately stays true —
+    // clearing it would flash an interactive form during the navigation.
+    if (oauthError) {
+      setError(oauthError.message);
       setBusy(false);
     }
   }
@@ -165,6 +201,28 @@ export function AuthModal({
             </button>
           ))}
         </div>
+
+        {mode !== "forgot" && (
+          <>
+            <button
+              type="button"
+              onClick={signInWithGoogle}
+              disabled={busy}
+              className={buttonClasses({ variant: "ghost", size: "md", className: "mt-5 w-full" })}
+            >
+              <GoogleMark />
+              Continue with Google
+            </button>
+
+            {/* Divider. The line is drawn either side of the word rather than behind it, so no
+                background has to be faked to punch a hole in it. */}
+            <div className="mt-4 flex items-center gap-3" aria-hidden="true">
+              <span className="h-px flex-1 bg-line" />
+              <span className="text-xs text-faint">or</span>
+              <span className="h-px flex-1 bg-line" />
+            </div>
+          </>
+        )}
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           {mode === "signup" && (
@@ -278,8 +336,19 @@ export function AuthModal({
           )}
         </form>
 
+        {/* "By continuing you agree to..." has to name what, now that there is something to name.
+            The old line finished that sentence with a joke, which was fine while no terms existed
+            and is not once they do — this is the click the agreement is attached to. */}
         <p className="mt-4 text-center text-xs leading-relaxed text-faint">
-          By continuing you agree to keep your decks tidy. No spam, ever.
+          By continuing you agree to our{" "}
+          <Link href="/terms" className="underline underline-offset-2 transition hover:text-ink">
+            terms
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="underline underline-offset-2 transition hover:text-ink">
+            privacy policy
+          </Link>
+          . No spam, ever.
         </p>
       </div>
     </div>

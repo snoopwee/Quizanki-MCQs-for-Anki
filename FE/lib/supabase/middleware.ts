@@ -19,6 +19,10 @@ const PUBLIC_PATHS = [
   "/try",
   "/auth/callback",
   "/auth/reset",
+  // Legal pages. Public for an obvious reason and a less obvious one: Google fetches the privacy
+  // policy while reviewing the OAuth consent screen, with no session and no cookies at all.
+  "/privacy",
+  "/terms",
   "/shared",
   "/discover",
   "/authors",

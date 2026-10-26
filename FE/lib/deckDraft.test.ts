@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { draftCardCount, draftToImportRequest, fromParsed } from "@/lib/deckDraft";
+import {
+  draftCardCount,
+  draftToImportRequest,
+  fromParsed,
+  pendingDraftFromParsed,
+} from "@/lib/deckDraft";
 import { addBasicRow, addFieldToType, basicRow } from "@/lib/deckEditor";
 import type { ApkgNoteType, ApkgParseResponse } from "@/types/api";
 
@@ -175,5 +180,48 @@ describe("draftToImportRequest", () => {
     draft.rows[0] = { ...draft.rows[0], fields: { Front: "食べる", Back: "EDITED" } };
     const req = draftToImportRequest(draft, { isPublic: false });
     expect(req.noteTypes[0].notes[0].fields.Back).toBe("EDITED");
+  });
+});
+
+describe("pendingDraftFromParsed", () => {
+  it("builds a record /import can resume, carrying the deck's cards", () => {
+    const draft = pendingDraftFromParsed(parsed([basic]), 1_700_000_000_000);
+
+    expect(draft.savedAt).toBe(1_700_000_000_000);
+    expect(draft.sourceFilename).toBe("JLPT N4.apkg");
+    // loadDraft() rejects a record whose state has no rows array, so this is the shape that
+    // decides whether the guest gets their deck back at all.
+    expect(Array.isArray(draft.state.rows)).toBe(true);
+    expect(draft.state.rows.length).toBe(2);
+    expect(draft.state.name).toBe("JLPT N4");
+  });
+
+  it("defaults to public, matching the review screen it hands off to", () => {
+    expect(pendingDraftFromParsed(parsed([basic])).isPublic).toBe(true);
+  });
+
+  it("records the filename exactly as uploaded, extension included", () => {
+    // sourceFilename is what the review screen shows as the source; the deck NAME is the one
+    // with the extension stripped. Conflating them would label the deck "JLPT N4.apkg".
+    const draft = pendingDraftFromParsed(parsed([basic], "Core 2k.apkg"));
+    expect(draft.sourceFilename).toBe("Core 2k.apkg");
+    expect(draft.state.name).toBe("Core 2k");
+  });
+
+  it("copes with a filename that has no .apkg extension", () => {
+    const draft = pendingDraftFromParsed(parsed([basic], "deck-export"));
+    expect(draft.sourceFilename).toBe("deck-export");
+    expect(draft.state.name).toBe("deck-export");
+  });
+
+  it("survives a deck with more than one note type", () => {
+    const draft = pendingDraftFromParsed(parsed([basic, cloze]));
+    expect(draft.state.rows.length).toBe(3);
+  });
+
+  it("stamps the clock itself when not given one", () => {
+    const before = Date.now();
+    const draft = pendingDraftFromParsed(parsed([basic]));
+    expect(draft.savedAt).toBeGreaterThanOrEqual(before);
   });
 });

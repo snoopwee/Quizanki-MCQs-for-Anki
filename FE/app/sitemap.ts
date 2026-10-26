@@ -29,6 +29,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: absoluteUrl("/"), lastModified: now, changeFrequency: "weekly", priority: 1 },
     { url: absoluteUrl("/discover"), lastModified: now, changeFrequency: "daily", priority: 0.8 },
+    // Low priority, but they must be indexable: an app store or an OAuth review that cannot
+    // fetch the policy treats it as missing.
+    { url: absoluteUrl("/privacy"), lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+    { url: absoluteUrl("/terms"), lastModified: now, changeFrequency: "yearly", priority: 0.3 },
   ];
 
   let reachedCap = false;

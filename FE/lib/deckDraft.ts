@@ -20,6 +20,7 @@ import type {
   NoteRequest,
 } from "@/types/api";
 import { isBlankRow, mediaFieldsFromRows, type EditorRow, type EditorState } from "@/lib/deckEditor";
+import type { StoredDraft } from "@/lib/draftStore";
 import { buildFlashcards } from "@/lib/flashcards";
 import { majorityFaceLang } from "@/lib/faceLanguage";
 
@@ -172,4 +173,31 @@ export function draftToImportRequest(
 /** Cards that would actually be saved — what the review screen's count shows. */
 export function draftCardCount(state: EditorState): number {
   return state.rows.filter((r) => !isBlankRow(r)).length;
+}
+
+/**
+ * The stored-draft record for a deck a guest has asked to save but has not finished signing up
+ * for.
+ *
+ * <p>Exists so the deck can be written to local storage at the moment they <b>ask</b> to save it,
+ * rather than once authentication has succeeded. With email confirmation turned on, `signUp`
+ * returns no session, so the landing page's `onAuthed` never runs — the guest leaves for their
+ * inbox and a parsed deck held only in component state dies with the tab. Writing it up front
+ * means `/import` can greet them with "Resume your unsaved deck?" whenever they come back.
+ *
+ * <p>`isPublic: true` matches the hand-off this feeds: the review screen is where that is actually
+ * chosen, and it defaults to public there too.
+ *
+ * <p>`now` is injectable so a test does not have to reason about the clock.
+ */
+export function pendingDraftFromParsed(
+  parsed: ApkgParseResponse,
+  now: number = Date.now(),
+): StoredDraft {
+  return {
+    savedAt: now,
+    state: fromParsed(parsed),
+    isPublic: true,
+    sourceFilename: parsed.filename,
+  };
 }

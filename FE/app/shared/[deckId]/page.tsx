@@ -336,6 +336,8 @@ function SignUpPrompt({
       signupLabel="Sign up"
       initialMode="signup"
       onClose={onClose}
+      // Google leaves the page, so the same destination has to be given as a path.
+      oauthNext={`/decks/${deckId}`}
       onAuthed={() => {
         // Now signed in — the real deck page takes over (progress + all modes).
         router.push(`/decks/${deckId}`);

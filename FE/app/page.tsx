@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ApkgUploader } from "@/components/deck/ApkgUploader";
@@ -10,7 +10,7 @@ import { QuizSession } from "@/components/quiz/QuizSession";
 import { Modal } from "@/components/shared/Modal";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { reshuffleQuestions, type Question } from "@/lib/buildQuestions";
-import { fromParsed } from "@/lib/deckDraft";
+import { pendingDraftFromParsed } from "@/lib/deckDraft";
 import { saveDraft } from "@/lib/draftStore";
 import { useSession } from "@/hooks/useSession";
 import { useQuizStore } from "@/stores/quizStore";
@@ -51,6 +51,20 @@ function Landing() {
   // Which tab the auth modal opens on. A "Sign up" button that lands you on the log-in form is
   // a small betrayal of the click.
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+
+  // Stash the guest's deck the moment they ASK to save it, not once authentication succeeds.
+  // Four different things open this modal, so it hangs off `saveOpen` rather than being repeated
+  // at each of them.
+  //
+  // Why it cannot wait for `onAuthed`: with email confirmation turned on, `signUp` returns no
+  // session, so `onAuthed` never runs at all — the guest leaves for their inbox and the parsed
+  // deck, which lives only in this component's state, dies with the tab. IndexedDB is shared
+  // across tabs, so writing it here means `/import` can offer "Resume your unsaved deck?"
+  // whenever they get back, however long that takes.
+  useEffect(() => {
+    if (!saveOpen || !("parsed" in step)) return;
+    void saveDraft(pendingDraftFromParsed(step.parsed));
+  }, [saveOpen, step]);
 
   function openAuth(mode: "login" | "signup") {
     setAuthMode(mode);
@@ -299,17 +313,23 @@ function Landing() {
                   description="Nice work! Create an account (or log in) to review this deck and save it to your library."
                   loginLabel="Log in & continue"
                   signupLabel="Sign up & continue"
+                  // Email confirmation sends them out of the app mid-import, so this has to
+                  // answer the only question they will have: "did I just lose my deck?"
+                  confirmNotice="Account created, and your deck is saved in this browser. Confirm your email — check spam too — then log in and we'll pick up where you left off."
+                  // Signing in with Google leaves the page, so `onAuthed` below never runs. The
+                  // draft is already stashed, so this is the same destination by another route.
+                  oauthNext="/import?draft=1"
                   onClose={() => setSaveOpen(false)}
                   onAuthed={async () => {
-                    // Hand the parsed deck to the import review screen rather than
-                    // saving it here, so a guest gets the same look-it-over-and-
-                    // choose-public-or-private step every other import gets.
-                    await saveDraft({
-                      savedAt: Date.now(),
-                      state: fromParsed(step.parsed),
-                      isPublic: true,
-                      sourceFilename: step.parsed.filename,
-                    });
+                    // Hand the parsed deck to the import review screen rather than saving it
+                    // here, so a guest gets the same look-it-over-and-choose-public-or-private
+                    // step every other import gets.
+                    //
+                    // Written again rather than trusting the effect above: this is the path that
+                    // navigates away immediately, and re-stamping it costs nothing while a
+                    // first write that silently failed (private mode, storage off) would cost
+                    // them the deck.
+                    await saveDraft(pendingDraftFromParsed(step.parsed));
                     router.push("/import?draft=1");
                     router.refresh();
                   }}
@@ -324,6 +344,7 @@ function Landing() {
         <AuthModal
           initialMode={authMode}
           onClose={() => setAuthOpen(false)}
+          oauthNext={next ?? "/home"}
           onAuthed={() => {
             router.push(next ?? "/home");
             router.refresh();
@@ -382,10 +403,9 @@ function Shell({
 }
 
 // The landing page had no footer at all, so the page simply ended — nothing to go to, nothing
-// about what this is. Deliberately links ONLY to routes that exist: adding "Privacy" or "About"
-// here before those pages are written would just move the dead end rather than close it. (A
-// privacy policy does have to exist before the browser extension can be listed — see the
-// roadmap — and this is where it will go.)
+// about what this is. Still links ONLY to routes that exist; Privacy and Terms joined the list on
+// 2026-10-26, when the pages were written. Google will not let an OAuth app leave "Testing"
+// without both, and the browser extension cannot be listed without the privacy policy.
 function LandingFooter() {
   return (
     <footer className="mt-20 border-t border-line">
@@ -399,6 +419,12 @@ function LandingFooter() {
         <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-muted">
           <Link href="/discover" className="transition hover:text-ink">
             Browse decks
+          </Link>
+          <Link href="/privacy" className="transition hover:text-ink">
+            Privacy
+          </Link>
+          <Link href="/terms" className="transition hover:text-ink">
+            Terms
           </Link>
           <a
             href="https://ankiweb.net/shared/decks"

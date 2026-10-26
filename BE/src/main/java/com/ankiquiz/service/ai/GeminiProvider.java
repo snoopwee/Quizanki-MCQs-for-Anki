@@ -112,7 +112,13 @@ public class GeminiProvider implements AiProvider {
         try {
             JsonNode root = mapper.readTree(body);
             JsonNode candidate = root.path("candidates").path(0);
-            String text = candidate.path("content").path("parts").path(0).path("text").asText("");
+            // EVERY part, not just the first: Gemini may split one answer across several, and
+            // reading parts[0] alone silently drops the rest of the sentence.
+            StringBuilder joined = new StringBuilder();
+            for (JsonNode part : candidate.path("content").path("parts")) {
+                joined.append(part.path("text").asText(""));
+            }
+            String text = joined.toString();
             if (text.isBlank()) {
                 // A safety block or a truncated answer lands here; the reason is diagnostic only.
                 String reason = candidate.path("finishReason").asText(
@@ -121,7 +127,12 @@ public class GeminiProvider implements AiProvider {
                 throw new AiUnavailableException("The AI didn't return anything usable for that input.");
             }
             JsonNode usage = root.path("usageMetadata");
-            return new AiCompletion(text, intOrNull(usage, "promptTokenCount"), intOrNull(usage, "candidatesTokenCount"));
+            // finishReason travels with the answer so a caller can tell a finished thought from a
+            // budget cut. Previously it was read only when the text came back blank, which meant a
+            // HALF-written answer looked exactly like a good one. See AiCompletion#truncated.
+            String finishReason = candidate.path("finishReason").asText(null);
+            return new AiCompletion(text, intOrNull(usage, "promptTokenCount"),
+                    intOrNull(usage, "candidatesTokenCount"), finishReason);
         } catch (AiUnavailableException ex) {
             throw ex;
         } catch (Exception ex) {

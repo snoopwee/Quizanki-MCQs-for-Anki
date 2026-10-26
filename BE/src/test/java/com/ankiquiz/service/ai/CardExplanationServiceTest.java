@@ -200,6 +200,46 @@ class CardExplanationServiceTest {
     }
 
     @Test
+    void aTruncatedAnswerIsNeverCachedBecauseACacheEntryIsFOREVER() {
+        // The production bug, 2026-10-26: every explanation came back cut off after 37-50
+        // characters, because gemini-3.5-flash is a THINKING model and spent nearly all of the
+        // 220-token budget reasoning before writing a word. The text was not blank, so nothing
+        // noticed — it was simply returned. Had the cache bucket existed, half a sentence would
+        // have been written once and served to everybody who ever met that card.
+        when(provider.complete(any(), anyString()))
+                .thenReturn(new AiCompletion("Mitochondria are known as the \"", 10, 220, "MAX_TOKENS"));
+
+        assertThatThrownBy(() -> service.explain(USER, ZONE, Q, A))
+                .isInstanceOf(AiUnavailableException.class);
+
+        verify(cache, never()).put(anyString(), anyString());
+    }
+
+    @Test
+    void anAnswerThatFinishedItsSentenceIsCachedAsBefore() {
+        // The other half of the guard: only MAX_TOKENS is a truncation. A normal STOP must not be
+        // mistaken for one, or the feature would reject every good answer it ever produced.
+        when(provider.complete(any(), anyString()))
+                .thenReturn(new AiCompletion("Because it makes ATP.", 10, 40, "STOP"));
+
+        CardExplanationService.Explanation result = service.explain(USER, ZONE, Q, A);
+
+        assertThat(result.text()).isEqualTo("Because it makes ATP.");
+        verify(cache).put("ab/abc.txt", "Because it makes ATP.");
+    }
+
+    @Test
+    void aProviderThatReportsNoFinishReasonIsTreatedAsFinished() {
+        // Not every provider says why it stopped. Absent a reason, assume the answer is whole —
+        // refusing everything unlabelled would break the feature for a provider that is fine.
+        when(provider.complete(any(), anyString()))
+                .thenReturn(new AiCompletion("Because it makes ATP.", 10, 40, null));
+
+        assertThat(service.explain(USER, ZONE, Q, A).text()).isEqualTo("Because it makes ATP.");
+        verify(cache).put(anyString(), anyString());
+    }
+
+    @Test
     void logsExplanationsUnderASourceKindTheDatabaseAccepts() {
         // Guards the V25/V42 constraint from the Java side: ai_generations_source_kind_check
         // permits exactly these. A new value here needs a migration, not just a constant.

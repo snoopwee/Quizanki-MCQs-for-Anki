@@ -231,3 +231,11 @@ ai:
     # textbook-sized upload has no business being read into memory for a few chapters of cards.
     max-pdf-bytes: ${AI_MAX_PDF_BYTES:20971520}
     max-pdf-pages: ${AI_MAX_PDF_PAGES:80}
+  explain:
+    # ⚠ NOT a budget for the prose — gemini-3.5-flash is a THINKING model, and reasoning tokens
+    # come out of this same allowance before a single word is written. At the original 220 every
+    # explanation in production was cut off after 37-50 characters ("Mitochondria are known as
+    # the \"") because thinking had consumed almost all of it. 1024 leaves room to think and still
+    # finish the two or three sentences the prompt asks for. A truncated answer is now refused
+    # rather than cached — see CardExplanationService.
+    max-output-tokens: ${AI_EXPLAIN_MAX_OUTPUT_TOKENS:1024}

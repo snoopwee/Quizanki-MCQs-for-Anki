@@ -6,8 +6,9 @@ import { BrandMark } from "@/components/ui/BrandMark";
 import { UsernameField } from "@/components/auth/UsernameField";
 import { useUsernameAvailability } from "@/hooks/useUsernameAvailability";
 import { Icon } from "@/components/ui/icons";
+import { looksAlreadySent, passwordResetRedirect, RESET_SENT_MESSAGE } from "@/lib/passwordReset";
 
-type Mode = "signup" | "login";
+type Mode = "signup" | "login" | "forgot";
 
 // In-place login / sign-up modal (no navigation), so the page's state — e.g. a
 // guest's just-imported deck — survives authentication. On success it awaits
@@ -38,6 +39,9 @@ export function AuthModal({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Set once a reset email has been requested. Deliberately not an `error`: it is the success
+  // state, and it says the same thing whether or not the address exists.
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -47,7 +51,10 @@ export function AuthModal({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose, busy]);
 
-  const heading = title ?? (mode === "login" ? "Welcome back" : "Create your account");
+  const heading =
+    mode === "forgot"
+      ? "Reset your password"
+      : (title ?? (mode === "login" ? "Welcome back" : "Create your account"));
 
   // Same query key the field uses, so this is the same request, not a second one. Signing up is
   // gated on a known-good handle: letting it through and fixing it afterwards is how you end up
@@ -62,6 +69,20 @@ export function AuthModal({
 
     const supabase = createClient();
     try {
+      if (mode === "forgot") {
+        // Supabase answers success whether or not the address is registered, and so do we —
+        // see RESET_SENT_MESSAGE. The only errors worth surfacing are transport ones, and a
+        // rate-limit is not one: it only happens for an address that HAS an account, so showing
+        // it would hand back the enumeration oracle that message exists to close.
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: passwordResetRedirect(window.location.origin),
+        });
+        if (resetError && !looksAlreadySent(resetError)) throw resetError;
+        setNotice(RESET_SENT_MESSAGE);
+        setBusy(false);
+        return;
+      }
+
       if (mode === "login") {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) throw signInError;
@@ -131,10 +152,11 @@ export function AuthModal({
               disabled={busy}
               onClick={() => {
                 setError(null);
+                setNotice(null);
                 setMode(m);
               }}
               className={`rounded-full px-4 py-1.5 font-medium transition-colors disabled:opacity-50 ${
-                mode === m
+                m === mode || (mode === "forgot" && m === "login")
                   ? "bg-surface text-ink shadow-sm"
                   : "text-muted hover:text-ink"
               }`}
@@ -172,6 +194,7 @@ export function AuthModal({
             />
           </div>
 
+          {mode !== "forgot" && (
           <div className="space-y-1.5">
             <label htmlFor="auth-password" className="text-sm font-medium">
               Password
@@ -187,6 +210,37 @@ export function AuthModal({
               className="focus-ring w-full rounded-input border border-line-strong bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-faint"
             />
           </div>
+          )}
+
+          {/* The link that closes the worst hole in the product: before this, forgetting your
+              password meant permanent lockout. Login only — it is meaningless while signing up. */}
+          {mode === "login" && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setError(null);
+                setNotice(null);
+                setMode("forgot");
+              }}
+              className="focus-ring -mt-1 block text-xs font-medium text-accent-ink underline-offset-2 hover:underline disabled:opacity-50"
+            >
+              Forgot your password?
+            </button>
+          )}
+
+          {mode === "forgot" && (
+            <p className="-mt-1 text-xs leading-relaxed text-muted">
+              Enter the address you signed up with and we&apos;ll send you a link to set a new
+              password.
+            </p>
+          )}
+
+          {notice && (
+            <p className="rounded-input border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">
+              {notice}
+            </p>
+          )}
 
           {error && (
             <p className="rounded-input border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
@@ -199,8 +253,29 @@ export function AuthModal({
             disabled={busy || (mode === "signup" && !handleReady)}
             className="focus-ring w-full rounded-input bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-50"
           >
-            {busy ? "Working…" : mode === "login" ? loginLabel : signupLabel}
+            {busy
+              ? "Working…"
+              : mode === "forgot"
+                ? "Send reset link"
+                : mode === "login"
+                  ? loginLabel
+                  : signupLabel}
           </button>
+
+          {mode === "forgot" && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setError(null);
+                setNotice(null);
+                setMode("login");
+              }}
+              className="focus-ring w-full text-center text-xs font-medium text-muted hover:text-ink disabled:opacity-50"
+            >
+              ← Back to log in
+            </button>
+          )}
         </form>
 
         <p className="mt-4 text-center text-xs leading-relaxed text-faint">

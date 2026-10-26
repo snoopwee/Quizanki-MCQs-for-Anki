@@ -110,18 +110,42 @@ public class CardExplanationService {
             if (text.isEmpty()) {
                 throw new AiUnavailableException("The model returned an empty explanation.");
             }
-            usage.record(userId, SOURCE_KIND, provider.name(), provider.model(), access.keyOwner(),
-                    userText.length(), 1, AiUsageLogger.OUTCOME_OK, null);
-
-            // Best effort. A failed write costs the next learner a call; it must not cost this one
-            // the answer they already paid for.
+            // Cache BEFORE bookkeeping. The generation has already been spent; writing it where
+            // the next learner can find it is the thing that makes that spend worth something.
             cache.put(path, text);
+
+            recordQuietly(userId, access, userText.length(), 1, AiUsageLogger.OUTCOME_OK, null);
             return new Explanation(text, false);
         } catch (RuntimeException ex) {
-            usage.record(userId, SOURCE_KIND, provider.name(), provider.model(), access.keyOwner(),
-                    userText.length(), 0, outcomeFor(ex), ex.getClass().getSimpleName());
+            recordQuietly(userId, access, userText.length(), 0, outcomeFor(ex),
+                    ex.getClass().getSimpleName());
             log.warn("Explanation failed: {}", ex.getClass().getSimpleName());
             throw ex;
+        }
+    }
+
+    /**
+     * Writes the usage ledger, and <b>never lets it break the request</b>.
+     *
+     * <p>Learned the hard way in production on 2026-10-23: {@code source_kind} had a CHECK
+     * constraint from V25 permitting only 'text' and 'pdf', so every explanation threw
+     * DataIntegrityViolationException — <i>after</i> the model had already answered. The learner
+     * spent a generation from a shared pool and got a 500 with nothing cached, so the next person
+     * to ask the same question paid for it again. V42 widens the constraint, but the ordering was
+     * the real defect: this is accounting, and accounting must not be able to destroy the thing
+     * it is accounting for.
+     *
+     * <p>A lost ledger row understates usage, which is the cheap failure. Losing an answer the
+     * user already paid for is the expensive one.
+     */
+    private void recordQuietly(String userId, AiAccess access, int inputChars, int cardsOut,
+                               String outcome, String errorCode) {
+        try {
+            usage.record(userId, SOURCE_KIND, provider.name(), provider.model(), access.keyOwner(),
+                    inputChars, cardsOut, outcome, errorCode);
+        } catch (RuntimeException ledgerFailure) {
+            log.error("Could not record AI usage ({}); serving the answer anyway", outcome,
+                    ledgerFailure);
         }
     }
 

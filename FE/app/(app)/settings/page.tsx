@@ -14,6 +14,9 @@ import { buttonClasses } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/icons";
 import SignOutButton from "../SignOutButton";
 import type { ThemePref } from "@/lib/theme";
+import { LOCALE_NAMES, LOCALES, type Locale } from "@/lib/i18n/locale";
+import { useLocale } from "@/components/i18n/LocaleProvider";
+import { useT } from "@/components/i18n/LocaleProvider";
 import {
   TEXT_SIZE_DEFAULT,
   TEXT_SIZE_MAX,
@@ -24,6 +27,8 @@ import {
 
 export default function SettingsPage() {
   const { pref, resolved, setPref } = useTheme();
+  const { locale, setLocale } = useLocale();
+  const t = useT();
   const { size: textSize, setSize: setTextSize } = useTextSize();
 
   const [pw, setPw] = useState("");
@@ -110,6 +115,17 @@ export default function SettingsPage() {
             <p className="mt-2 text-xs text-faint">
               Drag to make the text bigger across the whole app.
             </p>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted">{t("settings.language")}</p>
+            {/* Each language is named IN that language — "Vietnamese" is no help to somebody who
+                cannot read English, which is exactly who this control is for. */}
+            <Segmented<Locale>
+              value={locale}
+              onChange={setLocale}
+              options={LOCALES.map((l) => ({ value: l, label: LOCALE_NAMES[l] }))}
+            />
+            <p className="mt-2 text-xs text-faint">{t("settings.languageHint")}</p>
           </div>
         </div>
         <p className="mt-4 flex items-center gap-1.5 text-xs text-faint">

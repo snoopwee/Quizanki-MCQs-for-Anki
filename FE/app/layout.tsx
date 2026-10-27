@@ -5,6 +5,7 @@ import { Providers } from "./providers";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import { TEXT_SIZE_INIT_SCRIPT } from "@/lib/textSize";
 import { siteUrl } from "@/lib/siteUrl";
+import { getServerLocale } from "@/lib/i18n/server";
 
 // Warm "study desk" type system (see FE/DESIGN_SYSTEM.md):
 //   Space Grotesk — display / headings (tight, academic)
@@ -59,12 +60,17 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // Server-side so `lang` is correct in the FIRST response. A screen reader and Google both read
+  // this attribute, and a Vietnamese page announcing itself as English is read with English
+  // phonetics — which is worse than untranslated text.
+  const locale = await getServerLocale();
+
   return (
     <html
-      lang="en"
+      lang={locale}
       data-theme="light"
       className={`${spaceGrotesk.variable} ${geist.variable} ${geistMono.variable}`}
       suppressHydrationWarning
@@ -78,7 +84,7 @@ export default function RootLayout({
             from 100% to a larger size on reload). Sets an inline font-size the
             same way the theme script sets data-theme. */}
         <script dangerouslySetInnerHTML={{ __html: TEXT_SIZE_INIT_SCRIPT }} />
-        <Providers>{children}</Providers>
+        <Providers locale={locale}>{children}</Providers>
       </body>
     </html>
   );

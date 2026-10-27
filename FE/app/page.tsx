@@ -20,6 +20,7 @@ import { useGuestDemo } from "@/stores/guestDemoStore";
 import { buildGuestPresetQuiz, guestDemoKey, type GuestDemoSource } from "@/lib/guestDemo";
 import type { ApkgParseResponse } from "@/types/api";
 import { Icon } from "@/components/ui/icons";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // The landing page IS the product trial: a guest can upload a deck and study /
 // quiz it immediately. Logged-in users see a "Home" link instead of Log in.
@@ -38,6 +39,7 @@ export default function LandingPage() {
 }
 
 function Landing() {
+  const t = useT();
   const router = useRouter();
   const params = useSearchParams();
   // Set when middleware redirects a logged-out user off a guarded route.
@@ -132,7 +134,7 @@ function Landing() {
       href="/home"
       className="rounded-full bg-ink px-4 py-1.5 text-sm font-semibold text-canvas transition hover:opacity-90"
     >
-      Home →
+      {t("common.home")}
     </Link>
   ) : (
     // A visitor with no .apkg used to have exactly one link on this page, and it pointed at
@@ -143,21 +145,21 @@ function Landing() {
         href="/discover"
         className="hidden rounded-full px-3 py-1.5 text-sm font-semibold text-muted transition hover:text-ink sm:inline-flex"
       >
-        Browse decks
+        {t("common.browseDecks")}
       </Link>
       <button
         type="button"
         onClick={() => openAuth("login")}
         className="rounded-full border border-line-strong bg-surface px-4 py-1.5 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent"
       >
-        Log in
+        {t("common.logIn")}
       </button>
       <button
         type="button"
         onClick={() => openAuth("signup")}
         className="rounded-full bg-accent px-4 py-1.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95"
       >
-        Sign up
+        {t("common.signUp")}
       </button>
     </div>
   );
@@ -177,14 +179,14 @@ function Landing() {
             style={{ animationDelay: "0ms" }}
           >
             <span className="inline-block h-2 w-2 rounded-[2px] bg-accent" />
-            Anki decks → multiple choice
+            {t("landing.eyebrow")}
           </p>
           <h1
             className="rise font-display mt-5 text-5xl font-semibold leading-[1.02] tracking-tight sm:text-6xl"
             style={{ animationDelay: "70ms" }}
           >
-            Study your Anki decks{" "}
-            <span className="italic text-accent">as quizzes.</span>
+            {t("landing.headline")}{" "}
+            <span className="italic text-accent">{t("landing.headlineAccent")}</span>
           </h1>
           <p
             className="rise mx-auto mt-6 max-w-md text-base leading-relaxed text-muted"
@@ -193,16 +195,13 @@ function Landing() {
             {/* This said "No account needed", which was only ever true for a deck you uploaded
                 here — a shared deck was fully locked. Now the offer is the same everywhere, so
                 the copy states it plainly instead of over-promising. */}
-            Drop in a <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-sm text-ink">.apkg</code>{" "}
-            — or open a deck someone shared — and start a multiple-choice quiz in seconds. Every
-            deck gets a free quiz, no account. Sign up for unlimited runs, your own question types,
-            and progress that&apos;s saved.
+            {t("landing.lede")}
           </p>
           <ul
             className="rise mt-6 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-muted"
             style={{ animationDelay: "190ms" }}
           >
-            {["Auto-detects fields", "Flashcard study mode", "Distractors from your own deck"].map(
+            {[t("landing.feature.fields"), t("landing.feature.flashcards"), t("landing.feature.distractors")].map(
               (f) => (
                 <li key={f} className="flex items-center gap-1.5">
                   <span aria-hidden className="shrink-0 text-success">
@@ -222,7 +221,7 @@ function Landing() {
               />
             </div>
             <p className="mt-3 text-center text-xs text-faint">
-              Read every card and take one quiz free — no sign-up.
+              {t("landing.uploaderFootnote")}
             </p>
           </div>
         </section>
@@ -309,13 +308,13 @@ function Landing() {
               )}
               {saveOpen && (
                 <AuthModal
-                  title="Save your deck"
-                  description="Nice work! Create an account (or log in) to review this deck and save it to your library."
-                  loginLabel="Log in & continue"
-                  signupLabel="Sign up & continue"
+                  title={t("landing.saveTitle")}
+                  description={t("landing.saveDescription")}
+                  loginLabel={t("landing.saveLogIn")}
+                  signupLabel={t("landing.saveSignUp")}
                   // Email confirmation sends them out of the app mid-import, so this has to
                   // answer the only question they will have: "did I just lose my deck?"
-                  confirmNotice="Account created, and your deck is saved in this browser. Confirm your email — check spam too — then log in and we'll pick up where you left off."
+                  confirmNotice={t("landing.saveConfirmNotice")}
                   // Signing in with Google leaves the page, so `onAuthed` below never runs. The
                   // draft is already stashed, so this is the same destination by another route.
                   oauthNext="/import?draft=1"
@@ -407,6 +406,7 @@ function Shell({
 // 2026-10-26, when the pages were written. Google will not let an OAuth app leave "Testing"
 // without both, and the browser extension cannot be listed without the privacy policy.
 function LandingFooter() {
+  const t = useT();
   return (
     <footer className="mt-20 border-t border-line">
       <div className="mx-auto flex max-w-5xl flex-col gap-4 px-6 py-10 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-8">
@@ -414,17 +414,17 @@ function LandingFooter() {
           <span className="font-display font-semibold text-ink">
             Quizanki<span className="text-accent">.</span>
           </span>{" "}
-          — your Anki decks, as multiple-choice quizzes.
+          {t("landing.footerTagline")}
         </p>
         <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-muted">
           <Link href="/discover" className="transition hover:text-ink">
-            Browse decks
+            {t("common.browseDecks")}
           </Link>
           <Link href="/privacy" className="transition hover:text-ink">
-            Privacy
+            {t("common.privacy")}
           </Link>
           <Link href="/terms" className="transition hover:text-ink">
-            Terms
+            {t("common.terms")}
           </Link>
           <a
             href="https://ankiweb.net/shared/decks"

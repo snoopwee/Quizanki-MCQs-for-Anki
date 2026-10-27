@@ -4,8 +4,18 @@ import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/reac
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { SiteGate } from "@/components/site/SiteGate";
+import { LocaleProvider } from "@/components/i18n/LocaleProvider";
+import type { Locale } from "@/lib/i18n/locale";
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({
+  children,
+  // Read from the cookie on the SERVER and passed down — see LocaleProvider for why it
+  // cannot be discovered in a mount effect the way the theme is.
+  locale,
+}: {
+  children: React.ReactNode;
+  locale: Locale;
+}) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -21,7 +31,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthCacheReset />
-      <SiteGate>{children}</SiteGate>
+      <LocaleProvider initialLocale={locale}>
+        <SiteGate>{children}</SiteGate>
+      </LocaleProvider>
     </QueryClientProvider>
   );
 }

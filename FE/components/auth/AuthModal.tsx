@@ -7,10 +7,11 @@ import { BrandMark } from "@/components/ui/BrandMark";
 import { UsernameField } from "@/components/auth/UsernameField";
 import { useUsernameAvailability } from "@/hooks/useUsernameAvailability";
 import { Icon } from "@/components/ui/icons";
-import { looksAlreadySent, passwordResetRedirect, RESET_SENT_MESSAGE } from "@/lib/passwordReset";
-import { CONFIRM_EMAIL_MESSAGE, oauthRedirectTo } from "@/lib/authCallback";
+import { looksAlreadySent, passwordResetRedirect } from "@/lib/passwordReset";
+import { oauthRedirectTo } from "@/lib/authCallback";
 import { GoogleMark } from "@/components/auth/GoogleMark";
 import { buttonClasses } from "@/components/ui/Button";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 type Mode = "signup" | "login" | "forgot";
 
@@ -24,9 +25,9 @@ export function AuthModal({
   onClose,
   onAuthed,
   initialMode = "signup",
-  loginLabel = "Log in",
-  signupLabel = "Sign up",
-  confirmNotice = CONFIRM_EMAIL_MESSAGE,
+  loginLabel,
+  signupLabel,
+  confirmNotice,
   oauthNext,
 }: {
   title?: string;
@@ -35,12 +36,14 @@ export function AuthModal({
   onAuthed: () => Promise<void> | void;
   initialMode?: Mode;
   // Submit-button labels per mode; the guest save flow overrides these (e.g.
-  // "Log in & save") to make the follow-up action explicit.
+  // "Log in & save") to make the follow-up action explicit. Defaulted at the use site rather than
+  // in the signature — the fallback is a translation now, and that needs a hook.
   loginLabel?: string;
   signupLabel?: string;
   // Shown when sign-up needs an email confirmation before it can continue. Overridable because
   // the right words depend on what the caller was in the middle of — a guest saving a deck needs
-  // to be told the deck is safe, which the generic sentence cannot say.
+  // to be told the deck is safe, which the generic sentence cannot say. Defaults at the use site
+  // rather than in the signature, because the fallback is now a translation and that needs a hook.
   confirmNotice?: string;
   // Where to land after signing in with Google. Needed as a PATH, not a callback, because an
   // OAuth sign-in navigates away from this page — `onAuthed` cannot survive the round trip to
@@ -48,6 +51,7 @@ export function AuthModal({
   // whose follow-up work is simply "be here, signed in".
   oauthNext?: string;
 }) {
+  const t = useT();
   const [mode, setMode] = useState<Mode>(initialMode);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -68,8 +72,8 @@ export function AuthModal({
 
   const heading =
     mode === "forgot"
-      ? "Reset your password"
-      : (title ?? (mode === "login" ? "Welcome back" : "Create your account"));
+      ? t("auth.resetHeading")
+      : (title ?? (mode === "login" ? t("auth.welcomeBack") : t("auth.createAccount")));
 
   // Same query key the field uses, so this is the same request, not a second one. Signing up is
   // gated on a known-good handle: letting it through and fixing it afterwards is how you end up
@@ -96,7 +100,7 @@ export function AuthModal({
           redirectTo: passwordResetRedirect(window.location.origin),
         });
         if (resetError && !looksAlreadySent(resetError)) throw resetError;
-        setNotice(RESET_SENT_MESSAGE);
+        setNotice(t("auth.resetSent"));
         setBusy(false);
         return;
       }
@@ -121,7 +125,7 @@ export function AuthModal({
         // and log in. That is the account being created CORRECTLY, so it goes through `notice`,
         // not `error` — the red box is for "that password is wrong", not for good news.
         if (!data.session) {
-          setNotice(confirmNotice);
+          setNotice(confirmNotice ?? t("auth.confirmEmail"));
           setMode("login");
           setBusy(false);
           return;
@@ -129,7 +133,7 @@ export function AuthModal({
       }
       await onAuthed();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      setError(err instanceof Error ? err.message : t("auth.genericError"));
       setBusy(false);
     }
   }
@@ -167,7 +171,7 @@ export function AuthModal({
           type="button"
           onClick={onClose}
           disabled={busy}
-          aria-label="Close"
+          aria-label={t("common.close")}
           className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-input text-faint transition hover:bg-surface-2 hover:text-ink disabled:opacity-40"
         >
           <Icon name="x" size={16} />
@@ -197,7 +201,7 @@ export function AuthModal({
                   : "text-muted hover:text-ink"
               }`}
             >
-              {m === "login" ? "Log in" : "Sign up"}
+              {m === "login" ? t("common.logIn") : t("common.signUp")}
             </button>
           ))}
         </div>
@@ -211,14 +215,14 @@ export function AuthModal({
               className={buttonClasses({ variant: "ghost", size: "md", className: "mt-5 w-full" })}
             >
               <GoogleMark />
-              Continue with Google
+              {t("auth.continueWithGoogle")}
             </button>
 
             {/* Divider. The line is drawn either side of the word rather than behind it, so no
                 background has to be faked to punch a hole in it. */}
             <div className="mt-4 flex items-center gap-3" aria-hidden="true">
               <span className="h-px flex-1 bg-line" />
-              <span className="text-xs text-faint">or</span>
+              <span className="text-xs text-faint">{t("common.or")}</span>
               <span className="h-px flex-1 bg-line" />
             </div>
           </>
@@ -228,16 +232,17 @@ export function AuthModal({
           {mode === "signup" && (
             <UsernameField
               id="auth-username"
+              label={t("auth.username")}
               value={username}
               onChange={setUsername}
               disabled={busy}
-              hint="You can change this later."
+              hint={t("auth.usernameHint")}
             />
           )}
 
           <div className="space-y-1.5">
             <label htmlFor="auth-email" className="text-sm font-medium">
-              Email
+              {t("auth.email")}
             </label>
             <input
               id="auth-email"
@@ -247,7 +252,7 @@ export function AuthModal({
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
+              placeholder={t("auth.emailPlaceholder")}
               className="focus-ring w-full rounded-input border border-line-strong bg-surface-2 px-3 py-2.5 text-sm text-ink outline-none transition placeholder:text-faint"
             />
           </div>
@@ -255,7 +260,7 @@ export function AuthModal({
           {mode !== "forgot" && (
           <div className="space-y-1.5">
             <label htmlFor="auth-password" className="text-sm font-medium">
-              Password
+              {t("auth.password")}
             </label>
             <input
               id="auth-password"
@@ -283,14 +288,13 @@ export function AuthModal({
               }}
               className="focus-ring -mt-1 block text-xs font-medium text-accent-ink underline-offset-2 hover:underline disabled:opacity-50"
             >
-              Forgot your password?
+              {t("auth.forgotPassword")}
             </button>
           )}
 
           {mode === "forgot" && (
             <p className="-mt-1 text-xs leading-relaxed text-muted">
-              Enter the address you signed up with and we&apos;ll send you a link to set a new
-              password.
+              {t("auth.resetExplainer")}
             </p>
           )}
 
@@ -312,12 +316,12 @@ export function AuthModal({
             className="focus-ring w-full rounded-input bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-50"
           >
             {busy
-              ? "Working…"
+              ? t("auth.working")
               : mode === "forgot"
-                ? "Send reset link"
+                ? t("auth.sendResetLink")
                 : mode === "login"
-                  ? loginLabel
-                  : signupLabel}
+                  ? (loginLabel ?? t("common.logIn"))
+                  : (signupLabel ?? t("common.signUp"))}
           </button>
 
           {mode === "forgot" && (
@@ -331,7 +335,7 @@ export function AuthModal({
               }}
               className="focus-ring w-full text-center text-xs font-medium text-muted hover:text-ink disabled:opacity-50"
             >
-              ← Back to log in
+              {t("auth.backToLogIn")}
             </button>
           )}
         </form>
@@ -340,15 +344,15 @@ export function AuthModal({
             The old line finished that sentence with a joke, which was fine while no terms existed
             and is not once they do — this is the click the agreement is attached to. */}
         <p className="mt-4 text-center text-xs leading-relaxed text-faint">
-          By continuing you agree to our{" "}
+          {t("auth.legalPrefix")}{" "}
           <Link href="/terms" className="underline underline-offset-2 transition hover:text-ink">
-            terms
+            {t("auth.legalTermsLink")}
           </Link>{" "}
-          and{" "}
+          {t("auth.legalMiddle")}{" "}
           <Link href="/privacy" className="underline underline-offset-2 transition hover:text-ink">
-            privacy policy
+            {t("auth.legalPrivacyLink")}
           </Link>
-          . No spam, ever.
+          {t("auth.legalSuffix")}
         </p>
       </div>
     </div>

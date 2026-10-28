@@ -5,19 +5,23 @@ import { useRef, useState } from "react";
 import axios from "axios";
 import { useParseApkg } from "@/hooks/useParseApkg";
 import type { ApkgParseResponse } from "@/types/api";
+import { useT, type Translate } from "@/components/i18n/LocaleProvider";
 
 // Mirrors the backend multipart cap; checked client-side so an oversized deck
 // gets a clear message instead of a confusing dropped connection.
 const MAX_BYTES = 50 * 1024 * 1024;
 const MAX_MB = MAX_BYTES / 1024 / 1024;
 
-function errorMessage(err: unknown): string {
+// Takes the translator as an argument rather than calling a hook: this is a module-level helper,
+// so there is no component to hook into. A server-supplied `message` is passed through untranslated
+// — it is the backend's own wording, and inventing a translation for it would be guessing.
+function errorMessage(err: unknown, t: Translate): string {
   if (axios.isAxiosError(err)) {
     const msg = (err.response?.data as { message?: string } | undefined)?.message;
     if (msg) return msg;
-    if (err.response?.status === 413) return `That file is too large (limit ${MAX_MB} MB).`;
+    if (err.response?.status === 413) return t("uploader.tooLarge", { limit: MAX_MB });
   }
-  return "Could not parse the file. Please try a different .apkg.";
+  return t("uploader.parseFailed");
 }
 
 export function ApkgUploader({
@@ -29,6 +33,7 @@ export function ApkgUploader({
   onContinue?: (result: ApkgParseResponse, file: File | null) => void;
   hideHeading?: boolean;
 }) {
+  const t = useT();
   const inputRef = useRef<HTMLInputElement>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -42,7 +47,7 @@ export function ApkgUploader({
     setPickedFile(null);
     if (!file) return;
     if (!file.name.toLowerCase().endsWith(".apkg")) {
-      setValidationError("Please choose a .apkg file (an Anki deck export).");
+      setValidationError(t("uploader.wrongType"));
       return;
     }
     if (file.size > MAX_BYTES) {
@@ -59,7 +64,7 @@ export function ApkgUploader({
     <div className="space-y-4">
       {!hideHeading && (
         <div>
-          <h2 className="font-display text-lg font-semibold tracking-tight">Import from an .apkg file</h2>
+          <h2 className="font-display text-lg font-semibold tracking-tight">{t("uploader.heading")}</h2>
           <p className="mt-1 text-sm text-muted">
             Upload an Anki deck export (.apkg). Cards, pictures, and audio pronunciations all
             come across.
@@ -117,13 +122,13 @@ export function ApkgUploader({
           )}
         </span>
         <span className="text-sm font-medium text-ink">
-          {parse.isPending ? "Reading your deck…" : "Drop your .apkg here, or click to browse"}
+          {parse.isPending ? t("uploader.reading") : t("uploader.dropzone")}
         </span>
         <span className="font-mono text-xs text-faint">Anki deck export · up to {MAX_MB} MB</span>
       </button>
 
       {validationError && <p className="text-sm text-danger">{validationError}</p>}
-      {parse.isError && <p className="text-sm text-danger">{errorMessage(parse.error)}</p>}
+      {parse.isError && <p className="text-sm text-danger">{errorMessage(parse.error, t)}</p>}
 
       {/* Our own decks lead. This used to offer ONLY the AnkiWeb link, which made it the single
           outbound link on the landing page — so a visitor who arrived without a file was sent
@@ -131,9 +136,9 @@ export function ApkgUploader({
           files come from, and it only lets you download from its own site (we can't fetch for
           you), but it is the second option now, not the only one. */}
       <p className="text-xs text-muted">
-        Need a deck?{" "}
+        {t("uploader.needDeck")}{" "}
         <Link href="/discover" className="font-medium text-accent underline-offset-2 hover:underline">
-          Browse decks shared here
+          {t("uploader.browseShared")}
         </Link>{" "}
         — study one straight away, no file needed. Or grab an{" "}
         <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[0.6875rem] text-ink">
@@ -165,6 +170,7 @@ function ApkgSummary({
   file: File | null;
   onContinue?: (result: ApkgParseResponse, file: File | null) => void;
 }) {
+  const t = useT();
   // A note type can drive a quiz if it's a cloze type (each {{c<n>::...}} is a
   // card) OR a basic type with ≥2 text fields (prompt + answer).
   const usable = result.noteTypes.filter(
@@ -209,7 +215,7 @@ function ApkgSummary({
 
       {usable.length === 0 && (
         <p className="text-xs text-faint">
-          None of these note types look ready for a text quiz yet.
+          {t("uploader.nothingQuizzable")}
         </p>
       )}
 
@@ -220,7 +226,7 @@ function ApkgSummary({
           onClick={() => onContinue(result, file)}
           className="focus-ring w-full rounded-input bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-50"
         >
-          Continue →
+          {t("uploader.continue")}
         </button>
       )}
     </div>

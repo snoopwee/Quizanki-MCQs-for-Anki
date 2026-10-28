@@ -237,15 +237,15 @@ function Landing() {
               getStats={guestGetStats}
               getStarred={guestGetStarred}
               onToggleStar={guestToggleStar}
-              backLabel="Start over"
+              backLabel={t("landing.startOver")}
               onBack={() => setStep({ kind: "import" })}
               onStartTest={() => startStudy(step.parsed)}
               startTestLabel={
                 user
                   ? undefined // signed in: the setup screen is real, so the default label is true
                   : demoSpent(step.parsed)
-                    ? "Sign up to quiz again →"
-                    : "Start the free quiz →"
+                    ? t("landing.signUpToQuizAgain")
+                    : t("landing.startFreeQuiz")
               }
             />
           )}
@@ -254,7 +254,7 @@ function Landing() {
             <ApkgQuizSetup
               parsed={step.parsed}
               getStats={guestGetStats}
-              backLabel="Back to flashcards"
+              backLabel={t("landing.backToFlashcards")}
               onBack={() => setStep({ kind: "flashcards", parsed: step.parsed })}
               onStart={(questions) => startTrial(step.parsed, questions)}
             />
@@ -294,12 +294,12 @@ function Landing() {
                 onToggleStar={guestToggleStar}
               />
               {settingsOpen && (
-                <Modal title="Quiz settings" onClose={() => setSettingsOpen(false)}>
+                <Modal title={t("quiz.settings")} onClose={() => setSettingsOpen(false)}>
                   <ApkgQuizSetup
                     parsed={step.parsed}
                     getStats={guestGetStats}
                     showHeading={false}
-                    backLabel="Cancel"
+                    backLabel={t("common.cancel")}
                     startLabel="Apply"
                     onBack={() => setSettingsOpen(false)}
                     onStart={(questions) => startTrial(step.parsed, questions)}

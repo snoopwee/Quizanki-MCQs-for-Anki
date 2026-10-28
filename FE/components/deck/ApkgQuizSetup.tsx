@@ -27,6 +27,7 @@ import { FieldSelect } from "@/components/deck/FieldSelect";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/icons";
 import { KIND_META, QuestionTypeChips } from "@/components/quiz/QuestionTypeChips";
+import { useT } from "@/components/i18n/LocaleProvider";
 import { buttonClasses } from "@/components/ui/Button";
 import { Segmented, SoonTag } from "@/components/ui/controls";
 import type { ApkgNoteType, ApkgParseResponse } from "@/types/api";
@@ -46,7 +47,7 @@ export function ApkgQuizSetup({
   deckId,
   showHeading = true,
   backLabel = "Back",
-  startLabel = "Start quiz",
+  startLabel,
   initialSource = "all",
 }: {
   parsed: ApkgParseResponse;
@@ -63,6 +64,7 @@ export function ApkgQuizSetup({
   // "Quiz weak cards" shortcut deep-link straight into the weak slice.
   initialSource?: QuizSource;
 }) {
+  const t = useT();
   const quizable = useMemo(() => parsed.noteTypes.filter(isQuizable), [parsed]);
   const basicTypes = useMemo(() => quizable.filter((t) => !t.cloze), [quizable]);
   const clozeTypes = useMemo(() => quizable.filter((t) => t.cloze), [quizable]);
@@ -133,7 +135,7 @@ export function ApkgQuizSetup({
   if (quizable.length === 0) {
     return (
       <div className="space-y-5">
-        {showHeading && <h1 className="font-display text-2xl font-semibold tracking-tight">Set up a quiz</h1>}
+        {showHeading && <h1 className="font-display text-2xl font-semibold tracking-tight">{t("setup.heading")}</h1>}
         <p className="break-words rounded-input border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
           None of the note types in <span className="font-medium">{parsed.filename}</span> have
           enough quizzable content. Decks with only single-field or image-only note types
@@ -189,7 +191,7 @@ export function ApkgQuizSetup({
     <div className="space-y-4">
       {showHeading && (
         <div className="space-y-1">
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Set up your quiz</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">{t("setup.headingYour")}</h1>
           <p className="break-words text-sm text-muted">
             Build a multiple-choice test from{" "}
             <span className="font-medium text-ink">{parsed.filename}</span>.
@@ -199,7 +201,7 @@ export function ApkgQuizSetup({
 
       {/* how many questions — free numeric entry */}
       <SettingCard
-        title="How many questions?"
+        title={t("setup.howMany")}
         desc={`${availableTotal} ${sourceNoun}card${availableTotal === 1 ? "" : "s"} in this set — enter how many questions you want.`}
       >
         <input
@@ -210,28 +212,28 @@ export function ApkgQuizSetup({
           onChange={(e) =>
             setCount(e.target.value === "" ? NaN : Math.max(1, Math.floor(Number(e.target.value))))
           }
-          aria-label="Number of questions"
+          aria-label={t("setup.numberOfQuestions")}
           className="focus-ring w-28 rounded-input border border-line-strong bg-surface px-3 py-2 text-sm font-semibold text-ink"
         />
       </SettingCard>
 
       {/* question types — mix any combination; each card is asked in one of them */}
       <SettingCard
-        title="Question types"
-        desc="Mix any combination — each card is asked in one of the enabled formats."
+        title={t("setup.questionTypes")}
+        desc={t("setup.questionTypesDesc")}
       >
         <QuestionTypeChips enabled={enabledKinds} onToggle={toggleKind} />
       </SettingCard>
 
       {/* pull cards from */}
-      <SettingCard title="Pull cards from">
+      <SettingCard title={t("setup.pullFrom")}>
         <Segmented
           value={source}
           onChange={setSource}
           options={[
-            { value: "all", label: "All cards" },
+            { value: "all", label: t("setup.allCards") },
             { value: "starred", label: "Starred", disabled: starredIds.size === 0 },
-            { value: "weak", label: "Still learning", disabled: weakIds.size === 0 },
+            { value: "weak", label: t("setup.stillLearning"), disabled: weakIds.size === 0 },
           ]}
         />
         <p className="mt-2 text-xs text-muted">
@@ -256,7 +258,7 @@ export function ApkgQuizSetup({
       {clozeTypes.length > 0 && (
         <div className="space-y-2 rounded-card border border-line bg-surface p-4">
           <h3 className="text-sm font-medium">
-            {clozeTypes.length === 1 ? clozeTypes[0].name : "Cloze note types"}
+            {clozeTypes.length === 1 ? clozeTypes[0].name : t("setup.clozeNoteTypes")}
           </h3>
           <ul className="space-y-1 text-xs text-muted">
             {clozeTypes.map((nt) => (
@@ -274,7 +276,7 @@ export function ApkgQuizSetup({
 
       {!canStart && (
         <p className="text-sm text-danger">
-          Pick at least one question field for each note type you want to include.
+          {t("setup.pickAField")}
         </p>
       )}
 
@@ -287,7 +289,7 @@ export function ApkgQuizSetup({
               confirmation, and they change as the toggles above change. */}
           <div className="mt-0.5 truncate text-sm font-bold text-ink">
             {effCount} question{effCount === 1 ? "" : "s"} ·{" "}
-            {enabledKinds.length > 1 ? "mixed formats" : KIND_META[enabledKinds[0]!].label}
+            {enabledKinds.length > 1 ? t("quiz.mixedFormats") : t(KIND_META[enabledKinds[0]!].labelKey)}
           </div>
         </div>
         <div className="flex-1" />
@@ -300,7 +302,7 @@ export function ApkgQuizSetup({
           onClick={handleStart}
           className={buttonClasses({ variant: "primary", size: "lg" })}
         >
-          <Icon name="play" size={16} /> {startLabel}
+          <Icon name="play" size={16} /> {startLabel ?? t("setup.start")}
         </button>
       </div>
     </div>
@@ -320,6 +322,7 @@ function BasicTypeSection({
   // the section is the whole screen, no need for a chip restating "Basic".
   showName: boolean;
 }) {
+  const t = useT();
   const detection = useMemo(
     () => detectFields(noteType.notes, noteType.fieldNames),
     [noteType],
@@ -364,27 +367,27 @@ function BasicTypeSection({
           grey hint instead of a title, which read as part of the section above it. */}
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium">
-          {showName ? noteType.name : "Question and answer fields"}
+          {showName ? noteType.name : t("setup.fieldsHeading")}
         </h3>
         {!hasTemplate && <ConfidenceBadge confidence={detection.confidence} />}
       </div>
 
       {hasTemplate ? (
         <p className="text-xs text-muted">
-          Pre-filled from the deck&apos;s card layout — adjust if needed.
+          {t("setup.prefilled")}
         </p>
       ) : (
         detection.confidence < 0.7 && (
           <p className="rounded-input border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
-            Detection is unsure — please check the question and answer fields.
+            {t("setup.detectionUnsure")}
           </p>
         )
       )}
 
       <fieldset className="space-y-2">
-        <legend className="text-sm font-medium">Question — shown on the card</legend>
+        <legend className="text-sm font-medium">{t("setup.questionLegend")}</legend>
         <p className="text-xs text-muted">
-          Tick one or more fields to bundle into each prompt.
+          {t("setup.questionHint")}
         </p>
         <div className="space-y-1.5">
           {questionOptions.map((f) => (
@@ -405,7 +408,7 @@ function BasicTypeSection({
       </fieldset>
 
       <FieldSelect
-        label="Answer — the correct choice"
+        label={t("setup.answerLabel")}
         value={answerField}
         fields={fieldChoices}
         sample={sampleValue(noteType.notes, answerField)}

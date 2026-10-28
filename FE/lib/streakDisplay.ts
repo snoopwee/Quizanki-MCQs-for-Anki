@@ -13,9 +13,19 @@ export function parseLocalDate(isoDate: string): Date {
   return new Date(y, m - 1, d);
 }
 
-/** Weekday of a backend date: "M" (narrow, under a strip dot) or "Monday" (long, for labels). */
-export function weekdayLabel(isoDate: string, style: "narrow" | "long" = "narrow"): string {
-  return parseLocalDate(isoDate).toLocaleDateString("en-US", { weekday: style });
+/**
+ * Weekday of a backend date: "M" (narrow, under a strip dot) or "Monday" (long, for labels).
+ *
+ * <p>`locale` is optional and defaults to English so existing callers and tests are unaffected;
+ * pass the chosen language and the strip reads in it. Intl does the work — hardcoding "en-US"
+ * meant a fully Vietnamese Home still had an English weekday strip under the streak dots.
+ */
+export function weekdayLabel(
+  isoDate: string,
+  style: "narrow" | "long" = "narrow",
+  locale: string = "en-US",
+): string {
+  return parseLocalDate(isoDate).toLocaleDateString(locale, { weekday: style });
 }
 
 /** "1 day" / "12 days". */
@@ -32,4 +42,19 @@ export function streakCaption(streak: { current: number; studiedToday: boolean }
   if (streak.studiedToday) return "Done today";
   if (streak.current > 0) return "Study today";
   return "Start today";
+}
+
+/**
+ * The same three states as message keys, for surfaces that have a translator.
+ *
+ * <p>Alongside {@link streakCaption} rather than replacing it: this module is pure, so it cannot
+ * translate anything itself, and the English version still has callers.
+ */
+export function streakCaptionKey(streak: {
+  current: number;
+  studiedToday: boolean;
+}): "streak.doneToday" | "streak.studyToday" | "streak.startToday" {
+  if (streak.studiedToday) return "streak.doneToday";
+  if (streak.current > 0) return "streak.studyToday";
+  return "streak.startToday";
 }

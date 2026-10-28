@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/icons";
 import { StarRating } from "@/components/ui/StarRating";
 import { SIZE_FILTERS, sizeFilterById } from "@/lib/discoverFilters";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // Every deck people have chosen to publish. Open to everyone — a guest browses
 // exactly what a member does; copying a deck is the part that needs an account,
@@ -29,6 +30,7 @@ export default function DiscoverPage() {
 }
 
 function DiscoverContent() {
+  const t = useT();
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
   const [sizeId, setSizeId] = useState("all");
@@ -58,10 +60,9 @@ function DiscoverContent() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <h1 className="font-display text-3xl font-bold tracking-tight text-ink">Discover decks</h1>
+        <h1 className="font-display text-3xl font-bold tracking-tight text-ink">{t("discover.heading")}</h1>
         <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted">
-          Decks people have shared. Open one to preview it, then save your own copy — you get your
-          own cards and your own progress.
+          {t("discover.lede")}
         </p>
       </div>
 
@@ -77,8 +78,8 @@ function DiscoverContent() {
             type="search"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            aria-label="Search shared decks"
-            placeholder="Search shared decks…"
+            aria-label={t("discover.searchLabel")}
+            placeholder={t("discover.searchPlaceholder")}
             className="focus-ring w-full rounded-input border border-line bg-surface-2 py-2 pl-9 pr-3 text-sm text-ink placeholder:text-faint"
           />
         </div>
@@ -86,7 +87,7 @@ function DiscoverContent() {
         {/* Filter by deck size. Built from data (lib/discoverFilters) so more
             filters can be added without changing this markup. */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="mr-1 font-mono text-xs uppercase tracking-[0.08em] text-faint">Size</span>
+          <span className="mr-1 font-mono text-xs uppercase tracking-[0.08em] text-faint">{t("discover.size")}</span>
           {SIZE_FILTERS.map((f) => (
             <button
               key={f.id}
@@ -99,16 +100,16 @@ function DiscoverContent() {
                   : "border-line bg-surface text-muted hover:border-line-strong hover:text-ink"
               }`}
             >
-              {f.label}
+              {t(f.labelKey)}
             </button>
           ))}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <span className="mr-1 font-mono text-xs uppercase tracking-[0.08em] text-faint">Sort</span>
+          <span className="mr-1 font-mono text-xs uppercase tracking-[0.08em] text-faint">{t("discover.sort")}</span>
           {([
-            { id: "new", label: "Newest" },
-            { id: "rated", label: "Best rated" },
+            { id: "new", label: t("discover.sortNewest") },
+            { id: "rated", label: t("discover.sortBestRated") },
           ] as const).map((option) => (
             <button
               key={option.id}
@@ -127,23 +128,23 @@ function DiscoverContent() {
         </div>
       </div>
 
-      {decksQuery.isLoading && <p className="text-sm text-muted">Loading decks…</p>}
+      {decksQuery.isLoading && <p className="text-sm text-muted">{t("discover.loading")}</p>}
 
       {decksQuery.isError && (
-        <p className="text-sm text-danger">Couldn&apos;t load shared decks. Please try again.</p>
+        <p className="text-sm text-danger">{t("discover.loadFailed")}</p>
       )}
 
       {result && decks.length === 0 && (
         <Card className="p-8 text-center">
           <p className="text-sm font-medium text-ink">
             {query || sizeId !== "all"
-              ? "No shared decks match your filters."
-              : "No decks have been shared yet."}
+              ? t("discover.noMatch")
+              : t("discover.noneShared")}
           </p>
           <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
             {query || sizeId !== "all"
-              ? "Try a broader search or a different size."
-              : "Import one of your own and set it to public — it'll show up here."}
+              ? t("discover.noMatchHint")
+              : t("discover.noneSharedHint")}
           </p>
         </Card>
       )}
@@ -172,7 +173,7 @@ function DiscoverContent() {
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                       <span className="inline-flex items-center gap-1.5 font-mono text-xs text-faint">
                         <Icon name="layers" size={13} />
-                        {deck.cardCount ?? 0} card{deck.cardCount === 1 ? "" : "s"}
+                        {t("deck.cardCount", { count: deck.cardCount ?? 0 })}
                       </span>
                       <StarRating average={deck.ratingAverage} count={deck.ratingCount} size={13} />
                     </div>

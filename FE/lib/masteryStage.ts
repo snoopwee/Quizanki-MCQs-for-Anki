@@ -1,3 +1,4 @@
+import type { MessageKey } from "@/lib/i18n/messages/en";
 // Buckets a per-card learning state into one of four named stages, with display
 // metadata (label, percent, Tailwind colour classes). These thresholds drive
 // the badge / progress UI only — the quiz selection algorithm in
@@ -16,6 +17,8 @@ export type MasteryStage = "new" | "learning" | "practicing" | "mastered";
 export interface StageInfo {
   stage: MasteryStage;
   label: string;
+  /** The same name as a message key, for surfaces that have a translator. */
+  labelKey: MessageKey;
   // 0-100, rounded to an integer for display.
   percent: number;
   // Pill styling: background + text, with a thin ring so the colour reads
@@ -35,6 +38,21 @@ const STAGE_LABEL: Record<MasteryStage, string> = {
   learning: "Learning",
   practicing: "Practicing",
   mastered: "Mastered",
+};
+
+/**
+ * The same four names as message keys.
+ *
+ * <p>Added ALONGSIDE `STAGE_LABEL` rather than replacing it: this module is pure and has no
+ * component to hook a translator into, so it hands out the key and the rendering component runs
+ * it through `t`. The English `label` stays on the returned object so nothing that still reads it
+ * breaks while the remaining screens are translated.
+ */
+const STAGE_LABEL_KEY: Record<MasteryStage, MessageKey> = {
+  new: "study.new",
+  learning: "study.learning",
+  practicing: "study.practicing",
+  mastered: "study.mastered",
 };
 
 // Warm design-system tokens (see FE/DESIGN_SYSTEM.md): learning→danger,
@@ -57,8 +75,15 @@ const STAGE_BAR: Record<MasteryStage, string> = {
 export const MASTERY_STAGES: MasteryStage[] = ["new", "learning", "practicing", "mastered"];
 
 // Display metadata for one stage (a legend dot, a breakdown bar segment).
-export function stageStyle(stage: MasteryStage): { label: string; pillClass: string; barClass: string } {
-  return { label: STAGE_LABEL[stage], pillClass: STAGE_PILL[stage], barClass: STAGE_BAR[stage] };
+export function stageStyle(
+  stage: MasteryStage,
+): { label: string; labelKey: MessageKey; pillClass: string; barClass: string } {
+  return {
+    label: STAGE_LABEL[stage],
+    labelKey: STAGE_LABEL_KEY[stage],
+    pillClass: STAGE_PILL[stage],
+    barClass: STAGE_BAR[stage],
+  };
 }
 
 export function classifyMastery(
@@ -79,6 +104,7 @@ export function classifyMastery(
   return {
     stage,
     label: STAGE_LABEL[stage],
+    labelKey: STAGE_LABEL_KEY[stage],
     percent: Math.round(mastery),
     pillClass: STAGE_PILL[stage],
     barClass: STAGE_BAR[stage],

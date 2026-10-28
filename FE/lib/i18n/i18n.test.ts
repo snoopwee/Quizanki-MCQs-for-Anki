@@ -158,8 +158,12 @@ describe("the catalogues", () => {
       (k) => typeof en[k] === "string" && typeof vi[k] === "string",
     );
     const identical = shared.filter((k) => en[k] === vi[k]);
-    // "Email" is legitimately the same word in both; anything else should differ.
-    expect(identical).toEqual(["auth.email"]);
+    // Some entries are LEGITIMATELY identical: "Email" is the same word in Vietnamese, and a
+    // numeric size bucket ("20–50") is the same in every language. Everything else differing is
+    // what proves the catalogue was actually translated rather than pasted across.
+    expect(identical.sort()).toEqual(
+      ["auth.email", "size.100plus", "size.20to50", "size.50to100"].sort(),
+    );
   });
 
   it("keeps the reset-sent message free of any account-existence hint, in BOTH languages", () => {

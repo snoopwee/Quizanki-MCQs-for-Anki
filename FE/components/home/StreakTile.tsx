@@ -3,7 +3,8 @@
 import { Icon } from "@/components/ui/icons";
 import { StatTile } from "@/components/ui/StatTile";
 import { useStreak } from "@/hooks/useStreak";
-import { streakCaption, streakValue, weekdayLabel } from "@/lib/streakDisplay";
+import { streakCaptionKey, weekdayLabel } from "@/lib/streakDisplay";
+import { useLocale, useT } from "@/components/i18n/LocaleProvider";
 
 // Home's daily study streak. A day counts once you answer a quiz or Learn question, or
 // study the deck-page flashcards — filed under YOUR local calendar date, because the
@@ -11,19 +12,21 @@ import { streakCaption, streakValue, weekdayLabel } from "@/lib/streakDisplay";
 // days before it, oldest first, so today is always the last dot.
 export function StreakTile({ className = "" }: { className?: string }) {
   const { data, isError } = useStreak();
+  const t = useT();
+  const { locale } = useLocale();
 
   const sub = data
-    ? `${streakCaption(data)} · best ${data.longest}`
+    ? `${t(streakCaptionKey(data))} · ${t("home.streakBest", { count: data.longest })}`
     : isError
-      ? "Couldn't load your streak"
+      ? t("home.streakError")
       : undefined;
 
   return (
     <StatTile
       className={className}
       icon={<Icon name="flame" size={18} />}
-      label="Study streak"
-      value={data ? streakValue(data.current) : "—"}
+      label={t("home.studyStreak")}
+      value={data ? t("home.streakDays", { count: data.current }) : "—"}
       sub={sub}
     >
       {data ? (
@@ -35,14 +38,14 @@ export function StreakTile({ className = "" }: { className?: string }) {
         // Tuesday; labelled as a rolling window it reads correctly. The visible caption below
         // says the same thing to everyone else.
         <>
-          <ol aria-label="Your study days over the last 7 days" className="mt-3 grid grid-cols-7 gap-1">
+          <ol aria-label={t("home.studyDaysAria")} className="mt-3 grid grid-cols-7 gap-1">
           {data.last7Days.map((day, i) => {
             const isToday = i === data.last7Days.length - 1;
-            const name = isToday ? "Today" : weekdayLabel(day.date, "long");
+            const name = isToday ? t("home.today") : weekdayLabel(day.date, "long", locale);
             return (
               <li
                 key={day.date}
-                aria-label={`${name}: ${day.studied ? "studied" : "not studied"}`}
+                aria-label={`${name}: ${day.studied ? t("home.studied") : t("home.notStudied")}`}
                 className="flex flex-col items-center gap-1"
               >
                 {/* Equal 24px circles so the week reads as one even row. Studied = a soft
@@ -63,14 +66,14 @@ export function StreakTile({ className = "" }: { className?: string }) {
                   aria-hidden
                   className={`text-[0.6875rem] font-medium ${isToday ? "text-ink" : "text-faint"}`}
                 >
-                  {weekdayLabel(day.date)}
+                  {weekdayLabel(day.date, "narrow", locale)}
                 </span>
               </li>
             );
           })}
           </ol>
           <p aria-hidden className="mt-1.5 text-center font-mono text-[0.625rem] text-faint">
-            last 7 days
+            {t("home.last7Days")}
           </p>
         </>
       ) : isError ? null : (

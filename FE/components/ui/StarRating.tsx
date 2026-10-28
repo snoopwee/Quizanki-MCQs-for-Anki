@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Icon } from "@/components/ui/icons";
-import { formatAverage, ratingLabel, ratingSummary, starFills, STARS } from "@/lib/ratingDisplay";
+import { formatAverage, starFills, STARS } from "@/lib/ratingDisplay";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 /**
  * A deck's public score: five stars, the number, and how many people rated it — "4.2 (17)".
@@ -28,13 +29,24 @@ export function StarRating({
   /** Off on a dense deck card, where the number alone is enough. */
   showCaption?: boolean;
 }) {
+  const t = useT();
   const rated = count > 0;
+  // Built here rather than in lib/ratingDisplay: those helpers are pure and have no translator.
+  const whole = Math.floor(count);
+  const summary = rated ? `${formatAverage(average)} (${whole})` : t("rating.notRated");
+  const label = rated
+    ? t("rating.aria", {
+        score: formatAverage(average),
+        max: STARS,
+        caption: t("rating.count", { count: whole }),
+      })
+    : t("rating.notRated");
 
   return (
     <span
       className="inline-flex items-center gap-1.5"
-      title={ratingLabel(average, count)}
-      aria-label={ratingLabel(average, count)}
+      title={label}
+      aria-label={label}
       role="img"
     >
       {rated && (
@@ -47,7 +59,7 @@ export function StarRating({
       <span aria-hidden className={`font-mono text-xs ${rated ? "text-muted" : "text-faint"}`}>
         {/* Without the caption the row is just a number, which has nothing to say when there is
             no score — so an unrated deck falls back to the words either way. */}
-        {showCaption || !rated ? ratingSummary(average, count) : formatAverage(average)}
+        {showCaption || !rated ? summary : formatAverage(average)}
       </span>
     </span>
   );

@@ -313,6 +313,95 @@ export const en = {
   "size.50to100": "50\u2013100",
   "size.100plus": "100+",
 
+  // ---- deck page ------------------------------------------------------------------------------
+  "deckPage.loading": "Loading deck…",
+  "deckPage.notFound": "Deck not found.",
+  "deckPage.backToDecks": "Back to decks",
+  "deckPage.backToFlashcards": "Back to flashcards",
+  "deckPage.breadcrumb": "Breadcrumb",
+  "deckPage.studyModes": "Study modes",
+  "deckPage.flashcards": "Flashcards",
+  "deckPage.flashcardsDesc": "Flip through every card below",
+  "deckPage.quizMe": "Quiz me",
+  "deckPage.quizMeDesc": "Quiz me — Multiple choice",
+  "deckPage.match": "Match",
+  "deckPage.practiceTest": "Practice test",
+  "deckPage.setUpQuiz": "Set up quiz",
+  "deckPage.term": "Term",
+  "deckPage.definition": "Def",
+  "deckPage.edit": "Edit",
+  "deckPage.duplicate": "Duplicate",
+  "deckPage.export": "Export",
+  "deckPage.delete": "Delete",
+  "deckPage.deleteDeck": "Delete deck",
+  "deckPage.deleteConfirm": "Delete this deck?",
+  "deckPage.privateShare": "Private — share this deck",
+  "deckPage.saveToHome": "Save to Home",
+  "deckPage.savedToHome": "Saved to Home — remove",
+  "deckPage.yourRating": "Your rating",
+  "deckPage.deleting": "Deleting…",
+  "deckPage.rateIt": "Rate it",
+  "deckPage.report": "Report",
+
+  // ---- shared deck ----------------------------------------------------------------------------
+  "shared.heading": "Shared deck",
+  "shared.notShared": "This deck isn't shared",
+  "shared.backToDeck": "Back to deck",
+  "shared.cardsInDeck": "Cards in this deck",
+  "shared.studyThisDeck": "Study this deck",
+  "shared.playMatch": "Play Match",
+  "shared.startFreeQuiz": "Start the free quiz →",
+  "shared.keepProgress": "Nice work — keep this progress",
+  "shared.tryQuizanki": "Try Quizanki",
+  "shared.createOneFree": "Create one free",
+
+  // ---- folders ---------------------------------------------------------------------------------
+  "folders.heading": "Folders",
+  "folders.allYourDecks": "All your decks",
+  "folders.allFolders": "All folders",
+  "folders.pickADeck": "Pick a deck to file",
+  "folders.gone": "That folder isn't there any more.",
+  "folders.empty": "This folder is empty.",
+
+  // ---- sign-up prompts on a shared deck -------------------------------------------------------
+  // Why we are asking. Naming the thing the learner just tried to do converts better than one
+  // generic "sign in to continue", and costs nothing but a string.
+  "reason.studyDesc": "Create a free account (or log in) to study this deck and keep your progress.",
+  "reason.againTitle": "Keep going on this deck",
+  "reason.againDesc":
+    "Free quizzes are one per deck. With an account you get unlimited runs, your own question types and card counts, and progress that's saved.",
+  "reason.finishedDesc":
+    "Your score for this run isn't saved yet. Create a free account to keep it, study this deck again, and choose how you're quizzed.",
+  "reason.matchDesc": "Match is for signed-in learners. Creating an account is free and takes a moment.",
+  "reason.unquizableTitle": "This deck can't be quizzed",
+  "reason.unquizableDesc":
+    "Its cards don't have a question and answer pair we can build questions from. You can still read them in flashcards, or sign up to bring your own deck.",
+
+  // Three whole sentences rather than one with a glued-on adjective. The original built
+  // `${count} ${sourceNoun}card${s} in this set` — putting the modifier BEFORE the noun, which is
+  // an English word-order assumption. Vietnamese puts it after ("thẻ đã gắn sao"), so the pieces
+  // cannot be assembled the same way in both languages.
+  "setup.availableAll": {
+    one: "{count} card in this set — enter how many questions you want.",
+    other: "{count} cards in this set — enter how many questions you want.",
+  },
+  "setup.availableStarred": {
+    one: "{count} starred card in this set — enter how many questions you want.",
+    other: "{count} starred cards in this set — enter how many questions you want.",
+  },
+  "setup.availableWeak": {
+    one: "{count} still-learning card in this set — enter how many questions you want.",
+    other: "{count} still-learning cards in this set — enter how many questions you want.",
+  },
+  "setup.cardsInSet": { one: "{count} card in this set", other: "{count} cards in this set" },
+  "setup.unlockHint": " · star cards or answer a few to unlock the focused sets",
+  "setup.starred": "Starred",
+  "setup.ready": "Ready",
+  "setup.back": "Back",
+  "setup.questionCount": { one: "{count} question", other: "{count} questions" },
+  "setup.noQuizzable":
+    "None of the note types in {filename} have enough quizzable content. Decks with only single-field or image-only note types aren't supported.",
+
   // ---- settings --------------------------------------------------------------------------
   "settings.language": "Language",
   "settings.languageHint": "Applies to the interface. Your decks are never translated.",

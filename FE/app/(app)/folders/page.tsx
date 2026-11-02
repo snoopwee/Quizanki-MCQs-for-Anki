@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FolderList } from "@/components/folders/FolderList";
 import { Icon } from "@/components/ui/icons";
 import { buttonClasses } from "@/components/ui/Button";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 /**
  * Folders, as a place rather than a tab.
@@ -13,11 +14,12 @@ import { buttonClasses } from "@/components/ui/Button";
  * page that link lands on.
  */
 export default function FoldersPage() {
+  const t = useT();
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-bold tracking-tight text-ink">Folders</h1>
+          <h1 className="font-display text-3xl font-bold tracking-tight text-ink">{t("folders.heading")}</h1>
           <p className="mt-1 text-sm text-muted">
             Group decks by subject, exam or textbook. A deck can sit in several folders at once.
           </p>

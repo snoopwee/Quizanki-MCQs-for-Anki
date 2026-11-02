@@ -22,6 +22,8 @@ import { QuizSession } from "@/components/quiz/QuizSession";
 import { Card } from "@/components/ui/Card";
 import { Icon, type IconName } from "@/components/ui/icons";
 import type { NoteStatsLookup } from "@/lib/quizDeckSpecs";
+import { useT } from "@/components/i18n/LocaleProvider";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 
 // A deck someone shared. What you see depends on who you are:
 //   * Signed in  → redirected to /decks/{id}, the full study experience where your own progress
@@ -44,6 +46,7 @@ const PREVIEW_ROWS = 6;
 type Step = "browse" | "flashcards" | "quiz";
 
 export default function SharedDeckPage() {
+  const t = useT();
   const { deckId } = useParams<{ deckId: string }>();
   const router = useRouter();
   const { user, loading: sessionLoading } = useSession();
@@ -111,7 +114,7 @@ export default function SharedDeckPage() {
   if (sessionLoading || user) {
     return (
       <AppChrome>
-        <p className="mx-auto max-w-3xl text-sm text-muted">Loading deck…</p>
+        <p className="mx-auto max-w-3xl text-sm text-muted">{t("deckPage.loading")}</p>
       </AppChrome>
     );
   }
@@ -125,10 +128,10 @@ export default function SharedDeckPage() {
             getStats={getStats}
             getStarred={(noteId) => guestStars.isStarred(noteId)}
             onToggleStar={(noteId, next) => guestStars.setStarred(noteId, next)}
-            backLabel="Back to deck"
+            backLabel={t("shared.backToDeck")}
             onBack={() => setStep("browse")}
             onStartTest={startDemoQuiz}
-            startTestLabel={demoUsed ? "Sign up to quiz again →" : "Start the free quiz →"}
+            startTestLabel={demoUsed ? t("landing.signUpToQuizAgain") : t("shared.startFreeQuiz")}
           />
         </div>
         {authOpen && <SignUpPrompt reason={authReason} deckId={deckId} onClose={() => setAuthOpen(false)} />}
@@ -161,7 +164,7 @@ export default function SharedDeckPage() {
   return (
     <AppChrome>
       <div className="mx-auto max-w-3xl space-y-6">
-        {deckQuery.isLoading && <p className="text-sm text-muted">Loading deck…</p>}
+        {deckQuery.isLoading && <p className="text-sm text-muted">{t("deckPage.loading")}</p>}
 
         {deckQuery.isError && <NotShared />}
 
@@ -173,7 +176,7 @@ export default function SharedDeckPage() {
               <div className="p-6">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2 py-0.5 font-mono text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-accent-ink">
                   <Icon name="link" size={13} />
-                  Shared deck
+                  {t("shared.heading")}
                 </span>
                 <h1
                   title={deckQuery.data.name}
@@ -212,13 +215,13 @@ export default function SharedDeckPage() {
             {/* study modes */}
             <div>
               <p className="mb-3 font-mono text-xs font-semibold uppercase tracking-[0.06em] text-muted">
-                Study modes
+                {t("deckPage.studyModes")}
               </p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <ModeTile
                   primary
                   icon="clipboard"
-                  label="Quiz me — Multiple choice"
+                  label={t("deckPage.quizMeDesc")}
                   desc={
                     demoUsed
                       ? "You've used this deck's free quiz — sign up to keep going"
@@ -230,14 +233,14 @@ export default function SharedDeckPage() {
                 <ModeTile
                   icon="cards"
                   color="var(--info)"
-                  label="Flashcards"
+                  label={t("deckPage.flashcards")}
                   desc="Flip through every card — free, no account"
                   onClick={() => setStep("flashcards")}
                 />
                 <ModeTile
                   icon="shuffle"
                   color="var(--success)"
-                  label="Match"
+                  label={t("deckPage.match")}
                   desc="Sign up to race the pairing game"
                   locked
                   onClick={() => promptSignUp("match")}
@@ -252,7 +255,7 @@ export default function SharedDeckPage() {
                     onClick={() => promptSignUp("again")}
                     className="focus-ring font-semibold text-accent-ink underline underline-offset-2"
                   >
-                    Create one free
+                    {t("shared.createOneFree")}
                   </button>
                 </p>
               )}
@@ -261,7 +264,7 @@ export default function SharedDeckPage() {
             {/* cards — readable. The whole point of the preview is judging the deck. */}
             <div>
               <p className="mb-3 font-mono text-xs font-semibold uppercase tracking-[0.06em] text-muted">
-                Cards in this deck
+                {t("shared.cardsInDeck")}
               </p>
               <ul className="space-y-2">
                 {cards.slice(0, PREVIEW_ROWS).map((c, i) => (
@@ -291,29 +294,28 @@ export default function SharedDeckPage() {
 // than one generic "sign in to continue", and costs nothing but a string.
 type AuthReason = "study" | "again" | "finished" | "match" | "unquizable";
 
-const REASONS: Record<AuthReason, { title: string; description: string }> = {
+// Message KEYS, not text: this is a module-level const, evaluated at import time, so there is no
+// translator in scope. `SignUpPrompt` runs them through `t`.
+const REASONS: Record<AuthReason, { titleKey: MessageKey; descriptionKey: MessageKey }> = {
   study: {
-    title: "Study this deck",
-    description: "Create a free account (or log in) to study this deck and keep your progress.",
+    titleKey: "shared.studyThisDeck",
+    descriptionKey: "reason.studyDesc",
   },
   again: {
-    title: "Keep going on this deck",
-    description:
-      "Free quizzes are one per deck. With an account you get unlimited runs, your own question types and card counts, and progress that's saved.",
+    titleKey: "reason.againTitle",
+    descriptionKey: "reason.againDesc",
   },
   finished: {
-    title: "Nice work — keep this progress",
-    description:
-      "Your score for this run isn't saved yet. Create a free account to keep it, study this deck again, and choose how you're quizzed.",
+    titleKey: "shared.keepProgress",
+    descriptionKey: "reason.finishedDesc",
   },
   match: {
-    title: "Play Match",
-    description: "Match is for signed-in learners. Creating an account is free and takes a moment.",
+    titleKey: "shared.playMatch",
+    descriptionKey: "reason.matchDesc",
   },
   unquizable: {
-    title: "This deck can't be quizzed",
-    description:
-      "Its cards don't have a question and answer pair we can build questions from. You can still read them in flashcards, or sign up to bring your own deck.",
+    titleKey: "reason.unquizableTitle",
+    descriptionKey: "reason.unquizableDesc",
   },
 };
 
@@ -326,14 +328,15 @@ function SignUpPrompt({
   deckId: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const router = useRouter();
-  const { title, description } = REASONS[reason];
+  const { titleKey, descriptionKey } = REASONS[reason];
   return (
     <AuthModal
-      title={title}
-      description={description}
-      loginLabel="Log in"
-      signupLabel="Sign up"
+      title={t(titleKey)}
+      description={t(descriptionKey)}
+      loginLabel={t("common.logIn")}
+      signupLabel={t("common.signUp")}
       initialMode="signup"
       onClose={onClose}
       // Google leaves the page, so the same destination has to be given as a path.
@@ -410,6 +413,7 @@ function ModeTile({
 }
 
 function NotShared() {
+  const t = useT();
   return (
     <Card className="p-6 text-center">
       <h1 className="font-display text-xl font-semibold tracking-tight">
@@ -423,7 +427,7 @@ function NotShared() {
         href="/"
         className="focus-ring mt-5 inline-flex rounded-input bg-accent px-4 py-2 text-sm font-semibold text-white shadow-btn transition hover:opacity-95"
       >
-        Try Quizanki
+        {t("shared.tryQuizanki")}
       </Link>
     </Card>
   );

@@ -302,6 +302,80 @@ export const vi = {
   "size.50to100": "50\u2013100",
   "size.100plus": "100+",
 
+  // ---- deck page ------------------------------------------------------------------------------
+  "deckPage.loading": "Đang tải bộ thẻ…",
+  "deckPage.notFound": "Không tìm thấy bộ thẻ.",
+  "deckPage.backToDecks": "Quay lại danh sách bộ thẻ",
+  "deckPage.backToFlashcards": "Quay lại thẻ ghi nhớ",
+  "deckPage.breadcrumb": "Đường dẫn",
+  "deckPage.studyModes": "Cách học",
+  "deckPage.flashcards": "Thẻ ghi nhớ",
+  "deckPage.flashcardsDesc": "Lật qua từng thẻ bên dưới",
+  "deckPage.quizMe": "Kiểm tra tôi",
+  "deckPage.quizMeDesc": "Kiểm tra tôi — Trắc nghiệm",
+  "deckPage.match": "Ghép thẻ",
+  "deckPage.practiceTest": "Bài kiểm tra thử",
+  "deckPage.setUpQuiz": "Thiết lập bài trắc nghiệm",
+  "deckPage.term": "Thuật ngữ",
+  "deckPage.definition": "Định nghĩa",
+  "deckPage.edit": "Sửa",
+  "deckPage.duplicate": "Nhân bản",
+  "deckPage.export": "Xuất",
+  "deckPage.delete": "Xoá",
+  "deckPage.deleteDeck": "Xoá bộ thẻ",
+  "deckPage.deleteConfirm": "Xoá bộ thẻ này?",
+  "deckPage.privateShare": "Riêng tư — chia sẻ bộ thẻ này",
+  "deckPage.saveToHome": "Lưu về Trang chủ",
+  "deckPage.savedToHome": "Đã lưu về Trang chủ — bỏ lưu",
+  "deckPage.yourRating": "Đánh giá của bạn",
+  "deckPage.deleting": "Đang xoá…",
+  "deckPage.rateIt": "Đánh giá",
+  "deckPage.report": "Báo cáo",
+
+  // ---- shared deck ----------------------------------------------------------------------------
+  "shared.heading": "Bộ thẻ được chia sẻ",
+  "shared.notShared": "Bộ thẻ này chưa được chia sẻ",
+  "shared.backToDeck": "Quay lại bộ thẻ",
+  "shared.cardsInDeck": "Thẻ trong bộ này",
+  "shared.studyThisDeck": "Học bộ thẻ này",
+  "shared.playMatch": "Chơi Ghép thẻ",
+  "shared.startFreeQuiz": "Làm bài trắc nghiệm miễn phí →",
+  "shared.keepProgress": "Làm tốt lắm — hãy giữ lại tiến độ này",
+  "shared.tryQuizanki": "Dùng thử Quizanki",
+  "shared.createOneFree": "Tạo tài khoản miễn phí",
+
+  // ---- folders ---------------------------------------------------------------------------------
+  "folders.heading": "Thư mục",
+  "folders.allYourDecks": "Tất cả bộ thẻ của bạn",
+  "folders.allFolders": "Tất cả thư mục",
+  "folders.pickADeck": "Chọn một bộ thẻ để xếp vào",
+  "folders.gone": "Thư mục đó không còn nữa.",
+  "folders.empty": "Thư mục này đang trống.",
+
+  // ---- sign-up prompts on a shared deck -------------------------------------------------------
+  "reason.studyDesc": "Tạo tài khoản miễn phí (hoặc đăng nhập) để học bộ thẻ này và lưu lại tiến độ.",
+  "reason.againTitle": "Học tiếp bộ thẻ này",
+  "reason.againDesc":
+    "Mỗi bộ thẻ chỉ có một lượt làm miễn phí. Có tài khoản, bạn được làm không giới hạn, tự chọn dạng câu hỏi và số thẻ, và tiến độ được lưu lại.",
+  "reason.finishedDesc":
+    "Kết quả lượt này chưa được lưu. Hãy tạo tài khoản miễn phí để giữ lại, học lại bộ thẻ này và tự chọn cách kiểm tra.",
+  "reason.matchDesc": "Ghép thẻ dành cho người đã đăng nhập. Tạo tài khoản miễn phí và chỉ mất một chút thời gian.",
+  "reason.unquizableTitle": "Bộ thẻ này không tạo được trắc nghiệm",
+  "reason.unquizableDesc":
+    "Các thẻ chưa có cặp câu hỏi và đáp án để dựng câu hỏi. Bạn vẫn có thể đọc chúng ở chế độ thẻ ghi nhớ, hoặc đăng ký để mang bộ thẻ của riêng bạn vào.",
+
+  "setup.availableAll": "{count} thẻ trong bộ này — nhập số câu hỏi bạn muốn.",
+  "setup.availableStarred": "{count} thẻ đã gắn sao trong bộ này — nhập số câu hỏi bạn muốn.",
+  "setup.availableWeak": "{count} thẻ đang học trong bộ này — nhập số câu hỏi bạn muốn.",
+  "setup.cardsInSet": "{count} thẻ trong bộ này",
+  "setup.unlockHint": " · hãy gắn sao vài thẻ hoặc trả lời vài câu để mở các bộ lọc",
+  "setup.starred": "Đã gắn sao",
+  "setup.ready": "Sẵn sàng",
+  "setup.back": "Quay lại",
+  "setup.questionCount": "{count} câu hỏi",
+  "setup.noQuizzable":
+    "Không có loại ghi chú nào trong {filename} đủ nội dung để tạo trắc nghiệm. Bộ thẻ chỉ có một trường hoặc chỉ có ảnh thì chưa hỗ trợ.",
+
   // ---- settings --------------------------------------------------------------------------
   "settings.language": "Ngôn ngữ",
   "settings.languageHint": "Áp dụng cho giao diện. Bộ thẻ của bạn không bao giờ bị dịch.",

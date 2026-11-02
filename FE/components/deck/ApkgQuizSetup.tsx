@@ -46,7 +46,7 @@ export function ApkgQuizSetup({
   getStats,
   deckId,
   showHeading = true,
-  backLabel = "Back",
+  backLabel,
   startLabel,
   initialSource = "all",
 }: {
@@ -137,16 +137,14 @@ export function ApkgQuizSetup({
       <div className="space-y-5">
         {showHeading && <h1 className="font-display text-2xl font-semibold tracking-tight">{t("setup.heading")}</h1>}
         <p className="break-words rounded-input border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
-          None of the note types in <span className="font-medium">{parsed.filename}</span> have
-          enough quizzable content. Decks with only single-field or image-only note types
-          aren&apos;t supported.
+          {t("setup.noQuizzable", { filename: parsed.filename })}
         </p>
         <button
           type="button"
           onClick={onBack}
           className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
         >
-          {backLabel}
+          {backLabel ?? t("setup.back")}
         </button>
       </div>
     );
@@ -185,7 +183,14 @@ export function ApkgQuizSetup({
     }));
   }
 
-  const sourceNoun = source === "starred" ? "starred " : source === "weak" ? "still-learning " : "";
+  // One whole sentence per source, rather than splicing an adjective in front of "card":
+  // English puts the modifier first, Vietnamese puts it after the noun.
+  const availableKey =
+    source === "starred"
+      ? "setup.availableStarred"
+      : source === "weak"
+        ? "setup.availableWeak"
+        : "setup.availableAll";
 
   return (
     <div className="space-y-4">
@@ -202,7 +207,7 @@ export function ApkgQuizSetup({
       {/* how many questions — free numeric entry */}
       <SettingCard
         title={t("setup.howMany")}
-        desc={`${availableTotal} ${sourceNoun}card${availableTotal === 1 ? "" : "s"} in this set — enter how many questions you want.`}
+        desc={t(availableKey, { count: availableTotal })}
       >
         <input
           type="number"
@@ -232,14 +237,13 @@ export function ApkgQuizSetup({
           onChange={setSource}
           options={[
             { value: "all", label: t("setup.allCards") },
-            { value: "starred", label: "Starred", disabled: starredIds.size === 0 },
+            { value: "starred", label: t("setup.starred"), disabled: starredIds.size === 0 },
             { value: "weak", label: t("setup.stillLearning"), disabled: weakIds.size === 0 },
           ]}
         />
         <p className="mt-2 text-xs text-muted">
-          {availableTotal} card{availableTotal === 1 ? "" : "s"} in this set
-          {(starredIds.size === 0 || weakIds.size === 0) &&
-            " · star cards or answer a few to unlock the focused sets"}
+          {t("setup.cardsInSet", { count: availableTotal })}
+          {(starredIds.size === 0 || weakIds.size === 0) && t("setup.unlockHint")}
           .
         </p>
       </SettingCard>
@@ -283,18 +287,18 @@ export function ApkgQuizSetup({
       {/* start bar */}
       <div className="mt-2 flex items-center gap-3 rounded-card border border-line-strong bg-surface p-4 shadow-card">
         <div className="min-w-0">
-          <div className="font-mono text-[0.6875rem] uppercase tracking-wide text-faint">Ready</div>
+          <div className="font-mono text-[0.6875rem] uppercase tracking-wide text-faint">{t("setup.ready")}</div>
           {/* Was "· untimed", which advertised a timer this app has never had — a setting the
               reader then goes looking for. The formats they just picked are the useful
               confirmation, and they change as the toggles above change. */}
           <div className="mt-0.5 truncate text-sm font-bold text-ink">
-            {effCount} question{effCount === 1 ? "" : "s"} ·{" "}
+            {t("setup.questionCount", { count: effCount })} ·{" "}
             {enabledKinds.length > 1 ? t("quiz.mixedFormats") : t(KIND_META[enabledKinds[0]!].labelKey)}
           </div>
         </div>
         <div className="flex-1" />
         <button type="button" onClick={onBack} className={buttonClasses({ variant: "ghost" })}>
-          {backLabel}
+          {backLabel ?? t("setup.back")}
         </button>
         <button
           type="button"

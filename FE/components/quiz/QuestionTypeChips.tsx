@@ -1,4 +1,8 @@
+"use client";
+
 import { Icon, type IconName } from "@/components/ui/icons";
+import { useT } from "@/components/i18n/LocaleProvider";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 import { ALL_QUESTION_KINDS, type QuestionKind } from "@/lib/questionTypes";
 
 // The question-format picker (Multiple choice / True-false / Written) shared by the quiz
@@ -12,13 +16,14 @@ export function QuestionTypeChips({
   enabled: QuestionKind[];
   onToggle: (kind: QuestionKind) => void;
 }) {
+  const t = useT();
   return (
     <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
       {ALL_QUESTION_KINDS.map((kind) => (
         <QTypeChip
           key={kind}
           icon={KIND_META[kind].icon}
-          label={KIND_META[kind].label}
+          label={t(KIND_META[kind].labelKey)}
           on={enabled.includes(kind)}
           onClick={() => onToggle(kind)}
         />
@@ -27,13 +32,16 @@ export function QuestionTypeChips({
   );
 }
 
-// Icon + label for each question format, in canonical order. Exported so the quiz setup's
+// Icon + message KEY for each question format, in canonical order. Exported so the quiz setup's
 // "Ready" bar names the chosen format with the SAME words as the chips above it — two copies of
 // these strings would drift.
-export const KIND_META: Record<QuestionKind, { icon: IconName; label: string }> = {
-  mcq: { icon: "clipboard", label: "Multiple choice" },
-  truefalse: { icon: "check", label: "True / false" },
-  written: { icon: "pencil", label: "Written" },
+//
+// A key rather than the text itself, because this is a module-level const: it is evaluated once at
+// import time, long before any component could call a translator. Consumers run it through `t`.
+export const KIND_META: Record<QuestionKind, { icon: IconName; labelKey: MessageKey }> = {
+  mcq: { icon: "clipboard", labelKey: "quiz.typeMultipleChoice" },
+  truefalse: { icon: "check", labelKey: "quiz.typeTrueFalse" },
+  written: { icon: "pencil", labelKey: "quiz.typeWritten" },
 };
 
 // A question-format toggle. `on` shows the accent fill + a filled checkbox; off

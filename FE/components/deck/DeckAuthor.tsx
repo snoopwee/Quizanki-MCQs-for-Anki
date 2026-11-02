@@ -3,6 +3,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { initialsFrom } from "@/lib/userDisplay";
 import { timeAgo } from "@/lib/relativeTime";
 import { profileUrl } from "@/lib/profileUrl";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 type Variant = "inline" | "dot" | "plain" | "detailed";
 
@@ -45,6 +46,7 @@ export function DeckAuthor({
   createdAt?: string | null;
   className?: string;
 }) {
+  const t = useT();
   // Decks imported before authorship existed have no stored name; they get one on
   // their next save. Until then, say nothing rather than "by null".
   if (!authorName) return null;
@@ -72,10 +74,12 @@ export function DeckAuthor({
           className="h-10 w-10 text-sm"
         />
         <div className="min-w-0 leading-tight">
-          <p className="truncate text-sm text-muted">by {nameNode}</p>
+          <p className="truncate text-sm text-muted">
+            {t("deck.by")} {nameNode}
+          </p>
           <p className="mt-0.5 text-xs text-faint">
-            {created ? `Created ${created}` : " "}
-            {showSource && ` · Original deck by ${sourceAuthorName}`}
+            {created ? t("deck.createdOn", { date: created }) : " "}
+            {showSource && ` · ${t("deck.originalBy", { name: sourceAuthorName ?? "" })}`}
           </p>
         </div>
       </div>
@@ -103,7 +107,7 @@ export function DeckAuthor({
         {leading}
         by {nameNode}
       </span>
-      {showSource && <span className="text-faint">Original deck by {sourceAuthorName}</span>}
+      {showSource && <span className="text-faint">{t("deck.originalBy", { name: sourceAuthorName ?? "" })}</span>}
     </span>
   );
 }

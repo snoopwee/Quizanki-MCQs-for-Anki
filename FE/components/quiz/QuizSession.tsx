@@ -7,6 +7,7 @@ import { useGuestMastery } from "@/stores/guestMasteryStore";
 import { invalidateAfterAnswer, useRecordAnswer } from "@/hooks/useQuizSession";
 import { useWrittenAnswer } from "@/hooks/useWrittenAnswer";
 import { cancelSpeech } from "@/lib/tts";
+import { useT } from "@/components/i18n/LocaleProvider";
 import { reshuffleQuestions } from "@/lib/buildQuestions";
 import { isAnswerCorrect, trueFalseLabel, writtenIsCorrect } from "@/lib/questionAnswer";
 import { quizKeyAction, quizKeyHint } from "@/lib/quizKeys";
@@ -67,6 +68,7 @@ export function QuizSession({
   getStarred?: (noteId: string) => boolean;
   onToggleStar?: (noteId: string, next: boolean) => void;
 }) {
+  const t = useT();
   const questions = useQuizStore((s) => s.questions);
   const currentIndex = useQuizStore((s) => s.currentIndex);
   const selectedAnswer = useQuizStore((s) => s.selectedAnswer);
@@ -247,8 +249,8 @@ export function QuizSession({
         <button
           type="button"
           onClick={onExit}
-          title="End quiz"
-          aria-label="End quiz"
+          title={t("quiz.endQuiz")}
+          aria-label={t("quiz.endQuiz")}
           className="grid h-9 w-9 shrink-0 place-items-center rounded-input border border-line bg-surface text-muted transition hover:text-ink"
         >
           <Icon name="x" size={17} />
@@ -278,8 +280,8 @@ export function QuizSession({
           <button
             type="button"
             onClick={onOpenSettings}
-            title="Quiz settings"
-            aria-label="Quiz settings"
+            title={t("quiz.settings")}
+            aria-label={t("quiz.settings")}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-input border border-line bg-surface leading-none text-muted transition hover:text-ink"
           >
             <Icon name="settings" size={17} />

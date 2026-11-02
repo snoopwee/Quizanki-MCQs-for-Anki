@@ -1,3 +1,5 @@
+import { en } from "@/lib/i18n/messages/en";
+
 // The email-link side of auth: what `/auth/callback` is allowed to act on, and where it is
 // allowed to send people afterwards. Pure, because the route handler itself cannot be unit-tested
 // without a request, and these are the two decisions in it that can actually be wrong.
@@ -68,8 +70,7 @@ export function safeNextPath(raw: string | null | undefined): string {
  * which told someone their account had been created correctly using the same red box used for
  * "that password is wrong".
  */
-export const CONFIRM_EMAIL_MESSAGE =
-  "Account created. Check your inbox for a confirmation link — and your spam folder — then log in.";
+export const CONFIRM_EMAIL_MESSAGE = en["auth.confirmEmail"];
 
 /**
  * Where Google should send somebody back to after they sign in.

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useDecks, useRecentDecks, useSavedDecks } from "@/hooks/useDecks";
-import { quickQuizDeck, quickQuizDescription } from "@/lib/quickQuiz";
+import { quickQuizDeck } from "@/lib/quickQuiz";
 import { Card } from "@/components/ui/Card";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { StatTile } from "@/components/ui/StatTile";
@@ -11,10 +11,12 @@ import { StreakTile } from "@/components/home/StreakTile";
 import { DeckGrid } from "@/components/home/DeckGrid";
 import { FolderList } from "@/components/folders/FolderList";
 import { buttonClasses } from "@/components/ui/Button";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 type Tab = "yours" | "saved" | "recent" | "folders";
 
 export default function HomePage() {
+  const t = useT();
   const decksQuery = useDecks();
   const decks = decksQuery.data ?? [];
   const loaded = Boolean(decksQuery.data);
@@ -39,8 +41,8 @@ export default function HomePage() {
           sidebar link and the Quick actions tile below still reach /import — four routes to one
           screen on one viewport was the problem, not having more than one. */}
       <div>
-        <h1 className="font-display text-3xl font-bold tracking-tight text-ink">Welcome back</h1>
-        <p className="mt-1 text-sm text-muted">Pick up where you left off.</p>
+        <h1 className="font-display text-3xl font-bold tracking-tight text-ink">{t("home.welcome")}</h1>
+        <p className="mt-1 text-sm text-muted">{t("home.subtitle")}</p>
       </div>
 
       {/* stats: your study streak, then your own decks. On phones the streak takes the full
@@ -50,45 +52,49 @@ export default function HomePage() {
         <StatTile
           icon={<Icon name="layers" size={18} />}
           color="var(--info)"
-          label="Decks"
+          label={t("home.decks")}
           value={loaded ? deckCount : "—"}
-          sub={loaded ? `${totalCards} cards total` : undefined}
+          sub={loaded ? t("home.cardsTotal", { count: totalCards }) : undefined}
         />
         <StatTile
           icon={<Icon name="target" size={18} />}
           color="var(--success)"
-          label="Avg. completion"
+          label={t("home.avgCompletion")}
           value={loaded ? `${avgCompletion}%` : "—"}
-          sub={loaded ? "across your decks" : undefined}
+          sub={loaded ? t("home.acrossYourDecks") : undefined}
         />
       </div>
 
       {/* quick actions */}
       <div>
-        <SectionLabel>Quick actions</SectionLabel>
+        <SectionLabel>{t("home.quickActions")}</SectionLabel>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <QuickAction
             icon="upload"
             color="var(--accent)"
-            title="Import an Anki deck"
-            desc="Drop an .apkg file and we'll turn every card into a multiple-choice quiz."
-            cta="Import deck"
+            title={t("home.importTitle")}
+            desc={t("home.importDesc")}
+            cta={t("nav.importDeck")}
             href="/import"
           />
           <QuickAction
             icon="clipboard"
             color="var(--warning)"
-            title="Start a quick quiz"
-            desc={quickQuizDescription(quizDeck)}
-            cta={quizDeck ? "Quiz this deck" : "New quiz"}
+            title={t("home.quickQuizTitle")}
+            desc={
+              quizDeck
+                ? t("home.quickQuizFrom", { deck: quizDeck.name })
+                : t("home.quickQuizNoDeck")
+            }
+            cta={quizDeck ? t("home.quizThisDeck") : t("home.newQuiz")}
             href={quizDeck ? `/decks/${quizDeck.id}?step=setup` : undefined}
           />
           <QuickAction
             icon="search"
             color="var(--success)"
-            title="Explore shared decks"
-            desc="Browse decks shared by other learners — Japanese, Spanish, and more."
-            cta="Browse Discover"
+            title={t("home.exploreTitle")}
+            desc={t("home.exploreDesc")}
+            cta={t("home.browseDiscover")}
             href="/discover"
           />
         </div>
@@ -98,26 +104,26 @@ export default function HomePage() {
       <div>
         <div className="mb-3 flex flex-wrap items-center gap-1.5">
           <TabButton active={tab === "yours"} onClick={() => setTab("yours")}>
-            Your decks
+            {t("home.yourDecks")}
           </TabButton>
           <TabButton active={tab === "saved"} onClick={() => setTab("saved")}>
-            Saved
+            {t("home.tabSaved")}
           </TabButton>
           <TabButton active={tab === "recent"} onClick={() => setTab("recent")}>
-            Recent
+            {t("home.tabRecent")}
           </TabButton>
           <TabButton active={tab === "folders"} onClick={() => setTab("folders")}>
-            Folders
+            {t("nav.folders")}
           </TabButton>
         </div>
 
         {tab === "yours" && (
           <DeckGrid
             query={decksQuery}
-            emptyTitle="No decks yet."
+            emptyTitle={t("home.noDecks")}
             emptyAction={
               <Link href="/import" className={buttonClasses({ variant: "soft", size: "sm" })}>
-                Import your first deck
+                {t("home.importFirst")}
               </Link>
             }
           />
@@ -131,25 +137,27 @@ export default function HomePage() {
 }
 
 function SavedTab() {
+  const t = useT();
   const query = useSavedDecks();
   return (
     <DeckGrid
       query={query}
       showAuthor
-      emptyTitle="No saved decks."
-      emptyHint="Open a shared deck and hit “Save to Home” to keep it here."
+      emptyTitle={t("home.noSaved")}
+      emptyHint={t("home.noSavedHint")}
     />
   );
 }
 
 function RecentTab() {
+  const t = useT();
   const query = useRecentDecks();
   return (
     <DeckGrid
       query={query}
       showAuthor
-      emptyTitle="Nothing recent."
-      emptyHint="Decks you open show up here for 30 days."
+      emptyTitle={t("home.nothingRecent")}
+      emptyHint={t("home.nothingRecentHint")}
     />
   );
 }

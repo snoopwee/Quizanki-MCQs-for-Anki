@@ -5,6 +5,7 @@ import { useExplainCard } from "@/hooks/useAi";
 import { aiErrorMessage } from "@/lib/aiDisplay";
 import { Icon } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/Spinner";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 /**
  * "Why?" on a card the learner just missed.
@@ -23,6 +24,7 @@ import { Spinner } from "@/components/ui/Spinner";
  * for the same reason.
  */
 export function ExplainCard({ question, answer }: { question: string; answer: string }) {
+  const t = useT();
   const explain = useExplainCard();
   const [open, setOpen] = useState(false);
 
@@ -41,7 +43,7 @@ export function ExplainCard({ question, answer }: { question: string; answer: st
         className="focus-ring mt-2 inline-flex items-center gap-1.5 rounded-input px-1.5 py-1 text-xs font-medium text-accent-ink transition hover:bg-accent-soft"
       >
         <Icon name="brain" size={14} />
-        Why is this the answer?
+        {t("quiz.explainAsk")}
       </button>
     );
   }
@@ -50,7 +52,7 @@ export function ExplainCard({ question, answer }: { question: string; answer: st
     <div className="mt-2 rounded-input border border-line bg-surface-2/60 px-3 py-2 text-xs leading-relaxed">
       {explain.isPending && (
         <p className="flex items-center gap-2 text-muted">
-          <Spinner className="h-3.5 w-3.5" /> Thinking…
+          <Spinner className="h-3.5 w-3.5" /> {t("quiz.explainThinking")}
         </p>
       )}
 

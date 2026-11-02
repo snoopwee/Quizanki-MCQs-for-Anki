@@ -2,6 +2,7 @@ import type { AnswerRecord } from "@/stores/quizStore";
 import { Card } from "@/components/ui/Card";
 import { Ring } from "@/components/ui/Ring";
 import { Icon } from "@/components/ui/icons";
+import { useT } from "@/components/i18n/LocaleProvider";
 import { buttonClasses } from "@/components/ui/Button";
 import { CardPreviewRow } from "@/components/deck/CardPreview";
 import { RichText } from "@/components/shared/RichText";
@@ -14,7 +15,7 @@ export function ResultsSummary({
   onRetakeSame,
   onRetakeWrong,
   onRetakeNew,
-  newLabel = "New quiz",
+  newLabel,
   onEndTest,
 }: {
   answers: AnswerRecord[];
@@ -32,10 +33,17 @@ export function ResultsSummary({
   // End the test and return to the deck's flashcard list.
   onEndTest: () => void;
 }) {
+  const t = useT();
   const pct = total === 0 ? 0 : Math.round((score / total) * 100);
   const missed = answers.filter((a) => !a.wasCorrect);
   const verdict =
-    pct >= 90 ? "Outstanding" : pct >= 70 ? "Great work" : pct >= 50 ? "Keep going" : "Worth another pass";
+    pct >= 90
+      ? t("results.praiseOutstanding")
+      : pct >= 70
+        ? t("results.praiseGreat")
+        : pct >= 50
+          ? t("results.praiseKeepGoing")
+          : t("results.praiseAnotherPass");
   const ringColor = pct >= 70 ? "var(--success)" : pct >= 50 ? "var(--warning)" : "var(--flame)";
 
   return (
@@ -46,7 +54,7 @@ export function ResultsSummary({
         <div className="flex flex-col items-center gap-6 p-7 sm:flex-row">
           <Ring value={total ? score / total : 0} size={120} stroke={9} color={ringColor} label={`${pct}%`} />
           <div className="min-w-0 flex-1 text-center sm:text-left">
-            <p className="font-mono text-xs uppercase tracking-[0.08em] text-faint">Quiz complete</p>
+            <p className="font-mono text-xs uppercase tracking-[0.08em] text-faint">{t("results.complete")}</p>
             <h2 className="mt-1 font-display text-3xl font-bold tracking-tight text-ink">{verdict}!</h2>
             <p className="mt-1 text-sm text-muted">
               You got{" "}
@@ -62,9 +70,9 @@ export function ResultsSummary({
       {/* breakdown */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: "Correct", value: score, color: "var(--success)" },
-          { label: "Incorrect", value: total - score, color: "var(--danger)" },
-          { label: "Accuracy", value: `${pct}%`, color: "var(--accent)" },
+          { label: t("results.correct"), value: score, color: "var(--success)" },
+          { label: t("results.incorrect"), value: total - score, color: "var(--danger)" },
+          { label: t("results.accuracy"), value: `${pct}%`, color: "var(--accent)" },
         ].map((s) => (
           <Card key={s.label} className="p-4 text-center">
             <div className="font-display text-2xl font-bold tracking-tight" style={{ color: s.color }}>
@@ -86,20 +94,20 @@ export function ResultsSummary({
           disabled={missed.length === 0}
           className={buttonClasses({ variant: "ghost", className: "grow basis-32" })}
         >
-          Retry missed
+          {t("results.retryMissed")}
         </button>
         <button onClick={onRetakeSame} className={buttonClasses({ variant: "ghost", className: "grow basis-32" })}>
-          Retake
+          {t("results.retake")}
         </button>
         <button onClick={onRetakeNew} className={buttonClasses({ variant: "primary", className: "grow basis-32" })}>
-          {newLabel}
+          {newLabel ?? t("results.newQuiz")}
         </button>
       </div>
 
       {/* review list — each answered card shown front/back like the flashcard
           list, with a correct/missed pill in place of the per-row actions */}
       <div className="space-y-2">
-        <h3 className="font-mono text-xs font-medium uppercase tracking-wide text-faint">Review answers</h3>
+        <h3 className="font-mono text-xs font-medium uppercase tracking-wide text-faint">{t("results.reviewAnswers")}</h3>
         <ul className="space-y-2">
           {answers.map((a, i) => (
             <CardPreviewRow
@@ -136,7 +144,7 @@ export function ResultsSummary({
                   }`}
                 >
                   <Icon name={a.wasCorrect ? "check" : "x"} size={13} />
-                  {a.wasCorrect ? "Correct" : "Missed"}
+                  {a.wasCorrect ? t("results.correct") : t("results.missed")}
                 </span>
               }
             />

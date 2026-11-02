@@ -17,6 +17,7 @@ import { SuspendedGate } from "@/components/auth/SuspendedGate";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { useFolders } from "@/hooks/useFolders";
 import { folderHref, navMatches, railFolders } from "@/lib/folderNav";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // True for any URL a full-screen study mode takes over — sidebar is hidden so the
 // test / match game / learn session occupies the full screen (less chrome, fewer
@@ -75,6 +76,7 @@ export function AppShell({
   email: string;
   children: React.ReactNode;
 }) {
+  const t = useT();
   const pathname = usePathname();
   const immersive = isImmersiveRoute(pathname);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -153,7 +155,7 @@ export function AppShell({
           <div className="fixed inset-0 z-50 md:hidden">
             <button
               type="button"
-              aria-label="Close menu"
+              aria-label={t("nav.closeMenu")}
               onClick={() => setDrawerOpen(false)}
               className="absolute inset-0 bg-ink/40 backdrop-blur-sm"
             />
@@ -174,7 +176,7 @@ export function AppShell({
           <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-canvas/80 px-4 py-3 backdrop-blur md:px-8">
             <button
               type="button"
-              aria-label="Open menu"
+              aria-label={t("nav.openMenu")}
               onClick={() => setDrawerOpen(true)}
               className="grid h-10 w-10 shrink-0 place-items-center rounded-input border border-line bg-surface text-muted transition hover:text-ink md:hidden"
             >
@@ -201,6 +203,7 @@ export function AppShell({
 // gets the streak and the bell only — matching the admin rail, which has no New deck either. The
 // bell stays for admins because S5 broadcasts from the admin panel, and they can receive too.
 function HeaderActions() {
+  const t = useT();
   const isAdmin = useMe().data?.isAdmin ?? false;
 
   return (
@@ -210,11 +213,11 @@ function HeaderActions() {
       {!isAdmin && (
         <Link
           href="/import"
-          title="New deck"
+          title={t("nav.newDeck")}
           className="focus-ring inline-flex h-10 shrink-0 items-center gap-1.5 rounded-input bg-accent px-2.5 font-semibold text-white shadow-btn transition hover:opacity-95 sm:px-3.5"
         >
           <Icon name="plus" size={18} />
-          <span className="hidden text-sm sm:inline">New deck</span>
+          <span className="hidden text-sm sm:inline">{t("nav.newDeck")}</span>
         </Link>
       )}
     </div>
@@ -246,6 +249,7 @@ function Sidebar({
   onMenuOpenChange?: (open: boolean) => void;
   onNavigate?: () => void;
 }) {
+  const t = useT();
   // Which rail to show — admin or study — is decided by /me. Until it resolves the
   // role is UNKNOWN, so we render a neutral placeholder rather than defaulting to
   // the study nav (which flashed the normal sidebar at admins on a cold load). Once
@@ -282,7 +286,7 @@ function Sidebar({
         <Link
           href={isAdmin ? "/admin" : "/home"}
           onClick={onNavigate}
-          aria-label={isAdmin ? "Admin" : "Home"}
+          aria-label={isAdmin ? t("nav.admin") : t("nav.home")}
           className="flex min-w-0 items-center"
         >
           <BrandMark size="lg" withWordmark={false} />
@@ -295,7 +299,7 @@ function Sidebar({
           <button
             type="button"
             onClick={onTogglePin}
-            aria-label={pinned ? "Switch to hover mode" : "Pin sidebar open"}
+            aria-label={pinned ? t("nav.hoverMode") : t("nav.pinSidebar")}
             aria-pressed={pinned}
             title={pinned ? "Switch to hover mode" : "Pin sidebar open"}
             className={`ml-auto grid h-8 w-8 shrink-0 place-items-center rounded-input border transition ${
@@ -342,7 +346,7 @@ function Sidebar({
           <NavLink
             href="/home"
             pathname={pathname}
-            label="Home"
+            label={t("nav.home")}
             icon="home"
             expanded={expanded}
             onNavigate={onNavigate}
@@ -350,7 +354,7 @@ function Sidebar({
           <NavLink
             href="/discover"
             pathname={pathname}
-            label="Browse decks"
+            label={t("common.browseDecks")}
             icon="search"
             expanded={expanded}
             onNavigate={onNavigate}
@@ -362,8 +366,8 @@ function Sidebar({
               (2026-09-16), beside the search and the streak. Import deck below still reaches
               the same screen. */}
           <nav className="mt-6 flex flex-col gap-1 text-sm">
-            <NavLink href="/home" pathname={pathname} label="Home" icon="home" expanded={expanded} onNavigate={onNavigate} />
-            <NavLink href="/discover" pathname={pathname} label="Discover" icon="search" expanded={expanded} onNavigate={onNavigate} />
+            <NavLink href="/home" pathname={pathname} label={t("nav.home")} icon="home" expanded={expanded} onNavigate={onNavigate} />
+            <NavLink href="/discover" pathname={pathname} label={t("nav.discover")} icon="search" expanded={expanded} onNavigate={onNavigate} />
             {/* Folders were built months ago and reachable only from Home's fourth tab and a
                 deck's ⋯ dialog — which is how a finished feature goes unused. Quizlet and Knowt
                 both keep them in the rail, so the section lives here, with the user's actual
@@ -371,7 +375,7 @@ function Sidebar({
             <NavLink
               href="/folders"
               pathname={pathname}
-              label="Folders"
+              label={t("nav.folders")}
               icon="folder"
               expanded={expanded}
               onNavigate={onNavigate}
@@ -381,7 +385,7 @@ function Sidebar({
             <NavLink
               href="/import"
               pathname={pathname}
-              label="Import deck"
+              label={t("nav.importDeck")}
               icon="upload"
               expanded={expanded}
               onNavigate={onNavigate}
@@ -393,7 +397,7 @@ function Sidebar({
             <NavLink
               href="/export"
               pathname={pathname}
-              label="Make a quiz deck"
+              label={t("nav.makeQuizDeck")}
               icon="download"
               expanded={expanded}
               onNavigate={onNavigate}
@@ -578,9 +582,10 @@ function SoonNavItem({
   icon: IconName;
   expanded: boolean;
 }) {
+  const t = useT();
   return (
     <div
-      title={expanded ? "Coming soon" : `${label} — coming soon`}
+      title={expanded ? t("nav.comingSoon") : `${label} — coming soon`}
       className="flex h-10 cursor-not-allowed items-center rounded-input text-faint"
     >
       <span className="grid h-10 w-10 shrink-0 place-items-center">
@@ -599,12 +604,13 @@ function SoonNavItem({
 // A small spinner next to the Import-deck link while a save is in flight, so
 // the user has a persistent cue even if they've dismissed the toast.
 function ImportPendingDot() {
+  const t = useT();
   const { status } = useImportContext();
   if (status !== "pending") return null;
   return (
     <span
-      aria-label="Saving deck"
-      title="Saving deck…"
+      aria-label={t("nav.savingDeck")}
+      title={t("nav.savingDeckEllipsis")}
       className="inline-block h-2.5 w-2.5 animate-spin rounded-full border-2 border-current border-t-transparent opacity-70"
     />
   );

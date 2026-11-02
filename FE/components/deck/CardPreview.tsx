@@ -9,6 +9,7 @@ import { textDirection } from "@/lib/displayText";
 import { RichText } from "@/components/shared/RichText";
 import { ZoomableImage } from "@/components/shared/ImageLightbox";
 import { AudioPlayer } from "@/components/shared/AudioPlayer";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // Renders each field value on its own line, or a muted placeholder when empty.
 // Per line we set `dir` so Arabic/Hebrew fields lay out RTL, and placeholder any
@@ -30,11 +31,12 @@ export function Lines({ values, className = "" }: { values: string[]; className?
 
 // Small status pill: "Learning · 25%", colour-coded by mastery stage.
 export function StageBadge({ info }: { info: StageInfo }) {
+  const t = useT();
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${info.pillClass}`}
     >
-      <span>{info.label}</span>
+      <span>{t(info.labelKey)}</span>
       {info.stage !== "new" && (
         <>
           <span aria-hidden className="opacity-60">

@@ -7,6 +7,7 @@ import { Ring } from "@/components/ui/Ring";
 import { Icon } from "@/components/ui/icons";
 import { StarRating } from "@/components/ui/StarRating";
 import type { DeckResponse } from "@/types/api";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // The deck card grid used by Home's tabs and by a folder's contents — extracted so a folder
 // renders decks exactly as Home does, rather than growing a second deck card.
@@ -23,10 +24,11 @@ export function DeckGrid({
   emptyHint?: string;
   emptyAction?: React.ReactNode;
 }) {
+  const t = useT();
   const decks = query.data ?? [];
 
-  if (query.isLoading) return <p className="text-sm text-muted">Loading…</p>;
-  if (query.isError) return <p className="text-sm text-danger">Could not load decks.</p>;
+  if (query.isLoading) return <p className="text-sm text-muted">{t("deck.loading")}</p>;
+  if (query.isError) return <p className="text-sm text-danger">{t("deck.loadFailed")}</p>;
 
   if (decks.length === 0) {
     return (
@@ -61,7 +63,7 @@ export function DeckGrid({
                   <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-faint">
                     <span className="inline-flex items-center gap-1.5">
                       <Icon name="layers" size={13} />
-                      {deck.cardCount ?? 0} cards
+                      {t("deck.cardCount", { count: deck.cardCount ?? 0 })}
                     </span>
                     {/* The score sits where "Shared" used to: whether a deck is public is a
                         property of YOUR copy and says nothing about whether it is any good.

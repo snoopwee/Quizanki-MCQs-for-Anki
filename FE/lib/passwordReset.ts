@@ -1,3 +1,5 @@
+import { en } from "@/lib/i18n/messages/en";
+
 // Password rules and the reset flow's logic, kept pure so both places that set a password —
 // Settings, and the reset page — agree without either owning the rules.
 
@@ -71,8 +73,7 @@ export function passwordResetRedirect(origin: string): string {
  * returning success either way, so a specific message here would be us leaking what the API
  * refused to.
  */
-export const RESET_SENT_MESSAGE =
-  "If that address has an account, a reset link is on its way. Check your inbox and your spam folder.";
+export const RESET_SENT_MESSAGE = en["auth.resetSent"];
 
 /** Why a recovery link could not be turned into a session. */
 export type RecoveryProblem = "expired" | "wrong-browser" | "missing";

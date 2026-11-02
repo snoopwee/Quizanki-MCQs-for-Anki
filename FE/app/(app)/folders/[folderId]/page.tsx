@@ -8,6 +8,7 @@ import { Icon } from "@/components/ui/icons";
 import { buttonClasses } from "@/components/ui/Button";
 import { deckCountLabel, isMissingFolderError } from "@/lib/folderDisplay";
 import { useFolder } from "@/hooks/useFolders";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 /**
  * One folder's decks, at its own URL.
@@ -20,6 +21,7 @@ import { useFolder } from "@/hooks/useFolders";
  * (not 403) for somebody else's folder, which keeps this page from confirming that one exists.
  */
 export default function FolderPage() {
+  const t = useT();
   const { folderId } = useParams<{ folderId: string }>();
   const folder = useFolder(folderId);
   const deckCount = folder.data?.decks.length;
@@ -31,13 +33,13 @@ export default function FolderPage() {
           <span className="grid h-12 w-12 place-items-center rounded-input bg-surface-2 text-muted">
             <Icon name="folder" size={24} />
           </span>
-          <p className="text-sm font-medium text-ink">That folder isn’t there any more.</p>
+          <p className="text-sm font-medium text-ink">{t("folders.gone")}</p>
           <p className="max-w-xs text-sm text-muted">
             It may have been deleted. Your decks are unaffected — deleting a folder never touches
             what was inside it.
           </p>
           <Link href="/folders" className={buttonClasses({ variant: "soft", size: "sm" })}>
-            All folders
+            {t("folders.allFolders")}
           </Link>
         </Card>
       </div>
@@ -49,7 +51,7 @@ export default function FolderPage() {
       <div>
         <Link href="/folders" className={buttonClasses({ variant: "ghost", size: "sm" })}>
           <Icon name="chevronLeft" size={15} />
-          All folders
+          {t("folders.allFolders")}
         </Link>
         <div className="mt-3 flex min-w-0 items-center gap-3">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-input bg-accent-soft text-accent">
@@ -76,11 +78,11 @@ export default function FolderPage() {
       <DeckGrid
         query={{ data: folder.data?.decks, isLoading: folder.isLoading, isError: folder.isError }}
         showAuthor
-        emptyTitle="This folder is empty."
+        emptyTitle={t("folders.empty")}
         emptyHint="Open a deck and use its ⋯ menu to file it here."
         emptyAction={
           <Link href="/home" className={buttonClasses({ variant: "soft", size: "sm" })}>
-            Pick a deck to file
+            {t("folders.pickADeck")}
           </Link>
         }
       />

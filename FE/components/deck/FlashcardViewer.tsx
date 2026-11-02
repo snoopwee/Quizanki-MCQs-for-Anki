@@ -17,6 +17,8 @@ import { stripFurigana } from "@/lib/furigana";
 import { EditFlashcardModal, type EditableNote } from "./EditFlashcardModal";
 import { FlashcardsOptionsModal, type DeckFieldControls } from "./FlashcardsOptionsModal";
 import { Icon } from "@/components/ui/icons";
+import { useT } from "@/components/i18n/LocaleProvider";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 import { ZoomableImage } from "@/components/shared/ImageLightbox";
 import { AudioPlayer } from "@/components/shared/AudioPlayer";
 import { Toggle } from "@/components/ui/controls";
@@ -52,13 +54,27 @@ const INITIAL_VISIBLE = 20;
 const SHOW_MORE_STEP = 50;
 
 // Mastery-stage options for the "Cards in this deck" filter (mirrors masteryStage).
-const MASTERY_FILTERS: Array<{ value: MasteryStage | "all"; label: string }> = [
-  { value: "all", label: "All mastery" },
-  { value: "new", label: "New" },
-  { value: "learning", label: "Learning" },
-  { value: "practicing", label: "Practicing" },
-  { value: "mastered", label: "Mastered" },
+const MASTERY_FILTERS: Array<{ value: MasteryStage | "all"; labelKey: MessageKey }> = [
+  { value: "all", labelKey: "study.allMastery" },
+  { value: "new", labelKey: "study.new" },
+  { value: "learning", labelKey: "study.learning" },
+  { value: "practicing", labelKey: "study.practicing" },
+  { value: "mastered", labelKey: "study.mastered" },
 ];
+
+/**
+ * Which subset the player is restricted to, as an IDENTITY rather than a label.
+ *
+ * <p>⚠ This used to be the displayed string itself — `setSubsetLabel("Starred")`, later compared
+ * with `subsetLabel === "Starred"`. Translating that in place would have left the comparison
+ * matching only in English, so the starred filter would silently stop clearing itself in
+ * Vietnamese. A string that is both state and copy has to be split before it can be translated.
+ */
+type SubsetKey = "starred" | "learning";
+const SUBSET_LABELS: Record<SubsetKey, MessageKey> = {
+  starred: "study.subsetStarred",
+  learning: "study.stillLearning",
+};
 
 // The study screen: a Quizlet/Knowt-style flashcard player (in-card speaker /
 // edit / star, a bottom control bar, focus mode, shuffle + card-sorting) with a
@@ -69,9 +85,9 @@ export function FlashcardViewer({
   getStats,
   onBack,
   onStartTest,
-  startTestLabel = "Set up a quiz →",
+  startTestLabel,
   onSave,
-  backLabel = "Import another",
+  backLabel,
   hideActions = false,
   hideHeader = false,
   editable = false,
@@ -126,6 +142,7 @@ export function FlashcardViewer({
   // note-type UUIDs). Absent for the guest/unsaved flow and non-owners.
   fields?: DeckFieldControls;
 }) {
+  const t = useT();
   const allCards: StudyCard[] = useMemo(
     () => buildFlashcards(parsed.noteTypes).map((c, i) => ({ ...c, key: i })),
     [parsed],
@@ -162,7 +179,7 @@ export function FlashcardViewer({
   // The active study subset (starred-only, or a re-study of the still-learning
   // pile). null = the whole deck.
   const [restrictKeys, setRestrictKeys] = useState<Set<number> | null>(null);
-  const [subsetLabel, setSubsetLabel] = useState<string | null>(null);
+  const [subsetKey, setSubsetKey] = useState<SubsetKey | null>(null);
   // Card-sorting piles, tracked by card key.
   const [known, setKnown] = useState<Set<number>>(() => new Set());
   const [learn, setLearn] = useState<Set<number>>(() => new Set());
@@ -240,10 +257,10 @@ export function FlashcardViewer({
     if (prefs.starredOnly && hasStarred) {
       const keys = new Set(allCards.filter((c) => getStarred!(c.id)).map((c) => c.key));
       setRestrictKeys(keys);
-      setSubsetLabel("Starred");
-    } else if (subsetLabel === "Starred") {
+      setSubsetKey("starred");
+    } else if (subsetKey === "starred") {
       setRestrictKeys(null);
-      setSubsetLabel(null);
+      setSubsetKey(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefs.starredOnly, hasStarred, allCards]);
@@ -440,7 +457,7 @@ export function FlashcardViewer({
           onClick={onBack}
           className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
         >
-          {backLabel}
+          {backLabel ?? t("study.importAnother")}
         </button>
       </div>
     );
@@ -523,14 +540,14 @@ export function FlashcardViewer({
     setIndex((i) => Math.min(total - 1, i + 1));
   }
 
-  function studySubset(keys: Set<number>, label: string) {
+  function studySubset(keys: Set<number>, key: SubsetKey) {
     // Snapshot the keys before resetSortProgress clears the piles they came from.
     const subset = new Set(keys);
     // A subset overrides the starred filter; clear the pref so its effect doesn't
     // re-derive a "Starred" restriction over this one.
     if (prefs.starredOnly) updatePrefs({ starredOnly: false });
     setRestrictKeys(subset);
-    setSubsetLabel(label);
+    setSubsetKey(key);
     // A subset is a fresh round over a filtered set — start its piles empty.
     resetSortProgress();
   }
@@ -538,7 +555,7 @@ export function FlashcardViewer({
   function showAll() {
     if (prefs.starredOnly) updatePrefs({ starredOnly: false });
     setRestrictKeys(null);
-    setSubsetLabel(null);
+    setSubsetKey(null);
     resetSortProgress();
   }
 
@@ -586,7 +603,7 @@ export function FlashcardViewer({
       >
         <div className="flex shrink-0 items-center gap-3 pr-32">
           <span className="text-xs font-medium uppercase tracking-wide text-faint">
-            {isBack ? "Back" : "Front"}
+            {isBack ? t("study.back") : t("study.front")}
           </span>
           {cardStage && <StageBadge info={cardStage} />}
         </div>
@@ -619,7 +636,7 @@ export function FlashcardViewer({
             )}
           </div>
         </div>
-        <span className="shrink-0 text-xs text-faint">Click to flip</span>
+        <span className="shrink-0 text-xs text-faint">{t("study.clickToFlip")}</span>
 
         {/* in-card action cluster (Quizlet/Knowt): speaker · edit · star. A tap on
             the cluster must not flip the card, so it stops propagation. */}
@@ -639,7 +656,7 @@ export function FlashcardViewer({
           )}
           {canEdit && noteIndex.has(card!.id) && (
             <IconButton
-              label="Edit card"
+              label={t("study.editCard")}
               onClick={(e) => {
                 e.stopPropagation();
                 setEditingId(card!.id);
@@ -676,7 +693,7 @@ export function FlashcardViewer({
             flip();
           }
         }}
-        aria-label="Flip card"
+        aria-label={t("study.flipCard")}
         className={`group flip-card focus-ring block h-full w-full rounded-card ${
           flipped ? "is-flipped" : ""
         }`}
@@ -707,7 +724,7 @@ export function FlashcardViewer({
             >
               <Icon name={leaving.mark === "know" ? "check" : "x"} size={40} />
               <span className="font-display text-2xl font-bold tracking-tight">
-                {leaving.mark === "know" ? "Know" : "Still learning"}
+                {leaving.mark === "know" ? t("study.know") : t("study.stillLearning")}
               </span>
             </div>
           ) : (
@@ -723,7 +740,7 @@ export function FlashcardViewer({
     <div
       className={`flex ${cardHeight} flex-col items-center justify-center gap-4 rounded-card border border-line bg-surface p-8 text-center`}
     >
-      <p className="font-mono text-xs uppercase tracking-[0.08em] text-faint">Round complete</p>
+      <p className="font-mono text-xs uppercase tracking-[0.08em] text-faint">{t("study.roundComplete")}</p>
       <h3 className="font-display text-2xl font-bold tracking-tight text-ink">
         You knew {known.size} of {total}
       </h3>
@@ -739,7 +756,7 @@ export function FlashcardViewer({
         {learn.size > 0 && (
           <button
             type="button"
-            onClick={() => studySubset(learn, "Still learning")}
+            onClick={() => studySubset(learn, "learning")}
             className="focus-ring rounded-input bg-accent px-4 py-2 text-sm font-semibold text-white shadow-btn transition hover:opacity-95"
           >
             Study still learning ({learn.size})
@@ -757,7 +774,7 @@ export function FlashcardViewer({
           onClick={() => updatePrefs({ cardSorting: false })}
           className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
         >
-          Exit sorting
+          {t("study.exitSorting")}
         </button>
       </div>
     </div>
@@ -767,14 +784,14 @@ export function FlashcardViewer({
   // the sort verdicts when sorting is on). Rendered inline, or in the focus overlay.
   const player = (
     <div className="space-y-4">
-      {subsetLabel && (
+      {subsetKey && (
         <div className="flex items-center justify-center gap-2 text-xs text-muted">
           <span>
-            Studying <strong className="text-ink">{subsetLabel}</strong> · {total} card
-            {total === 1 ? "" : "s"}
+            {t("study.studying")} <strong className="text-ink">{t(SUBSET_LABELS[subsetKey])}</strong>{" "}
+            · {t("study.cardCount", { count: total })}
           </span>
           <button type="button" onClick={showAll} className="font-medium text-accent hover:underline">
-            Show all
+            {t("study.showAll")}
           </button>
         </div>
       )}
@@ -786,7 +803,7 @@ export function FlashcardViewer({
       <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-3 border-t border-line pt-4 sm:justify-between">
         <label className="order-2 flex items-center gap-2 sm:order-1">
           <Toggle on={sorting} onChange={(v) => updatePrefs({ cardSorting: v })} />
-          <span className="hidden text-xs font-medium text-muted sm:inline">Card sorting</span>
+          <span className="hidden text-xs font-medium text-muted sm:inline">{t("study.cardSorting")}</span>
         </label>
 
         <div className="order-1 flex w-full items-center justify-center gap-3 sm:order-2 sm:w-auto">
@@ -796,8 +813,8 @@ export function FlashcardViewer({
                 type="button"
                 onClick={() => mark(false)}
                 className={learnBtn}
-                aria-label="Still learning"
-                title="Still learning"
+                aria-label={t("study.stillLearning")}
+                title={t("study.stillLearning")}
               >
                 <Icon name="x" size={18} />
               </button>
@@ -808,8 +825,8 @@ export function FlashcardViewer({
                 type="button"
                 onClick={() => mark(true)}
                 className={knowBtn}
-                aria-label="Got it"
-                title="Got it"
+                aria-label={t("study.gotIt")}
+                title={t("study.gotIt")}
               >
                 <Icon name="check" size={18} />
               </button>
@@ -824,7 +841,7 @@ export function FlashcardViewer({
                 }}
                 disabled={safeIndex === 0}
                 className={navBtn}
-                aria-label="Previous card"
+                aria-label={t("study.previousCard")}
               >
                 <Icon name="chevronLeft" size={18} />
               </button>
@@ -839,7 +856,7 @@ export function FlashcardViewer({
                 }}
                 disabled={safeIndex >= total - 1}
                 className={navBtn}
-                aria-label="Next card"
+                aria-label={t("study.nextCard")}
               >
                 <Icon name="chevronRight" size={18} />
               </button>
@@ -852,8 +869,8 @@ export function FlashcardViewer({
             type="button"
             onClick={() => setAutoplaying((p) => !p)}
             disabled={sorting || total <= 1}
-            title={autoplaying ? "Pause autoplay" : "Autoplay"}
-            aria-label={autoplaying ? "Pause autoplay" : "Autoplay"}
+            title={autoplaying ? t("study.pauseAutoplay") : t("study.autoplay")}
+            aria-label={autoplaying ? t("study.pauseAutoplay") : t("study.autoplay")}
             aria-pressed={autoplaying}
             className={
               autoplaying
@@ -869,7 +886,7 @@ export function FlashcardViewer({
               setSeed((s) => s + 1);
               updatePrefs({ shuffle: !prefs.shuffle });
             }}
-            title={prefs.shuffle ? "Shuffle on" : "Shuffle"}
+            title={prefs.shuffle ? t("study.shuffleOn") : t("study.shuffle")}
             aria-pressed={prefs.shuffle}
             className={
               prefs.shuffle
@@ -879,15 +896,15 @@ export function FlashcardViewer({
           >
             <Icon name="shuffle" size={17} />
           </button>
-          <button type="button" onClick={() => setSettingsOpen(true)} title="Flashcards options" className={iconBtn} aria-label="Flashcards options">
+          <button type="button" onClick={() => setSettingsOpen(true)} title={t("study.flashcardsOptions")} className={iconBtn} aria-label={t("study.flashcardsOptions")}>
             <Icon name="settings" size={17} />
           </button>
           <button
             type="button"
             onClick={() => setFocus((v) => !v)}
-            title={focus ? "Exit fullscreen" : "Focus mode"}
+            title={focus ? t("study.exitFullscreen") : t("study.focusMode")}
             className={iconBtn}
-            aria-label={focus ? "Exit fullscreen" : "Focus mode"}
+            aria-label={focus ? t("study.exitFullscreen") : t("study.focusMode")}
           >
             <Icon name={focus ? "minimize" : "expand"} size={16} />
           </button>
@@ -902,8 +919,9 @@ export function FlashcardViewer({
   const previewList = (
     <div className="space-y-3">
       <h2 className="font-mono text-xs font-medium uppercase tracking-wide text-faint">
-        Cards in this deck ({filteredCards.length}
-        {listFiltering ? ` of ${total}` : ""})
+        {listFiltering
+          ? t("study.cardsInDeckFiltered", { shown: filteredCards.length, total })
+          : t("study.cardsInDeck", { shown: filteredCards.length })}
       </h2>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -915,15 +933,15 @@ export function FlashcardViewer({
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search term or definition…"
-            aria-label="Search cards"
+            placeholder={t("study.searchPlaceholder")}
+            aria-label={t("study.searchCards")}
             className="focus-ring w-full rounded-input border border-line-strong bg-surface-2 py-2 pl-9 pr-9 text-sm text-ink outline-none placeholder:text-faint"
           />
           {search && (
             <button
               type="button"
               onClick={() => setSearch("")}
-              aria-label="Clear search"
+              aria-label={t("study.clearSearch")}
               className="focus-ring absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full text-faint transition hover:text-ink"
             >
               <Icon name="x" size={14} />
@@ -933,9 +951,9 @@ export function FlashcardViewer({
         {canFilterMastery && (
           <Select
             value={masteryFilter}
-            options={MASTERY_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
+            options={MASTERY_FILTERS.map((f) => ({ value: f.value, label: t(f.labelKey) }))}
             onChange={(v) => setMasteryFilter(v as MasteryStage | "all")}
-            ariaLabel="Filter by mastery"
+            ariaLabel={t("study.filterByMastery")}
             align="right"
           />
         )}
@@ -980,7 +998,7 @@ export function FlashcardViewer({
                         // and this only ever had one item. It also matches its
                         // neighbours' `sm` size — the menu defaulted to `md`.
                         <IconButton
-                          label="Edit fields"
+                          label={t("study.editFields")}
                           size="sm"
                           onClick={() => setEditingId(c.id)}
                           className="text-faint hover:text-accent"
@@ -1004,14 +1022,14 @@ export function FlashcardViewer({
                 }
                 className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
               >
-                Show more
+                {t("study.showMore")}
               </button>
               <button
                 type="button"
                 onClick={() => setVisible(filteredCards.length)}
                 className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
               >
-                Show all ({filteredCards.length})
+                {t("study.showAllCount", { count: filteredCards.length })}
               </button>
             </div>
           )}
@@ -1031,12 +1049,12 @@ export function FlashcardViewer({
           {parsed.filename}
         </h1>
           <p className="mt-1 text-sm text-muted">
-            {allCards.length} cards — study them, then set up a quiz.
+            {t("study.deckIntro", { count: allCards.length })}
           </p>
           {completion !== undefined && (
             <div className="mt-3 max-w-xs">
               <div className="flex items-center justify-between text-xs text-muted">
-                <span>Deck completion</span>
+                <span>{t("study.deckCompletion")}</span>
                 <span className="font-mono font-medium text-ink">{Math.round(completion)}%</span>
               </div>
               <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-2">
@@ -1054,12 +1072,12 @@ export function FlashcardViewer({
 
       {!focus && (
         <p className="text-center text-[0.6875rem] text-faint">
-          Keys: <kbd className="rounded border border-line-strong px-1">←</kbd>
-          /<kbd className="rounded border border-line-strong px-1">A</kbd> prev
+          {t("study.keysHint")} <kbd className="rounded border border-line-strong px-1">←</kbd>
+          /<kbd className="rounded border border-line-strong px-1">A</kbd> {t("study.keyPrev")}
           · <kbd className="rounded border border-line-strong px-1">→</kbd>
-          /<kbd className="rounded border border-line-strong px-1">D</kbd> next
-          · <kbd className="rounded border border-line-strong px-1">Space</kbd> flip
-          · <kbd className="rounded border border-line-strong px-1">F</kbd> focus
+          /<kbd className="rounded border border-line-strong px-1">D</kbd> {t("study.keyNext")}
+          · <kbd className="rounded border border-line-strong px-1">Space</kbd> {t("study.keyFlip")}
+          · <kbd className="rounded border border-line-strong px-1">F</kbd> {t("study.keyFocus")}
         </p>
       )}
 
@@ -1070,7 +1088,7 @@ export function FlashcardViewer({
             onClick={onBack}
             className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
           >
-            {backLabel}
+            {backLabel ?? t("study.importAnother")}
           </button>
           {onSave && (
             <button
@@ -1078,7 +1096,7 @@ export function FlashcardViewer({
               onClick={onSave}
               className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
             >
-              Save deck
+              {t("study.saveDeck")}
             </button>
           )}
           {onStartTest && (
@@ -1087,7 +1105,7 @@ export function FlashcardViewer({
               onClick={onStartTest}
               className="focus-ring ml-auto rounded-input bg-accent px-4 py-2 text-sm font-semibold text-white shadow-btn transition hover:opacity-95"
             >
-              {startTestLabel}
+              {startTestLabel ?? t("study.setUpQuiz")}
             </button>
           )}
         </div>
@@ -1123,8 +1141,8 @@ export function FlashcardViewer({
             <button
               type="button"
               onClick={() => setFocus(false)}
-              title="Exit fullscreen (Esc)"
-              aria-label="Exit fullscreen"
+              title={t("study.exitFullscreenEsc")}
+              aria-label={t("study.exitFullscreen")}
               className="grid h-9 w-9 place-items-center rounded-full border border-line bg-surface text-muted transition hover:text-ink"
             >
               <Icon name="x" size={18} />

@@ -6,6 +6,7 @@ import { RichText } from "@/components/shared/RichText";
 import { textDirection } from "@/lib/displayText";
 import { MASTERY_STAGES, stageStyle, type MasteryStage } from "@/lib/masteryStage";
 import type { LearnSummary } from "@/lib/learnSession";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // The end of a Learn session: first-try accuracy, where the cards now stand on the
 // mastery scale, and the cards that were missed.
@@ -20,6 +21,7 @@ export function LearnSummaryView({
   onKeepLearning: () => void;
   onExit: () => void;
 }) {
+  const t = useT();
   const pct = summary.total > 0 ? Math.round((summary.firstTry / summary.total) * 100) : 0;
   const retried = summary.retriedMissed;
   const headline =
@@ -73,7 +75,7 @@ export function LearnSummaryView({
           {MASTERY_STAGES.map((stage) => (
             <li key={stage} className="flex items-center gap-2 text-sm text-muted">
               <span aria-hidden className={`h-2.5 w-2.5 shrink-0 rounded-full ${stageStyle(stage).barClass}`} />
-              <span className="truncate">{stageStyle(stage).label}</span>
+              <span className="truncate">{t(stageStyle(stage).labelKey)}</span>
               <span className="ml-auto font-mono font-bold text-ink">{stages[stage]}</span>
             </li>
           ))}

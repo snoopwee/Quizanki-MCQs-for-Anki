@@ -33,18 +33,21 @@ import { DeckAuthor } from "@/components/deck/DeckAuthor";
 import { Card } from "@/components/ui/Card";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { SoonTag } from "@/components/ui/controls";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 type Step = "flashcards" | "setup";
 
 export default function DeckDetailPage() {
+  const t = useT();
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Loading deck…</p>}>
+    <Suspense fallback={<p className="text-sm text-muted">{t("deckPage.loading")}</p>}>
       <DeckDetail />
     </Suspense>
   );
 }
 
 function DeckDetail() {
+  const t = useT();
   const { deckId } = useParams<{ deckId: string }>();
   const router = useRouter();
   // `?step=setup` keeps the user on the quiz-setup screen across the round-trip
@@ -191,7 +194,7 @@ function DeckDetail() {
   if (contentsQuery.isLoading) {
     return (
       <div className="mx-auto max-w-3xl">
-        <p className="text-sm text-muted">Loading deck…</p>
+        <p className="text-sm text-muted">{t("deckPage.loading")}</p>
       </div>
     );
   }
@@ -199,7 +202,7 @@ function DeckDetail() {
   if (contentsQuery.isError || !parsed || !contentsQuery.data) {
     return (
       <div className="mx-auto max-w-3xl space-y-3">
-        <p className="text-sm text-muted">Deck not found.</p>
+        <p className="text-sm text-muted">{t("deckPage.notFound")}</p>
         <Link href="/home" className="text-sm font-medium text-accent hover:underline">
           Back to decks
         </Link>
@@ -216,13 +219,13 @@ function DeckDetail() {
     <div className="mx-auto max-w-3xl space-y-6">
       <Breadcrumb
         items={[
-          { label: "Home", href: "/home" },
+          { label: t("nav.home"), href: "/home" },
           // When on the setup step, the deck name becomes a link back to the
           // flashcard view; on the flashcard view it's the current page (no href).
           step === "setup"
             ? { label: deckName, href: `/decks/${deckId}` }
             : { label: deckName },
-          ...(step === "setup" ? [{ label: "Set up quiz" }] : []),
+          ...(step === "setup" ? [{ label: t("deckPage.setUpQuiz") }] : []),
         ]}
       />
 
@@ -272,7 +275,7 @@ function DeckDetail() {
                       "studiable", which includes your own decks, so you can pin one of
                       your own to Home too. Filled when saved, like the ★ convention. */}
                   <IconButton
-                    label={saved ? "Saved to Home — remove" : "Save to Home"}
+                    label={saved ? t("deckPage.savedToHome") : t("deckPage.saveToHome")}
                     ariaPressed={saved}
                     disabled={saveDeck.isPending}
                     onClick={() => saveDeck.mutate(!saved)}
@@ -295,16 +298,16 @@ function DeckDetail() {
                             // One word each: this menu is already the deck's, so
                             // "… deck" / "… flashcards" only repeated that and wrapped.
                             {
-                              label: "Edit",
+                              label: t("deckPage.edit"),
                               icon: "pencil",
                               onClick: () => router.push(`/decks/${deckId}/edit`),
                             },
-                            { label: "Export", icon: "download", onClick: () => setExportOpen(true) },
+                            { label: t("deckPage.export"), icon: "download", onClick: () => setExportOpen(true) },
                             // Folders are the viewer's own grouping, so this sits in BOTH
                             // branches — you can file a deck you only saved.
-                            { label: "Folders", icon: "folder", onClick: () => setFolderOpen(true) },
+                            { label: t("nav.folders"), icon: "folder", onClick: () => setFolderOpen(true) },
                             {
-                              label: "Delete",
+                              label: t("deckPage.delete"),
                               icon: "trash",
                               onClick: () => setDeleteOpen(true),
                               danger: true,
@@ -313,10 +316,10 @@ function DeckDetail() {
                         : [
                             // Not the owner: they can keep it in their library or fork
                             // an editable copy — but never edit/delete the original.
-                            { label: "Duplicate", icon: "copy", onClick: handleDuplicate },
-                            { label: "Folders", icon: "folder", onClick: () => setFolderOpen(true) },
+                            { label: t("deckPage.duplicate"), icon: "copy", onClick: handleDuplicate },
+                            { label: t("nav.folders"), icon: "folder", onClick: () => setFolderOpen(true) },
                             {
-                              label: "Report",
+                              label: t("deckPage.report"),
                               icon: "alertTriangle",
                               onClick: () => setReportOpen(true),
                               danger: true,
@@ -372,7 +375,7 @@ function DeckDetail() {
                         className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface px-2.5 py-1 text-xs font-semibold text-ink transition hover:border-accent hover:text-accent"
                       >
                         <Icon name="star" size={13} />
-                        {deckRating.myStars != null ? "Your rating" : "Rate it"}
+                        {deckRating.myStars != null ? t("deckPage.yourRating") : t("deckPage.rateIt")}
                       </button>
                     )}
                   </span>
@@ -408,7 +411,7 @@ function DeckDetail() {
               <StudyMode
                 icon="clipboard"
                 color="var(--info)"
-                label="Practice test"
+                label={t("deckPage.practiceTest")}
                 desc="Answer the whole paper, then get a score"
                 onClick={goToPractice}
               />
@@ -422,14 +425,14 @@ function DeckDetail() {
               <StudyMode
                 icon="cards"
                 color="var(--info)"
-                label="Flashcards"
+                label={t("deckPage.flashcards")}
                 desc="Flip through every card below"
                 onClick={scrollToCards}
               />
               <StudyMode
                 icon="shuffle"
                 color="var(--success)"
-                label="Match"
+                label={t("deckPage.match")}
                 desc="Race to pair terms & meanings"
                 onClick={goToMatch}
               />
@@ -510,7 +513,7 @@ function DeckDetail() {
           getStats={getStats}
           deckId={deckId}
           showHeading={false}
-          backLabel="Back to flashcards"
+          backLabel={t("deckPage.backToFlashcards")}
           initialSource={initialSource}
           onBack={goToFlashcards}
           onStart={startTest}
@@ -560,8 +563,9 @@ function DeckDetail() {
 }
 
 function Breadcrumb({ items }: { items: Array<{ label: string; href?: string }> }) {
+  const t = useT();
   return (
-    <nav aria-label="Breadcrumb" className="text-sm">
+    <nav aria-label={t("deckPage.breadcrumb")} className="text-sm">
       <ol className="flex flex-wrap items-center gap-1.5 text-muted">
         {items.map((item, i) => {
           const last = i === items.length - 1;
@@ -676,6 +680,7 @@ function FloatingStudyRail({
   onToggleHide: () => void;
   onSwitchSide: () => void;
 }) {
+  const t = useT();
   const hidingLabel = hideSide === "back" ? "definition" : "term";
   const actions: Array<{
     icon: IconName;
@@ -685,10 +690,10 @@ function FloatingStudyRail({
     soon?: boolean;
     onClick?: () => void;
   }> = [
-    { icon: "clipboard", label: "Quiz me", color: "var(--accent)", primary: true, onClick: onQuiz },
+    { icon: "clipboard", label: t("deckPage.quizMe"), color: "var(--accent)", primary: true, onClick: onQuiz },
     { icon: "brain", label: "Learn", color: "var(--warning)", onClick: onLearn },
-    { icon: "cards", label: "Flashcards", color: "var(--info)", onClick: onFlashcards },
-    { icon: "shuffle", label: "Match", color: "var(--success)", onClick: onMatch },
+    { icon: "cards", label: t("deckPage.flashcards"), color: "var(--info)", onClick: onFlashcards },
+    { icon: "shuffle", label: t("deckPage.match"), color: "var(--success)", onClick: onMatch },
   ];
   return (
     <div
@@ -752,7 +757,7 @@ function FloatingStudyRail({
             aria-label={`Hiding ${hidingLabel} — switch side`}
             className="grid h-11 w-11 place-items-center rounded-full border border-line bg-surface text-[0.6875rem] font-bold uppercase tracking-tight text-ink transition hover:border-line-strong"
           >
-            {hideSide === "back" ? "Def" : "Term"}
+            {hideSide === "back" ? t("deckPage.definition") : t("deckPage.term")}
           </button>
           <span className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 whitespace-nowrap rounded-input bg-ink px-2 py-1 text-xs font-medium text-canvas opacity-0 shadow-card transition group-hover:opacity-100">
             Hiding {hidingLabel} · tap to switch
@@ -774,6 +779,7 @@ function DeleteConfirm({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const t = useT();
   // Lightweight inline confirmation — Modal would be overkill for one yes/no.
   return (
     <div
@@ -808,7 +814,7 @@ function DeleteConfirm({
             disabled={busy}
             className="focus-ring rounded-input bg-danger px-3 py-1.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
           >
-            {busy ? "Deleting…" : "Delete deck"}
+            {busy ? t("deckPage.deleting") : t("deckPage.deleteDeck")}
           </button>
         </div>
       </div>

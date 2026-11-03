@@ -3,6 +3,7 @@
 
 import axios from "axios";
 import type { AiDeckDraftMeta, AiKeyOwner } from "@/types/api";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 
 /** Mirrors the backend's PDF cap so an oversized file is refused before it's uploaded. */
 export const MAX_PDF_BYTES = 20 * 1024 * 1024;
@@ -54,4 +55,29 @@ export function pdfFileError(file: File, maxBytes = MAX_PDF_BYTES): string | nul
     return `That PDF is larger than ${Math.round(maxBytes / 1024 / 1024)} MB. Try a single chapter.`;
   }
   return null;
+}
+
+/**
+ * Either a key we can translate, or text we cannot.
+ *
+ * <p>⚠ **The backend's own message wins, and the backend has no locale.** It says the genuinely
+ * useful thing ("you've used today's 5 free generations", "that PDF looks like a scan"), so
+ * replacing it with a vaguer translated sentence would be a downgrade — but it does mean a
+ * Vietnamese reader sees an English sentence for those cases. Translating them properly means
+ * giving the API an `Accept-Language`, which is a backend change, not a catalogue entry.
+ */
+export type AiErrorText = { key: MessageKey } | { text: string };
+
+/** {@link aiErrorMessage}, but translatable wherever the message is ours rather than the API's. */
+export function aiErrorKey(err: unknown): AiErrorText {
+  if (axios.isAxiosError(err)) {
+    const message = (err.response?.data as { message?: string } | undefined)?.message;
+    if (message) return { text: message };
+    const status = err.response?.status;
+    if (status === 429) return { key: "aiError.quota" };
+    if (status === 503) return { key: "aiError.unavailable" };
+    if (status === 413) return { key: "aiError.tooLarge" };
+    if (!err.response) return { key: "aiError.offline" };
+  }
+  return { key: "aiError.generic" };
 }

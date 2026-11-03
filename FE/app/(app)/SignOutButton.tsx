@@ -4,8 +4,10 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { buttonClasses } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/icons";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 export default function SignOutButton() {
+  const t = useT();
   const router = useRouter();
 
   async function handleSignOut() {
@@ -20,7 +22,7 @@ export default function SignOutButton() {
       onClick={handleSignOut}
       className={buttonClasses({ variant: "ghost", size: "sm", className: "w-full" })}
     >
-      <Icon name="signOut" size={16} /> Sign out
+      <Icon name="signOut" size={16} /> {t("common.signOut")}
     </button>
   );
 }

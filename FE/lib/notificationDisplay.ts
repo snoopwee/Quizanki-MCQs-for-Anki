@@ -1,6 +1,9 @@
 // Pure display helpers for the notification bell: what the badge says, how old a row reads, and
 // where a row is allowed to send you.
 
+import type { MessageKey } from "@/lib/i18n/messages/en";
+import type { Vars } from "@/lib/i18n/translate";
+
 /** Above this the badge stops counting — "9+" keeps the dot the same width as the bell. */
 export const BADGE_CAP = 9;
 
@@ -10,11 +13,18 @@ export function unreadBadge(unread: number): string | null {
   return unread > BADGE_CAP ? `${BADGE_CAP}+` : String(Math.floor(unread));
 }
 
-/** The bell's accessible name. The badge itself is decorative, so the count has to live here. */
-export function unreadLabel(unread: number): string {
+/**
+ * The bell's accessible name, as a message key. The badge itself is decorative (`aria-hidden`),
+ * so the count has to live here or a screen reader never hears it.
+ *
+ * <p>A key rather than a sentence because this module is pure and has no translator; the caller
+ * runs it through `t`. The count is a variable rather than glued on, so a translation can put it
+ * wherever its grammar wants.
+ */
+export function unreadLabel(unread: number): { key: MessageKey; vars?: Vars } {
   const count = Number.isFinite(unread) ? Math.max(0, Math.floor(unread)) : 0;
-  if (count === 0) return "Notifications";
-  return `Notifications, ${count} unread`;
+  if (count === 0) return { key: "shell.notifications" };
+  return { key: "shell.notificationsUnread", vars: { count } };
 }
 
 /**

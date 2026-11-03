@@ -6,7 +6,8 @@ import { Icon } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/Spinner";
 import { buttonClasses } from "@/components/ui/Button";
 import { useAiKeyStatus, useDeleteAiKey, useSaveAiKey } from "@/hooks/useAi";
-import { aiErrorMessage } from "@/lib/aiDisplay";
+import { aiErrorKey, type AiErrorText } from "@/lib/aiDisplay";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 const PROVIDER = "gemini";
 
@@ -16,6 +17,7 @@ const PROVIDER = "gemini";
 // The key is encrypted before storage and never comes back to the browser — the most this screen
 // ever shows is its last four characters.
 export function AiKeySection() {
+  const t = useT();
   const status = useAiKeyStatus();
   const save = useSaveAiKey();
   const remove = useDeleteAiKey();
@@ -23,6 +25,11 @@ export function AiKeySection() {
 
   const supported = status.data?.supported ?? false;
   const configured = status.data?.configured ?? false;
+
+  // The API's own sentence when it sent one, our catalogue otherwise — see `aiErrorKey`.
+  function errorText(e: AiErrorText): string {
+    return "key" in e ? t(e.key) : e.text;
+  }
 
   function submit() {
     const key = apiKey.trim();
@@ -33,28 +40,25 @@ export function AiKeySection() {
   return (
     <AccountSection
       icon="bolt"
-      title="AI generation"
-      description="Turn notes or a PDF into a draft deck. Add your own API key for a bigger daily allowance and to keep your material on your own provider account."
+      title={t("settings.ai")}
+      description={t("settings.aiDesc")}
     >
       {status.isLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted">
-          <Spinner className="h-4 w-4 text-accent" label="Loading" />
-          Loading…
+          <Spinner className="h-4 w-4 text-accent" label={t("common.loading")} />
+          {t("common.loading")}
         </div>
       ) : status.isError ? (
-        <p className="text-sm text-muted">Couldn&apos;t load your AI settings.</p>
+        <p className="text-sm text-muted">{t("settings.aiLoadFailed")}</p>
       ) : !supported ? (
-        <p className="text-sm text-muted">
-          This server isn&apos;t set up to store personal API keys, so AI generation uses the shared
-          free allowance only.
-        </p>
+        <p className="text-sm text-muted">{t("settings.aiUnsupported")}</p>
       ) : (
         <div className="space-y-4">
           {configured && (
             <div className="flex flex-wrap items-center gap-3 rounded-input border border-success/30 bg-success/5 p-3">
               <Icon name="check" size={16} className="shrink-0 text-success" />
               <p className="min-w-0 flex-1 text-sm text-ink">
-                Your own key is in use
+                {t("settings.aiKeyInUse")}
                 <span className="ml-1 font-mono text-xs text-muted">(…{status.data?.hint})</span>
               </p>
               <button
@@ -63,15 +67,17 @@ export function AiKeySection() {
                 disabled={remove.isPending}
                 className={buttonClasses({ variant: "ghost", size: "sm" })}
               >
-                {remove.isPending && <Spinner className="h-3.5 w-3.5 text-muted" label="Removing" />}
-                Remove
+                {remove.isPending && (
+                  <Spinner className="h-3.5 w-3.5 text-muted" label={t("common.remove")} />
+                )}
+                {t("common.remove")}
               </button>
             </div>
           )}
 
           <div className="space-y-1.5">
             <label htmlFor="ai-api-key" className="block text-xs font-medium text-muted">
-              {configured ? "Replace your API key" : "Your Gemini API key"}
+              {configured ? t("settings.aiReplaceKey") : t("settings.aiYourKey")}
             </label>
             <div className="flex flex-wrap gap-2">
               <input
@@ -80,7 +86,7 @@ export function AiKeySection() {
                 autoComplete="off"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="Paste your key"
+                placeholder={t("settings.aiKeyPlaceholder")}
                 className="focus-ring min-w-0 flex-1 rounded-input border border-line-strong bg-surface px-3 py-2 font-mono text-sm text-ink"
               />
               <button
@@ -89,26 +95,27 @@ export function AiKeySection() {
                 disabled={!apiKey.trim() || save.isPending}
                 className={buttonClasses({ variant: "primary" })}
               >
-                {save.isPending && <Spinner className="h-4 w-4 text-white" label="Saving" />}
-                Save key
+                {save.isPending && (
+                  <Spinner className="h-4 w-4 text-white" label={t("settings.aiSaveKey")} />
+                )}
+                {t("settings.aiSaveKey")}
               </button>
             </div>
             {save.isError && (
               <p className="flex items-center gap-1.5 text-sm text-danger">
-                <Icon name="alertTriangle" size={14} /> {aiErrorMessage(save.error)}
+                <Icon name="alertTriangle" size={14} /> {errorText(aiErrorKey(save.error))}
               </p>
             )}
             {remove.isError && (
               <p className="flex items-center gap-1.5 text-sm text-danger">
-                <Icon name="alertTriangle" size={14} /> {aiErrorMessage(remove.error)}
+                <Icon name="alertTriangle" size={14} /> {errorText(aiErrorKey(remove.error))}
               </p>
             )}
           </div>
 
           <p className="flex items-start gap-1.5 text-xs text-faint">
             <Icon name="lock" size={13} className="mt-0.5 shrink-0" />
-            Stored encrypted. It never comes back to this page and is only used on the server to
-            generate your cards.
+            {t("settings.aiKeyStored")}
           </p>
         </div>
       )}

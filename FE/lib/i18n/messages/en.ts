@@ -405,6 +405,104 @@ export const en = {
   // ---- settings --------------------------------------------------------------------------
   "settings.language": "Language",
   "settings.languageHint": "Applies to the interface. Your decks are never translated.",
+  "settings.heading": "Settings",
+  "settings.lede": "Appearance, account security, and more.",
+
+  // "Appearance" names the section, "Theme" the control inside it. Two different words on
+  // purpose — several languages, Vietnamese included, have no single word covering both.
+  "settings.appearance": "Appearance",
+  "settings.appearanceDesc": "Choose how Quizanki looks on this device.",
+  // One whole sentence per resolved theme rather than splicing "light"/"dark" into a template:
+  // the adjective inflects and moves in other languages. Same reasoning as `setup.availableAll`.
+  "settings.followingSystemLight": "Following your system theme — currently light.",
+  "settings.followingSystemDark": "Following your system theme — currently dark.",
+  "settings.theme": "Theme",
+  "settings.themeLight": "Light",
+  "settings.themeDark": "Dark",
+  "settings.themeSystem": "System",
+  "settings.textSize": "Text size",
+  "settings.textSizeHint": "Drag to make the text bigger across the whole app.",
+  "settings.savedThisBrowser": "Saved to this browser only.",
+
+  "settings.notifications": "Notifications",
+  "settings.notificationsDesc":
+    "What shows up in the bell. Announcements from us always come through.",
+  "settings.notificationsLoadFailed": "Couldn't load your notification settings.",
+
+  "settings.ai": "AI generation",
+  "settings.aiDesc":
+    "Turn notes or a PDF into a draft deck. Add your own API key for a bigger daily allowance and to keep your material on your own provider account.",
+  "settings.aiLoadFailed": "Couldn't load your AI settings.",
+  "settings.aiUnsupported":
+    "This server isn't set up to store personal API keys, so AI generation uses the shared free allowance only.",
+  "settings.aiKeyInUse": "Your own key is in use",
+  "settings.aiReplaceKey": "Replace your API key",
+  "settings.aiYourKey": "Your Gemini API key",
+  "settings.aiKeyPlaceholder": "Paste your key",
+  "settings.aiSaveKey": "Save key",
+  "settings.aiKeyStored":
+    "Stored encrypted. It never comes back to this page and is only used on the server to generate your cards.",
+
+  "settings.password": "Password",
+  "settings.passwordDesc": "Set a new password. You'll stay signed in on this device.",
+  "settings.newPassword": "New password",
+  "settings.confirmPassword": "Confirm new password",
+  "settings.passwordPlaceholder": "At least {count} characters",
+  "settings.confirmPlaceholder": "Re-enter the password",
+  "settings.updating": "Updating…",
+  "settings.updatePassword": "Update password",
+  "settings.passwordUpdated": "Password updated.",
+  "settings.passwordUpdateFailed": "Couldn't update your password.",
+
+  "settings.account": "Account",
+  "settings.accountDesc": "Sign out on this device, or delete your account and all its decks.",
+  "settings.deleteAccount": "Delete account",
+  "settings.deleteAccountDesc":
+    "Permanently removes your account and every deck. Not available yet — coming soon.",
+
+  // ---- notification kinds -----------------------------------------------------------------
+  // The server sends a kind, never a sentence, so the wording is ours. A kind we have no copy
+  // for still renders, humanised from the identifier — see `kindCopy`'s fallback.
+  "notifKind.newFollower": "New followers",
+  "notifKind.newFollowerDesc": "When somebody starts following you.",
+  "notifKind.authorPublished": "New decks from authors you follow",
+  "notifKind.authorPublishedDesc": "When someone you follow publishes a deck.",
+  "notifKind.deckShared": "Decks shared with you",
+  "notifKind.deckSharedDesc": "When somebody sends you a deck directly.",
+  "notifKind.deckReviewed": "Feedback on your decks",
+  "notifKind.deckReviewedDesc":
+    "When someone leaves a note with their rating. Only you can read those.",
+
+  // ---- AI errors --------------------------------------------------------------------------
+  // Fallbacks only. ⚠ When the backend sends its own message it WINS and is English — the
+  // server has no locale. See `aiErrorKey`.
+  "aiError.quota": "You've used today's AI generations. Try again tomorrow.",
+  "aiError.unavailable": "AI generation isn't available right now.",
+  "aiError.tooLarge": "That file is too large.",
+  "aiError.offline": "Couldn't reach the server. Check your connection and try again.",
+  "aiError.generic": "Couldn't generate cards from that. Try different material.",
+
+  // ---- password rules ---------------------------------------------------------------------
+  "auth.passwordTooShort": "Password must be at least {count} characters.",
+  "auth.passwordsDontMatch": "The two passwords don't match.",
+
+  // ---- shared words -----------------------------------------------------------------------
+  "common.loading": "Loading…",
+  "common.reset": "Reset",
+  "common.remove": "Remove",
+  "common.soon": "Soon",
+  "common.signOut": "Sign out",
+  // ---- app shell (on every signed-in page) ------------------------------------------------
+  "shell.accountMenu": "Account menu",
+  "shell.accountFallback": "Account",
+  "shell.profile": "Profile",
+  "shell.settings": "Settings",
+  "shell.notifications": "Notifications",
+  "search.label": "Search your decks",
+  "search.placeholder": "Search your decks…",
+  "search.noMatch": "No decks match “{query}”.",
+  "search.empty": "You don’t have any decks yet.",
+  "shell.notificationsUnread": "Notifications, {count} unread",
 } as const satisfies Catalogue;
 
 export type MessageKey = keyof typeof en;

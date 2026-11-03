@@ -18,10 +18,10 @@ describe("unreadBadge", () => {
 
 describe("unreadLabel", () => {
   it("carries the count, because the badge is decorative", () => {
-    expect(unreadLabel(0)).toBe("Notifications");
-    expect(unreadLabel(3)).toBe("Notifications, 3 unread");
+    expect(unreadLabel(0)).toEqual({ key: "shell.notifications" });
+    expect(unreadLabel(3)).toEqual({ key: "shell.notificationsUnread", vars: { count: 3 } });
     // The label is honest even past the badge's cap.
-    expect(unreadLabel(42)).toBe("Notifications, 42 unread");
+    expect(unreadLabel(42)).toEqual({ key: "shell.notificationsUnread", vars: { count: 42 } });
   });
 });
 

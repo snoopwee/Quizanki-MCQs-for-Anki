@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { AxiosError, AxiosHeaders } from "axios";
-import { aiErrorMessage, draftNotes, pdfFileError, remainingCaption } from "@/lib/aiDisplay";
+import {
+  aiErrorKey,
+  aiErrorMessage,
+  draftNotes,
+  pdfFileError,
+  remainingCaption,
+} from "@/lib/aiDisplay";
 import type { AiDeckDraftMeta } from "@/types/api";
 
 function axiosError(status: number, data: unknown): AxiosError {
@@ -87,5 +93,31 @@ describe("pdfFileError", () => {
     expect(pdfFileError(file("notes.txt", "text/plain", 1000))).toContain("doesn't look like a PDF");
     expect(pdfFileError(file("a.pdf", "application/pdf", 0))).toContain("empty");
     expect(pdfFileError(file("a.pdf", "application/pdf", 21 * 1024 * 1024))).toContain("larger than 20 MB");
+  });
+});
+
+describe("aiErrorKey", () => {
+  it("passes the backend's own message through as untranslatable text", () => {
+    // ⚠ Deliberate: the server's sentence is more specific than anything we could substitute,
+    // and the server has no locale. A Vietnamese reader sees English here until the API learns
+    // Accept-Language. The `text` shape is what makes that visible in the type.
+    expect(aiErrorKey(axiosError(429, { message: "You've used today's 5 free generations." })))
+      .toEqual({ text: "You've used today's 5 free generations." });
+  });
+
+  it("falls back to a key when the response carries no message", () => {
+    expect(aiErrorKey(axiosError(429, {}))).toEqual({ key: "aiError.quota" });
+    expect(aiErrorKey(axiosError(503, {}))).toEqual({ key: "aiError.unavailable" });
+    expect(aiErrorKey(axiosError(413, {}))).toEqual({ key: "aiError.tooLarge" });
+  });
+
+  it("keys a request that never reached the server separately from one that failed there", () => {
+    // No response at all is a connection problem, which needs different advice from a 500.
+    expect(aiErrorKey(new AxiosError("Network Error"))).toEqual({ key: "aiError.offline" });
+  });
+
+  it("keys a non-axios throw generically", () => {
+    expect(aiErrorKey(new Error("boom"))).toEqual({ key: "aiError.generic" });
+    expect(aiErrorKey(null)).toEqual({ key: "aiError.generic" });
   });
 });

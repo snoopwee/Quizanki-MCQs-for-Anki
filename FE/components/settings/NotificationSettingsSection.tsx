@@ -9,10 +9,12 @@ import {
   useSetNotificationMuted,
 } from "@/hooks/useNotificationSettings";
 import { kindCopy } from "@/lib/notificationKinds";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // Which notifications reach the bell. Stored server-side as a mute list, so a switch that is ON
 // means "no row" — which is why somebody who has never been here gets everything.
 export function NotificationSettingsSection() {
+  const t = useT();
   const settings = useNotificationSettings();
   const setMuted = useSetNotificationMuted();
   const rows = settings.data ?? [];
@@ -20,15 +22,15 @@ export function NotificationSettingsSection() {
   return (
     <AccountSection
       icon="bell"
-      title="Notifications"
-      description="What shows up in the bell. Announcements from us always come through."
+      title={t("settings.notifications")}
+      description={t("settings.notificationsDesc")}
     >
       {settings.isLoading ? (
         <p className="flex items-center gap-2 text-sm text-muted">
-          <Spinner className="h-4 w-4 text-accent" /> Loading…
+          <Spinner className="h-4 w-4 text-accent" /> {t("common.loading")}
         </p>
       ) : settings.isError ? (
-        <p className="text-sm text-danger">Couldn&apos;t load your notification settings.</p>
+        <p className="text-sm text-danger">{t("settings.notificationsLoadFailed")}</p>
       ) : (
         <ul className="space-y-1">
           {rows.map((setting) => {
@@ -42,9 +44,15 @@ export function NotificationSettingsSection() {
                   <Icon name={copy.icon} size={16} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium text-ink">{copy.label}</span>
-                  {copy.description && (
-                    <span className="mt-0.5 block text-xs text-muted">{copy.description}</span>
+                  <span className="block text-sm font-medium text-ink">
+                    {/* An unknown kind has no catalogue entry, so its humanised identifier is
+                        the label — English in every locale, and a signal to add the key. */}
+                    {copy.labelKey ? t(copy.labelKey) : copy.fallbackLabel}
+                  </span>
+                  {copy.descriptionKey && (
+                    <span className="mt-0.5 block text-xs text-muted">
+                      {t(copy.descriptionKey)}
+                    </span>
                   )}
                 </span>
                 {/* The switch reads as "send me these", which is the way round people think about

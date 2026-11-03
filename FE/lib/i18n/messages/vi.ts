@@ -379,4 +379,100 @@ export const vi = {
   // ---- settings --------------------------------------------------------------------------
   "settings.language": "Ngôn ngữ",
   "settings.languageHint": "Áp dụng cho giao diện. Bộ thẻ của bạn không bao giờ bị dịch.",
+  "settings.heading": "Cài đặt",
+  "settings.lede": "Hiển thị, bảo mật tài khoản và nhiều hơn nữa.",
+
+  "settings.appearance": "Hiển thị",
+  "settings.appearanceDesc": "Chọn cách Quizanki hiển thị trên thiết bị này.",
+  "settings.followingSystemLight":
+    "Đang theo giao diện hệ thống — hiện tại là sáng.",
+  "settings.followingSystemDark":
+    "Đang theo giao diện hệ thống — hiện tại là tối.",
+  "settings.theme": "Giao diện",
+  "settings.themeLight": "Sáng",
+  "settings.themeDark": "Tối",
+  "settings.themeSystem": "Hệ thống",
+  "settings.textSize": "Cỡ chữ",
+  "settings.textSizeHint": "Kéo để tăng cỡ chữ cho toàn bộ ứng dụng.",
+  "settings.savedThisBrowser": "Chỉ lưu trên trình duyệt này.",
+
+  "settings.notifications": "Thông báo",
+  "settings.notificationsDesc":
+    "Những gì xuất hiện ở biểu tượng chuông. Thông báo từ chúng tôi luôn được gửi đến.",
+  "settings.notificationsLoadFailed": "Không tải được cài đặt thông báo của bạn.",
+
+  "settings.ai": "Tạo bằng AI",
+  "settings.aiDesc":
+    "Biến ghi chú hoặc tệp PDF thành bản nháp bộ thẻ. Thêm khoá API của riêng bạn để có hạn mức mỗi ngày lớn hơn và giữ tài liệu trên tài khoản nhà cung cấp của bạn.",
+  "settings.aiLoadFailed": "Không tải được cài đặt AI của bạn.",
+  "settings.aiUnsupported":
+    "Máy chủ này không được thiết lập để lưu khoá API cá nhân, nên việc tạo bằng AI chỉ dùng hạn mức miễn phí dùng chung.",
+  "settings.aiKeyInUse": "Đang dùng khoá của riêng bạn",
+  "settings.aiReplaceKey": "Thay khoá API của bạn",
+  "settings.aiYourKey": "Khoá API Gemini của bạn",
+  "settings.aiKeyPlaceholder": "Dán khoá của bạn",
+  "settings.aiSaveKey": "Lưu khoá",
+  "settings.aiKeyStored":
+    "Được lưu ở dạng mã hoá. Khoá không bao giờ trở lại trang này và chỉ được dùng trên máy chủ để tạo thẻ cho bạn.",
+
+  "settings.password": "Mật khẩu",
+  "settings.passwordDesc": "Đặt mật khẩu mới. Bạn vẫn đăng nhập trên thiết bị này.",
+  "settings.newPassword": "Mật khẩu mới",
+  "settings.confirmPassword": "Xác nhận mật khẩu mới",
+  "settings.passwordPlaceholder": "Ít nhất {count} ký tự",
+  "settings.confirmPlaceholder": "Nhập lại mật khẩu",
+  "settings.updating": "Đang cập nhật…",
+  "settings.updatePassword": "Cập nhật mật khẩu",
+  "settings.passwordUpdated": "Đã cập nhật mật khẩu.",
+  "settings.passwordUpdateFailed": "Không cập nhật được mật khẩu của bạn.",
+
+  "settings.account": "Tài khoản",
+  "settings.accountDesc":
+    "Đăng xuất khỏi thiết bị này, hoặc xoá tài khoản cùng toàn bộ bộ thẻ.",
+  "settings.deleteAccount": "Xoá tài khoản",
+  "settings.deleteAccountDesc":
+    "Xoá vĩnh viễn tài khoản của bạn và mọi bộ thẻ. Chưa khả dụng — sắp có.",
+
+  // ---- notification kinds -----------------------------------------------------------------
+  "notifKind.newFollower": "Người theo dõi mới",
+  "notifKind.newFollowerDesc": "Khi có người bắt đầu theo dõi bạn.",
+  "notifKind.authorPublished": "Bộ thẻ mới từ tác giả bạn theo dõi",
+  "notifKind.authorPublishedDesc": "Khi người bạn theo dõi đăng một bộ thẻ.",
+  "notifKind.deckShared": "Bộ thẻ được chia sẻ với bạn",
+  "notifKind.deckSharedDesc": "Khi có người gửi trực tiếp một bộ thẻ cho bạn.",
+  "notifKind.deckReviewed": "Phản hồi về bộ thẻ của bạn",
+  "notifKind.deckReviewedDesc":
+    "Khi có người để lại ghi chú kèm đánh giá. Chỉ bạn đọc được những ghi chú đó.",
+
+  // ---- AI errors --------------------------------------------------------------------------
+  "aiError.quota":
+    "Bạn đã dùng hết lượt tạo bằng AI hôm nay. Hãy thử lại vào ngày mai.",
+  "aiError.unavailable": "Tính năng tạo bằng AI hiện không khả dụng.",
+  "aiError.tooLarge": "Tệp đó quá lớn.",
+  "aiError.offline":
+    "Không kết nối được tới máy chủ. Hãy kiểm tra kết nối và thử lại.",
+  "aiError.generic":
+    "Không tạo được thẻ từ tài liệu đó. Hãy thử tài liệu khác.",
+
+  // ---- password rules ---------------------------------------------------------------------
+  "auth.passwordTooShort": "Mật khẩu phải có ít nhất {count} ký tự.",
+  "auth.passwordsDontMatch": "Hai mật khẩu không khớp.",
+
+  // ---- shared words -----------------------------------------------------------------------
+  "common.loading": "Đang tải…",
+  "common.reset": "Đặt lại",
+  "common.remove": "Xoá bỏ",
+  "common.soon": "Sắp có",
+  "common.signOut": "Đăng xuất",
+  // ---- app shell (on every signed-in page) ------------------------------------------------
+  "shell.accountMenu": "Menu tài khoản",
+  "shell.accountFallback": "Tài khoản",
+  "shell.profile": "Trang cá nhân",
+  "shell.settings": "Cài đặt",
+  "shell.notifications": "Thông báo",
+  "search.label": "Tìm bộ thẻ của bạn",
+  "search.placeholder": "Tìm bộ thẻ của bạn…",
+  "search.noMatch": "Không có bộ thẻ nào khớp với “{query}”.",
+  "search.empty": "Bạn chưa có bộ thẻ nào.",
+  "shell.notificationsUnread": "Thông báo, {count} chưa đọc",
 } as const satisfies CatalogueOf<typeof en>;

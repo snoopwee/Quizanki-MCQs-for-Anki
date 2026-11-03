@@ -16,6 +16,7 @@ import {
 } from "@/hooks/useNotifications";
 import { inAppHref, relativeTime, unreadBadge, unreadLabel } from "@/lib/notificationDisplay";
 import type { NotificationResponse } from "@/types/api";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 const headerActionClasses =
   "focus-ring rounded-input px-1.5 py-0.5 text-xs font-semibold text-accent transition hover:bg-accent-soft disabled:cursor-not-allowed disabled:text-faint disabled:hover:bg-transparent";
@@ -23,6 +24,7 @@ const headerActionClasses =
 // The notification bell, beside the streak chip in the top bar. Closed, it costs one count; open,
 // it fetches one page of rows. Clicking a row marks it read and follows its link.
 export function NotificationBell() {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const panelId = useId();
@@ -60,6 +62,7 @@ export function NotificationBell() {
   // prefix, so reading two sources could only disagree.
   const count = unread.data ?? 0;
   const badge = unreadBadge(count);
+  const bellLabel = unreadLabel(count);
   const items = page.data?.items ?? [];
   const hidden = (page.data?.total ?? 0) - items.length;
 
@@ -76,7 +79,7 @@ export function NotificationBell() {
       {/* A peer action beside the streak chip and New deck, so it takes the bordered circle
           (DESIGN_SYSTEM → Equal containers) rather than a hand-rolled box. */}
       <IconButton
-        label={unreadLabel(count)}
+        label={t(bellLabel.key, bellLabel.vars)}
         bordered
         ariaHasPopup="menu"
         ariaExpanded={open}
@@ -105,7 +108,7 @@ export function NotificationBell() {
         <div
           id={panelId}
           role="menu"
-          aria-label="Notifications"
+          aria-label={t("shell.notifications")}
           // Mirrors MENU_SURFACE (components/ui/menu.ts) minus its `max-h`/scroll: this panel keeps
           // a header pinned above a scrolling list, and its rows WRAP onto two lines — which
           // MENU_ITEM's single-line `whitespace-nowrap` rows can't express.

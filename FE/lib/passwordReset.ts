@@ -1,4 +1,5 @@
-import { en } from "@/lib/i18n/messages/en";
+import { en, type MessageKey } from "@/lib/i18n/messages/en";
+import type { Vars } from "@/lib/i18n/translate";
 
 // Password rules and the reset flow's logic, kept pure so both places that set a password —
 // Settings, and the reset page — agree without either owning the rules.
@@ -13,6 +14,29 @@ export const MIN_PASSWORD = 8;
  * <p>Order matters: "too short" before "they don't match", because telling someone their two
  * four-character passwords differ sends them to fix the wrong thing.
  */
+/** A message key plus its variables, for callers that have a translator. */
+export interface PasswordProblem {
+  key: MessageKey;
+  vars?: Vars;
+}
+
+/**
+ * The same rules as {@link validateNewPassword}, but returning a KEY rather than a sentence.
+ *
+ * <p>Two functions rather than one because this module is pure and has no translator: a hook
+ * cannot be called here. The English version keeps its tests and its callers; screens that have
+ * a `t` use this one. The order of the two checks is identical, deliberately — see below.
+ */
+export function validateNewPasswordKey(password: string, confirm: string): PasswordProblem | null {
+  if (password.length < MIN_PASSWORD) {
+    return { key: "auth.passwordTooShort", vars: { count: MIN_PASSWORD } };
+  }
+  if (password !== confirm) {
+    return { key: "auth.passwordsDontMatch" };
+  }
+  return null;
+}
+
 export function validateNewPassword(password: string, confirm: string): string | null {
   if (password.length < MIN_PASSWORD) {
     return `Password must be at least ${MIN_PASSWORD} characters.`;

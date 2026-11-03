@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { useTextSize } from "@/hooks/useTextSize";
 import { createClient } from "@/lib/supabase/client";
-import { MIN_PASSWORD, validateNewPassword } from "@/lib/passwordReset";
+import { MIN_PASSWORD, validateNewPasswordKey } from "@/lib/passwordReset";
 import { AccountSection, accountInputClasses } from "@/components/account/AccountSection";
 import { AiKeySection } from "@/components/settings/AiKeySection";
 import { NotificationSettingsSection } from "@/components/settings/NotificationSettingsSection";
@@ -15,8 +15,7 @@ import { Icon } from "@/components/ui/icons";
 import SignOutButton from "../SignOutButton";
 import type { ThemePref } from "@/lib/theme";
 import { LOCALE_NAMES, LOCALES, type Locale } from "@/lib/i18n/locale";
-import { useLocale } from "@/components/i18n/LocaleProvider";
-import { useT } from "@/components/i18n/LocaleProvider";
+import { useLocale, useT } from "@/components/i18n/LocaleProvider";
 import {
   TEXT_SIZE_DEFAULT,
   TEXT_SIZE_MAX,
@@ -41,9 +40,9 @@ export default function SettingsPage() {
     e.preventDefault();
     setPwError(null);
     // Shared with the reset page, so the two places that set a password cannot drift apart.
-    const problem = validateNewPassword(pw, confirm);
+    const problem = validateNewPasswordKey(pw, confirm);
     if (problem) {
-      setPwError(problem);
+      setPwError(t(problem.key, problem.vars));
       return;
     }
     setSavingPw(true);
@@ -52,56 +51,57 @@ export default function SettingsPage() {
     setSavingPw(false);
     if (error) {
       // Supabase surfaces "same as old", "needs recent login", etc. here.
-      setPwError(error.message || "Couldn't update your password.");
+      setPwError(error.message || t("settings.passwordUpdateFailed"));
       return;
     }
     setPw("");
     setConfirm("");
-    setToast({ kind: "success", message: "Password updated." });
+    setToast({ kind: "success", message: t("settings.passwordUpdated") });
   }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <header>
         <h1 className="font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl">
-          Settings
+          {t("settings.heading")}
         </h1>
-        <p className="mt-1 text-sm text-muted">Appearance, account security, and more.</p>
+        <p className="mt-1 text-sm text-muted">{t("settings.lede")}</p>
       </header>
 
       {/* appearance / theme */}
       <AccountSection
         icon="palette"
-        title="Appearance"
+        title={t("settings.appearance")}
         description={
           pref === "system"
-            ? `Following your system theme — currently ${resolved}.`
-            : "Choose how Quizanki looks on this device."
+            ? // A whole sentence per theme rather than splicing the word in: the adjective moves.
+              t(resolved === "dark" ? "settings.followingSystemDark" : "settings.followingSystemLight")
+            : t("settings.appearanceDesc")
         }
       >
         <div className="space-y-4">
           <div>
-            <p className="mb-2 text-xs font-medium text-muted">Theme</p>
+            <p className="mb-2 text-xs font-medium text-muted">{t("settings.theme")}</p>
             <Segmented<ThemePref>
               value={pref}
               onChange={setPref}
               options={[
-                { value: "light", label: "Light" },
-                { value: "dark", label: "Dark" },
-                { value: "system", label: "System" },
+                { value: "light", label: t("settings.themeLight") },
+                { value: "dark", label: t("settings.themeDark") },
+                { value: "system", label: t("settings.themeSystem") },
               ]}
             />
           </div>
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-xs font-medium text-muted">Text size</p>
+              <p className="text-xs font-medium text-muted">{t("settings.textSize")}</p>
               <button
                 type="button"
                 onClick={() => setTextSize(TEXT_SIZE_DEFAULT)}
                 disabled={textSize === TEXT_SIZE_DEFAULT}
                 className="text-xs font-medium text-accent transition hover:opacity-80 disabled:opacity-40"
               >
-                Reset
+                {t("common.reset")}
               </button>
             </div>
             <Slider
@@ -112,9 +112,7 @@ export default function SettingsPage() {
               onChange={setTextSize}
               format={(v) => `${v}%`}
             />
-            <p className="mt-2 text-xs text-faint">
-              Drag to make the text bigger across the whole app.
-            </p>
+            <p className="mt-2 text-xs text-faint">{t("settings.textSizeHint")}</p>
           </div>
           <div>
             <p className="mb-2 text-xs font-medium text-muted">{t("settings.language")}</p>
@@ -130,7 +128,7 @@ export default function SettingsPage() {
         </div>
         <p className="mt-4 flex items-center gap-1.5 text-xs text-faint">
           <Icon name={resolved === "dark" ? "moon" : "sun"} size={13} />
-          Saved to this browser only.
+          {t("settings.savedThisBrowser")}
         </p>
       </AccountSection>
 
@@ -142,15 +140,15 @@ export default function SettingsPage() {
       {/* change password */}
       <AccountSection
         icon="lock"
-        title="Password"
-        description="Set a new password. You'll stay signed in on this device."
+        title={t("settings.password")}
+        description={t("settings.passwordDesc")}
       >
         <form onSubmit={changePassword} className="space-y-3">
           {/* Username hint for password managers; not shown. */}
           <input type="text" name="username" autoComplete="username" className="hidden" aria-hidden tabIndex={-1} />
           <div className="space-y-1.5">
             <label htmlFor="new-password" className="block text-xs font-medium text-muted">
-              New password
+              {t("settings.newPassword")}
             </label>
             <input
               id="new-password"
@@ -158,13 +156,13 @@ export default function SettingsPage() {
               autoComplete="new-password"
               value={pw}
               onChange={(e) => setPw(e.target.value)}
-              placeholder={`At least ${MIN_PASSWORD} characters`}
+              placeholder={t("settings.passwordPlaceholder", { count: MIN_PASSWORD })}
               className={accountInputClasses}
             />
           </div>
           <div className="space-y-1.5">
             <label htmlFor="confirm-password" className="block text-xs font-medium text-muted">
-              Confirm new password
+              {t("settings.confirmPassword")}
             </label>
             <input
               id="confirm-password"
@@ -172,7 +170,7 @@ export default function SettingsPage() {
               autoComplete="new-password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              placeholder="Re-enter the password"
+              placeholder={t("settings.confirmPlaceholder")}
               className={accountInputClasses}
             />
           </div>
@@ -186,7 +184,7 @@ export default function SettingsPage() {
             disabled={savingPw || !pw || !confirm}
             className={buttonClasses({ variant: "primary", size: "md" })}
           >
-            {savingPw ? "Updating…" : "Update password"}
+            {savingPw ? t("settings.updating") : t("settings.updatePassword")}
           </button>
         </form>
       </AccountSection>
@@ -194,9 +192,9 @@ export default function SettingsPage() {
       {/* danger zone */}
       <AccountSection
         icon="alertTriangle"
-        title="Account"
+        title={t("settings.account")}
         tone="danger"
-        description="Sign out on this device, or delete your account and all its decks."
+        description={t("settings.accountDesc")}
       >
         <div className="space-y-4">
           <div>
@@ -205,18 +203,16 @@ export default function SettingsPage() {
           <div className="flex flex-col gap-2 rounded-input border border-danger/30 bg-danger/5 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-                Delete account <SoonTag />
+                {t("settings.deleteAccount")} <SoonTag />
               </p>
-              <p className="mt-0.5 text-xs text-muted">
-                Permanently removes your account and every deck. Not available yet — coming soon.
-              </p>
+              <p className="mt-0.5 text-xs text-muted">{t("settings.deleteAccountDesc")}</p>
             </div>
             <button
               type="button"
               disabled
               className={buttonClasses({ variant: "danger", size: "sm", className: "shrink-0" })}
             >
-              <Icon name="trash" size={15} /> Delete account
+              <Icon name="trash" size={15} /> {t("settings.deleteAccount")}
             </button>
           </div>
         </div>

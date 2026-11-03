@@ -7,6 +7,7 @@ import {
   RECOVERY_PROBLEMS,
   RESET_SENT_MESSAGE,
   validateNewPassword,
+  validateNewPasswordKey,
 } from "./passwordReset";
 
 describe("validateNewPassword", () => {
@@ -205,5 +206,43 @@ describe("looksAlreadySent", () => {
 
   it("is false for no error at all", () => {
     expect(looksAlreadySent(null)).toBe(false);
+  });
+});
+
+describe("validateNewPasswordKey", () => {
+  it("agrees with the English version on every verdict", () => {
+    // Two functions, one rule. If they ever disagree, one screen rejects a password the other
+    // accepts — so this walks the same cases rather than trusting that they were kept in step.
+    const cases: [string, string][] = [
+      ["longenough1", "longenough1"],
+      ["short", "short"],
+      ["longenough1", "longenough2"],
+      ["abc", "xyz"],
+      ["", ""],
+    ];
+    for (const [pw, confirm] of cases) {
+      const english = validateNewPassword(pw, confirm);
+      const keyed = validateNewPasswordKey(pw, confirm);
+      expect(keyed === null, `${pw}/${confirm}`).toBe(english === null);
+    }
+  });
+
+  it("reports too-short before mismatched, carrying the minimum as a variable", () => {
+    // The text lives in the catalogue, so the number has to travel separately or a translator
+    // would have to hard-code 8 in their own sentence.
+    expect(validateNewPasswordKey("abc", "xyz")).toEqual({
+      key: "auth.passwordTooShort",
+      vars: { count: MIN_PASSWORD },
+    });
+  });
+
+  it("reports a mismatch with no variables once both are long enough", () => {
+    expect(validateNewPasswordKey("longenough1", "longenough2")).toEqual({
+      key: "auth.passwordsDontMatch",
+    });
+  });
+
+  it("accepts a long enough matching pair", () => {
+    expect(validateNewPasswordKey("longenough1", "longenough1")).toBeNull();
   });
 });

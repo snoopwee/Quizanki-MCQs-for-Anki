@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { Avatar } from "@/components/ui/Avatar";
 import { avatarUrlOf, displayNameOf, initialsFrom } from "@/lib/userDisplay";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // The sidebar's bottom account control: an avatar + name row that opens an upward
 // popover combining Profile, Settings, and Sign out (more items to come). Closes
@@ -30,13 +31,14 @@ export function AccountMenu({
   // Lets the shell keep the rail expanded while the menu is open.
   onOpenChange?: (open: boolean) => void;
 }) {
+  const t = useT();
   const router = useRouter();
   const { user } = useSession();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
 
-  const name = displayNameOf(user) || email || "Account";
+  const name = displayNameOf(user) || email || t("shell.accountFallback");
   const avatar = initialsFrom(displayNameOf(user), email);
   const avatarUrl = avatarUrlOf(user);
 
@@ -80,7 +82,7 @@ export function AccountMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        aria-label="Account menu"
+        aria-label={t("shell.accountMenu")}
         title={collapsed ? name : undefined}
         onClick={() => setOpen((o) => !o)}
         className={`flex h-12 w-full items-center rounded-input border border-transparent transition hover:bg-surface-2 ${
@@ -111,8 +113,8 @@ export function AccountMenu({
             side === "right" ? "bottom-0 left-full ml-5" : "bottom-full left-0 mb-2"
           }`}
         >
-          <MenuItemLink icon="user" label="Profile" href="/profile" onSelect={close} />
-          <MenuItemLink icon="settings" label="Settings" href="/settings" onSelect={close} />
+          <MenuItemLink icon="user" label={t("shell.profile")} href="/profile" onSelect={close} />
+          <MenuItemLink icon="settings" label={t("shell.settings")} href="/settings" onSelect={close} />
           <div className="my-1 border-t border-line" />
           <button
             type="button"
@@ -121,7 +123,7 @@ export function AccountMenu({
             className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-ink transition hover:bg-surface-2"
           >
             <Icon name="signOut" size={16} className="text-muted" />
-            Sign out
+            {t("common.signOut")}
           </button>
         </div>
       )}

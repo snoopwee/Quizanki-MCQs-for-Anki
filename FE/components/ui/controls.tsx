@@ -1,14 +1,19 @@
+"use client";
+
 // Small form controls + the "Soon" tag, shared by the exam setup / runner /
 // deck / dashboard screens rebuilt from the design reference.
+
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // A disabled-feature marker. Real layout, not-yet-real feature — see the
 // project_reference_future_features memory / ROADMAP candidate #8.
 export function SoonTag({ className = "" }: { className?: string }) {
+  const t = useT();
   return (
     <span
       className={`inline-flex items-center rounded-full bg-surface-2 px-1.5 py-0.5 font-mono text-[0.625rem] font-semibold uppercase tracking-wide text-faint ${className}`}
     >
-      Soon
+      {t("common.soon")}
     </span>
   );
 }

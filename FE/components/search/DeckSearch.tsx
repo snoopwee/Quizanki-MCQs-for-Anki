@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDecks } from "@/hooks/useDecks";
 import { Icon } from "@/components/ui/icons";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 const MAX_RESULTS = 8;
 
@@ -13,6 +14,7 @@ const MAX_RESULTS = 8;
 // see the marker below. Client-side filter over the already-cached deck list, so
 // results are instant and cost no extra request.
 export function DeckSearch() {
+  const t = useT();
   const router = useRouter();
   const { data: decks, isLoading } = useDecks();
 
@@ -85,9 +87,9 @@ export function DeckSearch() {
         aria-expanded={open}
         aria-controls="deck-search-list"
         aria-activedescendant={activeId}
-        aria-label="Search your decks"
+        aria-label={t("search.label")}
         autoComplete="off"
-        placeholder="Search your decks…"
+        placeholder={t("search.placeholder")}
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -104,7 +106,7 @@ export function DeckSearch() {
             <p className="px-3 py-3 text-sm text-muted">Loading your decks…</p>
           ) : results.length === 0 ? (
             <p className="px-3 py-3 text-sm text-muted">
-              {trimmed ? `No decks match “${trimmed}”.` : "You don’t have any decks yet."}
+              {trimmed ? t("search.noMatch", { query: trimmed }) : t("search.empty")}
             </p>
           ) : (
             <div className="py-1">

@@ -1,6 +1,8 @@
 package com.ankiquiz.service.ai;
 
 import java.time.ZoneId;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 import org.slf4j.Logger;
@@ -51,8 +53,24 @@ public class CardExplanationService {
             - Never contradict the given answer. It is correct by definition here; if it looks \
             wrong to you, explain the sense in which it is meant rather than arguing.
             - If the material is too thin to explain, say so in one sentence.
-            - Answer in the language of the question.
+            - Write your whole reply in %s. The card may be in another language \
+            (that is the point of a flashcard); explain it in %s regardless.
             """;
+
+    /**
+     * What to call each language <i>in the prompt</i>.
+     *
+     * <p>A closed map rather than {@code Locale.forLanguageTag(..).getDisplayLanguage()}: this
+     * value is interpolated into an instruction sent to a model, so an unrecognised code must
+     * fall back to English rather than become part of the prompt. It also keeps the prompt
+     * wording stable — "Vietnamese" is what the model responds to best, not "vi" or "Tiếng Việt".
+     */
+    private static final Map<String, String> LANGUAGE_NAMES = Map.of(
+            "en", "English",
+            "vi", "Vietnamese");
+
+    /** The language a request gets when it asks for nothing, or for something we do not know. */
+    static final String DEFAULT_LANGUAGE = ExplanationCache.DEFAULT_LANGUAGE;
 
     private final AiProvider provider;
     private final AiQuotaService quota;
@@ -86,7 +104,8 @@ public class CardExplanationService {
      * @throws RateLimitExceededException the day's allowance is spent (only reachable on a miss)
      * @throws AiUnavailableException     the question or answer is empty, or the provider failed
      */
-    public Explanation explain(String userId, ZoneId zone, String question, String answer) {
+    public Explanation explain(
+            String userId, ZoneId zone, String question, String answer, String language) {
         String q = trim(question);
         String a = trim(answer);
         if (q.isEmpty() || a.isEmpty()) {
@@ -94,7 +113,10 @@ public class CardExplanationService {
             throw new AiUnavailableException("There's nothing on this card to explain.");
         }
 
-        String path = cache.pathFor(q, a);
+        // Normalised once, here, so the cache key and the prompt cannot disagree about which
+        // language was asked for.
+        String lang = normalizeLanguage(language);
+        String path = cache.pathFor(q, a, lang);
         Optional<String> hit = cache.get(path);
         if (hit.isPresent()) {
             return new Explanation(hit.get(), true);
@@ -103,8 +125,10 @@ public class CardExplanationService {
         AiAccess access = quota.authorize(userId, zone);
         String userText = "QUESTION:\n" + q + "\n\nANSWER:\n" + a;
         try {
+            String languageName = LANGUAGE_NAMES.get(lang);
             AiCompletion completion = provider.complete(
-                    new AiPrompt(SYSTEM_INSTRUCTION, userText, maxOutputTokens, false),
+                    new AiPrompt(SYSTEM_INSTRUCTION.formatted(languageName, languageName),
+                            userText, maxOutputTokens, false),
                     access.apiKey());
             String text = trim(completion.text());
             if (text.isEmpty()) {
@@ -161,6 +185,23 @@ public class CardExplanationService {
     }
 
     /** Clipped so one pathological card cannot spend a large slice of the day's tokens. */
+    /**
+     * The language to explain in: lower-cased, and only if we have a name for it.
+     *
+     * <p>An unknown code falls back to English rather than failing the request — a learner whose
+     * client sends something unexpected should still get their explanation, in the language the
+     * cache has most entries for. ⚠ The fallback must agree with
+     * {@link ExplanationCache#pathFor}'s notion of "default", or a request would read one key and
+     * write another; both treat blank and "en" as English.
+     */
+    private static String normalizeLanguage(String language) {
+        if (language == null || language.isBlank()) {
+            return DEFAULT_LANGUAGE;
+        }
+        String lower = language.trim().toLowerCase(Locale.ROOT);
+        return LANGUAGE_NAMES.containsKey(lower) ? lower : DEFAULT_LANGUAGE;
+    }
+
     private String trim(String value) {
         if (value == null) {
             return "";

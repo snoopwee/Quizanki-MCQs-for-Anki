@@ -222,7 +222,7 @@ class AiControllerTest {
 
     @Test
     void explainsACardAndSaysWhetherItCameFromTheCache() throws Exception {
-        when(explanationService.explain(any(), any(), any(), any()))
+        when(explanationService.explain(any(), any(), any(), any(), any()))
                 .thenReturn(new CardExplanationService.Explanation("It makes ATP.", true));
 
         mockMvc.perform(post("/api/v1/ai/explain")
@@ -244,7 +244,7 @@ class AiControllerTest {
                         .content(explainBody("Q", "A")))
                 .andExpect(status().isUnauthorized());
 
-        verify(explanationService, never()).explain(any(), any(), any(), any());
+        verify(explanationService, never()).explain(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -255,12 +255,12 @@ class AiControllerTest {
                         .content(explainBody("", "A")))
                 .andExpect(status().isBadRequest());
 
-        verify(explanationService, never()).explain(any(), any(), any(), any());
+        verify(explanationService, never()).explain(any(), any(), any(), any(), any());
     }
 
     @Test
     void aSpentQuotaOnExplainIs429_notA500() throws Exception {
-        when(explanationService.explain(any(), any(), any(), any()))
+        when(explanationService.explain(any(), any(), any(), any(), any()))
                 .thenThrow(new RateLimitExceededException("No generations left today."));
 
         mockMvc.perform(post("/api/v1/ai/explain")

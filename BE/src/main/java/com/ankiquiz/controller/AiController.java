@@ -53,8 +53,9 @@ public class AiController {
 
     @PostMapping("/explain")
     @Operation(summary = "Explain why a card's answer is correct",
-            description = "Two or three sentences for a learner who just missed the card. Cached per "
-                    + "(question, answer) in object storage, so a card is explained once ever and every "
+            description = "Two or three sentences for a learner who just missed the card, in the "
+                    + "reader's interface language. Cached per (question, answer, language) in object "
+                    + "storage, so a card is explained once ever per language and every "
                     + "later request is free — a CACHE HIT SPENDS NO QUOTA and makes no provider call. "
                     + "503 when AI is off or the provider fails, 429 when the daily quota is spent.")
     public ExplainCardResponse explain(
@@ -65,7 +66,8 @@ public class AiController {
                 jwt.getSubject(),
                 ClientZone.parse(request.timezone()),
                 request.question(),
-                request.answer());
+                request.answer(),
+                request.language());
         return new ExplainCardResponse(result.text(), result.cached());
     }
 

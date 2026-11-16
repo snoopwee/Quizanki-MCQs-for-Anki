@@ -51,7 +51,7 @@ class CardExplanationServiceTest {
         when(provider.name()).thenReturn("gemini");
         when(provider.model()).thenReturn("gemini-3.5-flash");
         when(quota.authorize(anyString(), any())).thenReturn(new AiAccess(AiAccess.SHARED, "k", 5));
-        when(cache.pathFor(anyString(), anyString())).thenReturn("ab/abc.txt");
+        when(cache.pathFor(anyString(), anyString(), anyString())).thenReturn("ab/abc.txt");
         when(cache.get(anyString())).thenReturn(Optional.empty());
         service = new CardExplanationService(provider, quota, usage, cache, 220, 2000);
     }
@@ -60,7 +60,7 @@ class CardExplanationServiceTest {
     void aCacheHitCostsNoQuotaAndNeverReachesTheProvider() {
         when(cache.get("ab/abc.txt")).thenReturn(Optional.of("Because it makes ATP."));
 
-        CardExplanationService.Explanation result = service.explain(USER, ZONE, Q, A);
+        CardExplanationService.Explanation result = service.explain(USER, ZONE, Q, A, "en");
 
         assertThat(result.text()).isEqualTo("Because it makes ATP.");
         assertThat(result.cached()).isTrue();
@@ -77,7 +77,7 @@ class CardExplanationServiceTest {
         when(provider.complete(any(), anyString()))
                 .thenReturn(new AiCompletion("ATP is made there.", 10, 20));
 
-        CardExplanationService.Explanation result = service.explain(USER, ZONE, Q, A);
+        CardExplanationService.Explanation result = service.explain(USER, ZONE, Q, A, "en");
 
         assertThat(result.text()).isEqualTo("ATP is made there.");
         assertThat(result.cached()).isFalse();
@@ -92,14 +92,14 @@ class CardExplanationServiceTest {
         when(cache.put(anyString(), anyString())).thenReturn(false);
 
         // Failing to cache costs the NEXT learner a call. It must not cost this one the answer.
-        assertThat(service.explain(USER, ZONE, Q, A).text()).isEqualTo("Prose.");
+        assertThat(service.explain(USER, ZONE, Q, A, "en").text()).isEqualTo("Prose.");
     }
 
     @Test
     void asksForProseRatherThanJsonAndKeepsTheAnswerShort() {
         when(provider.complete(any(), anyString())).thenReturn(new AiCompletion("Prose.", 1, 2));
 
-        service.explain(USER, ZONE, Q, A);
+        service.explain(USER, ZONE, Q, A, "en");
 
         org.mockito.ArgumentCaptor<AiPrompt> prompt = org.mockito.ArgumentCaptor.forClass(AiPrompt.class);
         verify(provider).complete(prompt.capture(), anyString());
@@ -111,9 +111,9 @@ class CardExplanationServiceTest {
 
     @Test
     void anEmptyCardIsRejectedWithoutSpendingAnything() {
-        assertThatThrownBy(() -> service.explain(USER, ZONE, "   ", A))
+        assertThatThrownBy(() -> service.explain(USER, ZONE, "   ", A, "en"))
                 .isInstanceOf(AiUnavailableException.class);
-        assertThatThrownBy(() -> service.explain(USER, ZONE, Q, ""))
+        assertThatThrownBy(() -> service.explain(USER, ZONE, Q, "", "en"))
                 .isInstanceOf(AiUnavailableException.class);
 
         verify(quota, never()).authorize(anyString(), any());
@@ -124,7 +124,7 @@ class CardExplanationServiceTest {
     void anEmptyModelAnswerIsAnErrorRatherThanAnEmptyBubble() {
         when(provider.complete(any(), anyString())).thenReturn(new AiCompletion("   ", 1, 0));
 
-        assertThatThrownBy(() -> service.explain(USER, ZONE, Q, A))
+        assertThatThrownBy(() -> service.explain(USER, ZONE, Q, A, "en"))
                 .isInstanceOf(AiUnavailableException.class);
         // Nothing worth caching, so the next learner gets a real attempt rather than a blank.
         verify(cache, never()).put(anyString(), anyString());
@@ -135,7 +135,7 @@ class CardExplanationServiceTest {
         when(quota.authorize(anyString(), any()))
                 .thenThrow(new RateLimitExceededException("No generations left today."));
 
-        assertThatThrownBy(() -> service.explain(USER, ZONE, Q, A))
+        assertThatThrownBy(() -> service.explain(USER, ZONE, Q, A, "en"))
                 .isInstanceOf(RateLimitExceededException.class);
         verify(provider, never()).complete(any(), anyString());
     }
@@ -145,7 +145,7 @@ class CardExplanationServiceTest {
         when(provider.complete(any(), anyString()))
                 .thenThrow(new AiUnavailableException("upstream died"));
 
-        assertThatThrownBy(() -> service.explain(USER, ZONE, Q, A))
+        assertThatThrownBy(() -> service.explain(USER, ZONE, Q, A, "en"))
                 .isInstanceOf(AiUnavailableException.class);
 
         verify(usage).record(eq(USER), eq("explain"), anyString(), anyString(), anyString(),
@@ -158,7 +158,7 @@ class CardExplanationServiceTest {
         CardExplanationService small = new CardExplanationService(provider, quota, usage, cache, 220, 50);
         when(provider.complete(any(), anyString())).thenReturn(new AiCompletion("Prose.", 1, 2));
 
-        small.explain(USER, ZONE, "x".repeat(5_000), A);
+        small.explain(USER, ZONE, "x".repeat(5_000), A, "en");
 
         org.mockito.ArgumentCaptor<AiPrompt> prompt = org.mockito.ArgumentCaptor.forClass(AiPrompt.class);
         verify(provider).complete(prompt.capture(), anyString());
@@ -178,7 +178,7 @@ class CardExplanationServiceTest {
                 .when(usage).record(anyString(), anyString(), anyString(), anyString(), anyString(),
                         anyInt(), anyInt(), anyString(), any());
 
-        CardExplanationService.Explanation result = service.explain(USER, ZONE, Q, A);
+        CardExplanationService.Explanation result = service.explain(USER, ZONE, Q, A, "en");
 
         assertThat(result.text()).isEqualTo("Because ATP.");
         // And it still reached the cache, so the next learner pays nothing.
@@ -191,7 +191,7 @@ class CardExplanationServiceTest {
         // must not sit behind bookkeeping that might fail.
         when(provider.complete(any(), anyString())).thenReturn(new AiCompletion("Prose.", 1, 2));
 
-        service.explain(USER, ZONE, Q, A);
+        service.explain(USER, ZONE, Q, A, "en");
 
         org.mockito.InOrder order = org.mockito.Mockito.inOrder(cache, usage);
         order.verify(cache).put(anyString(), anyString());
@@ -209,7 +209,7 @@ class CardExplanationServiceTest {
         when(provider.complete(any(), anyString()))
                 .thenReturn(new AiCompletion("Mitochondria are known as the \"", 10, 220, "MAX_TOKENS"));
 
-        assertThatThrownBy(() -> service.explain(USER, ZONE, Q, A))
+        assertThatThrownBy(() -> service.explain(USER, ZONE, Q, A, "en"))
                 .isInstanceOf(AiUnavailableException.class);
 
         verify(cache, never()).put(anyString(), anyString());
@@ -222,7 +222,7 @@ class CardExplanationServiceTest {
         when(provider.complete(any(), anyString()))
                 .thenReturn(new AiCompletion("Because it makes ATP.", 10, 40, "STOP"));
 
-        CardExplanationService.Explanation result = service.explain(USER, ZONE, Q, A);
+        CardExplanationService.Explanation result = service.explain(USER, ZONE, Q, A, "en");
 
         assertThat(result.text()).isEqualTo("Because it makes ATP.");
         verify(cache).put("ab/abc.txt", "Because it makes ATP.");
@@ -235,7 +235,7 @@ class CardExplanationServiceTest {
         when(provider.complete(any(), anyString()))
                 .thenReturn(new AiCompletion("Because it makes ATP.", 10, 40, null));
 
-        assertThat(service.explain(USER, ZONE, Q, A).text()).isEqualTo("Because it makes ATP.");
+        assertThat(service.explain(USER, ZONE, Q, A, "en").text()).isEqualTo("Because it makes ATP.");
         verify(cache).put(anyString(), anyString());
     }
 
@@ -244,5 +244,54 @@ class CardExplanationServiceTest {
         // Guards the V25/V42 constraint from the Java side: ai_generations_source_kind_check
         // permits exactly these. A new value here needs a migration, not just a constant.
         assertThat(CardExplanationService.SOURCE_KIND).isIn("text", "pdf", "explain");
+    }
+
+    @Test
+    void theLanguageReachesBOTHThePromptAndTheCacheKey() {
+        // These two must never disagree: the prompt decides what language the prose comes back in
+        // and the key decides where it is filed, so a mismatch would file Vietnamese prose under
+        // English's key and serve it to English readers forever.
+        when(cache.pathFor(anyString(), anyString(), eq("vi"))).thenReturn("vi/vi.txt");
+        when(cache.get("vi/vi.txt")).thenReturn(Optional.empty());
+        when(provider.complete(any(), anyString())).thenReturn(new AiCompletion("Vì vậy.", 1, 2));
+
+        service.explain(USER, ZONE, Q, A, "vi");
+
+        verify(cache).pathFor(anyString(), anyString(), eq("vi"));
+        verify(cache).put("vi/vi.txt", "Vì vậy.");
+
+        org.mockito.ArgumentCaptor<AiPrompt> prompt = org.mockito.ArgumentCaptor.forClass(AiPrompt.class);
+        verify(provider).complete(prompt.capture(), anyString());
+        assertThat(prompt.getValue().systemInstruction()).contains("Vietnamese");
+    }
+
+    @Test
+    void anUnknownLanguageFallsBackToEnglishRATHERThanFailing() {
+        // A client sending something unexpected should still get its explanation, and it must land
+        // on English's key -- the service and the cache have to agree about what "default" means.
+        when(provider.complete(any(), anyString())).thenReturn(new AiCompletion("Prose.", 1, 2));
+
+        service.explain(USER, ZONE, Q, A, "klingon");
+
+        verify(cache).pathFor(anyString(), anyString(), eq("en"));
+        org.mockito.ArgumentCaptor<AiPrompt> prompt = org.mockito.ArgumentCaptor.forClass(AiPrompt.class);
+        verify(provider).complete(prompt.capture(), anyString());
+        assertThat(prompt.getValue().systemInstruction()).contains("English");
+    }
+
+    @Test
+    void theCardsOwnLanguageDoesNotDecideTheExplanationS() {
+        // Deliberate behaviour change 2026-11-06. The prompt used to say "answer in the language of
+        // the question", which gave a Vietnamese learner a Japanese explanation of a Japanese card
+        // -- unreadable to exactly the person who missed it. It now follows the READER.
+        when(provider.complete(any(), anyString())).thenReturn(new AiCompletion("Prose.", 1, 2));
+
+        service.explain(USER, ZONE, "猫は何ですか", "A cat.", "vi");
+
+        org.mockito.ArgumentCaptor<AiPrompt> prompt = org.mockito.ArgumentCaptor.forClass(AiPrompt.class);
+        verify(provider).complete(prompt.capture(), anyString());
+        assertThat(prompt.getValue().systemInstruction())
+                .contains("Vietnamese")
+                .doesNotContain("language of the question");
     }
 }

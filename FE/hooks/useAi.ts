@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/axios";
 import { browserTimezone } from "@/lib/timezone";
+import { useLocale } from "@/components/i18n/LocaleProvider";
 import type {
   AiDeckDraftResponse,
   AiKeyStatusResponse,
@@ -90,12 +91,19 @@ export function useGenerateDeckFromPdf() {
  *
  * <p>A cache hit returns in milliseconds and costs the learner no quota, so this needs none of
  * the long timeout deck generation does.
+ *
+ * <p>The locale is read here rather than passed in by the caller, so no call site has to remember
+ * it. It is the READER'S language, not the card's: somebody learning English vocabulary wants the
+ * reasoning in a language they already read. The backend keys the cache by it, so switching
+ * language is a miss for that card once and a hit forever after.
  */
 export function useExplainCard() {
+  const { locale } = useLocale();
   return useMutation({
     mutationFn: async (card: { question: string; answer: string }) => {
       const { data } = await api.post<ExplainCardResponse>("/ai/explain", {
         ...card,
+        language: locale,
         timezone: browserTimezone(),
       });
       return data;

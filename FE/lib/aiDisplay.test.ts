@@ -8,6 +8,8 @@ import {
   remainingCaption,
 } from "@/lib/aiDisplay";
 import type { AiDeckDraftMeta } from "@/types/api";
+import { en } from "@/lib/i18n/messages/en";
+import { vi as viMessages } from "@/lib/i18n/messages/vi";
 
 function axiosError(status: number, data: unknown): AxiosError {
   const error = new AxiosError("request failed");
@@ -57,13 +59,22 @@ describe("aiErrorMessage", () => {
 
 describe("remainingCaption", () => {
   it("distinguishes the free pool from the user's own key", () => {
-    expect(remainingCaption(4, "shared")).toBe("4 free generations left today");
-    expect(remainingCaption(4, "user")).toBe("4 generations left today on your key");
+    // Two separate keys rather than one template with a spliced "free": English puts the
+    // adjective before the noun and Vietnamese does not.
+    expect(remainingCaption(4, "shared")).toEqual({
+      key: "aiGen.remainingShared",
+      vars: { count: 4 },
+    });
+    expect(remainingCaption(4, "user")).toEqual({
+      key: "aiGen.remainingOwnKey",
+      vars: { count: 4 },
+    });
   });
 
-  it("gets the singular right", () => {
-    expect(remainingCaption(1, "shared")).toBe("1 free generation left today");
-    expect(remainingCaption(0, "shared")).toBe("0 free generations left today");
+  it("passes the count through for the catalogue to pluralise", () => {
+    // The singular/plural split moved into the catalogue, so the helper only carries the number.
+    expect(remainingCaption(1, "shared").vars).toEqual({ count: 1 });
+    expect(remainingCaption(0, "shared").vars).toEqual({ count: 0 });
   });
 });
 
@@ -73,9 +84,20 @@ describe("draftNotes", () => {
   });
 
   it("explains a truncated source and a partial run", () => {
-    expect(draftNotes(meta({ inputTruncated: true }))[0]).toContain("only the first part");
-    expect(draftNotes(meta({ partial: true }))[0]).toContain("stopped partway");
-    expect(draftNotes(meta({ inputTruncated: true, partial: true }))).toHaveLength(2);
+    expect(draftNotes(meta({ inputTruncated: true }))).toEqual(["aiGen.inputTruncated"]);
+    expect(draftNotes(meta({ partial: true }))).toEqual(["aiGen.partialRun"]);
+    expect(draftNotes(meta({ inputTruncated: true, partial: true }))).toEqual([
+      "aiGen.inputTruncated",
+      "aiGen.partialRun",
+    ]);
+  });
+
+  it("points only at keys that exist in both catalogues", () => {
+    // The whole point of returning keys: a typo would render the key itself on screen.
+    for (const key of draftNotes(meta({ inputTruncated: true, partial: true }))) {
+      expect(en[key], key).toBeDefined();
+      expect(viMessages[key], key).toBeDefined();
+    }
   });
 });
 
@@ -90,9 +112,15 @@ describe("pdfFileError", () => {
   });
 
   it("rejects the obvious mistakes before an upload is spent", () => {
-    expect(pdfFileError(file("notes.txt", "text/plain", 1000))).toContain("doesn't look like a PDF");
-    expect(pdfFileError(file("a.pdf", "application/pdf", 0))).toContain("empty");
-    expect(pdfFileError(file("a.pdf", "application/pdf", 21 * 1024 * 1024))).toContain("larger than 20 MB");
+    expect(pdfFileError(file("notes.txt", "text/plain", 1000))).toEqual({ key: "aiGen.notAPdf" });
+    expect(pdfFileError(file("a.pdf", "application/pdf", 0))).toEqual({ key: "aiGen.emptyFile" });
+  });
+
+  it("carries the limit as a variable so the prose cannot drift from the constant", () => {
+    expect(pdfFileError(file("a.pdf", "application/pdf", 21 * 1024 * 1024))).toEqual({
+      key: "aiGen.pdfTooLarge",
+      vars: { limit: 20 },
+    });
   });
 });
 

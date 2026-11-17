@@ -11,6 +11,8 @@
 // Deliberately dependency-free — one database, one store, one record.
 
 import type { EditorState } from "@/lib/deckEditor";
+import type { MessageKey } from "@/lib/i18n/messages/en";
+import type { Vars } from "@/lib/i18n/translate";
 
 const DB_NAME = "quizanki";
 const DB_VERSION = 1;
@@ -77,6 +79,29 @@ export async function clearDraft(): Promise<void> {
 }
 
 /** "just now" / "12 minutes ago" / "2 hours ago" — for the Resume banner. */
+/** A message key plus its variables — the translatable form of {@link describeAge}. */
+export interface DraftAge {
+  key: MessageKey;
+  vars?: Vars;
+}
+
+/**
+ * How old an unsaved draft is, as a KEY rather than a sentence.
+ *
+ * <p>Same thresholds as {@link describeAge}, which keeps the English and its tests. This module
+ * is pure and has no translator, so the caller runs the key through `t`. The count travels as a
+ * variable rather than glued on, because "2 minutes ago" and "2 phút trước" put the number in
+ * different places relative to the noun.
+ */
+export function draftAge(savedAt: number, now: number = Date.now()): DraftAge {
+  const minutes = Math.floor((now - savedAt) / 60_000);
+  if (minutes < 1) return { key: "age.justNow" };
+  if (minutes < 60) return { key: "age.minutes", vars: { count: minutes } };
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return { key: "age.hours", vars: { count: hours } };
+  return { key: "age.days", vars: { count: Math.floor(hours / 24) } };
+}
+
 export function describeAge(savedAt: number, now: number = Date.now()): string {
   const minutes = Math.floor((now - savedAt) / 60_000);
   if (minutes < 1) return "just now";

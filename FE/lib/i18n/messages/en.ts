@@ -94,7 +94,6 @@ export const en = {
   // ---- uploading a deck -------------------------------------------------------------------
   "uploader.heading": "Import from an .apkg file",
   "uploader.dropzone": "Drop your .apkg here, or click to browse",
-  "uploader.dropzoneHint": "Anki deck export · up to 50 MB",
   "uploader.reading": "Reading your deck…",
   "uploader.continue": "Continue →",
   "uploader.wrongType": "Please choose a .apkg file (an Anki deck export).",
@@ -503,6 +502,212 @@ export const en = {
   "search.noMatch": "No decks match “{query}”.",
   "search.empty": "You don’t have any decks yet.",
   "shell.notificationsUnread": "Notifications, {count} unread",
+  // ---- /import (the on-ramp) ----------------------------------------------------------------
+  "import.preparingTitle": "Preparing your deck…",
+  "import.preparingHint": "Laying out the cards for review.",
+
+  "import.tabFile": "Upload .apkg",
+  "import.tabText": "Paste text",
+  "import.tabAi": "Generate with AI",
+  "import.tabScratch": "Create from scratch",
+
+  "import.resumeTitle": "You have an unsaved deck",
+  // One sentence rather than three glued fragments: the original built
+  // `name · N card(s) · edited AGE` in JSX, which fixes English word order and English
+  // comma conventions. The age arrives already translated — see `draftAge` in lib/draftStore.
+  "import.resumeMeta": {
+    one: "{name} · {count} card · edited {age}",
+    other: "{name} · {count} cards · edited {age}",
+  },
+  "import.resume": "Resume",
+
+  // ⚠ This is a DECK NAME, written to the database — not just UI chrome. Translating it is
+  // deliberate: it is the learner's own content and they will usually rename it. Checked first
+  // that nothing in the FE or BE compares against the literal as a sentinel.
+  "import.untitledDeck": "Untitled deck",
+  "import.importedSet": "Imported set",
+
+  "import.scratchHeading": "Create a deck from scratch",
+  "import.scratchLede":
+    "Start with a few blank cards and fill in the term, definition, and any images or audio yourself — then save it like any other deck.",
+  "import.scratchStart": "Start a blank deck",
+
+  "import.pasteHeading": "Import from plain text",
+  "import.pasteLede":
+    "Paste cards Quizlet-style — one card per row, term and definition separated by your chosen delimiter. Each becomes a Basic (front/back) card.",
+  "import.deckName": "Deck name",
+  "import.betweenTermDef": "Between term & definition:",
+  "import.betweenRows": "Between rows:",
+  "import.delimTab": "Tab",
+  "import.delimComma": "Comma",
+  "import.delimNewline": "New line",
+  "import.delimSemicolon": "Semicolon",
+  "import.detected": { one: "{count} card detected", other: "{count} cards detected" },
+  "import.reviewCount": { one: "Review {count} card", other: "Review {count} cards" },
+  "import.reviewCards": "Review cards",
+
+  // ---- how old an unsaved draft is ------------------------------------------------------------
+  // Keys rather than sentences because `describeAge` is pure and has no translator. English needs
+  // the singular/plural split; Vietnamese does not inflect the noun, so it uses a plain string.
+  "age.justNow": "just now",
+  "age.minutes": { one: "{count} minute ago", other: "{count} minutes ago" },
+  "age.hours": { one: "{count} hour ago", other: "{count} hours ago" },
+  "age.days": { one: "{count} day ago", other: "{count} days ago" },
+  "common.discard": "Discard",
+  // The shape to paste, shown IN the textarea. The \t and \n are the literal separators it
+  // is demonstrating -- they must survive translation, so only the two words change.
+  "import.pastePlaceholder": "term\tdefinition\nterm\tdefinition",
+  "uploader.lede":
+    "Upload an Anki deck export (.apkg). Cards, pictures, and audio pronunciations all come across.",
+  // {limit} rather than a hardcoded 50: the old value said "50 MB" in prose while the code
+  // interpolated MAX_MB, so the two could drift apart silently.
+  "uploader.dropzoneHintLimit": "Anki deck export · up to {limit} MB",
+  // The CLIENT-side check knows the actual file size, which is more useful than the server's
+  // generic 413 message, so it keeps its own key rather than reusing `uploader.tooLarge`.
+  "uploader.tooLargeFile": "That deck is {size} MB — the limit is {limit} MB.",
+  "uploader.studyOneNow": "— study one straight away, no file needed.",
+  // Split so each link sits at the END of its own sentence. The original was one sentence with
+  // two links buried mid-clause, which cannot be reordered for another language without
+  // shattering it into untranslatable fragments.
+  "uploader.orGrabFrom": "Or grab an .apkg from",
+  "uploader.andUploadAbove": "and upload it above.",
+  // The summary line is assembled from clauses rather than one template: it has three optional
+  // middles (skipped / occlusion-excluded / audio) and one template per combination would be
+  // eight keys.
+  "uploader.sumNotes": { one: "{count} note", other: "{count} notes" },
+  "uploader.sumSkipped": "{count} skipped",
+  "uploader.sumOccluded": "{count} image-occlusion excluded",
+  "uploader.sumAcross": { one: "across {count} note type.", other: "across {count} note types." },
+  "uploader.sumAudio": "{count} with audio.",
+  "uploader.occlusionWarning": {
+    one: "Image-occlusion cards aren't supported in multiple-choice quizzes — they have no text to ask about. {count} card excluded.",
+    other: "Image-occlusion cards aren't supported in multiple-choice quizzes — they have no text to ask about. {count} cards excluded.",
+  },
+  "discover.pagerLabel": "Pagination",
+  "discover.pageOf": {
+    one: "Page {page} of {pages} · {total} deck",
+    other: "Page {page} of {pages} · {total} decks",
+  },
+  // ---- review before saving -------------------------------------------------------------------
+  "review.heading": "Review before saving",
+  "review.swapAll": "Swap term and definition for all cards",
+  "review.swapAllTitle": "Swap the term and definition of all cards",
+  "review.saving": "Saving…",
+  "review.saveDeck": "Save deck",
+  // {action} is the Save button's own label, so the two can never disagree. The original wrapped
+  // it in <span className="font-semibold">; interpolating loses the bold, which is the right
+  // trade — keeping it would pin the button name to one position in every language.
+  "review.notSavedYet":
+    "This deck isn't saved yet — nothing lands in your account until you hit {action}. Your progress here is kept on this device, so you can come back to it.",
+  "review.imageUploadFailed":
+    "Couldn't upload one of the card images. Your work is safe — try again.",
+  "review.saveFailed": "Couldn't save the deck. Your work is safe — try again.",
+  "review.fieldsHeading": "Fields shown on card",
+  "review.fieldsLede": "Put each field on the Term or Definition side (or Off), or add your own.",
+  "review.searchCards": "Search cards…",
+  "review.countFiltered": "{shown} of {total} cards",
+  "review.noMatch": "No cards match “{query}”.",
+  "review.showMore": "Show {count} more",
+  "review.remainingLeft": "({count} left)",
+  "review.showAllTitle": "Render every remaining card — may take a moment on a very large deck",
+  "review.showAll": "Show all",
+  "review.addCard": "Add a card",
+  "review.visibilityHeading": "Who can see this deck",
+  "review.public": "Public",
+  "review.private": "Private",
+  // "Discover" stays as the page's proper name inside the sentence rather than being spliced in,
+  // so a translation can put it wherever its grammar wants.
+  "review.publicNote":
+    "Anyone can find this deck on Discover and save their own copy of it. Your progress stays private. Only publish decks you're free to share.",
+  "review.privateNote":
+    "Only you can see this deck. You can publish it later from the deck's ⋯ menu.",
+
+  // ---- the two sides of a card (shared by the editor and the fields panel) ---------------------
+  "card.term": "Term",
+  "card.definition": "Definition",
+
+  // ---- which fields show on a card ------------------------------------------------------------
+  "fields.cardsFallback": "Cards",
+  "fields.shown": "{count} shown",
+  "fields.deleteField": "Delete field {name}",
+  "fields.deleteThisField": "Delete this field",
+  "fields.needOneField": "A card needs at least one field on this side",
+  "fields.hasContent": "This field has content — untick it to hide it instead",
+  // One whole sentence per side. The original lowercased the side name and glued it on, which
+  // assumes English casing rules and English word order.
+  "fields.addToTerm": "Add field to term",
+  "fields.addToDefinition": "Add field to definition",
+  "fields.namePlaceholder": "Field name (e.g. Example)",
+  "fields.add": "Add",
+  "fields.duplicate": "A field named “{name}” already exists.",
+  "card.termVoice": "Term voice",
+  "card.definitionVoice": "Definition voice",
+  "card.cloze": "Cloze",
+  "card.swapFaces": "Swap front/back",
+  "card.delete": "Delete card",
+  // ---- generate a deck with AI ----------------------------------------------------------------
+  "aiGen.tabText": "Paste notes",
+  "aiGen.tabPdf": "Upload a PDF",
+  "aiGen.yourNotes": "Your notes",
+  "aiGen.notesPlaceholder": "Paste a chapter, a vocabulary list, lecture notes…",
+  "aiGen.needMore": "Paste at least a paragraph — there's no making cards from one line.",
+  "aiGen.charCount": "{count} characters",
+  "aiGen.choosePdf": "Choose a PDF",
+  "aiGen.pdfChosen": "{size} MB — click to choose another",
+  "aiGen.pdfHint": "Up to {limit} MB. It needs selectable text — a scan won't work.",
+  "aiGen.deckName": "Deck name",
+  "aiGen.optional": "(optional)",
+  "aiGen.fromFileName": "Taken from the file name",
+  "aiGen.fromFirstLine": "Taken from the first line",
+  "aiGen.upTo": "Up to",
+  "aiGen.maxCards": "Maximum cards",
+  "aiGen.cardsOption": "{count} cards",
+  "aiGen.generating": "Generating…",
+  "aiGen.generate": "Generate cards",
+  "aiGen.takesAMinute": "This can take up to a minute for long material — keep this tab open.",
+
+  // the disclosure, shown BEFORE generating rather than buried in settings
+  "aiGen.ownKeyNotice":
+    "Your material is sent to the AI provider using your own API key, under your agreement with them.",
+  "aiGen.freeTierNotice":
+    "Your material is sent to our AI provider to make cards. We use a free tier, where the provider may use what is sent to improve their products, including review by people.",
+  "aiGen.dontPasteConfidential": "Don't paste anything confidential.",
+  "aiGen.addOwnKey": "Add your own API key",
+  "aiGen.toUseOwnAccount": "to use your own account instead.",
+  "aiGen.draftNotice":
+    "Cards are a draft — you review and edit every one before the deck is saved.",
+
+  "aiGen.ready": { one: "{count} card ready to review", other: "{count} cards ready to review" },
+  "aiGen.startOver": "Start over",
+  "aiGen.reviewCards": "Review cards",
+
+  // how much of today's allowance is left. Two sentences, not one with a spliced adjective.
+  "aiGen.remainingShared": {
+    one: "{count} free generation left today",
+    other: "{count} free generations left today",
+  },
+  "aiGen.remainingOwnKey": {
+    one: "{count} generation left today on your key",
+    other: "{count} generations left today on your key",
+  },
+
+  "aiGen.inputTruncated":
+    "That material was long, so only the first part was used. Generate again from the rest to continue.",
+  "aiGen.partialRun":
+    "The AI stopped partway, so these are the cards it managed. You can generate the rest separately.",
+
+  "aiGen.notAPdf": "That doesn't look like a PDF.",
+  "aiGen.emptyFile": "That file is empty.",
+  "aiGen.pdfTooLarge": "That PDF is larger than {limit} MB. Try a single chapter.",
+  "media.addImage": "Add image",
+  "media.removeImage": "Remove image",
+  "media.chooseImage": "Please choose an image file.",
+  "media.imageUploadFailed": "Couldn't upload that image. Try again.",
+  "media.addAudio": "Add audio",
+  "media.removeAudio": "Remove audio",
+  "media.chooseAudio": "Please choose an audio file.",
+  "media.audioUploadFailed": "Couldn't upload that audio. Try again.",
+  "media.uploading": "Uploading…",
 } as const satisfies Catalogue;
 
 export type MessageKey = keyof typeof en;

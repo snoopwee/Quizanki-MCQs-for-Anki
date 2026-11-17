@@ -417,7 +417,7 @@ function NotShared() {
   return (
     <Card className="p-6 text-center">
       <h1 className="font-display text-xl font-semibold tracking-tight">
-        This deck isn&apos;t shared
+        {t("shared.notShared")}
       </h1>
       <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">
         The link may be wrong, or its owner has turned sharing off. You can still bring your own

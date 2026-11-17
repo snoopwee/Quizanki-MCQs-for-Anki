@@ -49,6 +49,7 @@ import { LearnSummaryView } from "@/components/learn/LearnSummaryView";
 import { Card } from "@/components/ui/Card";
 import { Spinner } from "@/components/ui/Spinner";
 import { buttonClasses } from "@/components/ui/Button";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // A running session: its backend session id (every answer is logged under it, so the
 // stats chart gets one point per session) and the cards it learns.
@@ -66,6 +67,7 @@ interface Run {
 // refresh or direct link works. Every answer is recorded with source "learn": it moves
 // mastery like a quiz answer and marks today on the streak.
 export default function DeckLearnPage() {
+  const t = useT();
   const { deckId } = useParams<{ deckId: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -267,9 +269,9 @@ export default function DeckLearnPage() {
   if (contentsQuery.isError || !contentsQuery.data || !parsed) {
     return (
       <div className="mx-auto max-w-2xl space-y-3 p-6">
-        <p className="text-sm text-muted">Deck not found.</p>
+        <p className="text-sm text-muted">{t("deckPage.notFound")}</p>
         <Link href="/home" className="text-sm font-medium text-accent hover:underline">
-          Back to decks
+          {t("deckPage.backToDecks")}
         </Link>
       </div>
     );

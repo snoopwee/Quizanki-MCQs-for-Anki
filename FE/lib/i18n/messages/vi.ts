@@ -88,7 +88,6 @@ export const vi = {
   // ---- uploading a deck -------------------------------------------------------------------
   "uploader.heading": "Nhập từ tệp .apkg",
   "uploader.dropzone": "Kéo tệp .apkg vào đây, hoặc bấm để chọn",
-  "uploader.dropzoneHint": "Tệp xuất từ Anki · tối đa 50 MB",
   "uploader.reading": "Đang đọc bộ thẻ của bạn…",
   "uploader.continue": "Tiếp tục →",
   "uploader.wrongType": "Vui lòng chọn tệp .apkg (tệp xuất bộ thẻ từ Anki).",
@@ -475,4 +474,173 @@ export const vi = {
   "search.noMatch": "Không có bộ thẻ nào khớp với “{query}”.",
   "search.empty": "Bạn chưa có bộ thẻ nào.",
   "shell.notificationsUnread": "Thông báo, {count} chưa đọc",
+  // ---- /import (the on-ramp) ----------------------------------------------------------------
+  "import.preparingTitle": "Đang chuẩn bị bộ thẻ của bạn…",
+  "import.preparingHint": "Đang sắp xếp các thẻ để bạn xem lại.",
+
+  "import.tabFile": "Tải lên .apkg",
+  "import.tabText": "Dán văn bản",
+  "import.tabAi": "Tạo bằng AI",
+  "import.tabScratch": "Tạo từ đầu",
+
+  "import.resumeTitle": "Bạn có một bộ thẻ chưa lưu",
+  "import.resumeMeta": "{name} · {count} thẻ · đã sửa {age}",
+  "import.resume": "Tiếp tục",
+
+  "import.untitledDeck": "Bộ thẻ chưa đặt tên",
+  "import.importedSet": "Bộ thẻ đã nhập",
+
+  "import.scratchHeading": "Tạo bộ thẻ từ đầu",
+  "import.scratchLede":
+    "Bắt đầu với vài thẻ trống rồi tự điền thuật ngữ, định nghĩa cùng ảnh hoặc âm thanh nếu muốn — sau đó lưu như mọi bộ thẻ khác.",
+  "import.scratchStart": "Bắt đầu bộ thẻ trống",
+
+  "import.pasteHeading": "Nhập từ văn bản thuần",
+  "import.pasteLede":
+    "Dán thẻ theo kiểu Quizlet — mỗi dòng một thẻ, thuật ngữ và định nghĩa cách nhau bằng ký tự bạn chọn. Mỗi dòng thành một thẻ Basic (mặt trước/mặt sau).",
+  "import.deckName": "Tên bộ thẻ",
+  "import.betweenTermDef": "Giữa thuật ngữ và định nghĩa:",
+  "import.betweenRows": "Giữa các dòng:",
+  "import.delimTab": "Tab",
+  "import.delimComma": "Dấu phẩy",
+  "import.delimNewline": "Dòng mới",
+  "import.delimSemicolon": "Dấu chấm phẩy",
+  "import.detected": "Đã nhận ra {count} thẻ",
+  "import.reviewCount": "Xem lại {count} thẻ",
+  "import.reviewCards": "Xem lại các thẻ",
+
+  // ---- how old an unsaved draft is ------------------------------------------------------------
+  "age.justNow": "vừa xong",
+  "age.minutes": "{count} phút trước",
+  "age.hours": "{count} giờ trước",
+  "age.days": "{count} ngày trước",
+  "common.discard": "Huỷ bỏ",
+  "import.pastePlaceholder": "thuật ngữ\tđịnh nghĩa\nthuật ngữ\tđịnh nghĩa",
+  "uploader.lede":
+    "Tải lên tệp xuất từ Anki (.apkg). Thẻ, hình ảnh và phát âm đều được mang sang.",
+  "uploader.dropzoneHintLimit": "Tệp xuất từ Anki · tối đa {limit} MB",
+  "uploader.tooLargeFile": "Bộ thẻ đó nặng {size} MB — giới hạn là {limit} MB.",
+  "uploader.studyOneNow": "— học ngay, không cần tệp nào.",
+  "uploader.orGrabFrom": "Hoặc tải một tệp .apkg từ",
+  "uploader.andUploadAbove": "rồi tải lên ở trên.",
+  "uploader.sumNotes": "{count} ghi chú",
+  "uploader.sumSkipped": "bỏ qua {count}",
+  "uploader.sumOccluded": "loại trừ {count} thẻ che ảnh",
+  "uploader.sumAcross": "trên {count} loại ghi chú.",
+  "uploader.sumAudio": "{count} thẻ có âm thanh.",
+  "uploader.occlusionWarning":
+    "Thẻ che ảnh không dùng được cho câu hỏi trắc nghiệm vì không có chữ để hỏi. Đã loại trừ {count} thẻ.",
+  "discover.pagerLabel": "Phân trang",
+  "discover.pageOf": "Trang {page}/{pages} · {total} bộ thẻ",
+  // ---- review before saving -------------------------------------------------------------------
+  "review.heading": "Xem lại trước khi lưu",
+  "review.swapAll": "Đảo thuật ngữ và định nghĩa cho mọi thẻ",
+  "review.swapAllTitle": "Đảo thuật ngữ và định nghĩa của mọi thẻ",
+  "review.saving": "Đang lưu…",
+  "review.saveDeck": "Lưu bộ thẻ",
+  "review.notSavedYet":
+    "Bộ thẻ này chưa được lưu — chưa có gì vào tài khoản của bạn cho đến khi bạn bấm {action}. Tiến độ ở đây được giữ trên thiết bị này nên bạn có thể quay lại sau.",
+  "review.imageUploadFailed":
+    "Không tải lên được một trong các ảnh của thẻ. Phần bạn làm vẫn an toàn — hãy thử lại.",
+  "review.saveFailed":
+    "Không lưu được bộ thẻ. Phần bạn làm vẫn an toàn — hãy thử lại.",
+  "review.fieldsHeading": "Các trường hiển thị trên thẻ",
+  "review.fieldsLede":
+    "Đặt từng trường vào mặt Thuật ngữ hoặc Định nghĩa (hoặc Tắt), hoặc tự thêm trường mới.",
+  "review.searchCards": "Tìm thẻ…",
+  "review.countFiltered": "{shown} trên {total} thẻ",
+  "review.noMatch": "Không có thẻ nào khớp với “{query}”.",
+  "review.showMore": "Hiện thêm {count} thẻ",
+  "review.remainingLeft": "(còn {count})",
+  "review.showAllTitle":
+    "Dựng mọi thẻ còn lại — có thể hơi lâu với bộ thẻ rất lớn",
+  "review.showAll": "Hiện tất cả",
+  "review.addCard": "Thêm thẻ",
+  "review.visibilityHeading": "Ai có thể thấy bộ thẻ này",
+  "review.public": "Công khai",
+  "review.private": "Riêng tư",
+  "review.publicNote":
+    "Mọi người đều có thể tìm thấy bộ thẻ này ở Discover và lưu bản sao riêng. Tiến độ của bạn vẫn riêng tư. Chỉ nên đăng những bộ thẻ bạn có quyền chia sẻ.",
+  "review.privateNote":
+    "Chỉ bạn thấy được bộ thẻ này. Bạn có thể đăng nó sau từ menu ⋯ của bộ thẻ.",
+
+  // ---- the two sides of a card ----------------------------------------------------------------
+  "card.term": "Thuật ngữ",
+  "card.definition": "Định nghĩa",
+
+  // ---- which fields show on a card ------------------------------------------------------------
+  "fields.cardsFallback": "Thẻ",
+  "fields.shown": "hiện {count}",
+  "fields.deleteField": "Xoá trường {name}",
+  "fields.deleteThisField": "Xoá trường này",
+  "fields.needOneField": "Mỗi thẻ cần ít nhất một trường ở mặt này",
+  "fields.hasContent": "Trường này có nội dung — bỏ tích để ẩn thay vì xoá",
+  "fields.addToTerm": "Thêm trường vào mặt thuật ngữ",
+  "fields.addToDefinition": "Thêm trường vào mặt định nghĩa",
+  "fields.namePlaceholder": "Tên trường (ví dụ: Ví dụ)",
+  "fields.add": "Thêm",
+  "fields.duplicate": "Đã có trường tên “{name}”.",
+  "card.termVoice": "Giọng đọc thuật ngữ",
+  "card.definitionVoice": "Giọng đọc định nghĩa",
+  "card.cloze": "Cloze",
+  "card.swapFaces": "Đảo mặt trước/mặt sau",
+  "card.delete": "Xoá thẻ",
+  // ---- generate a deck with AI ----------------------------------------------------------------
+  "aiGen.tabText": "Dán ghi chú",
+  "aiGen.tabPdf": "Tải lên PDF",
+  "aiGen.yourNotes": "Ghi chú của bạn",
+  "aiGen.notesPlaceholder": "Dán một chương, một danh sách từ vựng, ghi chú bài giảng…",
+  "aiGen.needMore":
+    "Hãy dán ít nhất một đoạn — không thể tạo thẻ từ một dòng.",
+  "aiGen.charCount": "{count} ký tự",
+  "aiGen.choosePdf": "Chọn một tệp PDF",
+  "aiGen.pdfChosen": "{size} MB — bấm để chọn tệp khác",
+  "aiGen.pdfHint":
+    "Tối đa {limit} MB. Tệp cần có chữ chọn được — bản scan sẽ không dùng được.",
+  "aiGen.deckName": "Tên bộ thẻ",
+  "aiGen.optional": "(không bắt buộc)",
+  "aiGen.fromFileName": "Lấy từ tên tệp",
+  "aiGen.fromFirstLine": "Lấy từ dòng đầu tiên",
+  "aiGen.upTo": "Tối đa",
+  "aiGen.maxCards": "Số thẻ tối đa",
+  "aiGen.cardsOption": "{count} thẻ",
+  "aiGen.generating": "Đang tạo…",
+  "aiGen.generate": "Tạo thẻ",
+  "aiGen.takesAMinute":
+    "Với tài liệu dài, việc này có thể mất tới một phút — hãy giữ tab này mở.",
+
+  "aiGen.ownKeyNotice":
+    "Tài liệu của bạn được gửi tới nhà cung cấp AI bằng khoá API của riêng bạn, theo thoả thuận giữa bạn và họ.",
+  "aiGen.freeTierNotice":
+    "Tài liệu của bạn được gửi tới nhà cung cấp AI của chúng tôi để tạo thẻ. Chúng tôi dùng gói miễn phí, nên nhà cung cấp có thể dùng nội dung được gửi để cải thiện sản phẩm của họ, bao gồm cả việc con người xem lại.",
+  "aiGen.dontPasteConfidential": "Đừng dán bất cứ thông tin bí mật nào.",
+  "aiGen.addOwnKey": "Thêm khoá API của riêng bạn",
+  "aiGen.toUseOwnAccount": "để dùng tài khoản của bạn thay thế.",
+  "aiGen.draftNotice":
+    "Thẻ chỉ là bản nháp — bạn xem và sửa từng thẻ trước khi bộ thẻ được lưu.",
+
+  "aiGen.ready": "{count} thẻ đã sẵn sàng để xem lại",
+  "aiGen.startOver": "Làm lại từ đầu",
+  "aiGen.reviewCards": "Xem lại các thẻ",
+
+  "aiGen.remainingShared": "Còn {count} lượt tạo miễn phí hôm nay",
+  "aiGen.remainingOwnKey": "Còn {count} lượt tạo hôm nay bằng khoá của bạn",
+
+  "aiGen.inputTruncated":
+    "Tài liệu khá dài nên chỉ phần đầu được dùng. Hãy tạo lại từ phần còn lại để tiếp tục.",
+  "aiGen.partialRun":
+    "AI dừng giữa chừng nên đây là những thẻ nó kịp tạo. Bạn có thể tạo phần còn lại riêng.",
+
+  "aiGen.notAPdf": "Tệp đó không giống một tệp PDF.",
+  "aiGen.emptyFile": "Tệp đó trống.",
+  "aiGen.pdfTooLarge": "Tệp PDF đó lớn hơn {limit} MB. Hãy thử một chương riêng.",
+  "media.addImage": "Thêm ảnh",
+  "media.removeImage": "Xoá ảnh",
+  "media.chooseImage": "Vui lòng chọn một tệp ảnh.",
+  "media.imageUploadFailed": "Không tải lên được ảnh đó. Hãy thử lại.",
+  "media.addAudio": "Thêm âm thanh",
+  "media.removeAudio": "Xoá âm thanh",
+  "media.chooseAudio": "Vui lòng chọn một tệp âm thanh.",
+  "media.audioUploadFailed": "Không tải lên được âm thanh đó. Hãy thử lại.",
+  "media.uploading": "Đang tải lên…",
 } as const satisfies CatalogueOf<typeof en>;

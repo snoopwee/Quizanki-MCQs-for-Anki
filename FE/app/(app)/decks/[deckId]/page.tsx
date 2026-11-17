@@ -204,7 +204,7 @@ function DeckDetail() {
       <div className="mx-auto max-w-3xl space-y-3">
         <p className="text-sm text-muted">{t("deckPage.notFound")}</p>
         <Link href="/home" className="text-sm font-medium text-accent hover:underline">
-          Back to decks
+          {t("deckPage.backToDecks")}
         </Link>
       </div>
     );
@@ -259,7 +259,7 @@ function DeckDetail() {
                       label={
                         contentsQuery.data.isPublic
                           ? "Shared — manage the link"
-                          : "Private — share this deck"
+                          : t("deckPage.privateShare")
                       }
                       onClick={() => setShareOpen(true)}
                       className={
@@ -426,7 +426,7 @@ function DeckDetail() {
                 icon="cards"
                 color="var(--info)"
                 label={t("deckPage.flashcards")}
-                desc="Flip through every card below"
+                desc={t("deckPage.flashcardsDesc")}
                 onClick={scrollToCards}
               />
               <StudyMode
@@ -793,7 +793,7 @@ function DeleteConfirm({
         onClick={(e) => e.stopPropagation()}
       >
         <div>
-          <h2 className="font-display text-base font-semibold tracking-tight">Delete this deck?</h2>
+          <h2 className="font-display text-base font-semibold tracking-tight">{t("deckPage.deleteConfirm")}</h2>
           <p className="mt-1 break-words text-sm text-muted">
             <span className="font-medium text-ink">{deckName}</span>{" "}
             and all of its progress will be removed. This can&apos;t be undone.

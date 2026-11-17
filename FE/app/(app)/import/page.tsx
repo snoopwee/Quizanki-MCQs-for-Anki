@@ -22,7 +22,8 @@ import { fromParsed } from "@/lib/deckDraft";
 import { buildAudioRefs, type AudioRef } from "@/lib/cardAudioImport";
 import { ApkgMedia } from "@/lib/apkgMedia";
 import { addBasicRow, basicRow, type EditorState } from "@/lib/deckEditor";
-import { clearDraft, describeAge, loadDraft, saveDraft } from "@/lib/draftStore";
+import { clearDraft, draftAge, loadDraft, saveDraft } from "@/lib/draftStore";
+import { useT } from "@/components/i18n/LocaleProvider";
 import { parsePlainText, type ParsedPair } from "@/lib/parsePlainText";
 import {
   APP_MSG_SOURCE,
@@ -49,14 +50,16 @@ type Source = "file" | "text" | "ai" | "scratch";
 const AUTOSAVE_DELAY_MS = 600;
 
 export default function ImportPage() {
+  const t = useT();
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+    <Suspense fallback={<p className="text-sm text-muted">{t("common.loading")}</p>}>
       <ImportFlow />
     </Suspense>
   );
 }
 
 function ImportFlow() {
+  const t = useT();
   const router = useRouter();
   const params = useSearchParams();
   // The landing page hands a guest's just-imported deck over after signup by
@@ -174,7 +177,7 @@ function ImportFlow() {
     setAudioRefs([]);
     startDraft(
       () => ({
-        name: name.trim() || "Untitled deck",
+        name: name.trim() || t("import.untitledDeck"),
         rows: pairs.map((p) => basicRow(p.front, p.back, p.frontImage, p.backImage)),
         layoutByType: {},
       }),
@@ -189,7 +192,7 @@ function ImportFlow() {
     setAudioRefs([]);
     startDraft(
       () => ({
-        name: "Untitled deck",
+        name: t("import.untitledDeck"),
         rows: [addBasicRow(), addBasicRow(), addBasicRow()],
         layoutByType: {},
       }),
@@ -223,7 +226,7 @@ function ImportFlow() {
       // reached the decks row raw. normalizeField can empty a title that was only
       // markup, so the fallback is applied after it, not before.
       const name = normalizeField(e.data.name ?? "");
-      handlePastedRef.current(name || "Imported set", pairs);
+      handlePastedRef.current(name || t("import.importedSet"), pairs);
     };
     window.addEventListener("message", onMessage);
     // Tell the extension's on-page content script we're mounted and listening, so
@@ -260,10 +263,13 @@ function ImportFlow() {
     savedRef.current = false;
   }
 
-  const resumeAge = useMemo(
-    () => (recovered ? describeAge(recovered.savedAt) : ""),
-    [recovered],
-  );
+  // Translated here rather than inside ResumeBanner: `draftAge` returns a key, and this is the
+  // component that both has the saved timestamp and a translator in scope.
+  const resumeAge = useMemo(() => {
+    if (!recovered) return "";
+    const age = draftAge(recovered.savedAt);
+    return t(age.key, age.vars);
+  }, [recovered, t]);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -285,10 +291,10 @@ function ImportFlow() {
           )}
 
           <div className="inline-flex rounded-input border border-line bg-surface p-0.5 text-sm">
-            <SourceTab label="Upload .apkg" active={source === "file"} onClick={() => setSource("file")} />
-            <SourceTab label="Paste text" active={source === "text"} onClick={() => setSource("text")} />
-            <SourceTab label="Generate with AI" active={source === "ai"} onClick={() => setSource("ai")} />
-            <SourceTab label="Create from scratch" active={source === "scratch"} onClick={() => setSource("scratch")} />
+            <SourceTab label={t("import.tabFile")} active={source === "file"} onClick={() => setSource("file")} />
+            <SourceTab label={t("import.tabText")} active={source === "text"} onClick={() => setSource("text")} />
+            <SourceTab label={t("import.tabAi")} active={source === "ai"} onClick={() => setSource("ai")} />
+            <SourceTab label={t("import.tabScratch")} active={source === "scratch"} onClick={() => setSource("scratch")} />
           </div>
 
           {source === "file" && <ApkgUploader onContinue={handleParsed} />}
@@ -332,11 +338,12 @@ function ImportFlow() {
 // Shown between "Continue" and the review editor appearing. The editor's first
 // render is the slow part for a big deck, so this reassures the user it's working.
 function PreparingPanel() {
+  const t = useT();
   return (
     <div className="flex flex-col items-center gap-3 rounded-card border border-line bg-surface px-6 py-14 text-center">
       <Spinner className="h-7 w-7 text-accent" />
-      <p className="text-sm font-medium text-ink">Preparing your deck…</p>
-      <p className="text-xs text-muted">Laying out the cards for review.</p>
+      <p className="text-sm font-medium text-ink">{t("import.preparingTitle")}</p>
+      <p className="text-xs text-muted">{t("import.preparingHint")}</p>
     </div>
   );
 }
@@ -356,13 +363,19 @@ function ResumeBanner({
   onResume: () => void;
   onDiscard: () => void;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-card border border-accent/30 bg-accent-soft/50 p-4">
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-ink">You have an unsaved deck</p>
+        <p className="text-sm font-semibold text-ink">{t("import.resumeTitle")}</p>
+        {/* One sentence through the catalogue. The deck name loses its bold here, which is the
+            right trade: keeping it would force the name to sit first in every language. */}
         <p className="mt-0.5 text-xs text-muted">
-          <span className="font-medium text-ink">{name || "Untitled deck"}</span> · {cardCount} card
-          {cardCount === 1 ? "" : "s"} · edited {age}
+          {t("import.resumeMeta", {
+            name: name || t("import.untitledDeck"),
+            count: cardCount,
+            age,
+          })}
         </p>
       </div>
       <div className="flex shrink-0 gap-2">
@@ -371,14 +384,14 @@ function ResumeBanner({
           onClick={onDiscard}
           className="rounded-input border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium text-muted transition hover:border-danger hover:text-danger"
         >
-          Discard
+          {t("common.discard")}
         </button>
         <button
           type="button"
           onClick={onResume}
           className="focus-ring rounded-input bg-accent px-3 py-1.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95"
         >
-          Resume
+          {t("import.resume")}
         </button>
       </div>
     </div>
@@ -410,21 +423,21 @@ function SourceTab({
 // Build a deck by hand — no import. Starts a blank draft in the same review editor
 // the imports use, so hand-made and imported decks are edited identically.
 function CreateScratchPanel({ onStart }: { onStart: () => void }) {
+  const t = useT();
   return (
     <div className="space-y-4 rounded-card border border-line bg-surface p-6 text-center">
       <div className="space-y-1">
-        <h2 className="font-display text-lg font-semibold tracking-tight">Create a deck from scratch</h2>
-        <p className="mx-auto max-w-sm text-sm text-muted">
-          Start with a few blank cards and fill in the term, definition, and any images or audio
-          yourself — then save it like any other deck.
-        </p>
+        <h2 className="font-display text-lg font-semibold tracking-tight">
+          {t("import.scratchHeading")}
+        </h2>
+        <p className="mx-auto max-w-sm text-sm text-muted">{t("import.scratchLede")}</p>
       </div>
       <button
         type="button"
         onClick={onStart}
         className="focus-ring inline-flex items-center gap-2 rounded-input bg-accent px-4 py-2 text-sm font-semibold text-white shadow-btn transition hover:opacity-95"
       >
-        <Icon name="plus" size={16} /> Start a blank deck
+        <Icon name="plus" size={16} /> {t("import.scratchStart")}
       </button>
     </div>
   );
@@ -437,6 +450,7 @@ function PasteTextImport({
 }: {
   onImport: (name: string, pairs: ParsedPair[]) => void;
 }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [text, setText] = useState("");
   // Escaped forms so they match the <option value> strings; parsePlainText turns
@@ -452,45 +466,44 @@ function PasteTextImport({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="font-display text-lg font-semibold tracking-tight">Import from plain text</h2>
-        <p className="mt-1 text-sm text-muted">
-          Paste cards Quizlet-style — one card per row, term and definition
-          separated by your chosen delimiter. Each becomes a Basic (front/back) card.
-        </p>
+        <h2 className="font-display text-lg font-semibold tracking-tight">
+          {t("import.pasteHeading")}
+        </h2>
+        <p className="mt-1 text-sm text-muted">{t("import.pasteLede")}</p>
       </div>
 
       <label className="block space-y-1">
-        <span className="text-sm font-medium">Deck name</span>
+        <span className="text-sm font-medium">{t("import.deckName")}</span>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Untitled deck"
+          placeholder={t("import.untitledDeck")}
           className="focus-ring w-full rounded-input border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink outline-none placeholder:text-faint"
         />
       </label>
 
       <div className="flex flex-wrap gap-4 text-sm">
         <label className="flex items-center gap-1.5">
-          Between term &amp; definition:
+          {t("import.betweenTermDef")}
           <select
             value={termDelimiter}
             onChange={(e) => setTermDelimiter(e.target.value)}
             className="rounded-input border border-line-strong bg-surface-2 px-1 py-0.5 text-ink"
           >
-            <option value="\t">Tab</option>
-            <option value=",">Comma</option>
+            <option value="\t">{t("import.delimTab")}</option>
+            <option value=",">{t("import.delimComma")}</option>
           </select>
         </label>
         <label className="flex items-center gap-1.5">
-          Between rows:
+          {t("import.betweenRows")}
           <select
             value={rowDelimiter}
             onChange={(e) => setRowDelimiter(e.target.value)}
             className="rounded-input border border-line-strong bg-surface-2 px-1 py-0.5 text-ink"
           >
-            <option value="\n">New line</option>
-            <option value=";">Semicolon</option>
+            <option value="\n">{t("import.delimNewline")}</option>
+            <option value=";">{t("import.delimSemicolon")}</option>
           </select>
         </label>
       </div>
@@ -499,13 +512,13 @@ function PasteTextImport({
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={10}
-        placeholder={"term\tdefinition\nterm\tdefinition"}
+        placeholder={t("import.pastePlaceholder")}
         className="nice-scroll focus-ring w-full resize-y rounded-input border border-line-strong bg-surface-2 px-3 py-2 font-mono text-sm text-ink outline-none placeholder:text-faint"
       />
 
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted">
-          {pairs.length} card{pairs.length === 1 ? "" : "s"} detected
+          {t("import.detected", { count: pairs.length })}
         </span>
         <button
           type="button"
@@ -513,7 +526,9 @@ function PasteTextImport({
           onClick={() => onImport(name, pairs)}
           className="focus-ring rounded-input bg-accent px-4 py-2 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-50"
         >
-          Review {pairs.length > 0 ? `${pairs.length} card${pairs.length === 1 ? "" : "s"}` : "cards"}
+          {pairs.length > 0
+            ? t("import.reviewCount", { count: pairs.length })
+            : t("import.reviewCards")}
         </button>
       </div>
     </div>

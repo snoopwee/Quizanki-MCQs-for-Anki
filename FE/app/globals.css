@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./fonts.css";
 
 /* ─────────────────────────────────────────────────────────────────────────
    Quizanki — warm "study desk" design system.
@@ -45,10 +46,12 @@
   --color-plum: var(--plum);
 
   /* type */
-  --font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
-  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
-  --font-jp: var(--font-noto-jp, "Hiragino Sans", "Yu Gothic"), var(--font-geist), sans-serif;
+  /* Self-hosted — see app/fonts.css. The old var(--font-*) indirection existed only
+     because next/font generated those variables for us. */
+  --font-display: "Space Grotesk Local", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Geist Local", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono Local", ui-monospace, "SFMono-Regular", monospace;
+  --font-jp: var(--font-noto-jp, "Hiragino Sans", "Yu Gothic"), "Geist Local", sans-serif;
 
   /* radii */
   --radius-input: 10px;

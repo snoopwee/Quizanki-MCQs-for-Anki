@@ -162,7 +162,18 @@ describe("the catalogues", () => {
     // numeric size bucket ("20–50") is the same in every language. Everything else differing is
     // what proves the catalogue was actually translated rather than pasted across.
     expect(identical.sort()).toEqual(
-      ["auth.email", "size.100plus", "size.20to50", "size.50to100"].sort(),
+      [
+        "auth.email",
+        // Anki's own name for the note type. It is the word printed in Anki's UI and in every
+        // Anki tutorial, so translating it would disconnect the badge from what users already know.
+        "card.cloze",
+        // The key on the keyboard. Vietnamese keyboards call it "Tab" too, and renaming it in
+        // the UI would stop matching the key the learner is being told to press.
+        "import.delimTab",
+        "size.100plus",
+        "size.20to50",
+        "size.50to100",
+      ].sort(),
     );
   });
 

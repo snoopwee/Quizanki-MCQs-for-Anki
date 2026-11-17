@@ -25,7 +25,7 @@ export default function FoldersPage() {
           </p>
         </div>
         <Link href="/home" className={buttonClasses({ variant: "ghost", size: "sm" })}>
-          <Icon name="layers" size={16} /> All your decks
+          <Icon name="layers" size={16} /> {t("folders.allYourDecks")}
         </Link>
       </div>
 

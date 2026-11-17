@@ -25,6 +25,7 @@ import { ImportCardsModal, type ImportMode } from "@/components/deck/ImportCards
 import { EditableCard, type EditableCardProps } from "@/components/deck/EditableCard";
 import { CardFieldsControl, type FieldNoteType } from "@/components/deck/CardFieldsControl";
 import { Icon } from "@/components/ui/icons";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 export default function DeckEditPage() {
   return (
@@ -35,6 +36,7 @@ export default function DeckEditPage() {
 }
 
 function DeckEditor() {
+  const t = useT();
   const { deckId } = useParams<{ deckId: string }>();
   const router = useRouter();
   const contentsQuery = useDeckContents(deckId);
@@ -193,9 +195,9 @@ function DeckEditor() {
   if (contentsQuery.isError || !contentsQuery.data) {
     return (
       <div className="mx-auto max-w-3xl space-y-3">
-        <p className="text-sm text-muted">Deck not found.</p>
+        <p className="text-sm text-muted">{t("deckPage.notFound")}</p>
         <Link href="/home" className="text-sm font-medium text-accent hover:underline">
-          Back to decks
+          {t("deckPage.backToDecks")}
         </Link>
       </div>
     );

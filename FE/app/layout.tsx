@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
@@ -11,26 +10,11 @@ import { getServerLocale } from "@/lib/i18n/server";
 //   Space Grotesk — display / headings (tight, academic)
 //   Geist         — body / UI
 //   Geist Mono    — tags, stat captions, kbd hints
-// Each is exposed as a CSS var and mapped onto a Tailwind token in globals.css
-// (--font-display / --font-sans / --font-mono → font-display / font-sans / font-mono).
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-  variable: "--font-space-grotesk",
-  display: "swap",
-});
-
-const geist = Geist({
-  subsets: ["latin"],
-  variable: "--font-geist",
-  display: "swap",
-});
-
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-geist-mono",
-  display: "swap",
-});
+//
+// SELF-HOSTED from public/fonts, declared in app/fonts.css and mapped onto the Tailwind
+// tokens in globals.css. These came from `next/font/google` until 2026-11-16, which fetches
+// from Google AT BUILD TIME and took CI down when the response could not be parsed. The full
+// reasoning, and why all three fonts now ship a `vietnamese` subset, is in app/fonts.css.
 
 export const metadata: Metadata = {
   // Absolute base for every relative URL below and in each route's own metadata. Open Graph tags
@@ -72,10 +56,25 @@ export default async function RootLayout({
     <html
       lang={locale}
       data-theme="light"
-      className={`${spaceGrotesk.variable} ${geist.variable} ${geistMono.variable}`}
       suppressHydrationWarning
     >
       <body className="min-h-screen antialiased" suppressHydrationWarning>
+        {/* Only the latin subsets are preloaded; unicode-range fetches the others when a
+            page actually contains those characters. */}
+        <link
+          rel="preload"
+          href="/fonts/geist-latin.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          href="/fonts/space-grotesk-latin.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
         {/* Resolve the saved theme onto <html> before first paint (no light flash
             on a dark-mode reload). Runs synchronously ahead of hydration; the
             `light` default above is overwritten here when the pref differs. */}

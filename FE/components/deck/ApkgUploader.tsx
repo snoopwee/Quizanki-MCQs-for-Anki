@@ -52,7 +52,10 @@ export function ApkgUploader({
     }
     if (file.size > MAX_BYTES) {
       setValidationError(
-        `That deck is ${(file.size / 1024 / 1024).toFixed(0)} MB — the limit is ${MAX_MB} MB.`,
+        t("uploader.tooLargeFile", {
+          size: (file.size / 1024 / 1024).toFixed(0),
+          limit: MAX_MB,
+        }),
       );
       return;
     }
@@ -65,10 +68,7 @@ export function ApkgUploader({
       {!hideHeading && (
         <div>
           <h2 className="font-display text-lg font-semibold tracking-tight">{t("uploader.heading")}</h2>
-          <p className="mt-1 text-sm text-muted">
-            Upload an Anki deck export (.apkg). Cards, pictures, and audio pronunciations all
-            come across.
-          </p>
+          <p className="mt-1 text-sm text-muted">{t("uploader.lede")}</p>
         </div>
       )}
 
@@ -124,7 +124,9 @@ export function ApkgUploader({
         <span className="text-sm font-medium text-ink">
           {parse.isPending ? t("uploader.reading") : t("uploader.dropzone")}
         </span>
-        <span className="font-mono text-xs text-faint">Anki deck export · up to {MAX_MB} MB</span>
+        <span className="font-mono text-xs text-faint">
+          {t("uploader.dropzoneHintLimit", { limit: MAX_MB })}
+        </span>
       </button>
 
       {validationError && <p className="text-sm text-danger">{validationError}</p>}
@@ -140,11 +142,7 @@ export function ApkgUploader({
         <Link href="/discover" className="font-medium text-accent underline-offset-2 hover:underline">
           {t("uploader.browseShared")}
         </Link>{" "}
-        — study one straight away, no file needed. Or grab an{" "}
-        <code className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[0.6875rem] text-ink">
-          .apkg
-        </code>{" "}
-        from{" "}
+        {t("uploader.studyOneNow")} {t("uploader.orGrabFrom")}{" "}
         <a
           href="https://ankiweb.net/shared/decks"
           target="_blank"
@@ -153,7 +151,7 @@ export function ApkgUploader({
         >
           AnkiWeb ↗
         </a>{" "}
-        and upload it above.
+        {t("uploader.andUploadAbove")}
       </p>
 
       {parse.data && <ApkgSummary result={parse.data} file={pickedFile} onContinue={onContinue} />}
@@ -177,22 +175,29 @@ function ApkgSummary({
     (t) => t.noteCount > 0 && (t.cloze || t.fieldNames.length >= 2),
   );
 
+  // Comma-joined clauses, each translated whole. The counts travel as variables so a language
+  // can put the number where its grammar wants it.
+  const clauses = [t("uploader.sumNotes", { count: result.totalNotes })];
+  if (result.skippedNotes > 0) {
+    clauses.push(t("uploader.sumSkipped", { count: result.skippedNotes }));
+  }
+  if (result.imageOnlyNotes > 0) {
+    clauses.push(t("uploader.sumOccluded", { count: result.imageOnlyNotes }));
+  }
+  const summary =
+    clauses.join(", ") +
+    " " +
+    t("uploader.sumAcross", { count: result.noteTypes.length }) +
+    (result.audioNotes ? " " + t("uploader.sumAudio", { count: result.audioNotes }) : "");
+
   return (
     <div className="space-y-3 rounded-card border border-line bg-surface-2/50 p-4">
       <p className="text-sm text-ink">
-        <span className="font-medium">{result.filename}</span> — {result.totalNotes} notes
-        {result.skippedNotes > 0 && `, ${result.skippedNotes} skipped`}
-        {result.imageOnlyNotes > 0 &&
-          `, ${result.imageOnlyNotes} image-occlusion excluded`}{" "}
-        across {result.noteTypes.length} note type
-        {result.noteTypes.length === 1 ? "" : "s"}.
-        {result.audioNotes ? ` ${result.audioNotes} with audio.` : ""}
+        <span className="font-medium">{result.filename}</span> — {summary}
       </p>
       {result.imageOnlyNotes > 0 && (
         <p className="rounded-input border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
-          Image-occlusion cards aren&apos;t supported in multiple-choice quizzes — they have no
-          text to ask about. {result.imageOnlyNotes} card{result.imageOnlyNotes === 1 ? "" : "s"}{" "}
-          excluded.
+          {t("uploader.occlusionWarning", { count: result.imageOnlyNotes })}
         </p>
       )}
 

@@ -7,6 +7,7 @@ import { CardImageSlot } from "@/components/deck/CardImageSlot";
 import { CardAudioSlot } from "@/components/deck/CardAudioSlot";
 import { CardAudioPlayButton } from "@/components/deck/CardAudioPlayButton";
 import { Icon } from "@/components/ui/icons";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // One card's editable body, shared by the saved-deck editor
 // (app/(app)/decks/[deckId]/edit), the pre-save import review screen, and the
@@ -45,6 +46,7 @@ export interface EditableCardProps {
 }
 
 export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, onImage, onAudio, playAudio, hiddenFields }: EditableCardProps) {
+  const t = useT();
   const [activeField, setActiveField] = useState<string | null>(null);
 
   const visible = row.fieldNames.filter((f) => !hiddenFields?.has(f));
@@ -114,7 +116,7 @@ export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, on
           </span>
           {voiceShown && (
             <LangSelect
-              label={face === "front" ? "Term voice" : "Definition voice"}
+              label={face === "front" ? t("card.termVoice") : t("card.definitionVoice")}
               value={face === "front" ? row.frontLang : row.backLang}
               onChange={(code) => onLang(row.key, face, code)}
             />
@@ -148,16 +150,16 @@ export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, on
         <span>#{index + 1}</span>
         {row.cloze && (
           <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide">
-            Cloze
+            {t("card.cloze")}
           </span>
         )}
         <div className="ml-auto flex items-center gap-1">
           {canSwapRow(row) && (
-            <IconBtn label="Swap front/back" onClick={() => onSwap(row.key)}>
+            <IconBtn label={t("card.swapFaces")} onClick={() => onSwap(row.key)}>
               <Icon name="swap" size={15} />
             </IconBtn>
           )}
-          <IconBtn label="Delete card" danger onClick={() => onDelete(row.key)}>
+          <IconBtn label={t("card.delete")} danger onClick={() => onDelete(row.key)}>
             <Icon name="x" size={15} />
           </IconBtn>
         </div>
@@ -173,8 +175,8 @@ export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, on
           <>
             {/* Term | Definition side by side, each with its own text + media. */}
             <div className="grid gap-3 sm:grid-cols-2">
-              {sideColumn("Term", term, "front")}
-              {sideColumn("Definition", definition, "back")}
+              {sideColumn(t("card.term"), term, "front")}
+              {sideColumn(t("card.definition"), definition, "back")}
             </div>
           </>
         ) : (
@@ -184,11 +186,13 @@ export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, on
             {hasMedia && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <span className="text-xs font-medium text-muted">Term</span>
+                  <span className="text-xs font-medium text-muted">{t("card.term")}</span>
                   {faceMedia("front")}
                 </div>
                 <div className="space-y-2">
-                  <span className="text-xs font-medium text-muted">Definition</span>
+                  <span className="text-xs font-medium text-muted">
+                    {t("card.definition")}
+                  </span>
                   {faceMedia("back")}
                 </div>
               </div>

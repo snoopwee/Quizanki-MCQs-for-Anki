@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { mergeIdenticalNoteTypes } from "@/lib/cardFields";
 import { fieldLabel, type FieldSide } from "@/lib/deckEditor";
+import { useT } from "@/components/i18n/LocaleProvider";
 import { Icon } from "@/components/ui/icons";
 
 // One note type's field layout, in the shape both the review editor (from a draft's
@@ -40,6 +41,8 @@ export function CardFieldsControl({
   onAddField: (typeIds: string[], name: string, side: "term" | "definition") => void;
   onDeleteField: (typeIds: string[], field: string) => void;
 }) {
+  // Before the early return: a hook after a conditional return is a hooks-order violation.
+  const t = useT();
   const merged = mergeIdenticalNoteTypes(noteTypes).filter((nt) => !nt.cloze);
   if (merged.length === 0) return null;
 
@@ -54,10 +57,12 @@ export function CardFieldsControl({
         return (
           <div key={nt.ids.join(",")} className="space-y-3">
             {merged.length > 1 && (
-              <div className="font-mono text-xs font-medium text-muted">{nt.name || "Cards"}</div>
+              <div className="font-mono text-xs font-medium text-muted">
+                {nt.name || t("fields.cardsFallback")}
+              </div>
             )}
             <SideSection
-              title="Term"
+              title={t("card.term")}
               side="term"
               fields={fields}
               onSide={front}
@@ -69,7 +74,7 @@ export function CardFieldsControl({
               onDelete={(f) => onDeleteField(nt.ids, f)}
             />
             <SideSection
-              title="Definition"
+              title={t("card.definition")}
               side="definition"
               fields={fields}
               onSide={back}
@@ -112,6 +117,7 @@ function SideSection({
   onAdd: (name: string) => void;
   onDelete: (field: string) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(true);
   const onSet = new Set(onSide);
   const shownCount = onSide.length;
@@ -126,7 +132,9 @@ function SideSection({
       >
         <Icon name={open ? "chevronDown" : "chevronRight"} size={16} className="text-muted" />
         <span className="text-sm font-semibold text-ink">{title}</span>
-        <span className="ml-auto font-mono text-xs text-faint">{shownCount} shown</span>
+        <span className="ml-auto font-mono text-xs text-faint">
+          {t("fields.shown", { count: shownCount })}
+        </span>
       </button>
       {open && (
         <div className="space-y-1.5 border-t border-line p-2">
@@ -151,13 +159,13 @@ function SideSection({
                 </label>
                 <button
                   type="button"
-                  aria-label={`Delete field ${fieldLabel(f)}`}
+                  aria-label={t("fields.deleteField", { name: fieldLabel(f) })}
                   title={
                     deletable
-                      ? "Delete this field"
+                      ? t("fields.deleteThisField")
                       : pinned
-                        ? "A card needs at least one field on this side"
-                        : "This field has content — untick it to hide it instead"
+                        ? t("fields.needOneField")
+                        : t("fields.hasContent")
                   }
                   disabled={!deletable}
                   onClick={() => onDelete(f)}
@@ -168,7 +176,7 @@ function SideSection({
               </div>
             );
           })}
-          <AddFieldRow existing={fields} onAdd={onAdd} sideLabel={title} />
+          <AddFieldRow existing={fields} onAdd={onAdd} side={side} />
         </div>
       )}
     </div>
@@ -180,12 +188,15 @@ function SideSection({
 function AddFieldRow({
   existing,
   onAdd,
-  sideLabel,
+  side,
 }: {
   existing: string[];
   onAdd: (name: string) => void;
-  sideLabel: string;
+  /** Which side this row adds to. Was the visible LABEL, but that is translated now, so
+   *  branching on it would have meant comparing display text. */
+  side: "term" | "definition";
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const trimmed = name.trim();
@@ -199,7 +210,8 @@ function AddFieldRow({
         onClick={() => setOpen(true)}
         className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium text-muted transition hover:text-accent"
       >
-        <Icon name="plus" size={13} /> Add field to {sideLabel.toLowerCase()}
+        <Icon name="plus" size={13} />{" "}
+        {side === "term" ? t("fields.addToTerm") : t("fields.addToDefinition")}
       </button>
     );
   }
@@ -220,7 +232,7 @@ function AddFieldRow({
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}
-          placeholder="Field name (e.g. Example)"
+          placeholder={t("fields.namePlaceholder")}
           className="focus-ring min-w-0 flex-1 rounded border border-line-strong bg-surface px-2 py-1 text-sm text-ink outline-none placeholder:text-faint"
         />
         <button
@@ -229,7 +241,7 @@ function AddFieldRow({
           disabled={!valid}
           className="focus-ring rounded bg-accent px-3 py-1 text-xs font-semibold text-white transition hover:opacity-95 disabled:opacity-40"
         >
-          Add
+          {t("fields.add")}
         </button>
         <button
           type="button"
@@ -239,10 +251,12 @@ function AddFieldRow({
           }}
           className="rounded px-2 py-1 text-xs text-muted hover:text-ink"
         >
-          Cancel
+          {t("common.cancel")}
         </button>
       </div>
-      {duplicate && <p className="text-xs text-danger">A field named “{trimmed}” already exists.</p>}
+      {duplicate && (
+        <p className="text-xs text-danger">{t("fields.duplicate", { name: trimmed })}</p>
+      )}
     </div>
   );
 }

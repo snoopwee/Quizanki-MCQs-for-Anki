@@ -742,11 +742,11 @@ export function FlashcardViewer({
     >
       <p className="font-mono text-xs uppercase tracking-[0.08em] text-faint">{t("study.roundComplete")}</p>
       <h3 className="font-display text-2xl font-bold tracking-tight text-ink">
-        You knew {known.size} of {total}
+        {t("study.youKnew", { known: known.size, total })}
       </h3>
       <div className="flex gap-5 text-sm font-medium">
         <span className="inline-flex items-center gap-1.5 text-success">
-          <Icon name="check" size={16} /> {known.size} known
+          <Icon name="check" size={16} /> {t("study.knownCount", { count: known.size })}
         </span>
         <span className="inline-flex items-center gap-1.5 text-danger">
           <Icon name="x" size={16} /> {learn.size} still learning
@@ -767,7 +767,7 @@ export function FlashcardViewer({
           onClick={restart}
           className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
         >
-          Restart
+          {t("study.restart")}
         </button>
         <button
           type="button"

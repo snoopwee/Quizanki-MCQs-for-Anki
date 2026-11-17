@@ -226,15 +226,16 @@ function Pager({
   total: number;
   onPage: (page: number) => void;
 }) {
+  const t = useT();
   const atStart = page <= 0;
   const atEnd = page >= totalPages - 1;
   return (
     <nav
-      aria-label="Pagination"
+      aria-label={t("discover.pagerLabel")}
       className="flex items-center justify-between gap-3 border-t border-line pt-4"
     >
       <span className="text-xs text-muted">
-        Page {page + 1} of {totalPages} · {total} deck{total === 1 ? "" : "s"}
+        {t("discover.pageOf", { page: page + 1, pages: totalPages, total })}
       </span>
       <div className="flex gap-2">
         <button
@@ -244,7 +245,7 @@ function Pager({
           className="inline-flex items-center gap-1 rounded-input border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Icon name="chevronLeft" size={15} />
-          Prev
+          {t("discover.prev")}
         </button>
         <button
           type="button"
@@ -252,7 +253,7 @@ function Pager({
           disabled={atEnd}
           className="inline-flex items-center gap-1 rounded-input border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Next
+          {t("discover.next")}
           <Icon name="chevronRight" size={15} />
         </button>
       </div>

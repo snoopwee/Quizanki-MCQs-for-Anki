@@ -4,6 +4,7 @@
 import axios from "axios";
 import type { AiDeckDraftMeta, AiKeyOwner } from "@/types/api";
 import type { MessageKey } from "@/lib/i18n/messages/en";
+import type { Vars } from "@/lib/i18n/translate";
 
 /** Mirrors the backend's PDF cap so an oversized file is refused before it's uploaded. */
 export const MAX_PDF_BYTES = 20 * 1024 * 1024;
@@ -26,33 +27,44 @@ export function aiErrorMessage(err: unknown): string {
   return "Couldn't generate cards from that. Try different material.";
 }
 
-/** "4 free generations left today" / "4 left today on your key". */
-export function remainingCaption(remaining: number, keyOwner: AiKeyOwner): string {
-  const plural = remaining === 1 ? "generation" : "generations";
-  if (keyOwner === "user") return `${remaining} ${plural} left today on your key`;
-  return `${remaining} free ${plural} left today`;
+/**
+ * How much of today's allowance is left, as a key.
+ *
+ * <p>Two keys rather than one with a spliced "free": English puts the adjective before the noun
+ * and Vietnamese does not, so a shared template would force one language's word order.
+ */
+export function remainingCaption(
+  remaining: number,
+  keyOwner: AiKeyOwner,
+): { key: MessageKey; vars: Vars } {
+  return {
+    key: keyOwner === "user" ? "aiGen.remainingOwnKey" : "aiGen.remainingShared",
+    vars: { count: remaining },
+  };
 }
 
 /** Caveats worth showing beside a finished draft — empty when it all went cleanly. */
-export function draftNotes(meta: AiDeckDraftMeta): string[] {
-  const notes: string[] = [];
-  if (meta.inputTruncated) {
-    notes.push("That material was long, so only the first part was used. Generate again from the rest to continue.");
-  }
-  if (meta.partial) {
-    notes.push("The AI stopped partway, so these are the cards it managed. You can generate the rest separately.");
-  }
+export function draftNotes(meta: AiDeckDraftMeta): MessageKey[] {
+  const notes: MessageKey[] = [];
+  if (meta.inputTruncated) notes.push("aiGen.inputTruncated");
+  if (meta.partial) notes.push("aiGen.partialRun");
   return notes;
 }
 
 /** Client-side PDF check, so an obvious mistake doesn't cost an upload. */
-export function pdfFileError(file: File, maxBytes = MAX_PDF_BYTES): string | null {
+export function pdfFileError(
+  file: File,
+  maxBytes = MAX_PDF_BYTES,
+): { key: MessageKey; vars?: Vars } | null {
   const looksLikePdf =
     file.type.toLowerCase().includes("pdf") || file.name.toLowerCase().endsWith(".pdf");
-  if (!looksLikePdf) return "That doesn't look like a PDF.";
-  if (file.size === 0) return "That file is empty.";
+  if (!looksLikePdf) return { key: "aiGen.notAPdf" };
+  if (file.size === 0) return { key: "aiGen.emptyFile" };
   if (file.size > maxBytes) {
-    return `That PDF is larger than ${Math.round(maxBytes / 1024 / 1024)} MB. Try a single chapter.`;
+    return {
+      key: "aiGen.pdfTooLarge",
+      vars: { limit: Math.round(maxBytes / 1024 / 1024) },
+    };
   }
   return null;
 }

@@ -5,6 +5,7 @@ import { EditableCard } from "@/components/deck/EditableCard";
 import { Segmented } from "@/components/ui/controls";
 import { Spinner } from "@/components/ui/Spinner";
 import { Icon } from "@/components/ui/icons";
+import { useT } from "@/components/i18n/LocaleProvider";
 import {
   addFieldToType,
   addRowLike,
@@ -67,6 +68,7 @@ export function DeckReviewEditor({
   onSave: () => void;
   onDiscard: () => void;
 }) {
+  const t = useT();
   const [search, setSearch] = useState("");
   // Render cards in pages rather than all at once: a big deck runs to 5,000 cards,
   // and mounting every EditableCard on entry froze the screen for seconds. The
@@ -177,15 +179,15 @@ export function DeckReviewEditor({
           onClick={onDiscard}
           className="rounded-input border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-danger hover:text-danger"
         >
-          Discard
+          {t("common.discard")}
         </button>
-        <h1 className="font-display text-lg font-semibold tracking-tight">Review before saving</h1>
+        <h1 className="font-display text-lg font-semibold tracking-tight">{t("review.heading")}</h1>
         <div className="ml-auto flex gap-2">
           <button
             type="button"
             onClick={swapAll}
-            aria-label="Swap term and definition for all cards"
-            title="Swap the term and definition of all cards"
+            aria-label={t("review.swapAll")}
+            title={t("review.swapAllTitle")}
             className="inline-flex items-center justify-center rounded-input border border-line-strong bg-surface px-2.5 py-2 leading-none transition hover:border-accent hover:text-accent"
           >
             <Icon name="swap" size={16} />
@@ -196,36 +198,34 @@ export function DeckReviewEditor({
             disabled={saveDisabled}
             className="focus-ring rounded-input bg-accent px-4 py-1.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-50"
           >
-            {saving ? savingLabel ?? "Saving…" : "Save deck"}
+            {saving ? savingLabel ?? t("review.saving") : t("review.saveDeck")}
           </button>
         </div>
       </div>
 
       <p className="rounded-input border border-line bg-surface-2 px-3 py-2 text-xs leading-relaxed text-muted">
-        This deck isn&apos;t saved yet — nothing lands in your account until you hit{" "}
-        <span className="font-semibold text-ink">Save deck</span>. Your progress here is kept on this
-        device, so you can come back to it.
+        {t("review.notSavedYet", { action: t("review.saveDeck") })}
       </p>
 
       {imageError && (
         <p className="rounded-input border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-          Couldn&apos;t upload one of the card images. Your work is safe — try again.
+          {t("review.imageUploadFailed")}
         </p>
       )}
 
       {error && (
         <p className="rounded-input border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-          Couldn&apos;t save the deck. Your work is safe — try again.
+          {t("review.saveFailed")}
         </p>
       )}
 
       <label className="block space-y-1">
-        <span className="text-sm font-medium">Deck name</span>
+        <span className="text-sm font-medium">{t("import.deckName")}</span>
         <input
           type="text"
           value={draft.name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Untitled deck"
+          placeholder={t("import.untitledDeck")}
           className="focus-ring w-full rounded-input border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink outline-none placeholder:text-faint"
         />
       </label>
@@ -235,10 +235,8 @@ export function DeckReviewEditor({
       {hasFieldPanel && (
         <div className="space-y-3 rounded-card border border-line bg-surface p-4">
           <div>
-            <h2 className="text-sm font-bold text-ink">Fields shown on card</h2>
-            <p className="mt-0.5 text-xs text-muted">
-              Put each field on the Term or Definition side (or Off), or add your own.
-            </p>
+            <h2 className="text-sm font-bold text-ink">{t("review.fieldsHeading")}</h2>
+            <p className="mt-0.5 text-xs text-muted">{t("review.fieldsLede")}</p>
           </div>
           <CardFieldsControl
             noteTypes={fieldNoteTypes}
@@ -256,17 +254,19 @@ export function DeckReviewEditor({
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search cards…"
+          placeholder={t("review.searchCards")}
           className="focus-ring w-full max-w-xs rounded-input border border-line-strong bg-surface-2 px-3 py-1.5 text-sm text-ink outline-none placeholder:text-faint"
         />
         <span className="shrink-0 font-mono text-xs text-muted">
-          {query ? `${visible.length} of ${cardCount}` : cardCount} cards
+          {query
+            ? t("review.countFiltered", { shown: visible.length, total: cardCount })
+            : t("deck.cardCount", { count: cardCount })}
         </span>
       </div>
 
       {query && visible.length === 0 && (
         <p className="rounded-card border border-dashed border-line-strong px-4 py-6 text-center text-sm text-muted">
-          No cards match “{search.trim()}”.
+          {t("review.noMatch", { query: search.trim() })}
         </p>
       )}
 
@@ -304,18 +304,18 @@ export function DeckReviewEditor({
             disabled={isExpanding}
             className="flex-1 rounded-card border border-line-strong bg-surface px-4 py-2.5 text-sm font-medium text-muted transition hover:border-accent hover:text-accent disabled:opacity-60"
           >
-            Show {Math.min(remaining, PAGE_SIZE)} more{" "}
-            <span className="text-faint">({remaining} left)</span>
+            {t("review.showMore", { count: Math.min(remaining, PAGE_SIZE) })}{" "}
+            <span className="text-faint">{t("review.remainingLeft", { count: remaining })}</span>
           </button>
           <button
             type="button"
             onClick={showAll}
             disabled={isExpanding}
-            title="Render every remaining card — may take a moment on a very large deck"
+            title={t("review.showAllTitle")}
             className="inline-flex items-center gap-2 rounded-card border border-line-strong bg-surface px-4 py-2.5 text-sm font-medium text-muted transition hover:border-accent hover:text-accent disabled:opacity-60"
           >
             {isExpanding && <Spinner className="h-4 w-4 text-accent" />}
-            Show all
+            {t("review.showAll")}
           </button>
         </div>
       )}
@@ -325,7 +325,7 @@ export function DeckReviewEditor({
         onClick={addRow}
         className="w-full rounded-card border border-dashed border-line-strong px-4 py-3 text-sm text-muted transition hover:border-accent hover:bg-accent-soft/40 hover:text-accent"
       >
-        + Add a card
+        + {t("review.addCard")}
       </button>
     </div>
   );
@@ -342,32 +342,23 @@ function VisibilityChoice({
   isPublic: boolean;
   onChange: (isPublic: boolean) => void;
 }) {
+  const t = useT();
   return (
     <div className="space-y-2 rounded-card border border-line bg-surface p-4">
       <div className="flex items-center gap-2">
         <Icon name={isPublic ? "link" : "lock"} size={16} className="text-muted" />
-        <span className="text-sm font-semibold text-ink">Who can see this deck</span>
+        <span className="text-sm font-semibold text-ink">{t("review.visibilityHeading")}</span>
       </div>
       <Segmented
         options={[
-          { value: "public", label: "Public" },
-          { value: "private", label: "Private" },
+          { value: "public", label: t("review.public") },
+          { value: "private", label: t("review.private") },
         ]}
         value={isPublic ? "public" : "private"}
         onChange={(v) => onChange(v === "public")}
       />
       <p className="text-xs leading-relaxed text-muted">
-        {isPublic ? (
-          <>
-            Anyone can find this deck on <span className="font-medium text-ink">Discover</span> and
-            save their own copy of it. Your progress stays private. Only publish decks you&apos;re
-            free to share.
-          </>
-        ) : (
-          <>
-            Only you can see this deck. You can publish it later from the deck&apos;s ⋯ menu.
-          </>
-        )}
+        {isPublic ? t("review.publicNote") : t("review.privateNote")}
       </p>
     </div>
   );

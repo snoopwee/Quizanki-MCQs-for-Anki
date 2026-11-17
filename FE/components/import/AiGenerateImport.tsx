@@ -3,13 +3,23 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useAiKeyStatus, useGenerateDeckFromPdf, useGenerateDeckFromText } from "@/hooks/useAi";
-import { aiErrorMessage, draftNotes, pdfFileError, remainingCaption } from "@/lib/aiDisplay";
+import {
+  aiErrorKey,
+  draftNotes,
+  MAX_PDF_BYTES,
+  pdfFileError,
+  remainingCaption,
+  type AiErrorText,
+} from "@/lib/aiDisplay";
+import { useT } from "@/components/i18n/LocaleProvider";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/icons";
 import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
 import { buttonClasses } from "@/components/ui/Button";
 import type { AiDeckDraftResponse } from "@/types/api";
+import type { MessageKey } from "@/lib/i18n/messages/en";
+import type { Vars } from "@/lib/i18n/translate";
 
 type Mode = "text" | "pdf";
 
@@ -19,6 +29,7 @@ const CARD_COUNTS = [20, 40, 60, 100];
 // step is the same review editor an imported .apkg goes through, so nothing the model wrote
 // reaches a deck unread.
 export function AiGenerateImport({ onDraft }: { onDraft: (response: AiDeckDraftResponse) => void }) {
+  const t = useT();
   const [mode, setMode] = useState<Mode>("text");
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -43,7 +54,7 @@ export function AiGenerateImport({ onDraft }: { onDraft: (response: AiDeckDraftR
     const problem = pdfFileError(picked);
     if (problem) {
       setFile(null);
-      setFileError(problem);
+      setFileError(t(problem.key, problem.vars));
       return;
     }
     setFile(picked);
@@ -68,27 +79,27 @@ export function AiGenerateImport({ onDraft }: { onDraft: (response: AiDeckDraftR
     <div className="space-y-4">
       <Card className="space-y-4 p-5">
         <div className="inline-flex rounded-input border border-line bg-surface-2/60 p-0.5 text-sm">
-          <ModeTab label="Paste notes" active={mode === "text"} onClick={() => setMode("text")} />
-          <ModeTab label="Upload a PDF" active={mode === "pdf"} onClick={() => setMode("pdf")} />
+          <ModeTab label={t("aiGen.tabText")} active={mode === "text"} onClick={() => setMode("text")} />
+          <ModeTab label={t("aiGen.tabPdf")} active={mode === "pdf"} onClick={() => setMode("pdf")} />
         </div>
 
         {mode === "text" ? (
           <div>
             <label htmlFor="ai-text" className="mb-1.5 block text-xs font-medium text-muted">
-              Your notes
+              {t("aiGen.yourNotes")}
             </label>
             <textarea
               id="ai-text"
               value={text}
               onChange={(e) => setText(e.target.value)}
               rows={9}
-              placeholder="Paste a chapter, a vocabulary list, lecture notes…"
+              placeholder={t("aiGen.notesPlaceholder")}
               className="focus-ring w-full rounded-input border border-line-strong bg-surface p-3 text-sm text-ink"
             />
             <p className="mt-1.5 text-xs text-faint">
               {text.trim().length < 40
-                ? "Paste at least a paragraph — there's no making cards from one line."
-                : `${text.trim().length.toLocaleString()} characters`}
+                ? t("aiGen.needMore")
+                : t("aiGen.charCount", { count: text.trim().length.toLocaleString() })}
             </p>
           </div>
         ) : (
@@ -107,12 +118,14 @@ export function AiGenerateImport({ onDraft }: { onDraft: (response: AiDeckDraftR
             >
               <Icon name="upload" size={22} className="text-accent" />
               <span className="text-sm font-semibold text-ink">
-                {file ? file.name : "Choose a PDF"}
+                {file ? file.name : t("aiGen.choosePdf")}
               </span>
               <span className="text-xs text-muted">
                 {file
-                  ? `${(file.size / 1024 / 1024).toFixed(1)} MB — click to choose another`
-                  : "Up to 20 MB. It needs selectable text — a scan won't work."}
+                  ? t("aiGen.pdfChosen", { size: (file.size / 1024 / 1024).toFixed(1) })
+                  : t("aiGen.pdfHint", {
+                      limit: Math.round(MAX_PDF_BYTES / 1024 / 1024),
+                    })}
               </span>
             </button>
             {fileError && (
@@ -126,23 +139,28 @@ export function AiGenerateImport({ onDraft }: { onDraft: (response: AiDeckDraftR
         <div className="flex flex-wrap items-end gap-4">
           <div className="min-w-0 flex-1">
             <label htmlFor="ai-deck-name" className="mb-1.5 block text-xs font-medium text-muted">
-              Deck name <span className="text-faint">(optional)</span>
+              {t("aiGen.deckName")} <span className="text-faint">{t("aiGen.optional")}</span>
             </label>
             <input
               id="ai-deck-name"
               value={deckName}
               onChange={(e) => setDeckName(e.target.value)}
-              placeholder={mode === "pdf" ? "Taken from the file name" : "Taken from the first line"}
+              placeholder={
+                mode === "pdf" ? t("aiGen.fromFileName") : t("aiGen.fromFirstLine")
+              }
               className="focus-ring w-full rounded-input border border-line-strong bg-surface px-3 py-2 text-sm text-ink"
             />
           </div>
           <div>
-            <p className="mb-1.5 text-xs font-medium text-muted">Up to</p>
+            <p className="mb-1.5 text-xs font-medium text-muted">{t("aiGen.upTo")}</p>
             <Select<number>
               value={maxCards}
               onChange={setMaxCards}
-              ariaLabel="Maximum cards"
-              options={CARD_COUNTS.map((n) => ({ value: n, label: `${n} cards` }))}
+              ariaLabel={t("aiGen.maxCards")}
+              options={CARD_COUNTS.map((n) => ({
+                value: n,
+                label: t("aiGen.cardsOption", { count: n }),
+              }))}
             />
           </div>
         </div>
@@ -154,19 +172,24 @@ export function AiGenerateImport({ onDraft }: { onDraft: (response: AiDeckDraftR
             disabled={!ready || pending}
             className={buttonClasses({ variant: "primary" })}
           >
-            {pending ? <Spinner className="h-4 w-4 text-white" label="Generating" /> : <Icon name="bolt" size={16} />}
-            {pending ? "Generating…" : "Generate cards"}
+            {pending ? (
+              <Spinner className="h-4 w-4 text-white" label={t("aiGen.generating")} />
+            ) : (
+              <Icon name="bolt" size={16} />
+            )}
+            {pending ? t("aiGen.generating") : t("aiGen.generate")}
           </button>
           {pending && (
             <span className="text-xs text-muted">
-              This can take up to a minute for long material — keep this tab open.
+              {t("aiGen.takesAMinute")}
             </span>
           )}
         </div>
 
         {error && !pending && (
           <p className="flex items-start gap-1.5 text-sm text-danger">
-            <Icon name="alertTriangle" size={14} className="mt-0.5 shrink-0" /> {aiErrorMessage(error)}
+            <Icon name="alertTriangle" size={14} className="mt-0.5 shrink-0" />{" "}
+            {errorText(aiErrorKey(error), t)}
           </p>
         )}
       </Card>
@@ -180,32 +203,26 @@ export function AiGenerateImport({ onDraft }: { onDraft: (response: AiDeckDraftR
 // tier the provider may train on what is sent, and a learner pasting their own lecture notes
 // deserves to know that before they paste.
 function Disclosure({ usingOwnKey }: { usingOwnKey: boolean }) {
+  const t = useT();
   return (
     <div className="flex items-start gap-2.5 rounded-card border border-line bg-surface-2/40 p-4 text-xs text-muted">
       <Icon name="eye" size={15} className="mt-0.5 shrink-0 text-info" />
       <div className="space-y-1">
         {usingOwnKey ? (
-          <p>
-            Your material is sent to the AI provider using <strong className="text-ink">your own API key</strong>,
-            under your agreement with them.
-          </p>
+          <p>{t("aiGen.ownKeyNotice")}</p>
         ) : (
           <>
+            <p>{t("aiGen.freeTierNotice")}</p>
             <p>
-              Your material is sent to our AI provider to make cards. We use a{" "}
-              <strong className="text-ink">free tier</strong>, where the provider may use what is sent to improve
-              their products, including review by people.
-            </p>
-            <p>
-              Don&apos;t paste anything confidential.{" "}
+              {t("aiGen.dontPasteConfidential")}{" "}
               <Link href="/settings" className="font-medium text-accent hover:underline">
-                Add your own API key
+                {t("aiGen.addOwnKey")}
               </Link>{" "}
-              to use your own account instead.
+              {t("aiGen.toUseOwnAccount")}
             </p>
           </>
         )}
-        <p>Cards are a draft — you review and edit every one before the deck is saved.</p>
+        <p>{t("aiGen.draftNotice")}</p>
       </div>
     </div>
   );
@@ -220,7 +237,9 @@ function GeneratedSummary({
   onContinue: () => void;
   onAgain: () => void;
 }) {
+  const t = useT();
   const notes = draftNotes(result.meta);
+  const remaining = remainingCaption(result.meta.remainingToday, result.meta.keyOwner);
   return (
     <Card className="space-y-4 p-5">
       <div className="flex items-start gap-3">
@@ -229,10 +248,10 @@ function GeneratedSummary({
         </span>
         <div className="min-w-0">
           <h3 className="font-display text-lg font-bold tracking-tight text-ink">
-            {result.meta.cards} card{result.meta.cards === 1 ? "" : "s"} ready to review
+            {t("aiGen.ready", { count: result.meta.cards })}
           </h3>
           <p className="mt-0.5 text-sm text-muted">
-            {result.draft.filename} · {remainingCaption(result.meta.remainingToday, result.meta.keyOwner)}
+            {result.draft.filename} · {t(remaining.key, remaining.vars)}
           </p>
         </div>
       </div>
@@ -242,7 +261,7 @@ function GeneratedSummary({
           {notes.map((note) => (
             <li key={note} className="flex items-start gap-1.5 text-xs text-warning">
               <Icon name="alertTriangle" size={13} className="mt-0.5 shrink-0" />
-              {note}
+              {t(note)}
             </li>
           ))}
         </ul>
@@ -250,15 +269,20 @@ function GeneratedSummary({
 
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={onAgain} className={buttonClasses({ variant: "ghost" })}>
-          Start over
+          {t("aiGen.startOver")}
         </button>
         <button type="button" onClick={onContinue} className={buttonClasses({ variant: "primary" })}>
-          Review cards
+          {t("aiGen.reviewCards")}
           <Icon name="chevronRight" size={16} />
         </button>
       </div>
     </Card>
   );
+}
+
+/** The API's own sentence when it sent one, our catalogue otherwise — see `aiErrorKey`. */
+function errorText(e: AiErrorText, t: (key: MessageKey, vars?: Vars) => string): string {
+  return "key" in e ? t(e.key) : e.text;
 }
 
 function ModeTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {

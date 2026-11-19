@@ -790,4 +790,113 @@ export const vi = {
   "exportModal.copy": "Sao chép vào bộ nhớ tạm",
   "exportModal.downloadApkg": "Tải .apkg",
   "exportModal.downloadPlain": "Tải về",
+  "deckPage.sharedManage": "Đã chia sẻ — quản lý đường liên kết",
+  "deckPage.deckOptions": "Tùy chọn bộ thẻ",
+  "deckPage.mixedNoteTypes":
+    "Bộ thẻ này có nhiều loại ghi chú Anki (ví dụ Basic và Cloze)",
+  "deckPage.cardTypes": "{count} loại thẻ",
+  "deckPage.quizMeHint": "Bài trắc nghiệm đặc trưng của Quizanki với đáp án sai thông minh",
+  "deckPage.practiceTestHint": "Làm toàn bộ bài rồi nhận điểm",
+  "deckPage.learn": "Học",
+  "deckPage.learnHint": "Thẻ trả lời sai sẽ quay lại cho tới khi bạn làm đúng",
+  "deckPage.matchHint": "Ghép nhanh thuật ngữ với nghĩa",
+
+  // ---- deck stats -----------------------------------------------------------------------------
+  "stats.yourProgress": "Tiến độ của bạn",
+  "stats.loadFailed": "Hiện không tải được số liệu của bạn.",
+  "stats.cardsSeen": "Thẻ đã gặp",
+  "stats.accuracy": "Độ chính xác",
+  "stats.stillLearning": "Đang học",
+  "stats.mastered": "Đã thành thạo",
+  "stats.accuracyOverTime": "Độ chính xác theo thời gian",
+  "stats.historyFailed": "Không tải được lịch sử của bạn.",
+  "stats.deckMastery": "Mức thành thạo bộ thẻ",
+  "stats.lastDays": "{count} ngày gần nhất",
+  // ---- Share deck modal -----------------------------------------------------------------------
+  "share.title": "Chia sẻ bộ thẻ",
+  "share.anyoneWithLink": "Bất cứ ai có đường liên kết",
+  "share.explain":
+    "Họ có thể xem {name} và lưu bản sao riêng. Thẻ và tiến độ của bạn vẫn là của bạn — bản sao là một bộ thẻ riêng và không ghi gì trở lại đây.",
+  "share.isACopy":
+    "Đây là bản sao bộ thẻ của {author}, nên nó vẫn được ghi cóng cho họ. Hãy sửa một thẻ để biến nó thành của bạn — rồi bạn có thể chia sẻ.",
+  "share.someoneElse": "người khác",
+  "share.link": "Đường liên kết chia sẻ",
+  "share.copied": "Đã sao chép",
+  "share.copy": "Sao chép",
+  "share.linkOnlyWhileOn":
+    "Đường liên kết chỉ hoạt động khi việc chia sẻ đang bật — tắt đi là nó không mở được nữa.",
+  "share.privateNow":
+    "Bộ thẻ này đang riêng tư. Bật chia sẻ để có đường liên kết gửi cho bất cứ ai.",
+  "share.updateFailed": "Không cập nhật được việc chia sẻ. Vui lòng thử lại.",
+  "share.editFirst":
+    "Hãy sửa một thẻ trong bản sao này để biến nó thành của bạn trước khi chia sẻ.",
+
+  // ---- Add to folder modal --------------------------------------------------------------------
+  "folderModal.title": "Thêm vào thư mục",
+  "folderModal.explain":
+    "Sắp xếp {name} theo cách bạn muốn. Thư mục là của riêng bạn — không ai khác thấy, và một bộ thẻ có thể nằm trong nhiều thư mục.",
+  "folderModal.thisDeck": "bộ thẻ này",
+  "folderModal.loading": "Đang tải thư mục…",
+  "folderModal.loadFailed": "Không tải được thư mục của bạn.",
+  "folderModal.none": "Bạn chưa có thư mục nào — hãy tạo một thư mục bên dưới.",
+  "folderModal.saving": "Đang lưu",
+  "folderModal.saveFailed": "Thay đổi đó chưa được lưu. Hãy thử lại.",
+  "folderModal.newName": "Tên thư mục mới",
+  "folderModal.creating": "Đang tạo",
+  "folderModal.createAndAdd": "Tạo và thêm",
+  "folderModal.createFailed": "Không tạo được thư mục đó.",
+
+  "common.done": "Xong",
+
+  // ---- rating a deck ---------------------------------------------------------------------------
+  "rate.title": "Đánh giá bộ thẻ này",
+  "rate.loadFailed": "Không tải được đánh giá của bộ thẻ này.",
+  "rate.pick": "Chọn mức đánh giá",
+  "rate.star1": "Rất kém",
+  "rate.star2": "Chưa tốt",
+  "rate.star3": "Tạm ổn",
+  "rate.star4": "Tốt",
+  "rate.star5": "Xuất sắc",
+  "rate.privateNote":
+    "Không bắt buộc và được giữ riêng tư — chỉ tác giả bộ thẻ này đọc được.",
+  "rate.notePlaceholder":
+    "Điều gì hữu ích, điều gì chưa ổn, hay bất cứ gì giúp bộ thẻ tốt hơn…",
+  "rate.saveFailed": "Không lưu được đánh giá của bạn. Hãy thử lại.",
+  "rate.removing": "Đang xóa",
+  "rate.remove": "Xóa đánh giá",
+  "rate.saving": "Đang lưu",
+  "rate.update": "Cập nhật",
+  "rate.post": "Gửi đánh giá",
+  "rating.starsAria": "{count} ngôi sao",
+
+  // ---- reporting a deck ------------------------------------------------------------------------
+  "report.received": "Đã nhận báo cáo",
+  "report.deck": "Báo cáo bộ thẻ",
+  "report.thanksPrefix": "Cảm ơn bạn — quản trị viên sẽ xem xét",
+  "report.tellUsPrefix": "Hãy cho chúng tôi biết vấn đề với",
+  "report.privateNotice":
+    "Báo cáo được giữ riêng tư và do quản trị viên xem xét.",
+  "report.thisDeck": "bộ thẻ này",
+  "report.reason": "Lý do",
+  "report.details": "Chi tiết (không bắt buộc)",
+  "report.detailsPlaceholder": "Bất cứ điều gì giúp chúng tôi xem xét…",
+  "report.sendFailed": "Không gửi được báo cáo. Hãy thử lại.",
+  "report.submit": "Gửi báo cáo",
+  // "Spam" is the word Vietnamese platforms use for this category too -- see the allowlist in
+  // i18n.test.ts, which has to be told this one is identical on purpose.
+  "reportReason.spam": "Spam",
+  "reportReason.inappropriate": "Không phù hợp",
+  "reportReason.copyright": "Bản quyền",
+  "reportReason.wrongMisleading": "Sai hoặc gây nhầm lẫn",
+  "reportReason.other": "Khác",
+
+  // ---- deck-page tree leftovers ----------------------------------------------------------------
+  "common.options": "Tùy chọn",
+  "study.noFlashcards":
+    "Không dựng được thẻ ghi nhớ nào từ bộ thẻ này — các loại ghi chú của nó không có trường văn bản đọc được.",
+  "study.noCardsMatch": "Không có thẻ nào khớp với {query}.",
+  "study.thisFilter": "bộ lọc này",
+  "setup.selectField": "Chọn một trường",
+  "setup.eg": "ví dụ {sample}",
+  "setup.emptySample": "(trống)",
 } as const satisfies CatalogueOf<typeof en>;

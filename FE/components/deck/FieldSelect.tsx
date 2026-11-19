@@ -2,6 +2,7 @@
 
 import { useId } from "react";
 import { Select } from "@/components/ui/Select";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // A labelled field dropdown with a sample value preview. Shared by the paste-
 // import field confirmation (FieldDetector) and the .apkg trial setup
@@ -24,6 +25,7 @@ export function FieldSelect({
   onChange: (value: string) => void;
 }) {
   const labelId = useId();
+  const t = useT();
 
   return (
     <div className="space-y-1.5">
@@ -35,11 +37,11 @@ export function FieldSelect({
         options={fields.map((f) => ({ value: f, label: f }))}
         onChange={onChange}
         ariaLabelledBy={labelId}
-        placeholder="Select a field"
+        placeholder={t("setup.selectField")}
         fullWidth
       />
       <p className="truncate text-xs text-faint" title={sample}>
-        e.g. {sample}
+        {t("setup.eg", { sample })}
       </p>
     </div>
   );

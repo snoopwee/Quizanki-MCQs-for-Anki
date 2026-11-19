@@ -449,8 +449,7 @@ export function FlashcardViewer({
           {parsed.filename}
         </h1>
         <p className="rounded-input border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
-          We couldn&apos;t build any flashcards from this deck — its note types don&apos;t have
-          readable text fields.
+          {t("study.noFlashcards")}
         </p>
         <button
           type="button"
@@ -961,7 +960,11 @@ export function FlashcardViewer({
 
       {filteredCards.length === 0 ? (
         <p className="rounded-input border border-line bg-surface px-4 py-8 text-center text-sm text-muted">
-          No cards match {search.trim() ? `“${search.trim()}”` : "this filter"}.
+          {t("study.noCardsMatch", {
+            query: search.trim()
+              ? `“${search.trim()}”`
+              : t("study.thisFilter"),
+          })}
         </p>
       ) : (
         <>

@@ -7,6 +7,8 @@ import { Icon } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/Spinner";
 import { buttonClasses } from "@/components/ui/Button";
 import { useDeckRating, useRateDeck, useRemoveDeckRating } from "@/hooks/useDeckRating";
+import { useT } from "@/components/i18n/LocaleProvider";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 
 const MAX_NOTE = 1000;
 
@@ -24,6 +26,7 @@ export function RateDeckModal({ deckId, onClose }: { deckId: string; onClose: ()
   const rating = useDeckRating(deckId);
   const rate = useRateDeck(deckId);
   const remove = useRemoveDeckRating(deckId);
+  const t = useT();
 
   const [stars, setStars] = useState<number | null>(null);
   const [note, setNote] = useState("");
@@ -48,26 +51,26 @@ export function RateDeckModal({ deckId, onClose }: { deckId: string; onClose: ()
   }
 
   return (
-    <Modal title={saved ? "Your rating" : "Rate this deck"} onClose={onClose}>
+    <Modal title={saved ? t("deckPage.yourRating") : t("rate.title")} onClose={onClose}>
       {rating.isLoading ? (
         <p className="flex items-center gap-2 text-sm text-muted">
-          <Spinner className="h-4 w-4 text-accent" /> Loading…
+          <Spinner className="h-4 w-4 text-accent" /> {t("common.loading")}
         </p>
       ) : rating.isError || !rating.data ? (
-        <p className="text-sm text-danger">Couldn&apos;t load this deck&apos;s rating.</p>
+        <p className="text-sm text-danger">{t("rate.loadFailed")}</p>
       ) : (
         <>
           <div className="flex flex-col items-center gap-2 py-2">
             <StarPicker value={stars} onPick={(next) => { setStars(next); setDirty(true); }}
                         disabled={rate.isPending} size={30} />
-            <p className="h-4 text-xs text-muted">{stars ? STAR_WORDS[stars - 1] : "Pick a rating"}</p>
+            <p className="h-4 text-xs text-muted">{stars ? t(STAR_WORD_KEYS[stars - 1]) : t("rate.pick")}</p>
           </div>
 
           <div className="mt-2 space-y-1.5">
             <label htmlFor="rating-note" className="flex items-center gap-1.5 text-xs text-muted">
               <Icon name="lock" size={13} className="shrink-0" />
               {/* The whole point of the design: say it before they type, not after. */}
-              Optional, and private — only this deck&apos;s author can read it.
+              {t("rate.privateNote")}
             </label>
             <textarea
               id="rating-note"
@@ -78,14 +81,14 @@ export function RateDeckModal({ deckId, onClose }: { deckId: string; onClose: ()
               }}
               maxLength={MAX_NOTE}
               rows={3}
-              placeholder="What worked, what didn't, anything that would make it better…"
+              placeholder={t("rate.notePlaceholder")}
               className="focus-ring w-full resize-y rounded-input border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink outline-none placeholder:text-faint"
             />
           </div>
 
           {rate.isError && (
             <p className="mt-2 text-sm text-danger">
-              {ratingError(rate.error, "Couldn't save your rating. Try again.")}
+              {ratingError(rate.error, t("rate.saveFailed"))}
             </p>
           )}
 
@@ -97,12 +100,12 @@ export function RateDeckModal({ deckId, onClose }: { deckId: string; onClose: ()
                 disabled={remove.isPending}
                 className={buttonClasses({ variant: "ghost", size: "sm", className: "mr-auto" })}
               >
-                {remove.isPending && <Spinner className="h-3.5 w-3.5 text-muted" label="Removing" />}
-                Remove rating
+                {remove.isPending && <Spinner className="h-3.5 w-3.5 text-muted" label={t("rate.removing")} />}
+                {t("rate.remove")}
               </button>
             )}
             <button type="button" onClick={onClose} className={buttonClasses({ variant: "ghost" })}>
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -110,8 +113,8 @@ export function RateDeckModal({ deckId, onClose }: { deckId: string; onClose: ()
               disabled={stars === null || rate.isPending || (saved && !changed)}
               className={buttonClasses({ variant: "primary" })}
             >
-              {rate.isPending && <Spinner className="h-3.5 w-3.5 text-white" label="Saving" />}
-              {saved ? "Update" : "Post rating"}
+              {rate.isPending && <Spinner className="h-3.5 w-3.5 text-white" label={t("rate.saving")} />}
+              {saved ? t("rate.update") : t("rate.post")}
             </button>
           </div>
         </>
@@ -120,8 +123,18 @@ export function RateDeckModal({ deckId, onClose }: { deckId: string; onClose: ()
   );
 }
 
-// Shown under the picker so a click has a word attached to it, not just a count of stars.
-const STAR_WORDS = ["Poor", "Not great", "Okay", "Good", "Excellent"];
+// Shown under the picker so a click has a word attached to it, not just a count of stars. Keys
+// rather than words: this is module scope, where there is no translator to call.
+//
+// A 5-tuple, not an array: it is indexed by `stars - 1` with no bounds check, so the type is what
+// stops a deleted entry from reaching `t(undefined)` at runtime. Length tracks STARS.
+const STAR_WORD_KEYS: readonly [MessageKey, MessageKey, MessageKey, MessageKey, MessageKey] = [
+  "rate.star1",
+  "rate.star2",
+  "rate.star3",
+  "rate.star4",
+  "rate.star5",
+];
 
 // The backend's own message when there is one — it names the reason (your own deck, bad stars).
 function ratingError(error: unknown, fallback: string): string {

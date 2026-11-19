@@ -6,6 +6,7 @@ import { Icon, type IconName } from "@/components/ui/icons";
 import { buttonClasses } from "@/components/ui/Button";
 import { useDeckStats, useDeckStatsHistory } from "@/hooks/useDeckStats";
 import { AccuracyChart } from "@/components/deck/AccuracyChart";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 const HISTORY_DAYS = 30;
 
@@ -24,6 +25,7 @@ export function DeckStatsPanel({
   // Jump into quiz setup with the "weak" source preselected.
   onQuizWeak: () => void;
 }) {
+  const t = useT();
   const statsQuery = useDeckStats(deckId);
   const historyQuery = useDeckStatsHistory(deckId, HISTORY_DAYS);
 
@@ -34,7 +36,7 @@ export function DeckStatsPanel({
           id="progress-heading"
           className="font-mono text-xs font-semibold uppercase tracking-[0.06em] text-muted"
         >
-          Your progress
+          {t("stats.yourProgress")}
         </p>
         {statsQuery.data && statsQuery.data.weakCards > 0 && (
           <button
@@ -55,7 +57,7 @@ export function DeckStatsPanel({
 
         {statsQuery.isError ? (
           <Card className="col-span-2 flex items-center p-4 lg:col-span-4">
-            <p className="text-sm text-muted">Couldn&apos;t load your stats right now.</p>
+            <p className="text-sm text-muted">{t("stats.loadFailed")}</p>
           </Card>
         ) : statsQuery.isLoading || !statsQuery.data ? (
           Array.from({ length: 4 }).map((_, i) => <TileSkeleton key={i} />)
@@ -64,13 +66,13 @@ export function DeckStatsPanel({
             <Tile
               icon="clock"
               color="var(--info)"
-              label="Cards seen"
+              label={t("stats.cardsSeen")}
               value={String(statsQuery.data.seenCards)}
             />
             <Tile
               icon="target"
               color="var(--accent)"
-              label="Accuracy"
+              label={t("stats.accuracy")}
               // Accuracy is undefined until at least one card has been answered.
               value={
                 statsQuery.data.seenCards === 0
@@ -81,13 +83,13 @@ export function DeckStatsPanel({
             <Tile
               icon="brain"
               color="var(--warning)"
-              label="Still learning"
+              label={t("stats.stillLearning")}
               value={String(statsQuery.data.weakCards)}
             />
             <Tile
               icon="flame"
               color="var(--success)"
-              label="Mastered"
+              label={t("stats.mastered")}
               value={String(statsQuery.data.masteredCards)}
             />
           </>
@@ -97,12 +99,14 @@ export function DeckStatsPanel({
       <Card className="p-5">
         <div className="mb-3 flex items-baseline justify-between gap-3">
           <h3 className="font-display text-base font-semibold tracking-tight text-ink">
-            Accuracy over time
+            {t("stats.accuracyOverTime")}
           </h3>
-          <span className="text-xs text-faint">Last {HISTORY_DAYS} days</span>
+          <span className="text-xs text-faint">
+            {t("stats.lastDays", { count: HISTORY_DAYS })}
+          </span>
         </div>
         {historyQuery.isError ? (
-          <p className="py-8 text-center text-sm text-muted">Couldn&apos;t load your history.</p>
+          <p className="py-8 text-center text-sm text-muted">{t("stats.historyFailed")}</p>
         ) : historyQuery.isLoading || !historyQuery.data ? (
           <div className="h-44 animate-pulse rounded-card bg-surface-2/50" />
         ) : (
@@ -119,6 +123,7 @@ export function DeckStatsPanel({
 // large screens it's the first of five equal columns. Horizontal on mobile to fill
 // that full-width row, vertical on desktop to match the data tiles' shape.
 function MasteryTile({ completion }: { completion: number }) {
+  const t = useT();
   return (
     <Card className="col-span-2 flex flex-row items-center gap-3 p-4 lg:col-span-1 lg:flex-col lg:items-start lg:gap-2">
       <Ring value={completion / 100} size={40} stroke={5} />
@@ -126,7 +131,7 @@ function MasteryTile({ completion }: { completion: number }) {
         <div className="font-mono text-2xl font-bold leading-none text-ink">
           {Math.round(completion)}%
         </div>
-        <div className="mt-1 text-xs text-muted">Deck mastery</div>
+        <div className="mt-1 text-xs text-muted">{t("stats.deckMastery")}</div>
       </div>
     </Card>
   );

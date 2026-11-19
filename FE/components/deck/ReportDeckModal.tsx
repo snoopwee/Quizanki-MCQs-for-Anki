@@ -5,7 +5,11 @@ import { Modal } from "@/components/shared/Modal";
 import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
 import { useReportDeck } from "@/hooks/useReports";
-import { DECK_REPORT_REASONS as REASONS } from "@/lib/reportReasons";
+import {
+  DECK_REPORT_REASON_KEYS,
+  DECK_REPORT_REASONS as REASONS,
+} from "@/lib/reportReasons";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 
 const fieldClasses =
@@ -27,18 +31,19 @@ export function ReportDeckModal({
   const [done, setDone] = useState(false);
   const report = useReportDeck(deckId);
   const reasonLabelId = useId();
+  const t = useT();
 
   function submit() {
     report.mutate({ reason, details }, { onSuccess: () => setDone(true) });
   }
 
   return (
-    <Modal title={done ? "Report received" : "Report deck"} onClose={onClose}>
+    <Modal title={done ? t("report.received") : t("report.deck")} onClose={onClose}>
       {done ? (
         <>
           <p className="text-sm text-muted">
-            Thanks — an admin will review{" "}
-            <span className="font-medium text-ink">{deckName || "this deck"}</span>.
+            {t("report.thanksPrefix")}{" "}
+            <span className="font-medium text-ink">{deckName || t("report.thisDeck")}</span>.
           </p>
           <div className="mt-5 flex justify-end">
             <button
@@ -46,38 +51,38 @@ export function ReportDeckModal({
               onClick={onClose}
               className="focus-ring rounded-input bg-accent px-4 py-2 text-sm font-semibold text-white shadow-btn transition hover:opacity-95"
             >
-              Done
+              {t("common.done")}
             </button>
           </div>
         </>
       ) : (
         <>
           <p className="text-sm text-muted">
-            Tell us what&apos;s wrong with{" "}
-            <span className="font-medium text-ink">{deckName || "this deck"}</span>. Reports are private
-            and reviewed by an admin.
+            {t("report.tellUsPrefix")}{" "}
+            <span className="font-medium text-ink">{deckName || t("report.thisDeck")}</span>.{" "}
+            {t("report.privateNotice")}
           </p>
           <div className="mt-4 space-y-3">
             <div className="space-y-1">
               <span id={reasonLabelId} className="block text-xs font-medium text-muted">
-                Reason
+                {t("report.reason")}
               </span>
               <Select
                 value={reason}
-                options={REASONS.map((r) => ({ value: r, label: r }))}
+                options={REASONS.map((r) => ({ value: r, label: t(DECK_REPORT_REASON_KEYS[r]) }))}
                 onChange={setReason}
                 ariaLabelledBy={reasonLabelId}
                 fullWidth
               />
             </div>
             <label className="block space-y-1">
-              <span className="text-xs font-medium text-muted">Details (optional)</span>
+              <span className="text-xs font-medium text-muted">{t("report.details")}</span>
               <textarea
                 value={details}
                 onChange={(e) => setDetails(e.target.value)}
                 maxLength={1000}
                 rows={3}
-                placeholder="Anything that helps us review it…"
+                placeholder={t("report.detailsPlaceholder")}
                 className={fieldClasses}
               />
             </label>
@@ -85,7 +90,7 @@ export function ReportDeckModal({
 
           {report.isError && (
             <p className="mt-3 rounded-input bg-danger/10 px-3 py-2 text-sm text-danger">
-              Couldn&apos;t send the report. Try again.
+              {t("report.sendFailed")}
             </p>
           )}
 
@@ -96,7 +101,7 @@ export function ReportDeckModal({
               disabled={report.isPending}
               className="rounded-input border border-line-strong bg-surface px-4 py-2 text-sm font-medium text-muted transition hover:text-ink disabled:opacity-50"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -105,7 +110,7 @@ export function ReportDeckModal({
               className="focus-ring inline-flex items-center gap-2 rounded-input bg-accent px-4 py-2 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-60"
             >
               {report.isPending && <Spinner className="h-4 w-4" />}
-              Submit report
+              {t("report.submit")}
             </button>
           </div>
         </>

@@ -7,6 +7,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { buttonClasses } from "@/components/ui/Button";
 import { useCreateFolder, useFileDeck, useFolders } from "@/hooks/useFolders";
 import { deckCountLabel, folderErrorMessage, normalizeFolderName } from "@/lib/folderDisplay";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // Files one deck into the viewer's own folders. Folders are private grouping, so this works on a
 // deck you merely saved too, and filing changes nothing for its owner. Each tick is saved as it is
@@ -37,24 +38,24 @@ export function AddToFolderModal({
     });
   }
 
+  const t = useT();
   const list = folders.data ?? [];
 
   return (
-    <Modal title="Add to folder" onClose={onClose}>
+    <Modal title={t("folderModal.title")} onClose={onClose}>
       <p className="text-sm text-muted">
-        Group <span className="font-medium text-ink">{deckName || "this deck"}</span> however you
-        like. Folders are yours alone — no one else sees them, and a deck can sit in several.
+        {t("folderModal.explain", { name: deckName || t("folderModal.thisDeck") })}
       </p>
 
       <div className="mt-4 space-y-3">
         {folders.isLoading ? (
           <p className="flex items-center gap-2 text-sm text-muted">
-            <Spinner className="h-4 w-4 text-accent" /> Loading folders…
+            <Spinner className="h-4 w-4 text-accent" /> {t("folderModal.loading")}
           </p>
         ) : folders.isError ? (
-          <p className="text-sm text-danger">Could not load your folders.</p>
+          <p className="text-sm text-danger">{t("folderModal.loadFailed")}</p>
         ) : list.length === 0 ? (
-          <p className="text-sm text-muted">You don&apos;t have any folders yet — make one below.</p>
+          <p className="text-sm text-muted">{t("folderModal.none")}</p>
         ) : (
           <ul className="nice-scroll max-h-64 space-y-1 overflow-y-auto">
             {list.map((folder) => {
@@ -83,7 +84,7 @@ export function AddToFolderModal({
                       }`}
                     >
                       {busy ? (
-                        <Spinner className="h-3 w-3 text-accent" label="Saving" />
+                        <Spinner className="h-3 w-3 text-accent" label={t("folderModal.saving")} />
                       ) : (
                         <Icon name="check" size={13} />
                       )}
@@ -99,7 +100,7 @@ export function AddToFolderModal({
           </ul>
         )}
 
-        {file.isError && <p className="text-sm text-danger">That change didn&apos;t save. Try again.</p>}
+        {file.isError && <p className="text-sm text-danger">{t("folderModal.saveFailed")}</p>}
 
         <div className="flex flex-wrap gap-2 border-t border-line pt-3">
           <input
@@ -112,8 +113,8 @@ export function AddToFolderModal({
               }
             }}
             maxLength={60}
-            placeholder="New folder name"
-            aria-label="New folder name"
+            placeholder={t("folderModal.newName")}
+            aria-label={t("folderModal.newName")}
             className="focus-ring min-w-0 flex-1 rounded-input border border-line-strong bg-surface-2 px-3 py-2 text-sm text-ink placeholder:text-faint"
           />
           <button
@@ -123,24 +124,24 @@ export function AddToFolderModal({
             className={buttonClasses({ variant: "soft", size: "sm" })}
           >
             {create.isPending ? (
-              <Spinner className="h-4 w-4 text-accent" label="Creating" />
+              <Spinner className="h-4 w-4 text-accent" label={t("folderModal.creating")} />
             ) : (
               <Icon name="plus" size={15} />
             )}
-            Create &amp; add
+            {t("folderModal.createAndAdd")}
           </button>
         </div>
         {create.isError && (
           <p className="text-sm text-danger">
             {/* 409 when they already have a folder by that name — the backend names it. */}
-            {folderErrorMessage(create.error, "Couldn't create that folder.")}
+            {folderErrorMessage(create.error, t("folderModal.createFailed"))}
           </p>
         )}
       </div>
 
       <div className="mt-5 flex justify-end">
         <button type="button" onClick={onClose} className={buttonClasses({ variant: "primary", size: "md" })}>
-          Done
+          {t("common.done")}
         </button>
       </div>
     </Modal>

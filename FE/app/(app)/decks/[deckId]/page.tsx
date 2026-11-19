@@ -258,7 +258,7 @@ function DeckDetail() {
                     <IconButton
                       label={
                         contentsQuery.data.isPublic
-                          ? "Shared — manage the link"
+                          ? t("deckPage.sharedManage")
                           : t("deckPage.privateShare")
                       }
                       onClick={() => setShareOpen(true)}
@@ -291,7 +291,7 @@ function DeckDetail() {
                       lone control KebabMenu defaults to. */}
                   <KebabMenu
                     bordered
-                    label="Deck options"
+                    label={t("deckPage.deckOptions")}
                     items={
                       owned
                         ? [
@@ -348,10 +348,10 @@ function DeckDetail() {
                 {noteTypeCount > 1 && (
                   <span
                     className="inline-flex items-center gap-1.5"
-                    title="This deck mixes Anki note types (e.g. Basic and Cloze)"
+                    title={t("deckPage.mixedNoteTypes")}
                   >
                     <Icon name="cards" size={15} />
-                    {noteTypeCount} card types
+                    {t("deckPage.cardTypes", { count: noteTypeCount })}
                   </span>
                 )}
                 {/* Real "N copies" now that clone provenance is tracked — this
@@ -398,28 +398,28 @@ function DeckDetail() {
           {/* study modes */}
           <div ref={setStudyModesEl}>
             <p className="mb-3 font-mono text-xs font-semibold uppercase tracking-[0.06em] text-muted">
-              Study modes
+              {t("deckPage.studyModes")}
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <StudyMode
                 primary
                 icon="clipboard"
-                label="Quiz me — Multiple choice"
-                desc="Quizanki's signature MCQ exam with smart distractors"
+                label={t("deckPage.quizMeDesc")}
+                desc={t("deckPage.quizMeHint")}
                 onClick={goToSetup}
               />
               <StudyMode
                 icon="clipboard"
                 color="var(--info)"
                 label={t("deckPage.practiceTest")}
-                desc="Answer the whole paper, then get a score"
+                desc={t("deckPage.practiceTestHint")}
                 onClick={goToPractice}
               />
               <StudyMode
                 icon="brain"
                 color="var(--warning)"
-                label="Learn"
-                desc="Missed cards come back until you get them right"
+                label={t("deckPage.learn")}
+                desc={t("deckPage.learnHint")}
                 onClick={goToLearn}
               />
               <StudyMode
@@ -433,7 +433,7 @@ function DeckDetail() {
                 icon="shuffle"
                 color="var(--success)"
                 label={t("deckPage.match")}
-                desc="Race to pair terms & meanings"
+                desc={t("deckPage.matchHint")}
                 onClick={goToMatch}
               />
             </div>

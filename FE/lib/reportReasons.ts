@@ -5,6 +5,8 @@
 // for what it IS (spam, copyright, wrong); a note is text aimed at one person, so it is reported
 // for how it BEHAVES (abusive, harassment).
 
+import type { MessageKey } from "@/lib/i18n/messages/en";
+
 export const DECK_REPORT_REASONS = [
   "Spam",
   "Inappropriate",
@@ -12,6 +14,19 @@ export const DECK_REPORT_REASONS = [
   "Wrong or misleading",
   "Other",
 ] as const;
+
+/**
+ * What a reporter READS for each deck reason. The reason string itself is the stored value — it is
+ * posted to the backend and is what the admin queue filters on — so it is never translated; only
+ * its label is. Typed off the tuple, so adding a reason without a label fails typecheck.
+ */
+export const DECK_REPORT_REASON_KEYS: Record<(typeof DECK_REPORT_REASONS)[number], MessageKey> = {
+  Spam: "reportReason.spam",
+  Inappropriate: "reportReason.inappropriate",
+  Copyright: "reportReason.copyright",
+  "Wrong or misleading": "reportReason.wrongMisleading",
+  Other: "reportReason.other",
+};
 
 export const NOTE_REPORT_REASONS = [
   "Abusive",

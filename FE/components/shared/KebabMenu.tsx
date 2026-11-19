@@ -10,6 +10,7 @@ import {
   MENU_ITEM_IDLE,
   MENU_SURFACE,
 } from "@/components/ui/menu";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 export interface KebabItem {
   label: string;
@@ -32,7 +33,7 @@ export interface KebabItem {
 // the single home for per-card / per-deck options (edit, delete, export, …).
 export function KebabMenu({
   items,
-  label = "Options",
+  label,
   align = "right",
   size = "md",
   bordered = false,
@@ -45,6 +46,7 @@ export function KebabMenu({
   bordered?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const t = useT();
   const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
 
@@ -72,7 +74,7 @@ export function KebabMenu({
           unbordered by default — the outline is for a cluster of peer actions.
           Pass `bordered` when it genuinely sits in one. */}
       <IconButton
-        label={label}
+        label={label ?? t("common.options")}
         size={size}
         bordered={bordered}
         ariaHasPopup="menu"

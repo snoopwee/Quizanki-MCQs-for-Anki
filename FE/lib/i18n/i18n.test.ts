@@ -176,6 +176,9 @@ describe("the catalogues", () => {
         // The key on the keyboard. Vietnamese keyboards call it "Tab" too, and renaming it in
         // the UI would stop matching the key the learner is being told to press.
         "import.delimTab",
+        // The loanword IS the Vietnamese word for this report category — Vietnamese platforms
+        // label it "Spam" too, so a translation would read as a different, unfamiliar category.
+        "reportReason.spam",
         "size.100plus",
         "size.20to50",
         "size.50to100",

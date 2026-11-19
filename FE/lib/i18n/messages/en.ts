@@ -853,6 +853,119 @@ export const en = {
   "exportModal.copy": "Copy to clipboard",
   "exportModal.downloadApkg": "Download .apkg",
   "exportModal.downloadPlain": "Download",
+  "deckPage.sharedManage": "Shared — manage the link",
+  "deckPage.deckOptions": "Deck options",
+  "deckPage.mixedNoteTypes": "This deck mixes Anki note types (e.g. Basic and Cloze)",
+  "deckPage.cardTypes": { one: "{count} card type", other: "{count} card types" },
+  // â  `deckPage.quizMeDesc` already holds "Quiz me — Multiple choice" and is the LABEL here;
+  // these are the one-line subtitles under each study mode.
+  "deckPage.quizMeHint": "Quizanki's signature MCQ exam with smart distractors",
+  "deckPage.practiceTestHint": "Answer the whole paper, then get a score",
+  "deckPage.learn": "Learn",
+  "deckPage.learnHint": "Missed cards come back until you get them right",
+  "deckPage.matchHint": "Race to pair terms & meanings",
+
+  // ---- deck stats ("Your progress") -----------------------------------------------------------
+  "stats.yourProgress": "Your progress",
+  "stats.loadFailed": "Couldn't load your stats right now.",
+  "stats.cardsSeen": "Cards seen",
+  "stats.accuracy": "Accuracy",
+  "stats.stillLearning": "Still learning",
+  "stats.mastered": "Mastered",
+  "stats.accuracyOverTime": "Accuracy over time",
+  "stats.historyFailed": "Couldn't load your history.",
+  "stats.deckMastery": "Deck mastery",
+  "stats.lastDays": "Last {count} days",
+  // ---- Share deck modal -----------------------------------------------------------------------
+  "share.title": "Share deck",
+  "share.anyoneWithLink": "Anyone with the link",
+  // {name} interpolated rather than kept bold: the deck name has to be able to sit anywhere in
+  // the sentence, and a <span> pins it to one position.
+  "share.explain":
+    "They can view {name} and save their own copy of it. Your cards and your progress stay yours — a copy is a separate deck and never writes back here.",
+  "share.isACopy":
+    "This is a copy of {author}'s deck, so it's still credited to them. Edit a card to make it your own — then you can share it.",
+  "share.someoneElse": "someone else",
+  "share.link": "Share link",
+  "share.copied": "Copied",
+  "share.copy": "Copy",
+  "share.linkOnlyWhileOn":
+    "The link only works while sharing is on — switch it off and it stops opening.",
+  "share.privateNow": "This deck is private. Turn sharing on to get a link you can send to anyone.",
+  "share.updateFailed": "Couldn't update sharing. Please try again.",
+  "share.editFirst": "Edit a card in this copy to make it your own before sharing it.",
+
+  // ---- Add to folder modal --------------------------------------------------------------------
+  "folderModal.title": "Add to folder",
+  "folderModal.explain":
+    "Group {name} however you like. Folders are yours alone — no one else sees them, and a deck can sit in several.",
+  "folderModal.thisDeck": "this deck",
+  "folderModal.loading": "Loading folders…",
+  "folderModal.loadFailed": "Could not load your folders.",
+  "folderModal.none": "You don't have any folders yet — make one below.",
+  "folderModal.saving": "Saving",
+  "folderModal.saveFailed": "That change didn't save. Try again.",
+  "folderModal.newName": "New folder name",
+  "folderModal.creating": "Creating",
+  "folderModal.createAndAdd": "Create & add",
+  "folderModal.createFailed": "Couldn't create that folder.",
+
+  "common.done": "Done",
+
+  // ---- rating a deck (RateDeckModal + the star picker) ----------------------------------------
+  "rate.title": "Rate this deck",
+  "rate.loadFailed": "Couldn't load this deck's rating.",
+  "rate.pick": "Pick a rating",
+  // One word per star, so a click has a meaning attached to it and not just a count.
+  "rate.star1": "Poor",
+  "rate.star2": "Not great",
+  "rate.star3": "Okay",
+  "rate.star4": "Good",
+  "rate.star5": "Excellent",
+  "rate.privateNote": "Optional, and private — only this deck's author can read it.",
+  "rate.notePlaceholder": "What worked, what didn't, anything that would make it better…",
+  "rate.saveFailed": "Couldn't save your rating. Try again.",
+  "rate.removing": "Removing",
+  "rate.remove": "Remove rating",
+  "rate.saving": "Saving",
+  "rate.update": "Update",
+  "rate.post": "Post rating",
+  // The picker's five buttons have no visible text, so this IS their name to a screen reader.
+  "rating.starsAria": { one: "{count} star", other: "{count} stars" },
+
+  // ---- reporting a deck ------------------------------------------------------------------------
+  "report.received": "Report received",
+  "report.deck": "Report deck",
+  // Split around the deck's name because the name is emphasised in its own element. Both languages
+  // put it in the same place, so two keys beat an unstylable one-liner.
+  "report.thanksPrefix": "Thanks — an admin will review",
+  "report.tellUsPrefix": "Tell us what's wrong with",
+  "report.privateNotice": "Reports are private and reviewed by an admin.",
+  "report.thisDeck": "this deck",
+  "report.reason": "Reason",
+  "report.details": "Details (optional)",
+  "report.detailsPlaceholder": "Anything that helps us review it…",
+  "report.sendFailed": "Couldn't send the report. Try again.",
+  "report.submit": "Submit report",
+  // Only the LABEL of each reason is translated. The reason itself is the stored value -- it goes
+  // to the backend and drives the admin queue's filter -- so it stays this English wording.
+  "reportReason.spam": "Spam",
+  "reportReason.inappropriate": "Inappropriate",
+  "reportReason.copyright": "Copyright",
+  "reportReason.wrongMisleading": "Wrong or misleading",
+  "reportReason.other": "Other",
+
+  // ---- deck-page tree leftovers ----------------------------------------------------------------
+  // KebabMenu's DEFAULT label. Every caller that passes one is fine; the default is what a caller
+  // who passes nothing ships, and it was English.
+  "common.options": "Options",
+  "study.noFlashcards":
+    "We couldn't build any flashcards from this deck — its note types don't have readable text fields.",
+  "study.noCardsMatch": "No cards match {query}.",
+  "study.thisFilter": "this filter",
+  "setup.selectField": "Select a field",
+  "setup.eg": "e.g. {sample}",
+  "setup.emptySample": "(empty)",
 } as const satisfies Catalogue;
 
 export type MessageKey = keyof typeof en;

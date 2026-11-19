@@ -104,6 +104,7 @@ export function StarPicker({
 }) {
   const [hovered, setHovered] = useState<number | null>(null);
   const shown = hovered ?? value ?? 0;
+  const t = useT();
 
   return (
     <span className="inline-flex items-center gap-1" onMouseLeave={() => setHovered(null)}>
@@ -112,7 +113,7 @@ export function StarPicker({
           key={star}
           type="button"
           disabled={disabled}
-          aria-label={`${star} ${star === 1 ? "star" : "stars"}`}
+          aria-label={t("rating.starsAria", { count: star })}
           aria-pressed={value === star}
           onMouseEnter={() => setHovered(star)}
           onFocus={() => setHovered(star)}

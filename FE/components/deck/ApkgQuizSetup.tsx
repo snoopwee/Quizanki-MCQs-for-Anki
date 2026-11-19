@@ -415,7 +415,7 @@ function BasicTypeSection({
         label={t("setup.answerLabel")}
         value={answerField}
         fields={fieldChoices}
-        sample={sampleValue(noteType.notes, answerField)}
+        sample={sampleValue(noteType.notes, answerField) ?? t("setup.emptySample")}
         onChange={setAnswerField}
       />
     </div>
@@ -457,7 +457,8 @@ function clampCount(n: number, max: number): number {
   return Math.min(max, Math.max(1, Math.round(n)));
 }
 
-function sampleValue(notes: ApkgNoteType["notes"], field: string): string {
+// null rather than a word: the caller has the translator, this does not.
+function sampleValue(notes: ApkgNoteType["notes"], field: string): string | null {
   const found = notes.find((n) => (n.fields[field] ?? "").length > 0);
-  return found ? found.fields[field] : "(empty)";
+  return found ? found.fields[field] : null;
 }

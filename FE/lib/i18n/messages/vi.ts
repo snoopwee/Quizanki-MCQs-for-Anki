@@ -643,4 +643,151 @@ export const vi = {
   "media.chooseAudio": "Vui lòng chọn một tệp âm thanh.",
   "media.audioUploadFailed": "Không tải lên được âm thanh đó. Hãy thử lại.",
   "media.uploading": "Đang tải lên…",
+  // ---- Learn settings -------------------------------------------------------------------------
+  "learn.settingsTitle": "Cài đặt chế độ Học",
+  "learn.perSession": "Số thẻ mỗi phiên",
+  "learn.perSessionRetry":
+    "Thẻ trả lời sai sẽ quay lại cho tới khi bạn làm đúng, nên phiên kết thúc khi mọi thẻ đã học xong.",
+  "learn.perSessionOnce":
+    "Mỗi thẻ chỉ được hỏi một lần, nên phiên kết thúc sau số câu này.",
+  "learn.noCardsMatch": "Không có thẻ nào khớp với cài đặt này.",
+  "learn.onlyNMatch": "Chỉ có {count} thẻ khớp, nên bạn sẽ học hết số đó.",
+  "learn.belowMinimum":
+    "Mỗi phiên học ít nhất {min} thẻ, nên phiên này bắt đầu với {effective} thẻ.",
+  "learn.cappedToPool": "Chỉ có {count} thẻ khớp, nên phiên này học cả {count} thẻ.",
+  "learn.poolAvailable": "Có {count} thẻ khả dụng.",
+
+  "learn.questionTypes": "Dạng câu hỏi",
+  "learn.questionTypesDesc":
+    "Mỗi lần một thẻ xuất hiện, nó sẽ được hỏi theo một trong các dạng này.",
+  "learn.answerWith": "Trả lời bằng",
+  "learn.answerWithDefinitionDesc":
+    "Xem thuật ngữ, trả lời bằng định nghĩa của nó.",
+  "learn.answerWithTermDesc":
+    "Xem định nghĩa, trả lời bằng thuật ngữ. Thẻ Cloze luôn được hỏi đúng như đã viết.",
+
+  "learn.starredOnly": "Chỉ thẻ đã gắn sao",
+  "learn.starredCount": "{count} thẻ đã gắn sao.",
+  "learn.starSomeFirst": "Hãy gắn sao một vài thẻ để dùng mục này.",
+  "learn.includeMastered": "Gồm cả thẻ đã thành thạo",
+  "learn.includeMasteredDesc": "Tắt để bỏ qua những thẻ bạn đã thành thạo.",
+  "learn.shuffle": "Trộn thẻ",
+  "learn.shuffleDesc": "Tắt để học theo đúng thứ tự trong bộ thẻ.",
+  "learn.retryMissed": "Đưa lại thẻ trả lời sai",
+  "learn.retryMissedDesc":
+    "Hỏi lại thẻ bạn trả lời sai ở cuối phiên cho tới khi bạn làm đúng.",
+  "learn.retypeWrong": "Nhập lại câu trả lời viết sai",
+  "learn.retypeWrongDesc": "Nhập đúng câu trả lời trước khi sang thẻ tiếp theo.",
+  "learn.smartGrading": "Chấm điểm linh hoạt",
+  "learn.smartGradingDesc": "Bỏ qua lỗi chính tả nhỏ trong câu trả lời viết dài.",
+  "learn.readAloud": "Đọc câu hỏi thành tiếng",
+  "learn.readAloudDesc": "Đọc mỗi câu hỏi khi nó xuất hiện.",
+  "learn.readAloudUnsupported": "Trình duyệt này không đọc được thành tiếng.",
+
+  "learn.startLearning": "Bắt đầu học",
+  "learn.restartSession": "Học lại phiên này",
+  // ---- Flashcards options ---------------------------------------------------------------------
+  "flash.optionsTitle": "Tùy chọn thẻ ghi nhớ",
+  "flash.questionFormat": "Dạng câu hỏi",
+  "flash.answerWithTerm": "Trả lời bằng thuật ngữ",
+  "flash.answerWithTermHelp":
+    "Hiện mặt định nghĩa trước; bạn nhứ lại thuật ngữ.",
+  "flash.answerWithDefinition": "Trả lời bằng định nghĩa",
+  "flash.answerWithDefinitionHelp":
+    "Hiện mặt thuật ngữ trước; bạn nhứ lại định nghĩa.",
+  "flash.learningOptions": "Tùy chọn học",
+  "flash.cardSorting": "Phân loại thẻ",
+  "flash.cardSortingHelp":
+    "Đánh dấu từng thẻ là Đã biết / Đang học trong lúc học.",
+  "flash.starredOnly": "Chỉ học thẻ đã gắn sao",
+  "flash.starredOnlyHelp":
+    "Giới hạn bộ thẻ ở những thẻ bạn đã gắn sao.",
+  "flash.starredNone":
+    "Hãy gắn sao một vài thẻ trước để dùng mục này.",
+  "flash.shuffle": "Trộn thẻ",
+  "flash.shuffleHelp": "Xếp ngẫu nhiên thứ tự thẻ mỗi lần học.",
+  "flash.playback": "Phát tự động",
+  "flash.autoplaySpeed": "Tốc độ phát tự động",
+  "flash.autoplaySpeedHelp":
+    "Mỗi mặt được giữ bao lâu trước khi tự lật hoặc chuyển thẻ.",
+  "flash.cardFields": "Các trường của thẻ",
+  "flash.cardFieldsHelp":
+    "Bộ thẻ của bạn có thêm trường từ lúc nhập. Chọn những trường cũng xuất hiện ở mặt định nghĩa của mỗi thẻ — điều này cũng đặt trường mặc định cho bài trắc nghiệm.",
+  "flash.pronunciation": "Phát âm",
+  "flash.pronunciationHelp":
+    "Giọng dùng cho nút Nghe (chuyển văn bản thành giọng nói). Tự nhận diện sẽ đoán từ nội dung — hãy chọn tay nếu một ngôn ngữ bị đọc sai (ví dụ kanji bị đọc như tiếng Trung).",
+  "flash.termLanguage": "Ngôn ngữ thuật ngữ",
+  "flash.termLanguageHelp": "Mặt trước của mỗi thẻ.",
+  "flash.definitionLanguage": "Ngôn ngữ định nghĩa",
+  "flash.definitionLanguageHelp": "Mặt sau của mỗi thẻ.",
+  "flash.saveOptions": "Lưu tùy chọn",
+  "flash.restart": "Học lại từ đầu",
+
+  "autoplay.fast": "Nhanh · {seconds}s",
+  "autoplay.normal": "Bình thường · {seconds}s",
+  "autoplay.slow": "Chậm · {seconds}s",
+  "autoplay.verySlow": "Rất chậm · {seconds}s",
+  "common.dialog": "Hộp thoại",
+  "legal.lastUpdated": "Cập nhật lần cuối {date}",
+  // ---- /export (make a quiz deck for Anki) ----------------------------------------------------
+  "export.heading": "Tạo bộ thẻ trắc nghiệm cho Anki",
+  "export.lede":
+    "Mỗi thẻ trở thành một câu hỏi trắc nghiệm, với các đáp án sai lấy từ những thẻ khác trong cùng bộ. Anki sẽ trộn các lựa chọn mỗi lần ôn và bộ định thời của nó làm phần còn lại — không cần add-on nào.",
+  "export.sourceTablist": "Bộ thẻ lấy từ đâu",
+  "export.fromDeck": "Một bộ thẻ của bạn",
+  "export.fromUpload": "Tải lên .apkg",
+  "export.noDecks":
+    "Bạn chưa có bộ thẻ nào. Hãy nhập một bộ trước, hoặc chuyển sang thẻ tải lên để chuyển đổi một tệp .apkg mà không cần lưu.",
+  "export.deck": "Bộ thẻ",
+  "export.chooseDeck": "Chọn một bộ thẻ…",
+  "export.chooseFile": "Chọn một tệp .apkg",
+  "export.nothingSaved":
+    "Không có gì được lưu vào tài khoản của bạn — tệp được chuyển đổi và trả lại ngay.",
+  "export.mediaNotCarried":
+    "Hình ảnh và âm thanh trong bộ thẻ tải lên sẽ không được mang theo. Hãy nhập bộ thẻ trước nếu bạn muốn giữ chúng.",
+  "export.convertAndDownload": "Chuyển đổi và tải về",
+  "export.download": "Tải bộ thẻ trắc nghiệm",
+  "export.building": "Đang tạo…",
+  "export.checkFailed": "Không kiểm tra được bộ thẻ này. Hãy thử lại.",
+  "export.noneQuizzable": "Không thẻ nào trong bộ này có thể thành câu hỏi.",
+  "export.becomeQuestions": "{exported} trên {total} thẻ trở thành câu hỏi trắc nghiệm.",
+  "export.converted": "Đã chuyển đổi {exported} trên {total} thẻ.",
+  "export.couldNotConvert": "{count} thẻ không thể thành câu hỏi.",
+  "export.skippedReason": "bỏ qua {count} — {reason}",
+  "export.failed":
+    "Không thành công. Tệp có thể không phải một gói Anki hợp lệ, hoặc bộ thẻ quá lớn.",
+  "export.checking": "Đang kiểm tra xem thẻ nào có thể thành câu hỏi…",
+  // ---- Export deck modal ----------------------------------------------------------------------
+  "exportModal.title": "Xuất bộ thẻ",
+  "exportModal.format": "Định dạng",
+  "exportModal.csv": "CSV / TSV",
+  "exportModal.csvHint": "Bảng tính hoặc nhập lại vào Anki — mỗi thẻ một dòng.",
+  "exportModal.apkg": "Anki .apkg",
+  "exportModal.apkgHint": "Một gói Anki thực sự, mở được ngay trong Anki.",
+  "exportModal.mcq": "Trắc nghiệm Anki",
+  "exportModal.mcqHint": "Mỗi thẻ trở thành một câu hỏi bạn trả lời ngay trong Anki.",
+  "exportModal.text": "Văn bản thuần",
+  "exportModal.textHint": "Kiểu Quizlet — dán vào hộp nhập của Quizlet.",
+  "exportModal.checkFailedHere":
+    "Không kiểm tra được bộ thẻ này. Hãy thử lại, hoặc tải về và xem kết quả.",
+  "exportModal.mcqNote":
+    "Các đáp án sai lấy từ những thẻ khác trong cùng bộ, và Anki trộn chúng mỗi lần ôn. Hình ảnh và âm thanh đi kèm theo.",
+  "exportModal.separator": "Ký tự phân cách",
+  "exportModal.comma": "Dấu phẩy (.csv)",
+  "exportModal.tab": "Tab (.tsv)",
+  "exportModal.includeTags": "Kèm cột Thẻ phân loại",
+  "exportModal.multipleNoteTypes":
+    "Bộ thẻ này có nhiều loại ghi chú — mỗi loại được xuất thành một khối riêng, có dòng “# tên” ở đầu.",
+  "exportModal.betweenTermDef": "Giữa thuật ngữ và định nghĩa",
+  "exportModal.betweenRows": "Giữa các dòng",
+  "exportModal.custom": "Tùy chỉnh",
+  "exportModal.customExample": "ví dụ: -",
+  "exportModal.apkgNote":
+    "Tạo một gói Anki trên máy chủ rồi tải về. Tiến độ học không được kèm theo — chỉ có ghi chú và các trường của chúng.",
+  "exportModal.preview": "Xem trước",
+  "exportModal.apkgFailed": "Không tạo được tệp .apkg. Vui lòng thử lại.",
+  "exportModal.copied": "Đã sao chép ✓",
+  "exportModal.copy": "Sao chép vào bộ nhớ tạm",
+  "exportModal.downloadApkg": "Tải .apkg",
+  "exportModal.downloadPlain": "Tải về",
 } as const satisfies CatalogueOf<typeof en>;

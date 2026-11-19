@@ -167,6 +167,12 @@ describe("the catalogues", () => {
         // Anki's own name for the note type. It is the word printed in Anki's UI and in every
         // Anki tutorial, so translating it would disconnect the badge from what users already know.
         "card.cloze",
+        // File formats and extensions. "CSV / TSV", "Anki .apkg" and "Tab (.tsv)" are the names
+        // of the things themselves — a translated file format would stop matching what the
+        // learner sees in their file manager or in Anki's own import dialog.
+        "exportModal.apkg",
+        "exportModal.csv",
+        "exportModal.tab",
         // The key on the keyboard. Vietnamese keyboards call it "Tab" too, and renaming it in
         // the UI would stop matching the key the learner is being told to press.
         "import.delimTab",

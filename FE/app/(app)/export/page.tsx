@@ -10,6 +10,7 @@ import {
   useExportMcqFromUpload,
   useMcqExportPreview,
 } from "@/hooks/useDecks";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 /**
  * Turn a deck into multiple-choice cards you answer inside Anki.
@@ -19,29 +20,26 @@ import {
  * path stores nothing — the file is parsed, converted and handed straight back.
  */
 export default function ExportPage() {
+  const t = useT();
   const [source, setSource] = useState<"deck" | "upload">("deck");
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 p-4 sm:p-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold text-ink">Make a quiz deck for Anki</h1>
-        <p className="text-sm text-muted">
-          Every card becomes a multiple-choice question, with the wrong answers drawn from the
-          deck&apos;s own other cards. Anki shuffles the options on every review, and its scheduler
-          does the rest — no add-on needed.
-        </p>
+        <h1 className="text-2xl font-semibold text-ink">{t("export.heading")}</h1>
+        <p className="text-sm text-muted">{t("export.lede")}</p>
       </header>
 
       <div
         role="tablist"
-        aria-label="Where the deck comes from"
+        aria-label={t("export.sourceTablist")}
         className="flex gap-2 border-b border-line"
       >
         <Tab active={source === "deck"} onClick={() => setSource("deck")}>
-          One of your decks
+          {t("export.fromDeck")}
         </Tab>
         <Tab active={source === "upload"} onClick={() => setSource("upload")}>
-          Upload an .apkg
+          {t("export.fromUpload")}
         </Tab>
       </div>
 
@@ -79,6 +77,7 @@ function Tab({
 // ── pick one of your decks ───────────────────────────────────────────────────
 
 function FromDeck() {
+  const t = useT();
   const decks = useDecks();
   const [deckId, setDeckId] = useState("");
   const preview = useMcqExportPreview(deckId, deckId !== "");
@@ -107,8 +106,7 @@ function FromDeck() {
   if ((decks.data ?? []).length === 0) {
     return (
       <p className="rounded-card border border-line bg-surface p-4 text-sm text-muted">
-        You don&apos;t have any decks yet. Import one first, or switch to the upload tab to convert
-        an <code>.apkg</code> without saving it.
+        {t("export.noDecks")}
       </p>
     );
   }
@@ -117,13 +115,13 @@ function FromDeck() {
     <div className="space-y-4">
       <div className="space-y-1.5">
         <span className="block text-sm font-medium text-ink" id="deck-picker-label">
-          Deck
+          {t("export.deck")}
         </span>
         <Select
           value={deckId}
           onChange={setDeckId}
           ariaLabelledBy="deck-picker-label"
-          placeholder="Choose a deck…"
+          placeholder={t("export.chooseDeck")}
           options={options}
           fullWidth
         />
@@ -151,6 +149,7 @@ function FromDeck() {
 // ── or bring your own file ───────────────────────────────────────────────────
 
 function FromUpload() {
+  const t = useT();
   const [file, setFile] = useState<File | null>(null);
   const convert = useExportMcqFromUpload();
 
@@ -159,10 +158,10 @@ function FromUpload() {
       <label className="flex cursor-pointer flex-col items-center gap-2 rounded-card border border-dashed border-line-strong bg-surface p-6 text-center transition hover:border-accent">
         <Icon name="upload" size={22} className="text-muted" />
         <span className="text-sm font-medium text-ink">
-          {file ? file.name : "Choose an .apkg file"}
+          {file ? file.name : t("export.chooseFile")}
         </span>
         <span className="text-xs text-muted">
-          Nothing is saved to your account — the file is converted and handed straight back.
+          {t("export.nothingSaved")}
         </span>
         <input
           type="file"
@@ -175,24 +174,26 @@ function FromUpload() {
       {/* Said up front rather than discovered afterwards: the pictures live inside the uploaded
           package, and this path does not re-pack them. */}
       <p className="text-xs text-muted">
-        Pictures and audio in an uploaded deck are not carried over. Import the deck first if you
-        want to keep them.
+        {t("export.mediaNotCarried")}
       </p>
 
       <DownloadButton
         disabled={!file}
         pending={convert.isPending}
         onClick={() => file && convert.mutate(file)}
-        label="Convert and download"
+        label={t("export.convertAndDownload")}
       />
 
       {convert.data && (
         <p className="rounded-card border border-line bg-surface p-3 text-sm">
-          Converted <strong>{convert.data.exported}</strong> of {convert.data.total} cards.
+          {t("export.converted", {
+            exported: convert.data.exported,
+            total: convert.data.total,
+          })}
           {convert.data.skipped > 0 && (
             <span className="text-muted">
               {" "}
-              {convert.data.skipped} could not become questions.
+              {t("export.couldNotConvert", { count: convert.data.skipped })}
             </span>
           )}
         </p>
@@ -218,15 +219,17 @@ function ReportPanel({
     skippedReasons: Record<string, number>;
   };
 }) {
+  // Above the early returns: a hook after a conditional return is a hooks-order violation.
+  const t = useT();
   if (loading) {
     return (
       <p className="flex items-center gap-2 text-sm text-muted">
-        <Spinner className="h-3.5 w-3.5" /> Checking which cards can become questions…
+        <Spinner className="h-3.5 w-3.5" /> {t("export.checking")}
       </p>
     );
   }
   if (error) {
-    return <p className="text-sm text-danger">Could not check this deck. Try again.</p>;
+    return <p className="text-sm text-danger">{t("export.checkFailed")}</p>;
   }
   if (!report) return null;
 
@@ -234,12 +237,13 @@ function ReportPanel({
     <div className="space-y-2 rounded-card border border-line bg-surface p-3 text-sm">
       {report.exportedCards > 0 ? (
         <p className="font-medium">
-          {report.exportedCards} of {report.totalCards} cards become multiple-choice questions.
+          {t("export.becomeQuestions", {
+            exported: report.exportedCards,
+            total: report.totalCards,
+          })}
         </p>
       ) : (
-        <p className="font-medium text-danger">
-          None of this deck&apos;s cards can become questions.
-        </p>
+        <p className="font-medium text-danger">{t("export.noneQuizzable")}</p>
       )}
 
       {/* Naming WHY, not just how many — "2 skipped" with no reason reads like a bug. */}
@@ -247,7 +251,10 @@ function ReportPanel({
         <ul className="space-y-0.5 text-xs text-muted">
           {Object.entries(report.skippedReasons).map(([reason, count]) => (
             <li key={reason}>
-              {count} skipped — {reason.toLowerCase()}
+              {/* ⚠ `reason` is the BACKEND's own wording and the API has no locale, so this half
+                  stays English until it does. Naming the reason is the point of the line —
+                  "2 skipped" with none reads like a bug — so it is better English than absent. */}
+              {t("export.skippedReason", { count, reason: reason.toLowerCase() })}
             </li>
           ))}
         </ul>
@@ -260,13 +267,14 @@ function DownloadButton({
   disabled,
   pending,
   onClick,
-  label = "Download quiz deck",
+  label,
 }: {
   disabled: boolean;
   pending: boolean;
   onClick: () => void;
   label?: string;
 }) {
+  const t = useT();
   return (
     <button
       type="button"
@@ -275,15 +283,16 @@ function DownloadButton({
       className="focus-ring inline-flex items-center gap-2 rounded-input bg-accent px-4 py-2 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-60"
     >
       {pending ? <Spinner className="h-4 w-4" /> : <Icon name="download" size={16} />}
-      {pending ? "Building…" : label}
+      {pending ? t("export.building") : (label ?? t("export.download"))}
     </button>
   );
 }
 
 function ErrorLine() {
+  const t = useT();
   return (
     <p className="text-sm text-danger">
-      That didn&apos;t work. The file may not be a valid Anki package, or the deck may be too large.
+      {t("export.failed")}
     </p>
   );
 }

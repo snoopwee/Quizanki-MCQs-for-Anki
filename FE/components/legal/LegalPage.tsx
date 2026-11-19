@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AppChrome } from "@/components/layout/AppChrome";
+import { getServerT } from "@/lib/i18n/server";
 
 /**
  * Frame for the two legal pages.
@@ -14,18 +15,29 @@ import { AppChrome } from "@/components/layout/AppChrome";
  * (Google fetches the privacy policy before anybody has an account) while still looking like part
  * of the app to someone signed in.
  */
-export function LegalPage({
+export async function LegalPage({
   title,
   updated,
   summary,
+  governing,
   children,
 }: {
   title: string;
   updated: string;
   /** One plain sentence above the fold, for the majority who will not read the rest. */
   summary: ReactNode;
+  /**
+   * The governing-language notice, shown only on a TRANSLATED version of a policy.
+   *
+   * <p>A translation of a legal document can drift from the original in ways a UI string cannot,
+   * so the translated page says plainly which version controls. Stated in both languages on
+   * purpose: the reader needs it in theirs, and the clause needs to be unambiguous in the
+   * language it defers to.
+   */
+  governing?: ReactNode;
   children: ReactNode;
 }) {
+  const t = await getServerT();
   return (
     <AppChrome>
       <article className="mx-auto max-w-3xl pb-20">
@@ -33,8 +45,15 @@ export function LegalPage({
           <h1 className="font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl">
             {title}
           </h1>
-          <p className="mt-2 text-xs uppercase tracking-wide text-faint">Last updated {updated}</p>
+          <p className="mt-2 text-xs uppercase tracking-wide text-faint">
+            {t("legal.lastUpdated", { date: updated })}
+          </p>
           <p className="mt-4 text-sm leading-relaxed text-ink">{summary}</p>
+          {governing && (
+            <p className="mt-4 rounded-input border border-warning/30 bg-warning/5 px-3 py-2 text-xs leading-relaxed text-muted">
+              {governing}
+            </p>
+          )}
         </header>
 
         <div className="mt-8 space-y-9">{children}</div>

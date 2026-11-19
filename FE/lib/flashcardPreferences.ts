@@ -1,3 +1,4 @@
+import type { MessageKey } from "@/lib/i18n/messages/en";
 // Persists the flashcard-study options (the "Flashcards Options" modal + the
 // player's bottom-bar toggles) per deck, so a learner who turns on shuffle or
 // switches the starting side once doesn't have to redo it every visit.
@@ -35,11 +36,11 @@ export const DEFAULT_FLASHCARD_PREFS: FlashcardPreferences = {
 };
 
 // Speed presets surfaced in the Flashcards Options modal (seconds per side).
-export const AUTOPLAY_SPEEDS: Array<{ seconds: number; label: string }> = [
-  { seconds: 2, label: "Fast · 2s" },
-  { seconds: 4, label: "Normal · 4s" },
-  { seconds: 6, label: "Slow · 6s" },
-  { seconds: 8, label: "Very slow · 8s" },
+export const AUTOPLAY_SPEEDS: Array<{ seconds: number; labelKey: MessageKey }> = [
+  { seconds: 2, labelKey: "autoplay.fast" },
+  { seconds: 4, labelKey: "autoplay.normal" },
+  { seconds: 6, labelKey: "autoplay.slow" },
+  { seconds: 8, labelKey: "autoplay.verySlow" },
 ];
 
 function key(deckId: string): string {

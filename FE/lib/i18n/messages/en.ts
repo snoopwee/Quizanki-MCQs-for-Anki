@@ -708,6 +708,151 @@ export const en = {
   "media.chooseAudio": "Please choose an audio file.",
   "media.audioUploadFailed": "Couldn't upload that audio. Try again.",
   "media.uploading": "Uploading…",
+  // ---- Learn settings -------------------------------------------------------------------------
+  "learn.settingsTitle": "Learn settings",
+  "learn.perSession": "Cards per session",
+  "learn.perSessionRetry":
+    "Missed cards come back until you get them right, so a session ends once every card is learned.",
+  "learn.perSessionOnce": "Each card is asked once, so a session ends after this many questions.",
+  // Five separate sentences rather than one template with branches: each says a different thing,
+  // and only whole sentences survive translation intact.
+  "learn.noCardsMatch": "No cards match these settings.",
+  "learn.onlyNMatch": {
+    one: "Only {count} card matches, so you'll learn all of them.",
+    other: "Only {count} cards match, so you'll learn all of them.",
+  },
+  "learn.belowMinimum":
+    "A session learns at least {min} cards, so this one starts with {effective}.",
+  "learn.cappedToPool": "Only {count} cards match, so this one learns all {count}.",
+  "learn.poolAvailable": "{count} cards available.",
+
+  "learn.questionTypes": "Question types",
+  "learn.questionTypesDesc": "Each time a card comes up, it's asked in one of these.",
+  "learn.answerWith": "Answer with",
+  "learn.answerWithDefinitionDesc": "See the term, answer with its definition.",
+  "learn.answerWithTermDesc":
+    "See the definition, answer with the term. Cloze cards are always asked as written.",
+
+  "learn.starredOnly": "Starred cards only",
+  "learn.starredCount": { one: "{count} starred card.", other: "{count} starred cards." },
+  "learn.starSomeFirst": "Star some cards to use this.",
+  "learn.includeMastered": "Include mastered cards",
+  "learn.includeMasteredDesc": "Turn off to skip cards you've already mastered.",
+  "learn.shuffle": "Shuffle",
+  "learn.shuffleDesc": "Turn off to go through cards in deck order.",
+  "learn.retryMissed": "Bring back missed cards",
+  "learn.retryMissedDesc":
+    "Ask a missed card again later in the session until you get it right.",
+  "learn.retypeWrong": "Re-type wrong written answers",
+  "learn.retypeWrongDesc": "Type the correct answer before moving on.",
+  "learn.smartGrading": "Smart grading",
+  "learn.smartGradingDesc": "Forgive small typos in longer written answers.",
+  "learn.readAloud": "Read questions aloud",
+  "learn.readAloudDesc": "Speak each question when it appears.",
+  "learn.readAloudUnsupported": "This browser can't read text aloud.",
+
+  "learn.startLearning": "Start learning",
+  "learn.restartSession": "Restart session",
+  // ---- Flashcards options ---------------------------------------------------------------------
+  "flash.optionsTitle": "Flashcards Options",
+  "flash.questionFormat": "Question Format",
+  "flash.answerWithTerm": "Answer with Term",
+  "flash.answerWithTermHelp": "Show the definition side first; you recall the term.",
+  "flash.answerWithDefinition": "Answer with Definition",
+  "flash.answerWithDefinitionHelp": "Show the term side first; you recall the definition.",
+  "flash.learningOptions": "Learning Options",
+  "flash.cardSorting": "Cards sorting",
+  "flash.cardSortingHelp": "Mark each card Know / Still-learning as you go.",
+  "flash.starredOnly": "Study starred terms only",
+  "flash.starredOnlyHelp": "Limit the deck to cards you've starred.",
+  "flash.starredNone": "Star some cards first to use this.",
+  "flash.shuffle": "Shuffle terms",
+  "flash.shuffleHelp": "Randomise the card order each run.",
+  "flash.playback": "Playback",
+  "flash.autoplaySpeed": "Autoplay speed",
+  "flash.autoplaySpeedHelp": "How long each side is held before autoplay flips / advances.",
+  "flash.cardFields": "Card fields",
+  "flash.cardFieldsHelp":
+    "Your deck has extra fields from the import. Choose which also appear on each card's definition side — this also sets the quiz's default fields.",
+  "flash.pronunciation": "Pronunciation",
+  "flash.pronunciationHelp":
+    "The voice used for Listen (text-to-speech). Auto-detect guesses from the text — override it if a language is read wrong (e.g. kanji read as Chinese).",
+  "flash.termLanguage": "Term language",
+  "flash.termLanguageHelp": "The front side of each card.",
+  "flash.definitionLanguage": "Definition language",
+  "flash.definitionLanguageHelp": "The back side of each card.",
+  "flash.saveOptions": "Save options",
+  "flash.restart": "Restart flashcards",
+
+  // The seconds come from the preset itself, so the number cannot drift from the prose.
+  "autoplay.fast": "Fast · {seconds}s",
+  "autoplay.normal": "Normal · {seconds}s",
+  "autoplay.slow": "Slow · {seconds}s",
+  "autoplay.verySlow": "Very slow · {seconds}s",
+  "common.dialog": "Dialog",
+  "legal.lastUpdated": "Last updated {date}",
+  // ---- /export (make a quiz deck for Anki) ----------------------------------------------------
+  "export.heading": "Make a quiz deck for Anki",
+  "export.lede":
+    "Every card becomes a multiple-choice question, with the wrong answers drawn from the deck's own other cards. Anki shuffles the options on every review, and its scheduler does the rest — no add-on needed.",
+  "export.sourceTablist": "Where the deck comes from",
+  "export.fromDeck": "One of your decks",
+  "export.fromUpload": "Upload an .apkg",
+  "export.noDecks":
+    "You don't have any decks yet. Import one first, or switch to the upload tab to convert an .apkg without saving it.",
+  "export.deck": "Deck",
+  "export.chooseDeck": "Choose a deck…",
+  "export.chooseFile": "Choose an .apkg file",
+  "export.nothingSaved":
+    "Nothing is saved to your account — the file is converted and handed straight back.",
+  "export.mediaNotCarried":
+    "Pictures and audio in an uploaded deck are not carried over. Import the deck first if you want to keep them.",
+  "export.convertAndDownload": "Convert and download",
+  "export.download": "Download quiz deck",
+  "export.building": "Building…",
+  "export.checkFailed": "Could not check this deck. Try again.",
+  "export.noneQuizzable": "None of this deck's cards can become questions.",
+  "export.becomeQuestions": "{exported} of {total} cards become multiple-choice questions.",
+  "export.converted": "Converted {exported} of {total} cards.",
+  "export.couldNotConvert": "{count} could not become questions.",
+  // ⚠ {reason} comes from the BACKEND and is English — see the comment at the call site.
+  "export.skippedReason": "{count} skipped — {reason}",
+  "export.failed":
+    "That didn't work. The file may not be a valid Anki package, or the deck may be too large.",
+  "export.checking": "Checking which cards can become questions…",
+  // ---- Export deck modal ----------------------------------------------------------------------
+  "exportModal.title": "Export deck",
+  "exportModal.format": "Format",
+  "exportModal.csv": "CSV / TSV",
+  "exportModal.csvHint": "Spreadsheet or Anki re-import — one row per card.",
+  "exportModal.apkg": "Anki .apkg",
+  "exportModal.apkgHint": "A real Anki package that opens straight back in Anki.",
+  "exportModal.mcq": "Anki multiple choice",
+  "exportModal.mcqHint": "Every card becomes a quiz question you answer inside Anki.",
+  "exportModal.text": "Plain text",
+  "exportModal.textHint": "Quizlet-style — paste into Quizlet's import box.",
+  "exportModal.checkFailedHere":
+    "Could not check this deck. Try again, or download and see what you get.",
+  "exportModal.mcqNote":
+    "The wrong answers come from this deck's own other cards, and Anki shuffles them on every review. Pictures and audio travel with it.",
+  "exportModal.separator": "Separator",
+  "exportModal.comma": "Comma (.csv)",
+  "exportModal.tab": "Tab (.tsv)",
+  "exportModal.includeTags": "Include a Tags column",
+  "exportModal.multipleNoteTypes":
+    "This deck has multiple note types — each is exported as its own block, prefixed with a “# name” line.",
+  "exportModal.betweenTermDef": "Between term and definition",
+  "exportModal.betweenRows": "Between rows",
+  "exportModal.custom": "Custom",
+  "exportModal.customExample": "e.g. -",
+  "exportModal.apkgNote":
+    "Builds an Anki package on the server and downloads it. Card progress isn't included — just the notes and their fields.",
+  "exportModal.preview": "Preview",
+  "exportModal.apkgFailed": "Couldn't build the .apkg. Please try again.",
+  "exportModal.copied": "Copied ✓",
+  "exportModal.copy": "Copy to clipboard",
+  "exportModal.downloadApkg": "Download .apkg",
+  "exportModal.downloadPlain": "Download",
 } as const satisfies Catalogue;
 
 export type MessageKey = keyof typeof en;

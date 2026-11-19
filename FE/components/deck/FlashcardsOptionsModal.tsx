@@ -9,6 +9,7 @@ import { type FieldNoteType } from "@/components/deck/CardFieldsControl";
 import { FieldToggleControl } from "@/components/deck/FieldToggleControl";
 import { hasExtraFields } from "@/lib/cardFields";
 import { Select } from "@/components/ui/Select";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // Deck-level TTS language controls, shown only for saved decks. `term`/`def` are
 // the current stored overrides ("" = auto-detect); `autoTerm`/`autoDef` are the
@@ -58,22 +59,23 @@ export function FlashcardsOptionsModal({
 }) {
   // The two Question-Format toggles are really one choice (which side faces up),
   // mirrored from Knowt. "Definition first" = front (the term/prompt side).
+  const t = useT();
   const definitionFirst = prefs.startSide === "front";
   const termFirst = prefs.startSide === "back";
 
   return (
-    <Modal title="Flashcards Options" onClose={onClose}>
+    <Modal title={t("flash.optionsTitle")} onClose={onClose}>
       <div className="space-y-6">
-        <Section label="Question Format">
+        <Section label={t("flash.questionFormat")}>
           <Row
-            title="Answer with Term"
-            help="Show the definition side first; you recall the term."
+            title={t("flash.answerWithTerm")}
+            help={t("flash.answerWithTermHelp")}
             on={termFirst}
             onChange={(v) => onChange({ startSide: v ? "back" : "front" })}
           />
           <Row
-            title="Answer with Definition"
-            help="Show the term side first; you recall the definition."
+            title={t("flash.answerWithDefinition")}
+            help={t("flash.answerWithDefinitionHelp")}
             on={definitionFirst}
             onChange={(v) => onChange({ startSide: v ? "front" : "back" })}
           />
@@ -81,23 +83,25 @@ export function FlashcardsOptionsModal({
 
         <div className="h-px bg-line" />
 
-        <Section label="Learning Options">
+        <Section label={t("flash.learningOptions")}>
           <Row
-            title="Cards sorting"
-            help="Mark each card Know / Still-learning as you go."
+            title={t("flash.cardSorting")}
+            help={t("flash.cardSortingHelp")}
             on={prefs.cardSorting}
             onChange={(v) => onChange({ cardSorting: v })}
           />
           <Row
-            title="Study starred terms only"
-            help={starredAvailable ? "Limit the deck to cards you've starred." : "Star some cards first to use this."}
+            title={t("flash.starredOnly")}
+            help={
+              starredAvailable ? t("flash.starredOnlyHelp") : t("flash.starredNone")
+            }
             on={prefs.starredOnly && starredAvailable}
             disabled={!starredAvailable}
             onChange={(v) => onChange({ starredOnly: v })}
           />
           <Row
-            title="Shuffle terms"
-            help="Randomise the card order each run."
+            title={t("flash.shuffle")}
+            help={t("flash.shuffleHelp")}
             on={prefs.shuffle}
             onChange={(v) => onChange({ shuffle: v })}
           />
@@ -105,19 +109,22 @@ export function FlashcardsOptionsModal({
 
         <div className="h-px bg-line" />
 
-        <Section label="Playback">
+        <Section label={t("flash.playback")}>
           <div className="flex items-center gap-4">
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium text-ink">Autoplay speed</div>
+              <div className="text-sm font-medium text-ink">{t("flash.autoplaySpeed")}</div>
               <div className="mt-0.5 text-xs text-muted">
-                How long each side is held before autoplay flips / advances.
+                {t("flash.autoplaySpeedHelp")}
               </div>
             </div>
             <Select
               value={prefs.autoplaySeconds}
-              options={AUTOPLAY_SPEEDS.map((s) => ({ value: s.seconds, label: s.label }))}
+              options={AUTOPLAY_SPEEDS.map((speed) => ({
+                value: speed.seconds,
+                label: t(speed.labelKey, { seconds: speed.seconds }),
+              }))}
               onChange={(autoplaySeconds) => onChange({ autoplaySeconds })}
-              ariaLabel="Autoplay speed"
+              ariaLabel={t("flash.autoplaySpeed")}
               size="sm"
               align="right"
             />
@@ -127,11 +134,8 @@ export function FlashcardsOptionsModal({
         {fields && hasExtraFields(fields.noteTypes) && (
           <>
             <div className="h-px bg-line" />
-            <Section label="Card fields">
-              <p className="-mt-1 text-xs text-muted">
-                Your deck has extra fields from the import. Choose which also appear on each card&apos;s
-                definition side — this also sets the quiz&apos;s default fields.
-              </p>
+            <Section label={t("flash.cardFields")}>
+              <p className="-mt-1 text-xs text-muted">{t("flash.cardFieldsHelp")}</p>
               <FieldToggleControl
                 noteTypes={fields.noteTypes}
                 disabled={fields.saving}
@@ -144,22 +148,19 @@ export function FlashcardsOptionsModal({
         {language && (
           <>
             <div className="h-px bg-line" />
-            <Section label="Pronunciation">
-              <p className="-mt-1 text-xs text-muted">
-                The voice used for Listen (text-to-speech). Auto-detect guesses from the text —
-                override it if a language is read wrong (e.g. kanji read as Chinese).
-              </p>
+            <Section label={t("flash.pronunciation")}>
+              <p className="-mt-1 text-xs text-muted">{t("flash.pronunciationHelp")}</p>
               <LanguageRow
-                title="Term language"
-                help="The front side of each card."
+                title={t("flash.termLanguage")}
+                help={t("flash.termLanguageHelp")}
                 value={language.term}
                 autoDetected={language.autoTerm}
                 disabled={language.saving}
                 onChange={(code) => language.onChange("front", code)}
               />
               <LanguageRow
-                title="Definition language"
-                help="The back side of each card."
+                title={t("flash.definitionLanguage")}
+                help={t("flash.definitionLanguageHelp")}
                 value={language.def}
                 autoDetected={language.autoDef}
                 disabled={language.saving}
@@ -177,14 +178,14 @@ export function FlashcardsOptionsModal({
             onClick={onSave}
             className="focus-ring rounded-input px-1 text-sm font-semibold text-accent transition hover:opacity-80"
           >
-            Save options
+            {t("flash.saveOptions")}
           </button>
           <button
             type="button"
             onClick={onRestart}
             className="focus-ring rounded-input px-1 text-sm font-semibold text-danger transition hover:opacity-80"
           >
-            Restart flashcards
+            {t("flash.restart")}
           </button>
         </div>
       </div>

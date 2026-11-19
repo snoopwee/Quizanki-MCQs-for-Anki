@@ -2,6 +2,7 @@
 
 import { extraFields, isFieldShown, mergeIdenticalNoteTypes, withExtraField } from "@/lib/cardFields";
 import type { FieldNoteType } from "@/components/deck/CardFieldsControl";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // The lightweight "show / hide extra fields" toggle used on the flashcard STUDY
 // screen (Flashcards Options → Card fields), where there's no editable draft — only
@@ -18,6 +19,7 @@ export function FieldToggleControl({
   disabled?: boolean;
   onChange: (typeId: string, next: { frontFields: string[]; backFields: string[] }) => void;
 }) {
+  const t = useT();
   const withExtras = mergeIdenticalNoteTypes(noteTypes).filter(
     (nt) => !nt.cloze && extraFields(nt.fieldNames, nt.frontFields, nt.backFields).length > 0,
   );
@@ -30,7 +32,7 @@ export function FieldToggleControl({
         return (
           <div key={nt.ids.join(",")} className="space-y-2">
             {withExtras.length > 1 && (
-              <div className="font-mono text-xs font-medium text-muted">{nt.name || "Cards"}</div>
+              <div className="font-mono text-xs font-medium text-muted">{nt.name || t("fields.cardsFallback")}</div>
             )}
             <div className="space-y-1.5">
               {extras.map((f) => (

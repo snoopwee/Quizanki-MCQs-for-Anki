@@ -15,20 +15,19 @@ import {
 } from "@/lib/exportDeck";
 import { useExportApkg, useExportMcqApkg, useMcqExportPreview } from "@/hooks/useDecks";
 import type { DeckContentsResponse } from "@/types/api";
+import { useT } from "@/components/i18n/LocaleProvider";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 
 type Format = "delimited" | "apkg" | "mcq" | "text";
 type TermPreset = "tab" | "comma" | "custom";
 type RowPreset = "newline" | "semicolon" | "custom";
 
-const FORMATS: { value: Format; label: string; hint: string }[] = [
-  { value: "delimited", label: "CSV / TSV", hint: "Spreadsheet or Anki re-import — one row per card." },
-  { value: "apkg", label: "Anki .apkg", hint: "A real Anki package that opens straight back in Anki." },
-  {
-    value: "mcq",
-    label: "Anki multiple choice",
-    hint: "Every card becomes a quiz question you answer inside Anki.",
-  },
-  { value: "text", label: "Plain text", hint: "Quizlet-style — paste into Quizlet's import box." },
+// Message keys, not text: a module-level const has no translator in scope.
+const FORMATS: { value: Format; labelKey: MessageKey; hintKey: MessageKey }[] = [
+  { value: "delimited", labelKey: "exportModal.csv", hintKey: "exportModal.csvHint" },
+  { value: "apkg", labelKey: "exportModal.apkg", hintKey: "exportModal.apkgHint" },
+  { value: "mcq", labelKey: "exportModal.mcq", hintKey: "exportModal.mcqHint" },
+  { value: "text", labelKey: "exportModal.text", hintKey: "exportModal.textHint" },
 ];
 
 export function ExportDeckModal({
@@ -38,6 +37,7 @@ export function ExportDeckModal({
   contents: DeckContentsResponse;
   onClose: () => void;
 }) {
+  const t = useT();
   const [format, setFormat] = useState<Format>("delimited");
 
   // CSV/TSV options
@@ -122,10 +122,10 @@ export function ExportDeckModal({
   }, [format, delimiter, includeTags, termDelimiter, rowDelimiter, cards, contents]);
 
   return (
-    <Modal title="Export deck" onClose={onClose}>
+    <Modal title={t("exportModal.title")} onClose={onClose}>
       <div className="space-y-5">
         <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">Format</legend>
+          <legend className="text-sm font-medium">{t("exportModal.format")}</legend>
           <div className="grid gap-2 sm:grid-cols-3">
             {FORMATS.map((f) => (
               <label
@@ -143,8 +143,8 @@ export function ExportDeckModal({
                   checked={format === f.value}
                   onChange={() => setFormat(f.value)}
                 />
-                <span className="block font-medium">{f.label}</span>
-                <span className="mt-0.5 block text-xs text-muted">{f.hint}</span>
+                <span className="block font-medium">{t(f.labelKey)}</span>
+                <span className="mt-0.5 block text-xs text-muted">{t(f.hintKey)}</span>
               </label>
             ))}
           </div>
@@ -154,13 +154,13 @@ export function ExportDeckModal({
           <div className="space-y-2 rounded-card border border-line bg-surface p-3 text-sm">
             {mcqPreview.isLoading && (
               <p className="flex items-center gap-2 text-muted">
-                <Spinner className="h-3.5 w-3.5" /> Checking which cards can become questions…
+                <Spinner className="h-3.5 w-3.5" /> {t("export.checking")}
               </p>
             )}
 
             {mcqPreview.isError && (
               <p className="text-danger">
-                Could not check this deck. Try again, or download and see what you get.
+                {t("exportModal.checkFailedHere")}
               </p>
             )}
 
@@ -168,15 +168,15 @@ export function ExportDeckModal({
               <>
                 {mcqPreview.data.exportedCards > 0 ? (
                   <p className="font-medium">
-                    {mcqPreview.data.exportedCards} of {mcqPreview.data.totalCards} cards become
-                    multiple-choice questions.
+                    {t("export.becomeQuestions", {
+                      exported: mcqPreview.data.exportedCards,
+                      total: mcqPreview.data.totalCards,
+                    })}
                   </p>
                 ) : (
                   /* Being explicit beats handing over an empty package and letting them find out
                      in Anki. */
-                  <p className="font-medium text-danger">
-                    None of this deck&apos;s cards can become questions.
-                  </p>
+                  <p className="font-medium text-danger">{t("export.noneQuizzable")}</p>
                 )}
 
                 {/* Naming WHY, not just how many — "2 skipped" with no reason reads like a bug. */}
@@ -184,16 +184,15 @@ export function ExportDeckModal({
                   <ul className="space-y-0.5 text-xs text-muted">
                     {Object.entries(mcqPreview.data.skippedReasons).map(([reason, count]) => (
                       <li key={reason}>
-                        {count} skipped — {reason.toLowerCase()}
+                        {/* ⚠ `reason` is the BACKEND's wording and stays English until the API
+                            takes a locale. Better English than absent: the reason is the point. */}
+                        {t("export.skippedReason", { count, reason: reason.toLowerCase() })}
                       </li>
                     ))}
                   </ul>
                 )}
 
-                <p className="text-xs text-muted">
-                  The wrong answers come from this deck&apos;s own other cards, and Anki shuffles
-                  them on every review. Pictures and audio travel with it.
-                </p>
+                <p className="text-xs text-muted">{t("exportModal.mcqNote")}</p>
               </>
             )}
           </div>
@@ -202,10 +201,10 @@ export function ExportDeckModal({
         {format === "delimited" && (
           <div className="space-y-3 rounded-card border border-line bg-surface p-3">
             <RadioRow
-              label="Separator"
+              label={t("exportModal.separator")}
               options={[
-                { value: ",", label: "Comma (.csv)" },
-                { value: "\t", label: "Tab (.tsv)" },
+                { value: ",", label: t("exportModal.comma") },
+                { value: "\t", label: t("exportModal.tab") },
               ]}
               value={delimiter}
               onChange={(v) => setDelimiter(v as CsvDelimiter)}
@@ -216,12 +215,11 @@ export function ExportDeckModal({
                 checked={includeTags}
                 onChange={(e) => setIncludeTags(e.target.checked)}
               />
-              Include a Tags column
+              {t("exportModal.includeTags")}
             </label>
             {contents.noteTypes.length > 1 && (
               <p className="text-xs text-muted">
-                This deck has multiple note types — each is exported as its own
-                block, prefixed with a <code># name</code> line.
+                {t("exportModal.multipleNoteTypes")}
               </p>
             )}
           </div>
@@ -230,11 +228,11 @@ export function ExportDeckModal({
         {format === "text" && (
           <div className="space-y-3 rounded-card border border-line bg-surface p-3">
             <RadioRow
-              label="Between term and definition"
+              label={t("exportModal.betweenTermDef")}
               options={[
-                { value: "tab", label: "Tab" },
-                { value: "comma", label: "Comma" },
-                { value: "custom", label: "Custom" },
+                { value: "tab", label: t("import.delimTab") },
+                { value: "comma", label: t("import.delimComma") },
+                { value: "custom", label: t("exportModal.custom") },
               ]}
               value={termPreset}
               onChange={(v) => setTermPreset(v as TermPreset)}
@@ -244,16 +242,16 @@ export function ExportDeckModal({
                 type="text"
                 value={termCustom}
                 onChange={(e) => setTermCustom(e.target.value)}
-                placeholder="e.g. -"
+                placeholder={t("exportModal.customExample")}
                 className="focus-ring w-full rounded-input border border-line-strong bg-surface-2 px-2 py-1 text-sm text-ink outline-none"
               />
             )}
             <RadioRow
-              label="Between rows"
+              label={t("exportModal.betweenRows")}
               options={[
-                { value: "newline", label: "New line" },
-                { value: "semicolon", label: "Semicolon" },
-                { value: "custom", label: "Custom" },
+                { value: "newline", label: t("import.delimNewline") },
+                { value: "semicolon", label: t("import.delimSemicolon") },
+                { value: "custom", label: t("exportModal.custom") },
               ]}
               value={rowPreset}
               onChange={(v) => setRowPreset(v as RowPreset)}
@@ -272,14 +270,13 @@ export function ExportDeckModal({
 
         {format === "apkg" && (
           <p className="rounded-input bg-surface-2 px-3 py-2 text-xs text-muted">
-            Builds an Anki package on the server and downloads it. Card progress
-            isn&apos;t included — just the notes and their fields.
+            {t("exportModal.apkgNote")}
           </p>
         )}
 
         {preview && (
           <div className="space-y-1">
-            <span className="font-mono text-xs font-medium text-faint">Preview</span>
+            <span className="font-mono text-xs font-medium text-faint">{t("exportModal.preview")}</span>
             <pre className="nice-scroll max-h-32 overflow-auto rounded-input bg-surface-2 p-2 text-xs text-ink">
               {preview}
             </pre>
@@ -288,7 +285,7 @@ export function ExportDeckModal({
 
         {exportApkg.isError && (
           <p className="text-sm text-danger">
-            Couldn&apos;t build the .apkg. Please try again.
+            {t("exportModal.apkgFailed")}
           </p>
         )}
 
@@ -298,7 +295,7 @@ export function ExportDeckModal({
             onClick={onClose}
             className="rounded-input border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent"
           >
-            Close
+            {t("common.close")}
           </button>
           {format !== "apkg" && (
             <button
@@ -306,7 +303,7 @@ export function ExportDeckModal({
               onClick={handleCopy}
               className="rounded-input border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent"
             >
-              {copied ? "Copied ✓" : "Copy to clipboard"}
+              {copied ? t("exportModal.copied") : t("exportModal.copy")}
             </button>
           )}
           <button
@@ -322,13 +319,13 @@ export function ExportDeckModal({
           >
             {format === "apkg"
               ? exportApkg.isPending
-                ? "Building…"
-                : "Download .apkg"
+                ? t("export.building")
+                : t("exportModal.downloadApkg")
               : format === "mcq"
                 ? exportMcq.isPending
-                  ? "Building…"
-                  : "Download quiz deck"
-                : "Download"}
+                  ? t("export.building")
+                  : t("export.download")
+                : t("exportModal.downloadPlain")}
           </button>
         </div>
       </div>

@@ -3,6 +3,7 @@
 import { useEffect, useId, type ReactNode } from "react";
 import { Icon } from "@/components/ui/icons";
 import { IconButton, iconButtonIconSize } from "@/components/ui/IconButton";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // A simple centered modal: closes on backdrop click or Escape. The overlay
 // scrolls so a tall panel (e.g. the quiz settings form) stays reachable.
@@ -15,6 +16,7 @@ export function Modal({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const t = useT();
   const titleId = useId();
 
   useEffect(() => {
@@ -37,7 +39,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
-        aria-label={title ? undefined : "Dialog"}
+        aria-label={title ? undefined : t("common.dialog")}
         className="my-4 w-full max-w-2xl rounded-card border border-line bg-surface p-6 shadow-card"
         onClick={(e) => e.stopPropagation()}
       >
@@ -50,7 +52,7 @@ export function Modal({
           {/* A lone control, so no border — but the same circle and size as every
               other icon button, per DESIGN_SYSTEM → Alignment. */}
           <IconButton
-            label="Close"
+            label={t("common.close")}
             onClick={onClose}
             bordered={false}
             className="ml-auto text-muted hover:bg-surface-2 hover:text-ink"

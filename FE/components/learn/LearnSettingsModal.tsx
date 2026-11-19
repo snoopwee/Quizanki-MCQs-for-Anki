@@ -13,6 +13,7 @@ import {
   type AnswerWith,
   type LearnPreferences,
 } from "@/lib/learnPreferences";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // Learn's settings (Knowt-style): how many cards, which question types, which side to
 // answer with, and the study options. Edits a draft; nothing changes until Start / Restart.
@@ -37,6 +38,7 @@ export function LearnSettingsModal({
 }) {
   const [draft, setDraft] = useState<LearnPreferences>(initial);
   // The raw count entry — NaN while the field is blank.
+  const t = useT();
   const [countInput, setCountInput] = useState<number>(initial.count);
   const patch = (next: Partial<LearnPreferences>) => setDraft((d) => ({ ...d, ...next }));
 
@@ -45,13 +47,12 @@ export function LearnSettingsModal({
   const belowMinimum = !Number.isFinite(countInput) || countInput < LEARN_MIN_CARDS;
 
   let countNote: string;
-  if (pool === 0) countNote = "No cards match these settings.";
-  else if (pool < LEARN_MIN_CARDS)
-    countNote = `Only ${pool} card${pool === 1 ? "" : "s"} match, so you'll learn all of them.`;
+  if (pool === 0) countNote = t("learn.noCardsMatch");
+  else if (pool < LEARN_MIN_CARDS) countNote = t("learn.onlyNMatch", { count: pool });
   else if (belowMinimum)
-    countNote = `A session learns at least ${LEARN_MIN_CARDS} cards, so this one starts with ${effective}.`;
-  else if (countInput > pool) countNote = `Only ${pool} cards match, so this one learns all ${pool}.`;
-  else countNote = `${pool} cards available.`;
+    countNote = t("learn.belowMinimum", { min: LEARN_MIN_CARDS, effective });
+  else if (countInput > pool) countNote = t("learn.cappedToPool", { count: pool });
+  else countNote = t("learn.poolAvailable", { count: pool });
   const countWarns = pool === 0 || (belowMinimum && pool >= LEARN_MIN_CARDS);
 
   function apply() {
@@ -63,14 +64,12 @@ export function LearnSettingsModal({
   }
 
   return (
-    <Modal title="Learn settings" onClose={onClose}>
+    <Modal title={t("learn.settingsTitle")} onClose={onClose}>
       <div className="space-y-5">
         <Setting
-          title="Cards per session"
+          title={t("learn.perSession")}
           desc={
-            draft.retryMissed
-              ? "Missed cards come back until you get them right, so a session ends once every card is learned."
-              : "Each card is asked once, so a session ends after this many questions."
+            draft.retryMissed ? t("learn.perSessionRetry") : t("learn.perSessionOnce")
           }
         >
           <input
@@ -81,13 +80,13 @@ export function LearnSettingsModal({
             onChange={(e) =>
               setCountInput(e.target.value === "" ? NaN : Math.floor(Number(e.target.value)))
             }
-            aria-label="Cards per session"
+            aria-label={t("learn.perSession")}
             className="focus-ring w-28 rounded-input border border-line-strong bg-surface px-3 py-2 text-sm font-semibold text-ink"
           />
           <p className={`mt-2 text-xs ${countWarns ? "text-warning" : "text-muted"}`}>{countNote}</p>
         </Setting>
 
-        <Setting title="Question types" desc="Each time a card comes up, it's asked in one of these.">
+        <Setting title={t("learn.questionTypes")} desc={t("learn.questionTypesDesc")}>
           <QuestionTypeChips
             enabled={draft.kinds}
             onToggle={(kind) => patch({ kinds: toggleQuestionKind(draft.kinds, kind) })}
@@ -95,64 +94,70 @@ export function LearnSettingsModal({
         </Setting>
 
         <Setting
-          title="Answer with"
+          title={t("learn.answerWith")}
           desc={
             draft.answerWith === "definition"
-              ? "See the term, answer with its definition."
-              : "See the definition, answer with the term. Cloze cards are always asked as written."
+              ? t("learn.answerWithDefinitionDesc")
+              : t("learn.answerWithTermDesc")
           }
         >
           <Segmented<AnswerWith>
             value={draft.answerWith}
             onChange={(answerWith) => patch({ answerWith })}
             options={[
-              { value: "definition", label: "Definition" },
-              { value: "term", label: "Term" },
+              { value: "definition", label: t("card.definition") },
+              { value: "term", label: t("card.term") },
             ]}
           />
         </Setting>
 
         <div className="divide-y divide-line rounded-card border border-line">
           <ToggleRow
-            label="Starred cards only"
-            desc={starredCount > 0 ? `${starredCount} starred card${starredCount === 1 ? "" : "s"}.` : "Star some cards to use this."}
+            label={t("learn.starredOnly")}
+            desc={
+              starredCount > 0
+                ? t("learn.starredCount", { count: starredCount })
+                : t("learn.starSomeFirst")
+            }
             on={draft.starredOnly}
             disabled={starredCount === 0 && !draft.starredOnly}
             onChange={(starredOnly) => patch({ starredOnly })}
           />
           <ToggleRow
-            label="Include mastered cards"
-            desc="Turn off to skip cards you've already mastered."
+            label={t("learn.includeMastered")}
+            desc={t("learn.includeMasteredDesc")}
             on={draft.includeMastered}
             onChange={(includeMastered) => patch({ includeMastered })}
           />
           <ToggleRow
-            label="Shuffle"
-            desc="Turn off to go through cards in deck order."
+            label={t("learn.shuffle")}
+            desc={t("learn.shuffleDesc")}
             on={draft.shuffle}
             onChange={(shuffle) => patch({ shuffle })}
           />
           <ToggleRow
-            label="Bring back missed cards"
-            desc="Ask a missed card again later in the session until you get it right."
+            label={t("learn.retryMissed")}
+            desc={t("learn.retryMissedDesc")}
             on={draft.retryMissed}
             onChange={(retryMissed) => patch({ retryMissed })}
           />
           <ToggleRow
-            label="Re-type wrong written answers"
-            desc="Type the correct answer before moving on."
+            label={t("learn.retypeWrong")}
+            desc={t("learn.retypeWrongDesc")}
             on={draft.retypeWrong}
             onChange={(retypeWrong) => patch({ retypeWrong })}
           />
           <ToggleRow
-            label="Smart grading"
-            desc="Forgive small typos in longer written answers."
+            label={t("learn.smartGrading")}
+            desc={t("learn.smartGradingDesc")}
             on={draft.smartGrading}
             onChange={(smartGrading) => patch({ smartGrading })}
           />
           <ToggleRow
-            label="Read questions aloud"
-            desc={speechSupported ? "Speak each question when it appears." : "This browser can't read text aloud."}
+            label={t("learn.readAloud")}
+            desc={
+              speechSupported ? t("learn.readAloudDesc") : t("learn.readAloudUnsupported")
+            }
             on={draft.readAloud && speechSupported}
             disabled={!speechSupported}
             onChange={(readAloud) => patch({ readAloud })}
@@ -161,7 +166,7 @@ export function LearnSettingsModal({
 
         <div className="flex items-center justify-end gap-2">
           <button type="button" onClick={onClose} className={buttonClasses({ variant: "ghost" })}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -170,7 +175,7 @@ export function LearnSettingsModal({
             className={buttonClasses({ variant: "primary" })}
           >
             <Icon name="play" size={16} />
-            {mode === "start" ? "Start learning" : "Restart session"}
+            {mode === "start" ? t("learn.startLearning") : t("learn.restartSession")}
           </button>
         </div>
       </div>

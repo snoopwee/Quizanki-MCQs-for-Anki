@@ -36,6 +36,15 @@ export const NOTE_REPORT_REASONS = [
   "Other",
 ] as const;
 
+/** The note vocabulary's labels. Same split as the deck one: the value is stored, the label is read. */
+export const NOTE_REPORT_REASON_KEYS: Record<(typeof NOTE_REPORT_REASONS)[number], MessageKey> = {
+  Abusive: "reportReason.abusive",
+  Harassment: "reportReason.harassment",
+  Spam: "reportReason.spam",
+  "Off-topic": "reportReason.offTopic",
+  Other: "reportReason.other",
+};
+
 export function reasonsFor(queue: "decks" | "notes"): readonly string[] {
   return queue === "decks" ? DECK_REPORT_REASONS : NOTE_REPORT_REASONS;
 }

@@ -7,6 +7,8 @@ import { buildFlashcards } from "@/lib/flashcards";
 import { parsePlainText } from "@/lib/parsePlainText";
 import { basicRow, type EditorRow } from "@/lib/deckEditor";
 import type { ApkgParseResponse } from "@/types/api";
+import { useT } from "@/components/i18n/LocaleProvider";
+import { Select } from "@/components/ui/Select";
 
 export type ImportMode = "append" | "replace";
 
@@ -21,6 +23,7 @@ export function ImportCardsModal({
   onClose: () => void;
   onImport: (rows: EditorRow[], mode: ImportMode) => void;
 }) {
+  const t = useT();
   const [source, setSource] = useState<"file" | "text">("text");
   const [mode, setMode] = useState<ImportMode>("append");
   const [text, setText] = useState("");
@@ -44,66 +47,89 @@ export function ImportCardsModal({
   const textRows = parsePlainText(text, { termDelimiter, rowDelimiter });
 
   return (
-    <Modal title="Import cards" onClose={onClose}>
+    <Modal title={t("editor.importCards")} onClose={onClose}>
       <div className="space-y-5">
         <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">How to add them</legend>
+          <legend className="text-sm font-medium">{t("importModal.howToAdd")}</legend>
           <div className="flex flex-wrap gap-4">
-            <Radio name="mode" label="Append to the end" checked={mode === "append"} onChange={() => setMode("append")} />
-            <Radio name="mode" label="Replace the entire set" checked={mode === "replace"} onChange={() => setMode("replace")} />
+            <Radio
+              name="mode"
+              label={t("importModal.append")}
+              checked={mode === "append"}
+              onChange={() => setMode("append")}
+            />
+            <Radio
+              name="mode"
+              label={t("importModal.replace")}
+              checked={mode === "replace"}
+              onChange={() => setMode("replace")}
+            />
           </div>
           {mode === "replace" && (
             <p className="rounded-input border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
-              Replacing removes every current card (and its study progress) when you
-              Save.
+              {t("importModal.replaceWarning")}
             </p>
           )}
         </fieldset>
 
         <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">Source</legend>
+          <legend className="text-sm font-medium">{t("importModal.source")}</legend>
           <div className="flex flex-wrap gap-4">
-            <Radio name="source" label="Paste text" checked={source === "text"} onChange={() => setSource("text")} />
-            <Radio name="source" label="Upload .apkg" checked={source === "file"} onChange={() => setSource("file")} />
+            <Radio
+              name="source"
+              label={t("importModal.pasteText")}
+              checked={source === "text"}
+              onChange={() => setSource("text")}
+            />
+            <Radio
+              name="source"
+              label={t("importModal.uploadApkg")}
+              checked={source === "file"}
+              onChange={() => setSource("file")}
+            />
           </div>
         </fieldset>
 
         {source === "text" && (
           <div className="space-y-3">
             <div className="flex flex-wrap gap-4 text-sm">
-              <label className="flex items-center gap-1.5">
-                Between term & definition:
-                <select
+              <span className="flex items-center gap-1.5">
+                {t("import.betweenTermDef")}
+                <Select
                   value={termDelimiter}
-                  onChange={(e) => setTermDelimiter(e.target.value)}
-                  className="rounded-input border border-line-strong bg-surface-2 px-1 py-0.5 text-ink"
-                >
-                  <option value="\t">Tab</option>
-                  <option value=",">Comma</option>
-                </select>
-              </label>
-              <label className="flex items-center gap-1.5">
-                Between rows:
-                <select
+                  options={[
+                    { value: "\\t", label: t("import.delimTab") },
+                    { value: ",", label: t("import.delimComma") },
+                  ]}
+                  onChange={setTermDelimiter}
+                  ariaLabel={t("import.betweenTermDef")}
+                  size="sm"
+                />
+              </span>
+              <span className="flex items-center gap-1.5">
+                {t("import.betweenRows")}
+                <Select
                   value={rowDelimiter}
-                  onChange={(e) => setRowDelimiter(e.target.value)}
-                  className="rounded-input border border-line-strong bg-surface-2 px-1 py-0.5 text-ink"
-                >
-                  <option value="\n">New line</option>
-                  <option value=";">Semicolon</option>
-                </select>
-              </label>
+                  options={[
+                    { value: "\\n", label: t("import.delimNewline") },
+                    { value: ";", label: t("import.delimSemicolon") },
+                  ]}
+                  onChange={setRowDelimiter}
+                  ariaLabel={t("import.betweenRows")}
+                  size="sm"
+                />
+              </span>
             </div>
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
               rows={8}
-              placeholder={"term\tdefinition\nterm\tdefinition"}
+              placeholder={t("import.pastePlaceholder")}
               className="nice-scroll focus-ring w-full resize-y rounded-input border border-line-strong bg-surface-2 px-3 py-2 font-mono text-sm text-ink outline-none placeholder:text-faint"
             />
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted">
-                {textRows.length} card{textRows.length === 1 ? "" : "s"} detected
+                {t("import.cardsDetected", { count: textRows.length })}
               </span>
               <button
                 type="button"
@@ -111,7 +137,7 @@ export function ImportCardsModal({
                 onClick={() => commit(textRows.map((p) => basicRow(p.front, p.back)))}
                 className="focus-ring rounded-input bg-accent px-3 py-1.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-50"
               >
-                {mode === "append" ? "Add cards" : "Replace cards"}
+                {mode === "append" ? t("importModal.addCards") : t("importModal.replaceCards")}
               </button>
             </div>
           </div>
@@ -120,7 +146,7 @@ export function ImportCardsModal({
         {source === "file" && (
           <div className="space-y-2">
             <p className="text-xs text-muted">
-              Cards from the file are added as Basic (front/back) cards.
+              {t("importModal.apkgNote")}
             </p>
             <ApkgUploader onContinue={(parsed) => commit(rowsFromParsed(parsed))} />
           </div>

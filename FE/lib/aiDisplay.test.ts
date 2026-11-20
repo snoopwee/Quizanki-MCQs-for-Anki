@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { AxiosError, AxiosHeaders } from "axios";
 import {
   aiErrorKey,
-  aiErrorMessage,
   draftNotes,
   pdfFileError,
   remainingCaption,
@@ -33,28 +32,6 @@ const meta = (overrides: Partial<AiDeckDraftMeta> = {}): AiDeckDraftMeta => ({
   inputTruncated: false,
   partial: false,
   ...overrides,
-});
-
-describe("aiErrorMessage", () => {
-  it("prefers the backend's own message — it already says the useful thing", () => {
-    const err = axiosError(429, { message: "You've used today's 5 free generations." });
-
-    expect(aiErrorMessage(err)).toBe("You've used today's 5 free generations.");
-  });
-
-  it("falls back per status when the body carries no message", () => {
-    expect(aiErrorMessage(axiosError(429, {}))).toContain("today's AI generations");
-    expect(aiErrorMessage(axiosError(503, {}))).toContain("isn't available");
-    expect(aiErrorMessage(axiosError(413, {}))).toContain("too large");
-  });
-
-  it("says so when the request never reached the server", () => {
-    expect(aiErrorMessage(new AxiosError("Network Error"))).toContain("Couldn't reach the server");
-  });
-
-  it("has a plain fallback for anything else", () => {
-    expect(aiErrorMessage(new Error("boom"))).toContain("Couldn't generate cards");
-  });
 });
 
 describe("remainingCaption", () => {

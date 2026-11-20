@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useExplainCard } from "@/hooks/useAi";
-import { aiErrorMessage } from "@/lib/aiDisplay";
+import { aiErrorKey, type AiErrorText } from "@/lib/aiDisplay";
 import { Icon } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/Spinner";
 import { useT } from "@/components/i18n/LocaleProvider";
@@ -27,6 +27,11 @@ export function ExplainCard({ question, answer }: { question: string; answer: st
   const t = useT();
   const explain = useExplainCard();
   const [open, setOpen] = useState(false);
+
+  // The API's own sentence when it sent one, our catalogue otherwise -- see `aiErrorKey`.
+  function errorText(e: AiErrorText): string {
+    return "key" in e ? t(e.key) : e.text;
+  }
 
   function ask() {
     setOpen(true);
@@ -59,7 +64,7 @@ export function ExplainCard({ question, answer }: { question: string; answer: st
       {explain.isError && (
         <p className="flex items-start gap-1.5 text-muted">
           <Icon name="alertTriangle" size={13} className="mt-0.5 shrink-0" />
-          {aiErrorMessage(explain.error)}
+          {errorText(aiErrorKey(explain.error))}
         </p>
       )}
 

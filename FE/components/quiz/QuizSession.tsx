@@ -10,7 +10,7 @@ import { cancelSpeech } from "@/lib/tts";
 import { useT } from "@/components/i18n/LocaleProvider";
 import { reshuffleQuestions } from "@/lib/buildQuestions";
 import { isAnswerCorrect, trueFalseLabel, writtenIsCorrect } from "@/lib/questionAnswer";
-import { quizKeyAction, quizKeyHint } from "@/lib/quizKeys";
+import { quizKeyAction, quizKeyHintKey } from "@/lib/quizKeys";
 import { applyAnswer } from "@/lib/mastery";
 import { QuestionCard } from "./QuestionCard";
 import { QuestionBody } from "./questions/QuestionBody";
@@ -211,7 +211,7 @@ export function QuizSession({
   // finally recorded — MCQ / True-False already recorded on selection.
   function handleNext() {
     if (isWritten && written.result && selectedAnswer === null) {
-      commit(writtenIsCorrect(written.result), written.input || "(blank)");
+      commit(writtenIsCorrect(written.result), written.input || t("quiz.blank"));
     }
     nextQuestion();
   }
@@ -240,7 +240,7 @@ export function QuizSession({
     else if (question.kind === "mcq") handleOption(question.options[action.index]!);
   };
 
-  const keyHint = quizKeyHint({ kind: question.kind, answered });
+  const keyHintKey = quizKeyHintKey({ kind: question.kind, answered });
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-10rem)] w-full max-w-3xl flex-col">
@@ -257,7 +257,7 @@ export function QuizSession({
         </button>
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex items-center justify-between font-mono text-xs text-muted">
-            <span>Quiz</span>
+            <span>{t("quiz.quiz")}</span>
             <span className="font-bold text-ink">
               {currentIndex + 1} / {questions.length}
             </span>
@@ -317,8 +317,10 @@ export function QuizSession({
         {/* A shortcut nobody is told about may as well not exist — the deck page's player lists
             its keys for the same reason. Hidden on narrow screens, where there is no keyboard
             and the row has no room. */}
-        {keyHint && (
-          <span className="hidden shrink-0 font-mono text-xs text-faint sm:inline">{keyHint}</span>
+        {keyHintKey && (
+          <span className="hidden shrink-0 font-mono text-xs text-faint sm:inline">
+            {t(keyHintKey)}
+          </span>
         )}
         <button
           type="button"
@@ -326,7 +328,7 @@ export function QuizSession({
           disabled={!answered}
           className="focus-ring shrink-0 rounded-input bg-accent px-6 py-2.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-40"
         >
-          {isLast ? "Finish" : "Next"}
+          {isLast ? t("quiz.finish") : t("quiz.next")}
         </button>
       </div>
     </div>

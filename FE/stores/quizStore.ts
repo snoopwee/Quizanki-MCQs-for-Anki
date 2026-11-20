@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Question, PromptSegment } from "@/lib/buildQuestions";
+import type { QuestionKind } from "@/lib/questionTypes";
 
 export interface AnswerRecord {
   noteId: string;
@@ -9,6 +10,10 @@ export interface AnswerRecord {
   prompt: PromptSegment[];
   correct: string;
   selected: string;
+  // The question's FORMAT, so the results row knows what `selected` is: the card's own text for
+  // multiple choice and written (data -- never translated), or a "True"/"False" verdict we
+  // synthesised, which is ours to translate.
+  kind: QuestionKind;
   wasCorrect: boolean;
   // Post-answer mastery (0-100). Computed optimistically on the client using
   // the same +15/-20 curve the BE runs, so the results screen has a value to
@@ -67,6 +72,7 @@ export const useQuizStore = create<QuizState>((set, get) => ({
           prompt: question.prompt,
           correct: question.correct,
           selected,
+          kind: question.kind,
           wasCorrect,
           newMastery,
         },

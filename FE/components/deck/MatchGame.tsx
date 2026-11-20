@@ -16,6 +16,7 @@ import {
   matchableCards,
   type MatchTile,
 } from "@/lib/matchGame";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // The timed pairing game. Tap two tiles: opposite faces of the same card lock in
 // (fade out); a mismatch flashes red and resets. The timer starts on the first
@@ -31,6 +32,7 @@ export function MatchGame({
   deckName: string;
   onExit: () => void;
 }) {
+  const t = useT();
   const playable = useMemo(() => matchableCards(cards), [cards]);
   const pairCount = Math.min(MATCH_PAIRS_PER_ROUND, playable.length);
   // Only full rounds count toward the personal best, so different-sized boards
@@ -126,17 +128,17 @@ export function MatchGame({
         <button
           type="button"
           onClick={onExit}
-          title="Exit match"
-          aria-label="Exit match"
+          title={t("match.exit")}
+          aria-label={t("match.exit")}
           className="grid h-9 w-9 shrink-0 place-items-center rounded-input border border-line bg-surface text-muted transition hover:text-ink"
         >
           <Icon name="x" size={17} />
         </button>
         <div className="min-w-0 flex-1">
           <p className="truncate font-mono text-xs uppercase tracking-[0.08em] text-faint">
-            Match · {deckName}
+            {t("match.header", { deck: deckName })}
           </p>
-          <p className="text-sm font-medium text-muted">Pair every term with its meaning</p>
+          <p className="text-sm font-medium text-muted">{t("match.tagline")}</p>
         </div>
         <div className="flex items-center gap-1.5 rounded-input border border-line bg-surface px-3 py-1.5 font-mono text-lg font-bold tabular-nums text-ink">
           <Icon name="clock" size={16} />
@@ -147,11 +149,10 @@ export function MatchGame({
       {tiles.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
           <p className="max-w-sm text-sm text-muted">
-            Match needs at least two cards that have both a term and a definition. This deck
-            doesn&apos;t have enough yet.
+            {t("match.notEnough")}
           </p>
           <button type="button" onClick={onExit} className={buttonClasses({ variant: "soft" })}>
-            Back to deck
+            {t("shared.backToDeck")}
           </button>
         </div>
       ) : done ? (
@@ -195,7 +196,7 @@ export function MatchGame({
               })}
             </div>
             <p className="mt-5 text-center font-mono text-xs text-muted">
-              {matched.size / 2} of {totalPairs} pairs matched
+              {t("match.pairsMatched", { done: matched.size / 2, total: totalPairs })}
             </p>
           </div>
         </div>
@@ -222,28 +223,32 @@ function CompletionPanel({
   // We saved `best` to `elapsed` only when this round beat it, so equal rounded
   // values mean this run set the record.
   const isNewBest = fullRound && best !== null && Math.round(best) === Math.round(elapsed);
+  const t = useT();
+
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 py-10 text-center">
       <div className="grid h-16 w-16 place-items-center rounded-full bg-success/15 text-success">
         <Icon name="check" size={30} />
       </div>
       <div>
-        <p className="font-mono text-xs uppercase tracking-[0.08em] text-faint">All matched</p>
+        <p className="font-mono text-xs uppercase tracking-[0.08em] text-faint">{t("match.allMatched")}</p>
         <p className="mt-1 font-display text-5xl font-bold tabular-nums text-ink">
           {formatMatchTime(elapsed)}
         </p>
         {fullRound && (best !== null) && (
           <p className="mt-2 text-sm font-medium text-muted">
-            {isNewBest ? "🎉 New best time!" : `Best: ${formatMatchTime(best)}`}
+            {isNewBest
+              ? t("match.newBest")
+              : t("match.best", { time: formatMatchTime(best) })}
           </p>
         )}
       </div>
       <div className="flex flex-wrap justify-center gap-3">
         <button type="button" onClick={onExit} className={buttonClasses({ variant: "ghost" })}>
-          Back to deck
+          {t("shared.backToDeck")}
         </button>
         <button type="button" onClick={onPlayAgain} className={buttonClasses({ variant: "primary" })}>
-          <Icon name="shuffle" size={16} /> Play again
+          <Icon name="shuffle" size={16} /> {t("match.playAgain")}
         </button>
       </div>
     </div>

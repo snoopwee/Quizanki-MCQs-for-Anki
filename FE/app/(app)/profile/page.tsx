@@ -13,6 +13,7 @@ import { AvatarUploadModal } from "@/components/account/AvatarUploadModal";
 import { Avatar } from "@/components/ui/Avatar";
 import { Toast } from "@/components/shared/Toast";
 import { Icon } from "@/components/ui/icons";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 function formatJoined(iso?: string): string | null {
   if (!iso) return null;
@@ -22,6 +23,7 @@ function formatJoined(iso?: string): string | null {
 }
 
 export default function ProfilePage() {
+  const t = useT();
   const { user, loading } = useSession();
   const decksQuery = useDecks();
   const me = useMe();
@@ -94,8 +96,8 @@ export default function ProfilePage() {
             )}
             {!decksQuery.isLoading && (
               <span className="inline-flex items-center gap-1.5">
-                <Icon name="layers" size={13} /> {decksQuery.data?.length ?? 0} deck
-                {(decksQuery.data?.length ?? 0) === 1 ? "" : "s"}
+                <Icon name="layers" size={13} />{" "}
+                {t("deck.count", { count: decksQuery.data?.length ?? 0 })}
               </span>
             )}
           </div>

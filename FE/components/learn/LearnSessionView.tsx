@@ -20,6 +20,7 @@ import { AnswerFeedback } from "@/components/quiz/questions/AnswerFeedback";
 import { StarButton } from "@/components/shared/StarButton";
 import { IconButton, iconButtonIconSize } from "@/components/ui/IconButton";
 import { Icon } from "@/components/ui/icons";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // One Learn session on screen: the question, instant feedback, and Next. Uses the quiz's
 // question renderers; the session engine (lib/learnSession) decides what comes up next.
@@ -54,6 +55,7 @@ export function LearnSessionView({
   getStarred?: (noteId: string) => boolean;
   onToggleStar?: (noteId: string, next: boolean) => void;
 }) {
+  const t = useT();
   const [session, setSession] = useState<LearnSession>(
     () =>
       resumeFrom ??
@@ -163,17 +165,17 @@ export function LearnSessionView({
     <div className="mx-auto flex h-[calc(100dvh-10rem)] w-full max-w-3xl flex-col">
       {/* top bar: exit · progress · star / settings */}
       <div className="flex shrink-0 items-center gap-3 border-b border-line pb-4">
-        <IconButton label="End session" size="sm" onClick={onExit} className="text-muted hover:text-ink">
+        <IconButton label={t("learn.endSession")} size="sm" onClick={onExit} className="text-muted hover:text-ink">
           <Icon name="x" size={iconButtonIconSize("sm")} />
         </IconButton>
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex items-center justify-between font-mono text-xs text-muted">
-            <span>{resumeFrom ? "Learn · resumed" : "Learn"}</span>
+            <span>{resumeFrom ? t("learn.resumed") : t("learn.label")}</span>
             <span>
               <span className="font-bold text-ink">
                 {done} / {total}
               </span>{" "}
-              {prefs.retryMissed ? "learned" : "done"}
+              {prefs.retryMissed ? t("learn.learnedWord") : t("learn.doneWord")}
             </span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
@@ -190,7 +192,7 @@ export function LearnSessionView({
             onToggle={(next) => onToggleStar(question.noteId, next)}
           />
         )}
-        <IconButton label="Learn settings" size="sm" onClick={onOpenSettings} className="text-muted hover:text-ink">
+        <IconButton label={t("learn.settingsTitle")} size="sm" onClick={onOpenSettings} className="text-muted hover:text-ink">
           <Icon name="settings" size={iconButtonIconSize("sm")} />
         </IconButton>
       </div>
@@ -230,7 +232,7 @@ export function LearnSessionView({
           disabled={!canAdvance}
           className="focus-ring shrink-0 rounded-input bg-accent px-6 py-2.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-40"
         >
-          {finishing ? "Finish" : "Next"}
+          {finishing ? t("quiz.finish") : t("quiz.next")}
         </button>
       </div>
     </div>
@@ -250,10 +252,12 @@ function RetypeAnswer({
   matched: boolean;
   onSubmit: () => void;
 }) {
+  const t = useT();
+
   return (
     <div className="space-y-2">
       <label htmlFor="learn-retype" className="block text-sm font-semibold text-ink">
-        Type the correct answer to continue
+        {t("learn.retypePrompt")}
       </label>
       <input
         id="learn-retype"
@@ -267,7 +271,7 @@ function RetypeAnswer({
           }
         }}
         dir={textDirection(value)}
-        placeholder="Type the answer shown above…"
+        placeholder={t("learn.retypePlaceholder")}
         className={`focus-ring w-full rounded-card border bg-surface px-4 py-3.5 text-lg text-ink ${
           matched ? "border-success" : "border-line-strong"
         }`}

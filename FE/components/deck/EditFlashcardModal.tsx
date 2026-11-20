@@ -4,11 +4,13 @@ import { useState, type ReactNode } from "react";
 import { Modal } from "@/components/shared/Modal";
 import { fieldLabel } from "@/lib/deckEditor";
 import { useUpdateNote } from "@/hooks/useNotes";
-import { TTS_LANGUAGE_OPTIONS } from "@/lib/ttsLanguages";
+import { languageOptions } from "@/lib/ttsLanguages";
 import { CardImageSlot } from "@/components/deck/CardImageSlot";
 import { CardAudioSlot } from "@/components/deck/CardAudioSlot";
 import { Select } from "@/components/ui/Select";
 import { Icon } from "@/components/ui/icons";
+import { useT } from "@/components/i18n/LocaleProvider";
+import { useLocale } from "@/components/i18n/LocaleProvider";
 
 export interface EditableNote {
   noteId: string;
@@ -46,6 +48,7 @@ export function EditFlashcardModal({
   note: EditableNote;
   onClose: () => void;
 }) {
+  const t = useT();
   const updateNote = useUpdateNote(deckId);
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(note.fieldNames.map((f) => [f, note.fields[f] ?? ""])),
@@ -123,14 +126,14 @@ export function EditFlashcardModal({
   }
 
   return (
-    <Modal title="Edit flashcard" onClose={onClose}>
+    <Modal title={t("editCard.title")} onClose={onClose}>
       <div className="space-y-4">
         <p className="font-mono text-xs text-muted">{note.noteType}</p>
 
         {note.cloze && (
           <p className="rounded-input border border-info/30 bg-info/10 px-3 py-2 text-xs text-info">
-            This is a cloze card. Keep the <code>{"{{c1::answer}}"}</code> markers
-            intact — each one becomes a separate question.
+            {t("editCard.clozePrefix")} <code>{"{{c1::answer}}"}</code>{" "}
+            {t("editCard.clozeSuffix")}
           </p>
         )}
 
@@ -141,15 +144,21 @@ export function EditFlashcardModal({
             className="inline-flex items-center gap-1.5 rounded-input border border-line-strong bg-surface px-3 py-1.5 text-xs font-medium transition hover:border-accent hover:text-accent"
           >
             <Icon name="swap" size={14} />
-            Swap front and back
+            {t("editCard.swap")}
           </button>
         )}
 
         {hasSides ? (
           <>
             <FieldSide
-              label="Term"
-              voice={<LangSelect label="Term voice" value={langFront} onChange={setLangFront} />}
+              label={t("fields.term")}
+              voice={
+                <LangSelect
+                  label={t("editCard.termVoice")}
+                  value={langFront}
+                  onChange={setLangFront}
+                />
+              }
               fields={visibleFront}
               values={values}
               onField={setField}
@@ -159,8 +168,14 @@ export function EditFlashcardModal({
               onAudio={setAudFront}
             />
             <FieldSide
-              label="Definition"
-              voice={<LangSelect label="Definition voice" value={langBack} onChange={setLangBack} />}
+              label={t("fields.definition")}
+              voice={
+                <LangSelect
+                  label={t("editCard.definitionVoice")}
+                  value={langBack}
+                  onChange={setLangBack}
+                />
+              }
               fields={visibleBack}
               values={values}
               onField={setField}
@@ -177,13 +192,21 @@ export function EditFlashcardModal({
             return (
               <div key={field} className="space-y-1">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium">{fieldLabel(field)}</span>
+                  <span className="text-sm font-medium">{fieldLabel(field, t)}</span>
                   <div className="flex items-center gap-2">
                     {showTerm && (
-                      <LangSelect label="Term voice" value={langFront} onChange={setLangFront} />
+                      <LangSelect
+                        label={t("editCard.termVoice")}
+                        value={langFront}
+                        onChange={setLangFront}
+                      />
                     )}
                     {showDef && (
-                      <LangSelect label="Definition voice" value={langBack} onChange={setLangBack} />
+                      <LangSelect
+                        label={t("editCard.definitionVoice")}
+                        value={langBack}
+                        onChange={setLangBack}
+                      />
                     )}
                   </div>
                 </div>
@@ -212,13 +235,12 @@ export function EditFlashcardModal({
 
         {updateNote.isError && (
           <p className="text-sm text-danger">
-            Couldn&apos;t save your changes. Please try again.
+            {t("editCard.saveFailed")}
           </p>
         )}
 
         <p className="text-xs text-muted">
-          &ldquo;Voice&rdquo; sets the text-to-speech language for that side. Leave on Auto-detect
-          unless it&apos;s read in the wrong language (e.g. kanji read as Chinese).
+          {t("editCard.voiceHelp")}
         </p>
 
         <div className="flex justify-end gap-2 border-t border-line pt-4">
@@ -228,7 +250,7 @@ export function EditFlashcardModal({
             disabled={updateNote.isPending}
             className="rounded-input border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent disabled:opacity-50"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -236,7 +258,7 @@ export function EditFlashcardModal({
             disabled={updateNote.isPending || !dirty}
             className="focus-ring rounded-input bg-accent px-3 py-1.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-60"
           >
-            {updateNote.isPending ? "Saving…" : "Save changes"}
+            {updateNote.isPending ? t("review.saving") : t("editCard.saveChanges")}
           </button>
         </div>
       </div>
@@ -268,6 +290,8 @@ function FieldSide({
   audioUrl: string;
   onAudio: (url: string) => void;
 }) {
+  const t = useT();
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
@@ -277,7 +301,7 @@ function FieldSide({
       {fields.map((field) => (
         <div key={field} className="space-y-1">
           {fields.length > 1 && (
-            <span className="font-mono text-xs font-medium text-muted">{fieldLabel(field)}</span>
+            <span className="font-mono text-xs font-medium text-muted">{fieldLabel(field, t)}</span>
           )}
           <textarea
             value={values[field] ?? ""}
@@ -304,12 +328,15 @@ function LangSelect({
   value: string;
   onChange: (code: string) => void;
 }) {
+  const t = useT();
+  const { locale } = useLocale();
+
   return (
     <div className="flex items-center gap-1 text-xs text-muted">
       <span className="hidden sm:inline">{label}</span>
       <Select
         value={value}
-        options={TTS_LANGUAGE_OPTIONS.map((o) => ({ value: o.code, label: o.label }))}
+        options={languageOptions(locale, t("tts.autoDetect"))}
         onChange={onChange}
         ariaLabel={label}
         size="sm"

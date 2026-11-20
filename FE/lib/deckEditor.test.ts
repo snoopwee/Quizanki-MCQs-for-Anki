@@ -193,10 +193,14 @@ describe("rowMatches", () => {
 });
 
 describe("fieldLabel", () => {
-  it("relabels Front/Back as Term/Definition, leaves others", () => {
-    expect(fieldLabel("Front")).toBe("Term");
-    expect(fieldLabel("back")).toBe("Definition");
-    expect(fieldLabel("Meaning")).toBe("Meaning");
+  // A stand-in translator: the point is WHICH strings get looked up, not what they say.
+  const t = (key: string) => `<${key}>`;
+
+  it("relabels Front/Back through the catalogue, leaves the deck's own names alone", () => {
+    expect(fieldLabel("Front", t as never)).toBe("<fields.term>");
+    expect(fieldLabel("back", t as never)).toBe("<fields.definition>");
+    // The deck's own field name is DATA -- it must come back untouched, not looked up.
+    expect(fieldLabel("Meaning", t as never)).toBe("Meaning");
   });
 });
 

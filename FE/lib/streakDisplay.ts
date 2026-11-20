@@ -28,27 +28,14 @@ export function weekdayLabel(
   return parseLocalDate(isoDate).toLocaleDateString(locale, { weekday: style });
 }
 
-/** "1 day" / "12 days". */
-export function streakValue(days: number): string {
-  return `${days} ${days === 1 ? "day" : "days"}`;
-}
-
 /**
  * The one-line status under the streak number. A streak survives until the end of a day
  * you haven't studied yet, so "not studied today" is a nudge, never a loss. Kept short: it
  * shares a mono line with "· best N" inside a third-width tile and must not wrap.
  */
-export function streakCaption(streak: { current: number; studiedToday: boolean }): string {
-  if (streak.studiedToday) return "Done today";
-  if (streak.current > 0) return "Study today";
-  return "Start today";
-}
-
 /**
- * The same three states as message keys, for surfaces that have a translator.
- *
- * <p>Alongside {@link streakCaption} rather than replacing it: this module is pure, so it cannot
- * translate anything itself, and the English version still has callers.
+ * The three streak states as message keys. This module is pure, so it names the key and the
+ * caller translates it — both the Home tile and the top-bar chip do.
  */
 export function streakCaptionKey(streak: {
   current: number;

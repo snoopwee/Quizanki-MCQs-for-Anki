@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BADGE_CAP, inAppHref, relativeTime, unreadBadge, unreadLabel } from "./notificationDisplay";
+import { BADGE_CAP, inAppHref, relativeStamp, unreadBadge, unreadLabel } from "./notificationDisplay";
 
 describe("unreadBadge", () => {
   it("shows nothing when there is nothing unread", () => {
@@ -25,30 +25,42 @@ describe("unreadLabel", () => {
   });
 });
 
-describe("relativeTime", () => {
+describe("relativeStamp", () => {
   const now = new Date("2026-09-22T12:00:00Z");
 
-  it("reads in whichever unit is still meaningful", () => {
-    expect(relativeTime("2026-09-22T11:59:30Z", now)).toBe("just now");
-    expect(relativeTime("2026-09-22T11:55:00Z", now)).toBe("5m");
-    expect(relativeTime("2026-09-22T09:00:00Z", now)).toBe("3h");
-    expect(relativeTime("2026-09-20T12:00:00Z", now)).toBe("2d");
+  it("picks whichever unit is still meaningful", () => {
+    expect(relativeStamp("2026-09-22T11:59:30Z", now)).toEqual({ key: "age.justNow" });
+    expect(relativeStamp("2026-09-22T11:55:00Z", now)).toEqual({
+      key: "age.minutesShort",
+      vars: { count: 5 },
+    });
+    expect(relativeStamp("2026-09-22T09:00:00Z", now)).toEqual({
+      key: "age.hoursShort",
+      vars: { count: 3 },
+    });
+    expect(relativeStamp("2026-09-20T12:00:00Z", now)).toEqual({
+      key: "age.daysShort",
+      vars: { count: 2 },
+    });
   });
 
-  it("falls back to a date once a week has passed", () => {
-    // Exact wording is the browser's, but it must stop being a relative count.
-    expect(relativeTime("2026-09-01T12:00:00Z", now)).not.toMatch(/^\d+[mhd]$|just now/);
+  it("hands back the raw date once a week has passed, for the caller to localise", () => {
+    // It must stop being a relative count; the caller formats this in the READER'S locale, which
+    // a pure module cannot know.
+    expect(relativeStamp("2026-09-01T12:00:00Z", now)).toEqual({
+      isoDate: "2026-09-01T12:00:00Z",
+    });
   });
 
   it("treats a row from the near future as just now rather than counting backwards", () => {
     // A browser clock a few seconds behind the server shouldn't produce "-3m".
-    expect(relativeTime("2026-09-22T12:00:20Z", now)).toBe("just now");
+    expect(relativeStamp("2026-09-22T12:00:20Z", now)).toEqual({ key: "age.justNow" });
   });
 
   it("renders nothing for a missing or unparseable timestamp", () => {
-    expect(relativeTime(null, now)).toBe("");
-    expect(relativeTime(undefined, now)).toBe("");
-    expect(relativeTime("not a date", now)).toBe("");
+    expect(relativeStamp(null, now)).toBeNull();
+    expect(relativeStamp(undefined, now)).toBeNull();
+    expect(relativeStamp("not a date", now)).toBeNull();
   });
 });
 

@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { parseLocalDate, streakCaption, streakValue, weekdayLabel } from "@/lib/streakDisplay";
+import { parseLocalDate, streakCaptionKey, weekdayLabel } from "@/lib/streakDisplay";
+import { en } from "@/lib/i18n/messages/en";
+import { vi } from "@/lib/i18n/messages/vi";
 
 describe("parseLocalDate", () => {
   it("keeps exactly the calendar date the backend sent, at local midnight", () => {
@@ -43,34 +45,31 @@ describe("weekdayLabel west of UTC", () => {
   });
 });
 
-describe("streakValue", () => {
-  it("pluralises the day count", () => {
-    expect(streakValue(0)).toBe("0 days");
-    expect(streakValue(1)).toBe("1 day");
-    expect(streakValue(12)).toBe("12 days");
-  });
-});
+describe("streakCaptionKey", () => {
+  const STATES = [
+    { streak: { current: 4, studiedToday: true }, key: "streak.doneToday" },
+    { streak: { current: 4, studiedToday: false }, key: "streak.studyToday" },
+    { streak: { current: 0, studiedToday: false }, key: "streak.startToday" },
+  ] as const;
 
-describe("streakCaption", () => {
-  it("says done once today already counts", () => {
-    expect(streakCaption({ current: 4, studiedToday: true })).toBe("Done today");
-  });
-
-  it("nudges to keep a live streak that hasn't been studied today", () => {
-    expect(streakCaption({ current: 4, studiedToday: false })).toBe("Study today");
+  it("names the key for each state: done, nudge, or invitation", () => {
+    for (const { streak, key } of STATES) {
+      expect(streakCaptionKey(streak)).toBe(key);
+    }
   });
 
-  it("invites starting one when there's no streak", () => {
-    expect(streakCaption({ current: 0, studiedToday: false })).toBe("Start today");
-  });
-
-  it("stays short enough to share one mono line with the best streak", () => {
-    for (const s of [
-      { current: 4, studiedToday: true },
-      { current: 4, studiedToday: false },
-      { current: 0, studiedToday: false },
-    ]) {
-      expect(`${streakCaption(s)} · best 365`.length).toBeLessThanOrEqual(22);
+  it("keeps every caption short enough to share one mono line, in BOTH languages", () => {
+    // The tile is a third of the row and the caption sits on one line with "· best N" — it must
+    // not wrap. The budget comes from MEASURING the rendered line, not from taste: at the tile's
+    // 12px Geist Mono the widest case ("Bắt đầu hôm nay · kỷ lục 365", 28 chars) is 202px against
+    // 282px available — still inside it at the 125% Text-size setting. The old rule was 22 chars,
+    // which only ever measured English and was stale for this layout.
+    const BUDGET = 28;
+    for (const { key } of STATES) {
+      expect(`${en[key]} · ${en["home.streakBest"]}`.replace("{count}", "365").length)
+        .toBeLessThanOrEqual(BUDGET);
+      expect(`${vi[key]} · ${vi["home.streakBest"]}`.replace("{count}", "365").length)
+        .toBeLessThanOrEqual(BUDGET);
     }
   });
 });

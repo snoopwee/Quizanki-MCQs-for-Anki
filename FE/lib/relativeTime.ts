@@ -4,6 +4,11 @@
 // would say "yesterday"). Very recent stamps collapse to "just now" rather than
 // "0 seconds ago". Returns null for a missing / unparseable stamp so callers can
 // omit the line entirely.
+//
+// ⚠ The locale is a PARAMETER. It used to be `undefined`, which means "whatever language the
+// BROWSER is in" — so a Vietnamese UI in an English browser printed "2 days ago". The app's own
+// locale is the only correct answer here. `justNow` is passed in for the same reason: this module
+// is pure and has no translator.
 
 const DIVISIONS: { amount: number; unit: Intl.RelativeTimeFormatUnit }[] = [
   { amount: 60, unit: "second" },
@@ -15,15 +20,20 @@ const DIVISIONS: { amount: number; unit: Intl.RelativeTimeFormatUnit }[] = [
   { amount: Number.POSITIVE_INFINITY, unit: "year" },
 ];
 
-export function timeAgo(iso: string | null | undefined, now: number = Date.now()): string | null {
+export function timeAgo(
+  iso: string | null | undefined,
+  now: number = Date.now(),
+  locale: string = "en",
+  justNow: string = "just now",
+): string | null {
   if (!iso) return null;
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return null;
 
   const seconds = (then - now) / 1000; // negative for the past
-  if (seconds > -45) return "just now"; // < ~45s ago (also covers tiny clock skew)
+  if (seconds > -45) return justNow; // < ~45s ago (also covers tiny clock skew)
 
-  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "always" });
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "always" });
   let duration = seconds;
   for (const division of DIVISIONS) {
     if (Math.abs(duration) < division.amount) {

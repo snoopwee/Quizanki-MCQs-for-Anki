@@ -9,6 +9,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { useFollowers, useFollowing } from "@/hooks/useFollows";
 import { initialsFrom } from "@/lib/userDisplay";
 import { profileUrl } from "@/lib/profileUrl";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 type Tab = "followers" | "following";
 
@@ -27,6 +28,7 @@ export function AudienceSection({
   authorId: string;
   followerCount: number;
 }) {
+  const t = useT();
   const [tab, setTab] = useState<Tab>("followers");
   const followers = useFollowers(authorId, true);
   const following = useFollowing();
@@ -38,7 +40,7 @@ export function AudienceSection({
     <Card className="overflow-hidden">
       <div className="flex flex-wrap items-center gap-1.5 border-b border-line p-5">
         <TabButton active={tab === "followers"} onClick={() => setTab("followers")}>
-          {followerCount} follower{followerCount === 1 ? "" : "s"}
+          {t("follow.followerCount", { count: followerCount })}
         </TabButton>
         <TabButton active={tab === "following"} onClick={() => setTab("following")}>
           Following{followingCount === undefined ? "" : ` ${followingCount}`}
@@ -115,6 +117,8 @@ function FollowingRows({
 }: {
   rows: NonNullable<ReturnType<typeof useFollowing>["data"]>;
 }) {
+  const t = useT();
+
   if (rows.length === 0) {
     return (
       <p className="text-sm text-muted">
@@ -151,7 +155,7 @@ function FollowingRows({
                 {author.username ?? author.authorName ?? "A learner with no name yet"}
               </span>
               <span className="block font-mono text-xs text-faint">
-                {author.publicDecks} public deck{author.publicDecks === 1 ? "" : "s"}
+                {t("deck.publicCount", { count: author.publicDecks })}
               </span>
             </span>
             <Icon name="chevronRight" size={15} className="shrink-0 text-faint" />

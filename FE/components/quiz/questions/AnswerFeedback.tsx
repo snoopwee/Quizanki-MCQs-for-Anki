@@ -1,8 +1,11 @@
+"use client";
+
 import { Icon } from "@/components/ui/icons";
 import { RichText } from "@/components/shared/RichText";
 import { textDirection } from "@/lib/displayText";
-import { answerHint } from "@/lib/questionAnswer";
+import { answerHintKey } from "@/lib/questionAnswer";
 import type { Question } from "@/lib/buildQuestions";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // The left side of a question footer. Before answering: a hint at what the format expects.
 // After: instant feedback — a check or cross chip with "Correct!" or the right answer.
@@ -15,8 +18,12 @@ export function AnswerFeedback({
   answered: boolean;
   isCorrect: boolean;
 }) {
+  const t = useT();
+
   if (!answered) {
-    return <span className="font-mono text-sm text-faint">{answerHint(question.kind)}</span>;
+    return (
+      <span className="font-mono text-sm text-faint">{t(answerHintKey(question.kind))}</span>
+    );
   }
 
   return (
@@ -30,10 +37,10 @@ export function AnswerFeedback({
       </span>
       <span className="min-w-0 truncate font-medium text-ink">
         {isCorrect ? (
-          "Correct!"
+          t("quiz.correctExclaim")
         ) : (
           <>
-            Answer:{" "}
+            {t("quiz.answerLabel")}{" "}
             <span dir={textDirection(question.correct)} className="text-success">
               <RichText text={question.correct} />
             </span>

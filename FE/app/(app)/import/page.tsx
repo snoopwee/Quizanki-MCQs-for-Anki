@@ -32,6 +32,7 @@ import {
   normalizePairs,
 } from "@/lib/extensionImport";
 import type { ApkgParseResponse } from "@/types/api";
+import { Select } from "@/components/ui/Select";
 
 // /import is "bring in a deck, look it over, then save it". Importing used to
 // save the moment the parse returned — the user never saw the deck first and
@@ -484,28 +485,32 @@ function PasteTextImport({
       </label>
 
       <div className="flex flex-wrap gap-4 text-sm">
-        <label className="flex items-center gap-1.5">
+        <span className="flex items-center gap-1.5">
           {t("import.betweenTermDef")}
-          <select
+          <Select
             value={termDelimiter}
-            onChange={(e) => setTermDelimiter(e.target.value)}
-            className="rounded-input border border-line-strong bg-surface-2 px-1 py-0.5 text-ink"
-          >
-            <option value="\t">{t("import.delimTab")}</option>
-            <option value=",">{t("import.delimComma")}</option>
-          </select>
-        </label>
-        <label className="flex items-center gap-1.5">
+            options={[
+              { value: "\\t", label: t("import.delimTab") },
+              { value: ",", label: t("import.delimComma") },
+            ]}
+            onChange={setTermDelimiter}
+            ariaLabel={t("import.betweenTermDef")}
+            size="sm"
+          />
+        </span>
+        <span className="flex items-center gap-1.5">
           {t("import.betweenRows")}
-          <select
+          <Select
             value={rowDelimiter}
-            onChange={(e) => setRowDelimiter(e.target.value)}
-            className="rounded-input border border-line-strong bg-surface-2 px-1 py-0.5 text-ink"
-          >
-            <option value="\n">{t("import.delimNewline")}</option>
-            <option value=";">{t("import.delimSemicolon")}</option>
-          </select>
-        </label>
+            options={[
+              { value: "\\n", label: t("import.delimNewline") },
+              { value: ";", label: t("import.delimSemicolon") },
+            ]}
+            onChange={setRowDelimiter}
+            ariaLabel={t("import.betweenRows")}
+            size="sm"
+          />
+        </span>
       </div>
 
       <textarea

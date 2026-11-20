@@ -1,6 +1,8 @@
 // What a keypress means during a quiz. Pure so the mapping can be tested without a browser —
 // the component only has to decide whether the keyboard is ours to listen to at all.
 
+import type { MessageKey } from "@/lib/i18n/messages/en";
+
 export type QuizKeyAction =
   | { type: "option"; index: number }
   | { type: "truefalse"; value: boolean }
@@ -61,8 +63,10 @@ export function quizKeyAction(key: string, ctx: QuizKeyContext): QuizKeyAction |
 }
 
 /** The hint shown under the question, matching what the keys actually do. */
-export function quizKeyHint(ctx: Pick<QuizKeyContext, "kind" | "answered">): string | null {
+export function quizKeyHintKey(
+  ctx: Pick<QuizKeyContext, "kind" | "answered">,
+): MessageKey | null {
   if (ctx.kind === "written") return null;
-  if (ctx.answered) return "Enter to continue";
-  return ctx.kind === "truefalse" ? "T / F to answer" : "A–D or 1–4 to answer";
+  if (ctx.answered) return "quiz.keysContinue";
+  return ctx.kind === "truefalse" ? "quiz.keysTrueFalse" : "quiz.keysMcq";
 }

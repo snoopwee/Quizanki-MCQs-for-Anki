@@ -10,6 +10,7 @@ import type {
 } from "@/types/api";
 import { detectClozeField } from "@/lib/buildQuestions";
 import { renderClozeBack, renderClozeFront, uniqueClozeIndices } from "@/lib/cloze";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 
 export interface EditorRow {
   // Stable local key for React lists — survives reorder/edit (note id may be null).
@@ -293,10 +294,11 @@ function rowWithId(
 // Human label for a field in the editor: Anki's Basic "Front"/"Back" read as
 // "Term"/"Definition" (the Quizlet vocabulary used across import/export); any
 // other field name is shown as-is.
-export function fieldLabel(name: string): string {
+export function fieldLabel(name: string, t: (key: MessageKey) => string): string {
   const key = name.trim().toLowerCase();
-  if (key === "front") return "Term";
-  if (key === "back") return "Definition";
+  if (key === "front") return t("fields.term");
+  if (key === "back") return t("fields.definition");
+  // Any other field name is the DECK'S own, straight out of the .apkg. Never translated.
   return name;
 }
 

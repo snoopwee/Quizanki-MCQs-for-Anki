@@ -196,7 +196,7 @@ export default function SharedDeckPage() {
                 <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted">
                   <span className="inline-flex items-center gap-1.5">
                     <Icon name="layers" size={15} />
-                    {cards.length} card{cards.length === 1 ? "" : "s"}
+                    {t("card.count", { count: cards.length })}
                   </span>
                   {/* See the deck page: only worth saying when the deck mixes types. */}
                   {deckQuery.data.noteTypes.length > 1 && (

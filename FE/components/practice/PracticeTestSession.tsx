@@ -15,6 +15,7 @@ import {
 } from "@/lib/practiceTest";
 import { trueFalseLabel } from "@/lib/questionAnswer";
 import type { Question } from "@/lib/buildQuestions";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 /**
  * The paper. Answer everything, move around freely, submit once, then it is graded.
@@ -37,6 +38,7 @@ export function PracticeTestSession({
   onSubmit: (score: PracticeScore, answers: PracticeAnswer[]) => void;
   onExit: () => void;
 }) {
+  const t = useT();
   const [answers, setAnswers] = useState<PracticeAnswer[]>(() => questions.map(() => null));
   const [index, setIndex] = useState(0);
   // Submitting a half-finished paper is allowed, but not by accident.
@@ -78,17 +80,17 @@ export function PracticeTestSession({
         <button
           type="button"
           onClick={onExit}
-          title="Leave the test"
-          aria-label="Leave the test"
+          title={t("practice.leave")}
+          aria-label={t("practice.leave")}
           className="grid h-9 w-9 shrink-0 place-items-center rounded-input border border-line bg-surface text-muted transition hover:text-ink"
         >
           <Icon name="x" size={17} />
         </button>
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex items-center justify-between font-mono text-xs text-muted">
-            <span>Practice test</span>
+            <span>{t("practice.title")}</span>
             <span className="font-bold text-ink">
-              {done} of {total} answered
+              {t("practice.answered", { done, total })}
             </span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
@@ -103,7 +105,7 @@ export function PracticeTestSession({
       {/* the question. `answered={false}` throughout — nothing is graded until submit. */}
       <div className="flex min-h-0 flex-1 flex-col justify-center py-8">
         <p className="mb-3 text-center font-mono text-xs uppercase tracking-wide text-faint">
-          Question {index + 1} of {total}
+          {t("practice.questionOf", { index: index + 1, total })}
         </p>
         <QuestionCard prompt={question.prompt} />
         <div className="mt-6">
@@ -126,7 +128,7 @@ export function PracticeTestSession({
 
       {/* navigator: every question, answered state visible, all of them reachable */}
       <div className="shrink-0 border-t border-line pt-4">
-        <ol className="mb-4 flex flex-wrap gap-1.5" aria-label="Jump to a question">
+        <ol className="mb-4 flex flex-wrap gap-1.5" aria-label={t("practice.jumpTo")}>
           {questions.map((_, i) => {
             const isAnswered = (answers[i] ?? "").trim() !== "";
             const isCurrent = i === index;
@@ -136,7 +138,9 @@ export function PracticeTestSession({
                   type="button"
                   onClick={() => setIndex(i)}
                   aria-current={isCurrent ? "step" : undefined}
-                  aria-label={`Question ${i + 1}${isAnswered ? ", answered" : ", not answered"}`}
+                  aria-label={t(isAnswered ? "practice.navAnswered" : "practice.navUnanswered", {
+                    index: i + 1,
+                  })}
                   className={`focus-ring h-7 w-7 rounded-input border font-mono text-xs font-semibold transition ${
                     isCurrent
                       ? "border-accent bg-accent text-white"
@@ -155,8 +159,7 @@ export function PracticeTestSession({
         {confirming && (
           <p className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-input border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
             <Icon name="alertTriangle" size={14} />
-            {blanks.length} question{blanks.length === 1 ? " is" : "s are"} still blank — blanks
-            are marked wrong.
+            {t("practice.blanks", { count: blanks.length })}
             <button
               type="button"
               onClick={() => {
@@ -165,11 +168,11 @@ export function PracticeTestSession({
               }}
               className="font-semibold underline underline-offset-2"
             >
-              Go to the first
+              {t("practice.goToFirst")}
             </button>
             <span aria-hidden>·</span>
             <button type="button" onClick={submit} className="font-semibold underline underline-offset-2">
-              Submit anyway
+              {t("practice.submitAnyway")}
             </button>
           </p>
         )}
@@ -181,7 +184,7 @@ export function PracticeTestSession({
             disabled={index === 0}
             className={buttonClasses({ variant: "ghost", size: "sm" })}
           >
-            <Icon name="chevronLeft" size={15} /> Previous
+            <Icon name="chevronLeft" size={15} /> {t("practice.previous")}
           </button>
           <button
             type="button"
@@ -189,7 +192,7 @@ export function PracticeTestSession({
             disabled={index >= total - 1}
             className={buttonClasses({ variant: "ghost", size: "sm" })}
           >
-            Next <Icon name="chevronRight" size={15} />
+            {t("quiz.next")} <Icon name="chevronRight" size={15} />
           </button>
           <div className="flex-1" />
           <button
@@ -197,7 +200,7 @@ export function PracticeTestSession({
             onClick={handleSubmitClick}
             className={buttonClasses({ variant: "primary" })}
           >
-            Submit test
+            {t("practice.submit")}
           </button>
         </div>
       </div>

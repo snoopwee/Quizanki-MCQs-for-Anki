@@ -2,6 +2,7 @@
 
 import { useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { AnswerSource, DeckHistoryPoint } from "@/types/api";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // Accuracy-over-time line chart — a single series, so no legend (the heading
 // names it). One point per quiz or Learn session; the tooltip says which. Pure inline SVG themed with the design tokens (var(--accent) line,
@@ -32,6 +33,7 @@ function sourceLabel(source: AnswerSource): string {
 }
 
 export function AccuracyChart({ points }: { points: DeckHistoryPoint[] }) {
+  const t = useT();
   const gradientId = useId();
   const svgRef = useRef<SVGSVGElement>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -40,9 +42,9 @@ export function AccuracyChart({ points }: { points: DeckHistoryPoint[] }) {
     return (
       <div className="grid h-44 place-items-center rounded-card border border-dashed border-line bg-surface-2/40 px-6 text-center">
         <p className="text-sm text-muted">
-          No study history yet.
+          {t("stats.noHistory")}
           <br />
-          <span className="text-faint">Take a quiz or learn this deck and your accuracy will chart here.</span>
+          <span className="text-faint">{t("stats.noHistoryHint")}</span>
         </p>
       </div>
     );
@@ -95,9 +97,10 @@ export function AccuracyChart({ points }: { points: DeckHistoryPoint[] }) {
         className="w-full touch-none"
         style={{ height: "auto" }}
         role="img"
-        aria-label={`Accuracy across ${n} study ${n === 1 ? "session" : "sessions"}; most recent ${Math.round(
-          latest.accuracy * 100,
-        )} percent.`}
+        aria-label={t("stats.chartAria", {
+          count: n,
+          pct: Math.round(latest.accuracy * 100),
+        })}
         onPointerMove={onMove}
         onPointerLeave={() => setHover(null)}
       >

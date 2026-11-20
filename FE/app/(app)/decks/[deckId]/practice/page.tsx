@@ -15,6 +15,7 @@ import { ResultsSummary } from "@/components/quiz/ResultsSummary";
 import { Spinner } from "@/components/ui/Spinner";
 import type { PracticeScore } from "@/lib/practiceTest";
 import type { AnswerRecord } from "@/stores/quizStore";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 type Step =
   | { kind: "setup" }
@@ -33,6 +34,7 @@ type Step =
  * What is new is only the middle: holding answers without grading them.
  */
 export default function PracticeTestPage() {
+  const t = useT();
   const { deckId } = useParams<{ deckId: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -106,6 +108,7 @@ export default function PracticeTestPage() {
         correct: r.question.correct,
         // A blank has no answer to show; the results row then simply omits the "You answered" line.
         selected: r.blank ? "" : (r.answer ?? ""),
+        kind: r.question.kind,
         wasCorrect: r.correct,
         newMastery: applyAnswer(prev, r.correct),
       });
@@ -173,7 +176,7 @@ export default function PracticeTestPage() {
             if (subset.length > 0) start(subset);
           }}
           onRetakeNew={() => setStep({ kind: "setup" })}
-          newLabel="New test"
+          newLabel={t("practice.newTest")}
           onEndTest={backToDeck}
         />
       </div>
@@ -183,7 +186,7 @@ export default function PracticeTestPage() {
   if (contentsQuery.isLoading || !parsed) {
     return (
       <div className="mx-auto flex max-w-2xl items-center gap-3 p-6 text-sm text-muted">
-        <Spinner className="h-4 w-4" /> Loading deck…
+        <Spinner className="h-4 w-4" /> {t("study.loadingDeck")}
       </div>
     );
   }
@@ -191,10 +194,9 @@ export default function PracticeTestPage() {
   return (
     <div className="mx-auto max-w-3xl p-6 md:p-8">
       <div className="mb-5">
-        <h1 className="font-display text-2xl font-semibold tracking-tight">Set up a practice test</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight">{t("practice.setupTitle")}</h1>
         <p className="mt-1 text-sm text-muted">
-          Answer the whole paper, then submit it to be scored. No feedback until you do — you can
-          move between questions and change your answers freely.
+          {t("practice.setupDesc")}
         </p>
       </div>
       <ApkgQuizSetup
@@ -202,8 +204,8 @@ export default function PracticeTestPage() {
         getStats={getStats}
         deckId={deckId}
         showHeading={false}
-        backLabel="Back to deck"
-        startLabel="Start test"
+        backLabel={t("shared.backToDeck")}
+        startLabel={t("practice.startTest")}
         onBack={backToDeck}
         onStart={start}
       />

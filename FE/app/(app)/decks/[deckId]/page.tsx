@@ -341,7 +341,7 @@ function DeckDetail() {
               <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted">
                 <span className="inline-flex items-center gap-1.5">
                   <Icon name="layers" size={15} />
-                  {cardCount} card{cardCount === 1 ? "" : "s"}
+                  {t("card.count", { count: cardCount })}
                 </span>
                 {/* Only shown when the deck MIXES types. "1 note type" is true of almost every
                     deck, so it informed nobody and spent a slot in the header. */}
@@ -359,7 +359,7 @@ function DeckDetail() {
                 {copies > 0 && (
                   <span className="inline-flex items-center gap-1.5">
                     <Icon name="copy" size={15} />
-                    {copies} cop{copies === 1 ? "y" : "ies"}
+                    {t("deckPage.copyCount", { count: copies })}
                   </span>
                 )}
                 {/* Always shown, even at zero: five hollow stars say "this can be rated" where a
@@ -388,7 +388,7 @@ function DeckDetail() {
                     className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface px-2.5 py-1 text-xs font-semibold text-ink transition hover:border-accent hover:text-accent"
                   >
                     <Icon name="star" size={13} />
-                    {deckRating?.notesForAuthor} note{deckRating?.notesForAuthor === 1 ? "" : "s"}
+                    {t("deckPage.noteCount", { count: deckRating?.notesForAuthor ?? 0 })}
                   </Link>
                 )}
               </div>
@@ -735,7 +735,7 @@ function FloatingStudyRail({
           type="button"
           onClick={onToggleHide}
           aria-pressed={hideOn}
-          aria-label={hideOn ? "Show answers" : "Hide answers"}
+          aria-label={hideOn ? t("deckPage.showAnswers") : t("deckPage.hideAnswers")}
           className={`grid h-11 w-11 place-items-center rounded-full border transition ${
             hideOn
               ? "border-accent bg-accent-soft text-accent-ink"
@@ -745,7 +745,7 @@ function FloatingStudyRail({
           <Icon name={hideOn ? "eyeOff" : "eye"} size={20} />
         </button>
         <span className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 whitespace-nowrap rounded-input bg-ink px-2 py-1 text-xs font-medium text-canvas opacity-0 shadow-card transition group-hover:opacity-100">
-          {hideOn ? "Show answers" : "Hide answers"}
+          {hideOn ? t("deckPage.showAnswers") : t("deckPage.hideAnswers")}
         </span>
       </div>
 

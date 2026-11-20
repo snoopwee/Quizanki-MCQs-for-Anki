@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { McqQuestion, TrueFalseQuestion, WrittenQuestion } from "@/lib/buildQuestions";
 import {
-  answerHint,
+  answerHintKey,
   isAnswerCorrect,
+  trueFalseKey,
   trueFalseLabel,
   writtenIsCorrect,
 } from "@/lib/questionAnswer";
@@ -64,10 +65,20 @@ describe("isAnswerCorrect", () => {
   });
 });
 
-describe("answerHint", () => {
-  it("tells the learner what each format expects", () => {
-    expect(answerHint("mcq")).toBe("Pick the closest answer");
-    expect(answerHint("truefalse")).toBe("True or false?");
-    expect(answerHint("written")).toBe("Type your answer");
+describe("answerHintKey", () => {
+  it("names a hint for every format", () => {
+    expect(answerHintKey("mcq")).toBe("quiz.hintMcq");
+    expect(answerHintKey("truefalse")).toBe("quiz.hintTrueFalse");
+    expect(answerHintKey("written")).toBe("quiz.hintWritten");
+  });
+});
+
+describe("trueFalseKey", () => {
+  it("is the DISPLAY of a verdict, never the recorded value", () => {
+    expect(trueFalseKey(true)).toBe("quiz.true");
+    expect(trueFalseKey(false)).toBe("quiz.false");
+    // The identity the grader compares against must stay English in both languages.
+    expect(trueFalseLabel(true)).toBe("True");
+    expect(trueFalseLabel(false)).toBe("False");
   });
 });

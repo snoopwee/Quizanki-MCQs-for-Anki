@@ -28,8 +28,10 @@ import { Icon } from "@/components/ui/icons";
 import { useT } from "@/components/i18n/LocaleProvider";
 
 export default function DeckEditPage() {
+  const t = useT();
+
   return (
-    <Suspense fallback={<p className="text-sm text-muted">Loading editor…</p>}>
+    <Suspense fallback={<p className="text-sm text-muted">{t("editor.loading")}</p>}>
       <DeckEditor />
     </Suspense>
   );
@@ -176,7 +178,7 @@ function DeckEditor() {
     save.mutate(toPayload(draft), { onSuccess: () => router.push(`/decks/${deckId}`) });
   }
   function handleCancel() {
-    if (!dirty || window.confirm("Discard your changes?")) {
+    if (!dirty || window.confirm(t("editor.discardConfirm"))) {
       router.push(`/decks/${deckId}`);
     }
   }
@@ -190,7 +192,7 @@ function DeckEditor() {
   }, [draft, query]);
 
   if (contentsQuery.isLoading || !draft) {
-    return <p className="text-sm text-muted">Loading editor…</p>;
+    return <p className="text-sm text-muted">{t("editor.loading")}</p>;
   }
   if (contentsQuery.isError || !contentsQuery.data) {
     return (
@@ -216,15 +218,15 @@ function DeckEditor() {
           onClick={handleCancel}
           className="rounded-input border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent"
         >
-          ← Cancel
+          ← {t("common.cancel")}
         </button>
-        <h1 className="font-display text-lg font-semibold tracking-tight">Edit flashcards</h1>
+        <h1 className="font-display text-lg font-semibold tracking-tight">{t("editor.title")}</h1>
         <div className="ml-auto flex gap-2">
           <button
             type="button"
             onClick={swapAll}
-            aria-label="Swap term and definition for all cards"
-            title="Swap the term and definition of all cards"
+            aria-label={t("editor.swapAll")}
+            title={t("editor.swapAllTitle")}
             className="inline-flex items-center justify-center rounded-input border border-line-strong bg-surface px-2.5 py-2 leading-none transition hover:border-accent hover:text-accent"
           >
             <Icon name="swap" size={16} />
@@ -234,7 +236,7 @@ function DeckEditor() {
             onClick={() => setImportOpen(true)}
             className="rounded-input border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent"
           >
-            Import cards
+            {t("editor.importCards")}
           </button>
           <button
             type="button"
@@ -242,24 +244,24 @@ function DeckEditor() {
             disabled={saveDisabled}
             className="focus-ring rounded-input bg-accent px-4 py-1.5 text-sm font-semibold text-white shadow-btn transition hover:opacity-95 disabled:opacity-50"
           >
-            {save.isPending ? "Saving…" : "Save"}
+            {save.isPending ? t("review.saving") : t("common.save")}
           </button>
         </div>
       </div>
 
       {otherTab && (
         <p className="rounded-input border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
-          This deck is open in another tab. Whichever tab you save last wins.
+          {t("editor.otherTab")}
         </p>
       )}
       {save.isError && (
         <p className="rounded-input border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-          Couldn&apos;t save the deck. Please try again.
+          {t("editor.saveFailed")}
         </p>
       )}
 
       <label className="block space-y-1">
-        <span className="text-sm font-medium">Deck name</span>
+        <span className="text-sm font-medium">{t("editor.deckName")}</span>
         <input
           type="text"
           value={draft.name}
@@ -271,9 +273,9 @@ function DeckEditor() {
       {hasFieldPanel && (
         <div className="space-y-3 rounded-card border border-line bg-surface p-4">
           <div>
-            <h2 className="text-sm font-bold text-ink">Fields shown on card</h2>
+            <h2 className="text-sm font-bold text-ink">{t("editor.fieldsHeading")}</h2>
             <p className="mt-0.5 text-xs text-muted">
-              Put each field on the Term or Definition side (or Off), or add your own.
+              {t("editor.fieldsHelp")}
             </p>
           </div>
           <CardFieldsControl
@@ -292,22 +294,24 @@ function DeckEditor() {
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search cards…"
+          placeholder={t("editor.searchCards")}
           className="focus-ring w-full max-w-xs rounded-input border border-line-strong bg-surface-2 px-3 py-1.5 text-sm text-ink outline-none placeholder:text-faint"
         />
         <span className="shrink-0 font-mono text-xs text-muted">
-          {visibleKeys ? `${visibleKeys.size} of ${rows.length}` : rows.length} cards
+          {visibleKeys
+            ? t("editor.countFiltered", { shown: visibleKeys.size, total: rows.length })
+            : t("card.count", { count: rows.length })}
         </span>
       </div>
 
       {visibleKeys?.size === 0 && (
         <p className="rounded-card border border-dashed border-line-strong px-4 py-6 text-center text-sm text-muted">
-          No cards match “{search.trim()}”.
+          {t("study.noCardsMatch", { query: `“${search.trim()}”` })}
         </p>
       )}
 
       {reorderable && rows.length > 1 && (
-        <p className="text-xs text-faint">Drag a card to reorder it.</p>
+        <p className="text-xs text-faint">{t("editor.dragToReorder")}</p>
       )}
 
       {/* While searching, indices are partial — show a plain, non-draggable list.

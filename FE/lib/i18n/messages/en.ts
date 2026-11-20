@@ -966,6 +966,311 @@ export const en = {
   "setup.selectField": "Select a field",
   "setup.eg": "e.g. {sample}",
   "setup.emptySample": "(empty)",
+
+  // ---- the quiz RUN (what only appears once you answer) ---------------------------------------
+  "quiz.quiz": "Quiz",
+  "quiz.question": "Question",
+  "quiz.next": "Next",
+  "quiz.finish": "Finish",
+  // What a blank written answer is recorded AS, for the review list. Display only -- the backend
+  // is told `correct`, never the text.
+  "quiz.blank": "(blank)",
+  "quiz.correctExclaim": "Correct!",
+  "quiz.answerLabel": "Answer:",
+  "quiz.proposedAnswer": "Proposed answer",
+  // The DISPLAY of a true/false verdict. The recorded value stays the English "True"/"False" --
+  // grading compares against it, so translating it in place would break the quiz in Vietnamese.
+  "quiz.true": "True",
+  "quiz.false": "False",
+  // The footer prompt before a question is answered, one per format.
+  "quiz.hintMcq": "Pick the closest answer",
+  "quiz.hintTrueFalse": "True or false?",
+  "quiz.hintWritten": "Type your answer",
+  "quiz.typeAnswer": "Type the answer…",
+  "quiz.yourAnswer": "Your answer",
+  "quiz.checkAnswer": "Check answer",
+  "quiz.correctAnswer": "Correct answer",
+  "quiz.countedCorrect": "Counted as correct",
+  "quiz.iWasRight": "I was right — count it",
+  "quiz.loadingTest": "Loading test…",
+  "quiz.apply": "Apply",
+  "study.loadingDeck": "Loading deck…",
+
+  // The score line keeps its bold fraction, so it is a prefix + the fraction + a suffix rather
+  // than one sentence with a placeholder. Both languages put the number in the same place.
+  "results.youGotPrefix": "You got",
+  "results.ofTotal": "{score} of {total}",
+  "results.youGotSuffix": "correct.",
+  "results.youAnswered": "You answered",
+
+  // ---- the practice test ----------------------------------------------------------------------
+  "practice.leave": "Leave the test",
+  "practice.title": "Practice test",
+  "practice.answered": "{done} of {total} answered",
+  "practice.questionOf": "Question {index} of {total}",
+  "practice.jumpTo": "Jump to a question",
+  // The navigator buttons show only a number, so this IS each one's name.
+  "practice.navAnswered": "Question {index}, answered",
+  "practice.navUnanswered": "Question {index}, not answered",
+  "practice.blanks": {
+    one: "{count} question is still blank — blanks are marked wrong.",
+    other: "{count} questions are still blank — blanks are marked wrong.",
+  },
+  "practice.goToFirst": "Go to the first",
+  "practice.submitAnyway": "Submit anyway",
+  "practice.previous": "Previous",
+  "practice.submit": "Submit test",
+  "practice.setupTitle": "Set up a practice test",
+  "practice.setupDesc":
+    "Answer the whole paper, then submit it to be scored. No feedback until you do — you can move between questions and change your answers freely.",
+  "practice.startTest": "Start test",
+  "practice.newTest": "New test",
+
+  // ---- a Learn session in progress ------------------------------------------------------------
+  "learn.endSession": "End session",
+  "learn.label": "Learn",
+  "learn.resumed": "Learn · resumed",
+  // The progress counter reads "7 / 20 learned" when missed cards come back, "done" when each
+  // card is asked once. Two words, not one with an "-ed" appended.
+  "learn.learnedWord": "learned",
+  "learn.doneWord": "done",
+  "learn.retypePrompt": "Type the correct answer to continue",
+  "learn.retypePlaceholder": "Type the answer shown above…",
+  "learn.startingSession": "Starting your session…",
+  "learn.startFailedTitle": "Couldn't start a session",
+  "learn.startFailedText": "Check your connection and try again.",
+  "learn.tryAgain": "Try again",
+  "learn.emptyTitle": "Nothing to learn with these settings",
+  "learn.changeSettings": "Change settings",
+  // Why a session came up empty, and what to change. One whole sentence per case rather than a
+  // built-up one -- each names a different setting.
+  "learn.emptyStarredMastered":
+    "Every starred card is already mastered. Star more cards, or include mastered cards.",
+  "learn.emptyNoStarred": "No starred cards here yet. Star a few, or turn off Starred cards only.",
+  "learn.emptyAllMastered":
+    "Every card here is already mastered. Turn on Include mastered cards to review them.",
+  "learn.emptyNoQuizzable":
+    "This deck has no cards Learn can ask. Each card needs a question and an answer.",
+  "learn.choosePrompt": "Choose how you want to learn {deck}.",
+
+  // ---- the end-of-session summary -------------------------------------------------------------
+  "learn.sessionComplete": "Session complete",
+  "learn.praiseFlawless": "Flawless!",
+  "learn.praiseNice": "Nicely done!",
+  "learn.praiseAllLearned": "Every card learned!",
+  "learn.praiseKeepPracticing": "Keep practicing!",
+  "learn.answerCount": { one: "{count} answer", other: "{count} answers" },
+  // The count is bold in its own element, so these sentences are a prefix, the count, then the
+  // rest. The counts inside the rest are already-formatted strings.
+  "learn.youLearnedPrefix": "You learned",
+  "learn.firstTryLine": "{right} right on the first try, {answers} in all.",
+  "learn.youAnsweredPrefix": "You answered",
+  "learn.rightMissedLine": "{right} right, {missed} missed.",
+  "learn.whereStand": "Where these cards stand",
+  "learn.masteryNote": "Mastery after this session. Every answer counts, just like in a quiz.",
+  "learn.tookMoreTries": "Took more than one try",
+  "learn.missedTimes": { one: "missed {count} time", other: "missed {count} times" },
+  "learn.keepLearning": "Keep learning",
+
+  // ---- Match ----------------------------------------------------------------------------------
+  "match.loading": "Loading match…",
+  "match.exit": "Exit match",
+  "match.header": "Match · {deck}",
+  "match.tagline": "Pair every term with its meaning",
+  "match.notEnough":
+    "Match needs at least two cards that have both a term and a definition. This deck doesn't have enough yet.",
+  "match.pairsMatched": "{done} of {total} pairs matched",
+  "match.allMatched": "All matched",
+  "match.newBest": "🎉 New best time!",
+  "match.best": "Best: {time}",
+  "match.playAgain": "Play again",
+
+  // ---- counts, as plural keys -----------------------------------------------------------------
+  // `card.count` is shared: the deck header, the shared-deck header, deck search, the author page
+  // and the Learn summary all count cards, and all of them used to build the plural by hand.
+  "card.count": { one: "{count} card", other: "{count} cards" },
+  "card.clozeCount": { one: "{count} cloze card", other: "{count} cloze cards" },
+  "deck.count": { one: "{count} deck", other: "{count} decks" },
+  "deck.publicCount": { one: "{count} public deck", other: "{count} public decks" },
+  "follow.followerCount": { one: "{count} follower", other: "{count} followers" },
+  "import.cardsDetected": { one: "{count} card detected", other: "{count} cards detected" },
+  "deckPage.noteCount": { one: "{count} note", other: "{count} notes" },
+  "deckPage.hideAnswers": "Hide answers",
+  "deckPage.showAnswers": "Show answers",
+
+  // ---- shared leaf buttons: these ARE their only name to a screen reader ------------------------
+  "speak.read": "Read the text aloud (text-to-speech)",
+  "speak.stop": "Stop",
+  "speak.stopReading": "Stop reading",
+  "speak.playAudio": "Play audio",
+  "speak.stopAudio": "Stop audio",
+  "speak.nothingToRead": "Nothing to read",
+  "star.star": "Star this card",
+  "star.unstar": "Unstar this card",
+  "star.starTitle": "Star to focus on this card",
+  "star.starredTitle": "Starred — click to remove",
+
+  // The accuracy chart's empty state -- only renders with no history, which is why a census of
+  // the panel that owns it missed it.
+  "stats.noHistory": "No study history yet.",
+  "stats.noHistoryHint": "Take a quiz or learn this deck and your accuracy will chart here.",
+
+  // The keyboard hints under a question. The KEY NAMES stay as they are -- A, D, T, F and Enter
+  // are the physical keys, the same on a Vietnamese keyboard, so only the sentence around them
+  // moves (the same reason `import.delimTab` is still "Tab").
+  "quiz.keysMcq": "A–D or 1–4 to answer",
+  "quiz.keysTrueFalse": "T / F to answer",
+  "quiz.keysContinue": "Enter to continue",
+  "results.end": "End",
+
+  // ---- the flashcard editor (/decks/[id]/edit) -------------------------------------------------
+  "editor.loading": "Loading editor…",
+  // A native window.confirm, so this one really is just a string.
+  "editor.discardConfirm": "Discard your changes?",
+  "editor.title": "Edit flashcards",
+  "editor.swapAll": "Swap term and definition for all cards",
+  "editor.swapAllTitle": "Swap the term and definition of all cards",
+  "editor.importCards": "Import cards",
+  "editor.otherTab": "This deck is open in another tab. Whichever tab you save last wins.",
+  "editor.saveFailed": "Couldn't save the deck. Please try again.",
+  "editor.deckName": "Deck name",
+  "editor.fieldsHeading": "Fields shown on card",
+  "editor.fieldsHelp": "Put each field on the Term or Definition side (or Off), or add your own.",
+  "editor.searchCards": "Search cards…",
+  "editor.countFiltered": "{shown} of {total} cards",
+  "editor.dragToReorder": "Drag a card to reorder it.",
+  "common.save": "Save",
+  // The two field names the editor renames for the learner. Every OTHER field name comes from the
+  // deck itself and stays exactly as the .apkg spells it -- see `fieldLabel`.
+  "fields.term": "Term",
+  "fields.definition": "Definition",
+
+  // ---- the single-card edit modal --------------------------------------------------------------
+  "editCard.title": "Edit flashcard",
+  // Split around the <code> marker, which is literal syntax and must not be translated.
+  "editCard.clozePrefix": "This is a cloze card. Keep the",
+  "editCard.clozeSuffix": "markers intact — each one becomes a separate question.",
+  "editCard.swap": "Swap front and back",
+  "editCard.termVoice": "Term voice",
+  "editCard.definitionVoice": "Definition voice",
+  "editCard.saveFailed": "Couldn't save your changes. Please try again.",
+  "editCard.voiceHelp":
+    "“Voice” sets the text-to-speech language for that side. Leave on Auto-detect unless it's read in the wrong language (e.g. kanji read as Chinese).",
+  "editCard.saveChanges": "Save changes",
+
+  // ---- bringing cards INTO the editor ----------------------------------------------------------
+  "importModal.howToAdd": "How to add them",
+  "importModal.append": "Append to the end",
+  "importModal.replace": "Replace the entire set",
+  "importModal.replaceWarning":
+    "Replacing removes every current card (and its study progress) when you Save.",
+  "importModal.source": "Source",
+  "importModal.pasteText": "Paste text",
+  "importModal.uploadApkg": "Upload .apkg",
+  "importModal.addCards": "Add cards",
+  "importModal.replaceCards": "Replace cards",
+  "importModal.apkgNote": "Cards from the file are added as Basic (front/back) cards.",
+
+  // ---- folders ---------------------------------------------------------------------------------
+  "folders.newFolder": "New folder",
+  "folders.loadFailed": "Could not load folders.",
+  "folders.noneYet": "No folders yet.",
+  "folders.noneYetHelp":
+    "Group decks however you like — by subject, by exam, by textbook. A deck can sit in several folders.",
+  "folders.nameLabel": "Folder name",
+  "folders.renameFailed": "Couldn't rename it.",
+  "folders.deleteConfirm": "Delete “{name}”?",
+  "folders.deleteNote": "The decks inside it stay in your library.",
+  "folders.rename": "Rename",
+  "folders.delete": "Delete",
+  "folders.cardOptions": "{name} options",
+  "folders.goneNote":
+    "It may have been deleted. Your decks are unaffected — deleting a folder never touches what was inside it.",
+  "folders.emptyHint": "Open a deck and use its ⋯ menu to file it here.",
+  // Deliberately its own key rather than reusing `aiError.offline`: same sentence today, but one
+  // belongs to the AI subsystem and one to anything else that cannot reach the server.
+  "common.offline": "Couldn't reach the server. Check your connection and try again.",
+
+  // ---- text-to-speech voice picker -------------------------------------------------------------
+  // The language NAMES are not keyed: `languageLabel` asks Intl.DisplayNames for them in the
+  // reader's locale, so a new row in TTS_LANGUAGE_OPTIONS needs no translation at all.
+  "tts.autoDetect": "Auto-detect",
+  "tts.autoDetectWith": "Auto-detect ({language})",
+
+  // ---- carry-ins: plurals and names on screens already called done -----------------------------
+  "stats.chartAria": {
+    one: "Accuracy across {count} study session; most recent {pct} percent.",
+    other: "Accuracy across {count} study sessions; most recent {pct} percent.",
+  },
+  "deckPage.copyCount": { one: "{count} copy", other: "{count} copies" },
+  "streak.dayCount": { one: "{count} day", other: "{count} days" },
+  "streak.title": "Study streak · {caption} · best {best}",
+  "streak.aria": "Study streak: {value}. {caption}.",
+  "folders.lede": "Group decks by subject, exam or textbook. A deck can sit in several folders at once.",
+
+  // ---- compact timestamps (a notification row, a feedback note) --------------------------------
+  // The LONG `age.*` forms above are the import draft's ("5 minutes ago"). These are the tight
+  // ones that sit at the right edge of a row. Intl.RelativeTimeFormat cannot make them: its
+  // narrow Vietnamese is still "5 phút trước", and numeric:"auto" turns 2 days into "the day
+  // before yesterday".
+  "age.minutesShort": "{count}m",
+  "age.hoursShort": "{count}h",
+  "age.daysShort": "{count}d",
+
+  // ---- the author-only feedback page -----------------------------------------------------------
+  "feedback.title": "Feedback",
+  // Split around the deck's name, which is emphasised in its own element.
+  "feedback.ledePrefix": "What people wrote when they rated",
+  "feedback.ledeSuffix":
+    "Only you can see these. Names aren't shown — one rating per person, so every note is someone different.",
+  "feedback.loading": "Loading feedback…",
+  "feedback.loadFailed": "Couldn't load this deck's feedback.",
+  "feedback.noneYet": "No notes yet.",
+  "feedback.noneYetHelp":
+    "People can leave one when they rate your deck. Ratings without a note still count towards your score.",
+  "feedback.deleteConfirm": "Delete this note?",
+  "feedback.deleteRule":
+    "Their {stars}-star rating stays and still counts towards your score — only the text goes.",
+  "feedback.deleteNote": "Delete note",
+  "feedback.reportToAdmin": "Report to admin",
+  "feedback.footer":
+    "Deleting a note removes the text for good, and their rating still counts. Report it instead if it's abusive: an admin can remove the whole rating, and either way they'll tell you what they decided.",
+
+  // ---- reporting a note to an admin ------------------------------------------------------------
+  "reportNote.sent": "Report sent",
+  "reportNote.title": "Report this note",
+  "reportNote.thanks": "Thanks — an admin will look at it. You'll get a notification when they have.",
+  "reportNote.stillDelete":
+    "You can still delete the note yourself in the meantime — the report keeps its own copy of the text, so it can still be judged.",
+  "reportNote.lede":
+    "For a note that's abusive rather than just unwelcome. Say why below — an admin reads it, and if they agree they'll remove the whole rating, stars included.",
+  "reportNote.addAnything": "Anything to add",
+  "reportNote.optional": "(optional)",
+  "reportNote.detailsPlaceholder": "Context an admin would need…",
+  "reportNote.sendFailed": "Couldn't send that report. Try again.",
+  "reportNote.sending": "Sending",
+  "reportNote.submit": "Report",
+  // The NOTE vocabulary. Like the deck reasons, the stored value stays English -- only the label
+  // moves. A note is reported for how it BEHAVES, a deck for what it IS.
+  "reportReason.abusive": "Abusive",
+  "reportReason.harassment": "Harassment",
+  "reportReason.offTopic": "Off-topic",
+
+  // ---- the notification panel ------------------------------------------------------------------
+  "notif.marking": "Marking…",
+  "notif.markAllRead": "Mark all read",
+  "notif.clearAll": "Clear all",
+  "notif.clearConfirm": "Delete all your notifications?",
+  "notif.clearIrreversible": "This one can't be undone.",
+  "notif.clearing": "Clearing",
+  "notif.loadFailed": "Couldn't load your notifications.",
+  "notif.noneYet": "Nothing yet.",
+  "notif.noneYetHelp":
+    "Decks shared with you, new decks from authors you follow, and news from us land here.",
+  // The row's title comes from the BACKEND, which has no locale -- only our verb translates.
+  "notif.deleteRow": "Delete: {title}",
+
+  "common.deleting": "Deleting",
 } as const satisfies Catalogue;
 
 export type MessageKey = keyof typeof en;

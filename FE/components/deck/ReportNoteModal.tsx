@@ -6,7 +6,11 @@ import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
 import { buttonClasses } from "@/components/ui/Button";
 import { useReportNote } from "@/hooks/useDeckRating";
-import { NOTE_REPORT_REASONS as REASONS } from "@/lib/reportReasons";
+import {
+  NOTE_REPORT_REASON_KEYS,
+  NOTE_REPORT_REASONS as REASONS,
+} from "@/lib/reportReasons";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 
 const fieldClasses =
@@ -25,6 +29,7 @@ export function ReportNoteModal({
   noteText: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const [reason, setReason] = useState<string>(REASONS[0]);
   const [details, setDetails] = useState("");
   const [done, setDone] = useState(false);
@@ -32,27 +37,25 @@ export function ReportNoteModal({
   const reasonLabelId = useId();
 
   return (
-    <Modal title={done ? "Report sent" : "Report this note"} onClose={onClose}>
+    <Modal title={done ? t("reportNote.sent") : t("reportNote.title")} onClose={onClose}>
       {done ? (
         <>
           <p className="text-sm text-muted">
-            Thanks — an admin will look at it. You&apos;ll get a notification when they have.
+            {t("reportNote.thanks")}
           </p>
           <p className="mt-2 text-sm text-muted">
-            You can still delete the note yourself in the meantime — the report keeps its own copy
-            of the text, so it can still be judged.
+            {t("reportNote.stillDelete")}
           </p>
           <div className="mt-5 flex justify-end">
             <button type="button" onClick={onClose} className={buttonClasses({ variant: "primary" })}>
-              Done
+              {t("common.done")}
             </button>
           </div>
         </>
       ) : (
         <>
           <p className="text-sm text-muted">
-            For a note that&apos;s abusive rather than just unwelcome. Say why below — an admin
-            reads it, and if they agree they&apos;ll remove the whole rating, stars included.
+            {t("reportNote.lede")}
           </p>
 
           <blockquote className="mt-3 max-h-32 overflow-y-auto whitespace-pre-wrap break-words rounded-input border border-line bg-surface-2 px-3 py-2 text-sm text-ink">
@@ -62,11 +65,11 @@ export function ReportNoteModal({
           <div className="mt-4 space-y-3">
             <div className="space-y-1">
               <span id={reasonLabelId} className="block text-xs font-medium text-muted">
-                Reason
+                {t("report.reason")}
               </span>
               <Select
                 value={reason}
-                options={REASONS.map((r) => ({ value: r, label: r }))}
+                options={REASONS.map((r) => ({ value: r, label: t(NOTE_REPORT_REASON_KEYS[r]) }))}
                 onChange={setReason}
                 ariaLabelledBy={reasonLabelId}
                 fullWidth
@@ -74,7 +77,8 @@ export function ReportNoteModal({
             </div>
             <div className="space-y-1">
               <label htmlFor="report-note-details" className="block text-xs font-medium text-muted">
-                Anything to add <span className="text-faint">(optional)</span>
+                {t("reportNote.addAnything")}{" "}
+                <span className="text-faint">{t("reportNote.optional")}</span>
               </label>
               <textarea
                 id="report-note-details"
@@ -82,19 +86,19 @@ export function ReportNoteModal({
                 onChange={(e) => setDetails(e.target.value)}
                 maxLength={500}
                 rows={3}
-                placeholder="Context an admin would need…"
+                placeholder={t("reportNote.detailsPlaceholder")}
                 className={`${fieldClasses} resize-y`}
               />
             </div>
           </div>
 
           {report.isError && (
-            <p className="mt-3 text-sm text-danger">Couldn&apos;t send that report. Try again.</p>
+            <p className="mt-3 text-sm text-danger">{t("reportNote.sendFailed")}</p>
           )}
 
           <div className="mt-5 flex justify-end gap-2">
             <button type="button" onClick={onClose} className={buttonClasses({ variant: "ghost" })}>
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -104,8 +108,8 @@ export function ReportNoteModal({
               disabled={report.isPending}
               className={buttonClasses({ variant: "primary" })}
             >
-              {report.isPending && <Spinner className="h-4 w-4 text-white" label="Sending" />}
-              Report
+              {report.isPending && <Spinner className="h-4 w-4 text-white" label={t("reportNote.sending")} />}
+              {t("reportNote.submit")}
             </button>
           </div>
         </>

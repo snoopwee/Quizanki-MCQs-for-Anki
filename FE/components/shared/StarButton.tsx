@@ -2,6 +2,7 @@
 
 import { Icon } from "@/components/ui/icons";
 import { IconButton, iconButtonIconSize } from "@/components/ui/IconButton";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // Toggle a flashcard's "star" (focus) flag. Used on the flashcard study screen,
 // each preview row, and mid-quiz. Stops click propagation so starring a card
@@ -25,10 +26,12 @@ export function StarButton({
   size?: Size;
   busy?: boolean;
 }) {
+  const t = useT();
+
   return (
     <IconButton
-      label={starred ? "Unstar this card" : "Star this card"}
-      title={starred ? "Starred — click to remove" : "Star to focus on this card"}
+      label={starred ? t("star.unstar") : t("star.star")}
+      title={starred ? t("star.starredTitle") : t("star.starTitle")}
       ariaPressed={starred}
       disabled={busy}
       size={size}

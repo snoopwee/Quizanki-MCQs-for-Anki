@@ -50,6 +50,7 @@ import { Card } from "@/components/ui/Card";
 import { Spinner } from "@/components/ui/Spinner";
 import { buttonClasses } from "@/components/ui/Button";
 import { useT } from "@/components/i18n/LocaleProvider";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 
 // A running session: its backend session id (every answer is logged under it, so the
 // stats chart gets one point per session) and the cards it learns.
@@ -260,8 +261,8 @@ export default function DeckLearnPage() {
   if (contentsQuery.isLoading || (contentsQuery.data && !ready)) {
     return (
       <CenteredStatus>
-        <Spinner className="h-5 w-5 text-accent" label="Loading deck" />
-        Loading deck…
+        <Spinner className="h-5 w-5 text-accent" label={t("study.loadingDeck")} />
+        {t("study.loadingDeck")}
       </CenteredStatus>
     );
   }
@@ -281,8 +282,8 @@ export default function DeckLearnPage() {
   if (startSession.isPending) {
     body = (
       <CenteredStatus>
-        <Spinner className="h-5 w-5 text-accent" label="Starting session" />
-        Starting your session…
+        <Spinner className="h-5 w-5 text-accent" label={t("learn.startingSession")} />
+        {t("learn.startingSession")}
       </CenteredStatus>
     );
   } else if (finished) {
@@ -297,19 +298,19 @@ export default function DeckLearnPage() {
   } else if (startFailed) {
     body = (
       <StatusCard
-        title="Couldn't start a session"
-        text="Check your connection and try again."
-        primary={{ label: "Try again", onClick: () => start(prefs) }}
-        secondary={{ label: "Back to deck", onClick: exit }}
+        title={t("learn.startFailedTitle")}
+        text={t("learn.startFailedText")}
+        primary={{ label: t("learn.tryAgain"), onClick: () => start(prefs) }}
+        secondary={{ label: t("shared.backToDeck"), onClick: exit }}
       />
     );
   } else if (empty) {
     body = (
       <StatusCard
-        title="Nothing to learn with these settings"
-        text={emptyReason(prefs)}
-        primary={{ label: "Change settings", onClick: () => setSettingsOpen(true) }}
-        secondary={{ label: "Back to deck", onClick: exit }}
+        title={t("learn.emptyTitle")}
+        text={t(emptyReasonKey(prefs))}
+        primary={{ label: t("learn.changeSettings"), onClick: () => setSettingsOpen(true) }}
+        secondary={{ label: t("shared.backToDeck"), onClick: exit }}
       />
     );
   } else if (run) {
@@ -330,12 +331,14 @@ export default function DeckLearnPage() {
       />
     );
   } else if (firstVisit) {
-    body = <CenteredStatus>Choose how you want to learn {contentsQuery.data.name}.</CenteredStatus>;
+    body = (
+      <CenteredStatus>{t("learn.choosePrompt", { deck: contentsQuery.data.name })}</CenteredStatus>
+    );
   } else {
     body = (
       <CenteredStatus>
-        <Spinner className="h-5 w-5 text-accent" label="Starting session" />
-        Starting your session…
+        <Spinner className="h-5 w-5 text-accent" label={t("learn.startingSession")} />
+        {t("learn.startingSession")}
       </CenteredStatus>
     );
   }
@@ -365,14 +368,13 @@ export default function DeckLearnPage() {
   );
 }
 
-// Why a session came up empty, and what to change.
-function emptyReason(prefs: LearnPreferences): string {
-  if (prefs.starredOnly && !prefs.includeMastered)
-    return "Every starred card is already mastered. Star more cards, or include mastered cards.";
-  if (prefs.starredOnly) return "No starred cards here yet. Star a few, or turn off Starred cards only.";
-  if (!prefs.includeMastered)
-    return "Every card here is already mastered. Turn on Include mastered cards to review them.";
-  return "This deck has no cards Learn can ask. Each card needs a question and an answer.";
+// Why a session came up empty, and what to change. Module scope, so it names the key and the
+// caller resolves it.
+function emptyReasonKey(prefs: LearnPreferences): MessageKey {
+  if (prefs.starredOnly && !prefs.includeMastered) return "learn.emptyStarredMastered";
+  if (prefs.starredOnly) return "learn.emptyNoStarred";
+  if (!prefs.includeMastered) return "learn.emptyAllMastered";
+  return "learn.emptyNoQuizzable";
 }
 
 function CenteredStatus({ children }: { children: ReactNode }) {

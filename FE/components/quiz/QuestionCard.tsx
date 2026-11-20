@@ -6,6 +6,7 @@ import { useSpeechSupported } from "@/hooks/useSpeech";
 import { textDirection, stripLatex } from "@/lib/displayText";
 import { stripFurigana } from "@/lib/furigana";
 import { RichText } from "@/components/shared/RichText";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // The exam prompt, centered big (reference exam layout). A bundled prompt
 // (term, reading, example, …) renders the lines stacked; when speech is
@@ -23,6 +24,7 @@ export function promptSpeechText(prompt: PromptSegment[]): string {
 }
 
 export function QuestionCard({ prompt }: { prompt: PromptSegment[] }) {
+  const t = useT();
   const speechOn = useSpeechSupported();
   const text = promptSpeechText(prompt);
   const multi = prompt.length > 1;
@@ -34,7 +36,7 @@ export function QuestionCard({ prompt }: { prompt: PromptSegment[] }) {
           <SpeakButton id={QUESTION_SPEECH_ID} text={text} size="sm" />
         </div>
       )}
-      <p className="font-mono text-xs uppercase tracking-[0.08em] text-faint">Question</p>
+      <p className="font-mono text-xs uppercase tracking-[0.08em] text-faint">{t("quiz.question")}</p>
       <dl className="nice-scroll mt-5 max-h-[40vh] space-y-3 overflow-y-auto">
         {prompt.map((seg, i) => (
           <div key={`${seg.label}-${i}`}>

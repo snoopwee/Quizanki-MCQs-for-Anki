@@ -21,7 +21,7 @@ export default function FoldersPage() {
         <div>
           <h1 className="font-display text-3xl font-bold tracking-tight text-ink">{t("folders.heading")}</h1>
           <p className="mt-1 text-sm text-muted">
-            Group decks by subject, exam or textbook. A deck can sit in several folders at once.
+            {t("folders.lede")}
           </p>
         </div>
         <Link href="/home" className={buttonClasses({ variant: "ghost", size: "sm" })}>

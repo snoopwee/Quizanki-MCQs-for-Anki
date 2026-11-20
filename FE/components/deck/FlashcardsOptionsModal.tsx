@@ -4,12 +4,13 @@ import type { ReactNode } from "react";
 import { Modal } from "@/components/shared/Modal";
 import { Toggle } from "@/components/ui/controls";
 import { AUTOPLAY_SPEEDS, type FlashcardPreferences } from "@/lib/flashcardPreferences";
-import { TTS_LANGUAGE_OPTIONS, languageLabel } from "@/lib/ttsLanguages";
+import { languageLabel, languageOptions } from "@/lib/ttsLanguages";
 import { type FieldNoteType } from "@/components/deck/CardFieldsControl";
 import { FieldToggleControl } from "@/components/deck/FieldToggleControl";
 import { hasExtraFields } from "@/lib/cardFields";
 import { Select } from "@/components/ui/Select";
 import { useT } from "@/components/i18n/LocaleProvider";
+import { useLocale } from "@/components/i18n/LocaleProvider";
 
 // Deck-level TTS language controls, shown only for saved decks. `term`/`def` are
 // the current stored overrides ("" = auto-detect); `autoTerm`/`autoDef` are the
@@ -226,9 +227,9 @@ function Row({
   );
 }
 
-// A per-face language <select>. The Auto-detect option surfaces the detected
-// language (e.g. "Auto-detect (Japanese)") so the learner can see the current
-// guess before deciding to override it.
+// A per-face language picker. The Auto-detect option surfaces the detected language
+// (e.g. "Auto-detect (Japanese)") so the learner can see the current guess before deciding to
+// override it. Language names come from Intl.DisplayNames in the reader's locale.
 function LanguageRow({
   title,
   help,
@@ -244,6 +245,9 @@ function LanguageRow({
   disabled?: boolean;
   onChange: (code: string) => void;
 }) {
+  const t = useT();
+  const { locale } = useLocale();
+
   return (
     <div className={`flex items-center gap-4 ${disabled ? "opacity-50" : ""}`}>
       <div className="min-w-0 flex-1">
@@ -252,13 +256,13 @@ function LanguageRow({
       </div>
       <Select
         value={value}
-        options={TTS_LANGUAGE_OPTIONS.map((o) => ({
-          value: o.code,
-          label:
-            o.code === "" && autoDetected
-              ? `Auto-detect (${languageLabel(autoDetected)})`
-              : o.label,
-        }))}
+        // The Auto-detect row names the guess, so the learner can see it before overriding.
+        options={languageOptions(
+          locale,
+          autoDetected
+            ? t("tts.autoDetectWith", { language: languageLabel(autoDetected, locale) })
+            : t("tts.autoDetect"),
+        )}
         onChange={onChange}
         disabled={disabled}
         ariaLabel={title}

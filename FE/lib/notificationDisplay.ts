@@ -33,24 +33,36 @@ export function unreadLabel(unread: number): { key: MessageKey; vars?: Vars } {
  *
  * `now` is a parameter so this is testable and so a render can pass one clock to a whole list.
  */
-export function relativeTime(createdAt: string | null | undefined, now: Date = new Date()): string {
-  if (!createdAt) return "";
+/**
+ * A compact stamp for a row's right edge, as something the CALLER renders.
+ *
+ * <p>Three shapes: nothing to show, a message key, or an absolute date past a week — which only
+ * the caller can format, because only the caller knows the reader's locale. {@link useRelativeTime}
+ * is the hook that turns this into a string.
+ */
+export type RelativeStamp = { key: MessageKey; vars?: Vars } | { isoDate: string } | null;
+
+export function relativeStamp(
+  createdAt: string | null | undefined,
+  now: Date = new Date(),
+): RelativeStamp {
+  if (!createdAt) return null;
   const then = new Date(createdAt);
   const ms = then.getTime();
-  if (Number.isNaN(ms)) return "";
+  if (Number.isNaN(ms)) return null;
 
   const seconds = Math.round((now.getTime() - ms) / 1000);
   // A clock skew between browser and server can put a fresh row slightly in the future; that is
   // "just now", not "in 3 seconds".
-  if (seconds < 60) return "just now";
+  if (seconds < 60) return { key: "age.justNow" };
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 60) return { key: "age.minutesShort", vars: { count: minutes } };
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
+  if (hours < 24) return { key: "age.hoursShort", vars: { count: hours } };
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d`;
+  if (days < 7) return { key: "age.daysShort", vars: { count: days } };
 
-  return then.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return { isoDate: createdAt };
 }
 
 /**

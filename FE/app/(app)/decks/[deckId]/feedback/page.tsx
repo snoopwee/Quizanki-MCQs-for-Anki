@@ -11,12 +11,15 @@ import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/Spinner";
 import { buttonClasses } from "@/components/ui/Button";
-import { relativeTime } from "@/lib/notificationDisplay";
 import { starFills } from "@/lib/ratingDisplay";
+import { useT } from "@/components/i18n/LocaleProvider";
+import { useRelativeTime } from "@/components/i18n/useRelativeTime";
 
 // What people wrote about one deck — for its author alone. The backend answers 404 to anyone else,
 // so there is no owner check to get wrong here; this page just renders what it is given.
 export default function DeckFeedbackPage() {
+  const t = useT();
+  const ago = useRelativeTime();
   const { deckId } = useParams<{ deckId: string }>();
   const deck = useDeckContents(deckId);
   const feedback = useDeckFeedback(deckId);
@@ -33,14 +36,15 @@ export default function DeckFeedbackPage() {
       <div>
         <Link href={`/decks/${deckId}`} className={buttonClasses({ variant: "ghost", size: "sm" })}>
           <Icon name="chevronLeft" size={15} />
-          Back to deck
+          {t("shared.backToDeck")}
         </Link>
-        <h1 className="mt-3 font-display text-2xl font-bold tracking-tight text-ink">Feedback</h1>
+        <h1 className="mt-3 font-display text-2xl font-bold tracking-tight text-ink">{t("feedback.title")}</h1>
         <p className="mt-1 text-sm text-muted">
-          What people wrote when they rated{" "}
-          <span className="font-medium text-ink">{deck.data?.name ?? "this deck"}</span>. Only you
-          can see these. Names aren&apos;t shown — one rating per person, so every note is someone
-          different.
+          {t("feedback.ledePrefix")}{" "}
+          <span className="font-medium text-ink">
+            {deck.data?.name ?? t("report.thisDeck")}
+          </span>
+          . {t("feedback.ledeSuffix")}
         </p>
       </div>
 
@@ -52,21 +56,20 @@ export default function DeckFeedbackPage() {
 
       {feedback.isLoading ? (
         <p className="flex items-center gap-2 text-sm text-muted">
-          <Spinner className="h-5 w-5 text-accent" /> Loading feedback…
+          <Spinner className="h-5 w-5 text-accent" /> {t("feedback.loading")}
         </p>
       ) : feedback.isError ? (
         <p className="rounded-card border border-danger/30 bg-danger/10 px-4 py-6 text-sm text-danger">
-          Couldn&apos;t load this deck&apos;s feedback.
+          {t("feedback.loadFailed")}
         </p>
       ) : notes.length === 0 ? (
         <Card className="flex flex-col items-center gap-2 border-dashed px-6 py-14 text-center">
           <span className="grid h-12 w-12 place-items-center rounded-input bg-accent-soft text-accent">
             <Icon name="star" size={24} />
           </span>
-          <p className="text-sm font-medium text-ink">No notes yet.</p>
+          <p className="text-sm font-medium text-ink">{t("feedback.noneYet")}</p>
           <p className="max-w-xs text-sm text-muted">
-            People can leave one when they rate your deck. Ratings without a note still count
-            towards your score.
+            {t("feedback.noneYetHelp")}
           </p>
         </Card>
       ) : (
@@ -87,7 +90,7 @@ export default function DeckFeedbackPage() {
                     <span className="sr-only">{item.stars} out of 5</span>
                   </span>
                   <span className="font-mono text-xs text-faint">
-                    {relativeTime(item.writtenAt)}
+                    {ago(item.writtenAt)}
                   </span>
                 </div>
 
@@ -95,11 +98,10 @@ export default function DeckFeedbackPage() {
 
                 {confirming === item.id ? (
                   <div className="space-y-1.5 rounded-input border border-danger/30 bg-danger/5 p-2.5">
-                    <p className="text-xs font-semibold text-ink">Delete this note?</p>
+                    <p className="text-xs font-semibold text-ink">{t("feedback.deleteConfirm")}</p>
                     {/* The rule, said out loud where it matters most. */}
                     <p className="text-xs text-muted">
-                      Their {item.stars}-star rating stays and still counts towards your score —
-                      only the text goes.
+                      {t("feedback.deleteRule", { stars: item.stars })}
                     </p>
                     <div className="flex gap-1.5">
                       <button
@@ -107,7 +109,7 @@ export default function DeckFeedbackPage() {
                         onClick={() => setConfirming(null)}
                         className={buttonClasses({ variant: "ghost", size: "sm" })}
                       >
-                        Cancel
+                        {t("common.cancel")}
                       </button>
                       <button
                         type="button"
@@ -118,9 +120,9 @@ export default function DeckFeedbackPage() {
                         className={buttonClasses({ variant: "danger", size: "sm" })}
                       >
                         {remove.isPending && (
-                          <Spinner className="h-3.5 w-3.5 text-danger" label="Deleting" />
+                          <Spinner className="h-3.5 w-3.5 text-danger" label={t("common.deleting")} />
                         )}
-                        Delete note
+                        {t("feedback.deleteNote")}
                       </button>
                     </div>
                   </div>
@@ -131,14 +133,14 @@ export default function DeckFeedbackPage() {
                       onClick={() => setConfirming(item.id)}
                       className="focus-ring rounded-input px-1.5 py-0.5 text-xs font-semibold text-muted transition hover:text-danger"
                     >
-                      Delete note
+                      {t("feedback.deleteNote")}
                     </button>
                     <button
                       type="button"
                       onClick={() => setReporting({ id: item.id, note: item.note })}
                       className="focus-ring rounded-input px-1.5 py-0.5 text-xs font-semibold text-muted transition hover:text-accent"
                     >
-                      Report to admin
+                      {t("feedback.reportToAdmin")}
                     </button>
                   </div>
                 )}
@@ -149,9 +151,7 @@ export default function DeckFeedbackPage() {
       )}
 
       <p className="text-xs text-muted">
-        Deleting a note removes the text for good, and their rating still counts. Report it instead
-        if it&apos;s abusive: an admin can remove the whole rating, and either way they&apos;ll tell
-        you what they decided.
+        {t("feedback.footer")}
       </p>
 
       {reporting && (

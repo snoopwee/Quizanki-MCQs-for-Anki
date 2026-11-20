@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { quizKeyAction, quizKeyHint } from "./quizKeys";
+import { quizKeyAction, quizKeyHintKey } from "./quizKeys";
 
 const mcq = { kind: "mcq" as const, optionCount: 4, answered: false };
 
@@ -77,15 +77,15 @@ describe("quizKeyAction — after answering", () => {
   });
 });
 
-describe("quizKeyHint", () => {
-  it("tells the learner what the keys do, and changes once they have answered", () => {
-    expect(quizKeyHint({ kind: "mcq", answered: false })).toBe("A–D or 1–4 to answer");
-    expect(quizKeyHint({ kind: "truefalse", answered: false })).toBe("T / F to answer");
-    expect(quizKeyHint({ kind: "mcq", answered: true })).toBe("Enter to continue");
+describe("quizKeyHintKey", () => {
+  it("names a hint per format, and changes once they have answered", () => {
+    expect(quizKeyHintKey({ kind: "mcq", answered: false })).toBe("quiz.keysMcq");
+    expect(quizKeyHintKey({ kind: "truefalse", answered: false })).toBe("quiz.keysTrueFalse");
+    expect(quizKeyHintKey({ kind: "mcq", answered: true })).toBe("quiz.keysContinue");
   });
 
   it("says nothing for a written question, which has no shortcuts", () => {
-    expect(quizKeyHint({ kind: "written", answered: false })).toBeNull();
-    expect(quizKeyHint({ kind: "written", answered: true })).toBeNull();
+    expect(quizKeyHintKey({ kind: "written", answered: false })).toBeNull();
+    expect(quizKeyHintKey({ kind: "written", answered: true })).toBeNull();
   });
 });

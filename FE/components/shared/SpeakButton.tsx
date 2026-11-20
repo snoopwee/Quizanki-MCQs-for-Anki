@@ -5,6 +5,7 @@ import { useSpeech } from "@/hooks/useSpeech";
 import { isClipPlaying, playClip, subscribeClip } from "@/lib/audioClip";
 import { IconButton, iconButtonIconSize } from "@/components/ui/IconButton";
 import { Icon } from "@/components/ui/icons";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // Speaker button that reads `text` aloud via the Web Speech API. The language is
 // auto-detected per segment (a card can mix languages — see lib/ttsLang), so this
@@ -59,6 +60,7 @@ export function SpeakButton({
   // recording preferred). "" / undefined falls back to TTS.
   audioUrl?: string;
 }) {
+  const t = useT();
   const { supported, activeKey, activeStatus, toggle } = useSpeech();
   const clipMode = Boolean(audioUrl);
   const clipPlaying = useSyncExternalStore(
@@ -79,15 +81,15 @@ export function SpeakButton({
 
   const title = clipMode
     ? busy
-      ? "Stop"
-      : "Play audio"
+      ? t("speak.stop")
+      : t("speak.playAudio")
     : empty
-      ? "Nothing to read"
+      ? t("speak.nothingToRead")
       : busy
-        ? "Stop reading"
+        ? t("speak.stopReading")
         : // Distinguish this from a card's own audio clip (its own player): the
           // speaker reads the text aloud with text-to-speech.
-          "Read the text aloud (text-to-speech)";
+          t("speak.read");
 
   const iconNode = loading ? (
     <Spinner className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"} />
@@ -111,7 +113,11 @@ export function SpeakButton({
 
   const common = {
     type: "button" as const,
-    "aria-label": busy ? "Stop audio" : clipMode ? "Play audio" : "Read the text aloud (text-to-speech)",
+    "aria-label": busy
+      ? t("speak.stopAudio")
+      : clipMode
+        ? t("speak.playAudio")
+        : t("speak.read"),
     "aria-pressed": busy,
     title,
     disabled,

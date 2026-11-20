@@ -6,7 +6,7 @@ import { Icon } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/Spinner";
 import { buttonClasses } from "@/components/ui/Button";
 import { useCreateFolder, useFileDeck, useFolders } from "@/hooks/useFolders";
-import { deckCountLabel, folderErrorMessage, normalizeFolderName } from "@/lib/folderDisplay";
+import { folderErrorMessage, normalizeFolderName } from "@/lib/folderDisplay";
 import { useT } from "@/components/i18n/LocaleProvider";
 
 // Files one deck into the viewer's own folders. Folders are private grouping, so this works on a
@@ -91,7 +91,7 @@ export function AddToFolderModal({
                     </span>
                     <span className="min-w-0 flex-1 truncate text-sm text-ink">{folder.name}</span>
                     <span className="shrink-0 font-mono text-xs text-faint">
-                      {deckCountLabel(folder.deckCount)}
+                      {t("deck.count", { count: folder.deckCount })}
                     </span>
                   </button>
                 </li>
@@ -134,7 +134,11 @@ export function AddToFolderModal({
         {create.isError && (
           <p className="text-sm text-danger">
             {/* 409 when they already have a folder by that name — the backend names it. */}
-            {folderErrorMessage(create.error, t("folderModal.createFailed"))}
+            {folderErrorMessage(
+              create.error,
+              t("folderModal.createFailed"),
+              t("common.offline"),
+            )}
           </p>
         )}
       </div>

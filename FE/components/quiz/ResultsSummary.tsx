@@ -7,6 +7,7 @@ import { buttonClasses } from "@/components/ui/Button";
 import { CardPreviewRow } from "@/components/deck/CardPreview";
 import { RichText } from "@/components/shared/RichText";
 import { ExplainCard } from "@/components/quiz/ExplainCard";
+import { trueFalseKey, trueFalseLabel } from "@/lib/questionAnswer";
 
 export function ResultsSummary({
   answers,
@@ -57,11 +58,9 @@ export function ResultsSummary({
             <p className="font-mono text-xs uppercase tracking-[0.08em] text-faint">{t("results.complete")}</p>
             <h2 className="mt-1 font-display text-3xl font-bold tracking-tight text-ink">{verdict}!</h2>
             <p className="mt-1 text-sm text-muted">
-              You got{" "}
-              <strong className="text-ink">
-                {score} of {total}
-              </strong>{" "}
-              correct.
+              {t("results.youGotPrefix")}{" "}
+              <strong className="text-ink">{t("results.ofTotal", { score, total })}</strong>{" "}
+              {t("results.youGotSuffix")}
             </p>
           </div>
         </div>
@@ -87,7 +86,7 @@ export function ResultsSummary({
           scrolling past every card */}
       <div className="flex flex-wrap gap-2">
         <button onClick={onEndTest} className={buttonClasses({ variant: "ghost", className: "grow basis-32" })}>
-          End
+          {t("results.end")}
         </button>
         <button
           onClick={onRetakeWrong}
@@ -124,9 +123,15 @@ export function ResultsSummary({
                   <div className="border-t border-line pt-2">
                     {a.selected && (
                       <p className="text-xs text-muted">
-                        You answered{" "}
+                        {t("results.youAnswered")}{" "}
                         <span className="font-medium text-danger">
-                          <RichText text={a.selected} />
+                          {/* A true/false pick is a verdict WE worded, so it translates; any
+                              other answer is the card's own text and must not. */}
+                          {a.kind === "truefalse" ? (
+                            t(trueFalseKey(a.selected === trueFalseLabel(true)))
+                          ) : (
+                            <RichText text={a.selected} />
+                          )}
                         </span>
                       </p>
                     )}

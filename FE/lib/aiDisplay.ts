@@ -10,24 +10,6 @@ import type { Vars } from "@/lib/i18n/translate";
 export const MAX_PDF_BYTES = 20 * 1024 * 1024;
 
 /**
- * The backend's own message when there is one — it already says the useful thing ("you've used
- * today's 5 free generations", "that PDF looks like a scan"). The fallbacks only cover a response
- * that never reached our handler.
- */
-export function aiErrorMessage(err: unknown): string {
-  if (axios.isAxiosError(err)) {
-    const message = (err.response?.data as { message?: string } | undefined)?.message;
-    if (message) return message;
-    const status = err.response?.status;
-    if (status === 429) return "You've used today's AI generations. Try again tomorrow.";
-    if (status === 503) return "AI generation isn't available right now.";
-    if (status === 413) return "That file is too large.";
-    if (!err.response) return "Couldn't reach the server. Check your connection and try again.";
-  }
-  return "Couldn't generate cards from that. Try different material.";
-}
-
-/**
  * How much of today's allowance is left, as a key.
  *
  * <p>Two keys rather than one with a spliced "free": English puts the adjective before the noun

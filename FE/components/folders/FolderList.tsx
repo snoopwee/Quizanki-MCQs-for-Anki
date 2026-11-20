@@ -7,9 +7,10 @@ import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/icons";
 import { Spinner } from "@/components/ui/Spinner";
 import { buttonClasses } from "@/components/ui/Button";
-import { deckCountLabel, folderErrorMessage, normalizeFolderName } from "@/lib/folderDisplay";
+import { folderErrorMessage, normalizeFolderName } from "@/lib/folderDisplay";
 import { folderHref } from "@/lib/folderNav";
 import { useCreateFolder, useDeleteFolder, useFolders, useRenameFolder } from "@/hooks/useFolders";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 /**
  * The folder list, plus creating, renaming and deleting one.
@@ -21,6 +22,7 @@ import { useCreateFolder, useDeleteFolder, useFolders, useRenameFolder } from "@
  * had no URL: you couldn't bookmark one, send one to yourself, or press Back to get out of it.
  */
 export function FolderList() {
+  const t = useT();
   const folders = useFolders();
   const create = useCreateFolder();
   const [newName, setNewName] = useState("");
@@ -44,8 +46,8 @@ export function FolderList() {
             }
           }}
           maxLength={60}
-          placeholder="New folder name"
-          aria-label="New folder name"
+          placeholder={t("folderModal.newName")}
+          aria-label={t("folderModal.newName")}
           className="focus-ring min-w-0 flex-1 rounded-input border border-line-strong bg-surface px-3 py-2 text-sm text-ink sm:max-w-xs"
         />
         <button
@@ -55,11 +57,11 @@ export function FolderList() {
           className={buttonClasses({ variant: "soft", size: "sm" })}
         >
           {create.isPending ? (
-            <Spinner className="h-4 w-4 text-accent" label="Creating" />
+            <Spinner className="h-4 w-4 text-accent" label={t("folderModal.creating")} />
           ) : (
             <Icon name="plus" size={15} />
           )}
-          New folder
+          {t("folders.newFolder")}
         </button>
       </div>
 
@@ -67,23 +69,22 @@ export function FolderList() {
         <p className="flex items-center gap-1.5 text-sm text-danger">
           <Icon name="alertTriangle" size={14} />
           {/* 409 when the name is taken — the backend's message names it. */}
-          {folderErrorMessage(create.error, "Couldn't create that folder.")}
+          {folderErrorMessage(create.error, t("folderModal.createFailed"), t("common.offline"))}
         </p>
       )}
 
       {folders.isLoading ? (
         <FolderListSkeleton />
       ) : folders.isError ? (
-        <p className="text-sm text-danger">Could not load folders.</p>
+        <p className="text-sm text-danger">{t("folders.loadFailed")}</p>
       ) : (folders.data ?? []).length === 0 ? (
         <Card className="flex flex-col items-center gap-3 border-dashed px-6 py-14 text-center">
           <span className="grid h-12 w-12 place-items-center rounded-input bg-accent-soft text-accent">
             <Icon name="folder" size={24} />
           </span>
-          <p className="text-sm font-medium text-ink">No folders yet.</p>
+          <p className="text-sm font-medium text-ink">{t("folders.noneYet")}</p>
           <p className="max-w-xs text-sm text-muted">
-            Group decks however you like — by subject, by exam, by textbook. A deck can sit in
-            several folders.
+            {t("folders.noneYetHelp")}
           </p>
         </Card>
       ) : (
@@ -120,6 +121,7 @@ function FolderListSkeleton() {
 }
 
 function FolderCard({ id, name, deckCount }: { id: string; name: string; deckCount: number }) {
+  const t = useT();
   const rename = useRenameFolder();
   const remove = useDeleteFolder();
   const [editing, setEditing] = useState(false);
@@ -150,7 +152,7 @@ function FolderCard({ id, name, deckCount }: { id: string; name: string; deckCou
               if (e.key === "Escape") setEditing(false);
             }}
             maxLength={60}
-            aria-label="Folder name"
+            aria-label={t("folders.nameLabel")}
             className="focus-ring w-full rounded-input border border-line-strong bg-surface px-2.5 py-1.5 text-sm text-ink"
           />
           <div className="flex gap-2">
@@ -159,7 +161,7 @@ function FolderCard({ id, name, deckCount }: { id: string; name: string; deckCou
               onClick={() => setEditing(false)}
               className={buttonClasses({ variant: "ghost", size: "sm" })}
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -167,26 +169,26 @@ function FolderCard({ id, name, deckCount }: { id: string; name: string; deckCou
               disabled={rename.isPending}
               className={buttonClasses({ variant: "primary", size: "sm" })}
             >
-              Save
+              {t("common.save")}
             </button>
           </div>
           {rename.isError && (
             <p className="text-xs text-danger">
-              {folderErrorMessage(rename.error, "Couldn't rename it.")}
+              {folderErrorMessage(rename.error, t("folders.renameFailed"), t("common.offline"))}
             </p>
           )}
         </div>
       ) : confirming ? (
         <div className="space-y-2">
-          <p className="text-sm font-semibold text-ink">Delete “{name}”?</p>
-          <p className="text-xs text-muted">The decks inside it stay in your library.</p>
+          <p className="text-sm font-semibold text-ink">{t("folders.deleteConfirm", { name })}</p>
+          <p className="text-xs text-muted">{t("folders.deleteNote")}</p>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => setConfirming(false)}
               className={buttonClasses({ variant: "ghost", size: "sm" })}
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -194,8 +196,8 @@ function FolderCard({ id, name, deckCount }: { id: string; name: string; deckCou
               disabled={remove.isPending}
               className={buttonClasses({ variant: "danger", size: "sm" })}
             >
-              {remove.isPending && <Spinner className="h-3.5 w-3.5 text-danger" label="Deleting" />}
-              Delete
+              {remove.isPending && <Spinner className="h-3.5 w-3.5 text-danger" label={t("common.deleting")} />}
+              {t("folders.delete")}
             </button>
           </div>
         </div>
@@ -216,22 +218,27 @@ function FolderCard({ id, name, deckCount }: { id: string; name: string; deckCou
                 {name}
               </span>
               <span className="mt-0.5 block font-mono text-xs text-faint">
-                {deckCountLabel(deckCount)}
+                {t("deck.count", { count: deckCount })}
               </span>
             </span>
           </Link>
           <KebabMenu
-            label={`${name} options`}
+            label={t("folders.cardOptions", { name })}
             items={[
               {
-                label: "Rename",
+                label: t("folders.rename"),
                 icon: "pencil",
                 onClick: () => {
                   setDraftName(name);
                   setEditing(true);
                 },
               },
-              { label: "Delete", icon: "trash", danger: true, onClick: () => setConfirming(true) },
+              {
+                label: t("folders.delete"),
+                icon: "trash",
+                danger: true,
+                onClick: () => setConfirming(true),
+              },
             ]}
           />
         </div>

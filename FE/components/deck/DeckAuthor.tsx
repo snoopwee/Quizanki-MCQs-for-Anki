@@ -3,7 +3,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { initialsFrom } from "@/lib/userDisplay";
 import { timeAgo } from "@/lib/relativeTime";
 import { profileUrl } from "@/lib/profileUrl";
-import { useT } from "@/components/i18n/LocaleProvider";
+import { useLocale, useT } from "@/components/i18n/LocaleProvider";
 
 type Variant = "inline" | "dot" | "plain" | "detailed";
 
@@ -47,6 +47,7 @@ export function DeckAuthor({
   className?: string;
 }) {
   const t = useT();
+  const { locale } = useLocale();
   // Decks imported before authorship existed have no stored name; they get one on
   // their next save. Until then, say nothing rather than "by null".
   if (!authorName) return null;
@@ -65,7 +66,7 @@ export function DeckAuthor({
   );
 
   if (variant === "detailed") {
-    const created = timeAgo(createdAt);
+    const created = timeAgo(createdAt, Date.now(), locale, t("age.justNow"));
     return (
       <div className={`flex items-center gap-3 ${className}`}>
         <Avatar

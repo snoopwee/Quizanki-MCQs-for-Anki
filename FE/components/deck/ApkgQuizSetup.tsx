@@ -267,7 +267,7 @@ export function ApkgQuizSetup({
           <ul className="space-y-1 text-xs text-muted">
             {clozeTypes.map((nt) => (
               <li key={nt.id}>
-                {nt.name} · {cardsInType(nt)} cloze card{cardsInType(nt) === 1 ? "" : "s"}
+                {nt.name} · {t("card.clozeCount", { count: cardsInType(nt) })}
               </li>
             ))}
           </ul>

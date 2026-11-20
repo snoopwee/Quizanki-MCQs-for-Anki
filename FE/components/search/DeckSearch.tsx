@@ -130,7 +130,7 @@ export function DeckSearch() {
                       <Icon name="cards" size={16} className="shrink-0 text-faint" />
                       <span className="min-w-0 flex-1 truncate">{highlight(deck.name, trimmed)}</span>
                       <span className="shrink-0 text-xs text-faint">
-                        {deck.cardCount ?? 0} card{deck.cardCount === 1 ? "" : "s"}
+                        {t("card.count", { count: deck.cardCount ?? 0 })}
                       </span>
                     </Link>
                   </li>

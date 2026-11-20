@@ -14,9 +14,10 @@ import {
   useNotifications,
   useUnreadNotificationCount,
 } from "@/hooks/useNotifications";
-import { inAppHref, relativeTime, unreadBadge, unreadLabel } from "@/lib/notificationDisplay";
+import { inAppHref, unreadBadge, unreadLabel } from "@/lib/notificationDisplay";
 import type { NotificationResponse } from "@/types/api";
 import { useT } from "@/components/i18n/LocaleProvider";
+import { useRelativeTime } from "@/components/i18n/useRelativeTime";
 
 const headerActionClasses =
   "focus-ring rounded-input px-1.5 py-0.5 text-xs font-semibold text-accent transition hover:bg-accent-soft disabled:cursor-not-allowed disabled:text-faint disabled:hover:bg-transparent";
@@ -115,7 +116,9 @@ export function NotificationBell() {
           className="absolute right-0 z-30 mt-1.5 w-80 max-w-[calc(100vw-2rem)] rounded-card border border-line bg-surface p-1 shadow-card"
         >
           <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-            <span className="font-display text-sm font-semibold text-ink">Notifications</span>
+            <span className="font-display text-sm font-semibold text-ink">
+              {t("shell.notifications")}
+            </span>
             <span className="flex items-center gap-0.5">
               <button
                 type="button"
@@ -123,7 +126,7 @@ export function NotificationBell() {
                 disabled={count === 0 || markAll.isPending}
                 className={headerActionClasses}
               >
-                {markAll.isPending ? "Marking…" : "Mark all read"}
+                {markAll.isPending ? t("notif.marking") : t("notif.markAllRead")}
               </button>
               <button
                 type="button"
@@ -131,22 +134,22 @@ export function NotificationBell() {
                 disabled={items.length === 0 || clear.isPending}
                 className={headerActionClasses}
               >
-                Clear all
+                {t("notif.clearAll")}
               </button>
             </span>
           </div>
 
           {confirmingClear && (
             <div className="mx-1 mb-1 space-y-1.5 rounded-[8px] border border-danger/30 bg-danger/5 p-2">
-              <p className="text-xs font-semibold text-ink">Delete all your notifications?</p>
-              <p className="text-[0.6875rem] text-muted">This one can&apos;t be undone.</p>
+              <p className="text-xs font-semibold text-ink">{t("notif.clearConfirm")}</p>
+              <p className="text-[0.6875rem] text-muted">{t("notif.clearIrreversible")}</p>
               <div className="flex gap-1.5">
                 <button
                   type="button"
                   onClick={() => setConfirmingClear(false)}
                   className={buttonClasses({ variant: "ghost", size: "sm" })}
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </button>
                 <button
                   type="button"
@@ -156,8 +159,8 @@ export function NotificationBell() {
                   disabled={clear.isPending}
                   className={buttonClasses({ variant: "danger", size: "sm" })}
                 >
-                  {clear.isPending && <Spinner className="h-3 w-3 text-danger" label="Clearing" />}
-                  Clear all
+                  {clear.isPending && <Spinner className="h-3 w-3 text-danger" label={t("notif.clearing")} />}
+                  {t("notif.clearAll")}
                 </button>
               </div>
             </div>
@@ -166,19 +169,18 @@ export function NotificationBell() {
           <div className="nice-scroll max-h-80 overflow-y-auto overflow-x-hidden">
             {page.isLoading ? (
               <p className="flex items-center gap-2 px-2 py-6 text-sm text-muted">
-                <Spinner className="h-4 w-4 text-accent" /> Loading…
+                <Spinner className="h-4 w-4 text-accent" /> {t("common.loading")}
               </p>
             ) : page.isError ? (
-              <p className="px-2 py-6 text-sm text-danger">Couldn&apos;t load your notifications.</p>
+              <p className="px-2 py-6 text-sm text-danger">{t("notif.loadFailed")}</p>
             ) : items.length === 0 ? (
               <div className="px-2 py-6 text-center">
                 <span className="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-full bg-accent-soft text-accent">
                   <Icon name="bell" size={18} />
                 </span>
-                <p className="text-sm font-medium text-ink">Nothing yet.</p>
+                <p className="text-sm font-medium text-ink">{t("notif.noneYet")}</p>
                 <p className="mt-0.5 text-xs text-muted">
-                  Decks shared with you, new decks from authors you follow, and news from us land
-                  here.
+                  {t("notif.noneYetHelp")}
                 </p>
               </div>
             ) : (
@@ -219,8 +221,10 @@ function Row({
   onDelete: () => void;
   deleting: boolean;
 }) {
+  const t = useT();
+  const ago = useRelativeTime();
   const href = inAppHref(notification.link);
-  const age = relativeTime(notification.createdAt);
+  const age = ago(notification.createdAt);
 
   // The row and its ✕ are SIBLINGS: a button inside a button is invalid HTML, and nesting them
   // would also make every dismiss double as "open this notification".
@@ -263,7 +267,7 @@ function Row({
       {/* Always visible, not hover-only: a hover-revealed control can't be reached on a touch
           screen, which is exactly where a bell full of old rows is most annoying. */}
       <IconButton
-        label={`Delete: ${notification.title}`}
+        label={t("notif.deleteRow", { title: notification.title })}
         size="sm"
         bordered={false}
         disabled={deleting}
@@ -271,7 +275,7 @@ function Row({
         className="mt-1.5 mr-1 text-faint hover:text-danger"
       >
         {deleting ? (
-          <Spinner className="h-3 w-3 text-danger" label="Deleting" />
+          <Spinner className="h-3 w-3 text-danger" label={t("common.deleting")} />
         ) : (
           <Icon name="x" size={iconButtonIconSize("sm")} />
         )}

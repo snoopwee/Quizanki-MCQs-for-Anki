@@ -5,6 +5,7 @@
 
 import type { Question } from "@/lib/buildQuestions";
 import type { QuestionKind } from "@/lib/questionTypes";
+import type { MessageKey } from "@/lib/i18n/messages/en";
 
 // A checked written answer: the auto-grade, plus whether the learner overrode a miss
 // ("I was right"). The final verdict is only recorded when they move on, so an override
@@ -38,8 +39,17 @@ export function isAnswerCorrect(
 }
 
 // The footer prompt shown before the question is answered.
-export function answerHint(kind: QuestionKind): string {
-  if (kind === "written") return "Type your answer";
-  if (kind === "truefalse") return "True or false?";
-  return "Pick the closest answer";
+export function answerHintKey(kind: QuestionKind): MessageKey {
+  if (kind === "written") return "quiz.hintWritten";
+  if (kind === "truefalse") return "quiz.hintTrueFalse";
+  return "quiz.hintMcq";
+}
+
+/**
+ * How a true/false pick is SHOWN. Deliberately separate from {@link trueFalseLabel}, which is the
+ * recorded value: that string is compared against to grade the answer (here and in
+ * `practiceTest`), so it has to stay the same in every language. Only this moves.
+ */
+export function trueFalseKey(pick: boolean): MessageKey {
+  return pick ? "quiz.true" : "quiz.false";
 }

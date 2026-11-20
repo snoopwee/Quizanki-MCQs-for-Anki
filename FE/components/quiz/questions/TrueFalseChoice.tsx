@@ -1,7 +1,10 @@
+"use client";
+
 import { Icon } from "@/components/ui/icons";
 import { RichText } from "@/components/shared/RichText";
 import { textDirection } from "@/lib/displayText";
-import { trueFalseLabel } from "@/lib/questionAnswer";
+import { trueFalseKey, trueFalseLabel } from "@/lib/questionAnswer";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // True/False: the asserted statement above two verdict buttons. After answering,
 // the correct verdict goes green and a wrong pick goes red (mirroring OptionButton).
@@ -18,10 +21,12 @@ export function TrueFalseChoice({
   picked: string | null;
   onPick: (pick: boolean) => void;
 }) {
+  const t = useT();
+
   return (
     <div className="space-y-4">
       <div className="rounded-card border border-line-strong bg-surface-2 p-5 text-center">
-        <p className="font-mono text-[0.6875rem] uppercase tracking-wide text-faint">Proposed answer</p>
+        <p className="font-mono text-[0.6875rem] uppercase tracking-wide text-faint">{t("quiz.proposedAnswer")}</p>
         <p
           dir={textDirection(statement)}
           className="mt-2 font-display text-2xl font-semibold leading-tight break-words text-ink"
@@ -48,7 +53,7 @@ export function TrueFalseChoice({
           return (
             <button key={label} type="button" disabled={answered} onClick={() => onPick(val)} className={cls}>
               <Icon name={val ? "check" : "x"} size={18} />
-              {label}
+              {t(trueFalseKey(val))}
             </button>
           );
         })}

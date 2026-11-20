@@ -899,4 +899,278 @@ export const vi = {
   "setup.selectField": "Chọn một trường",
   "setup.eg": "ví dụ {sample}",
   "setup.emptySample": "(trống)",
+
+  // ---- the quiz run ----------------------------------------------------------------------------
+  "quiz.quiz": "Trắc nghiệm",
+  "quiz.question": "Câu hỏi",
+  "quiz.next": "Tiếp",
+  "quiz.finish": "Hoàn thành",
+  "quiz.blank": "(để trống)",
+  "quiz.correctExclaim": "Chính xác!",
+  "quiz.answerLabel": "Đáp án:",
+  "quiz.proposedAnswer": "Đáp án đề xuất",
+  "quiz.true": "Đúng",
+  "quiz.false": "Sai",
+  "quiz.hintMcq": "Chọn đáp án gần nhất",
+  "quiz.hintTrueFalse": "Đúng hay sai?",
+  "quiz.hintWritten": "Nhập câu trả lời của bạn",
+  "quiz.typeAnswer": "Nhập câu trả lời…",
+  "quiz.yourAnswer": "Câu trả lời của bạn",
+  "quiz.checkAnswer": "Kiểm tra",
+  "quiz.correctAnswer": "Đáp án đúng",
+  "quiz.countedCorrect": "Đã tính là đúng",
+  "quiz.iWasRight": "Tôi trả lời đúng — tính điểm",
+  "quiz.loadingTest": "Đang tải bài…",
+  "quiz.apply": "Áp dụng",
+  "study.loadingDeck": "Đang tải bộ thẻ…",
+
+  "results.youGotPrefix": "Bạn làm đúng",
+  "results.ofTotal": "{score} trên {total}",
+  "results.youGotSuffix": "câu.",
+  "results.youAnswered": "Bạn đã trả lời",
+
+  // ---- the practice test -----------------------------------------------------------------------
+  "practice.leave": "Thoát bài kiểm tra",
+  "practice.title": "Bài kiểm tra thử",
+  "practice.answered": "Đã trả lời {done}/{total}",
+  "practice.questionOf": "Câu {index} / {total}",
+  "practice.jumpTo": "Chuyển tới một câu",
+  "practice.navAnswered": "Câu {index}, đã trả lời",
+  "practice.navUnanswered": "Câu {index}, chưa trả lời",
+  "practice.blanks":
+    "Còn {count} câu chưa trả lời — câu để trống bị tính sai.",
+  "practice.goToFirst": "Tới câu đầu tiên",
+  "practice.submitAnyway": "Vẫn gửi bài",
+  "practice.previous": "Trước",
+  "practice.submit": "Gửi bài",
+  "practice.setupTitle": "Thiết lập bài kiểm tra thử",
+  "practice.setupDesc":
+    "Làm toàn bộ bài rồi gửi đi để được chấm điểm. Không có phản hồi trước khi gửi — bạn có thể chuyển qua lại giữa các câu và đổi đáp án tự do.",
+  "practice.startTest": "Bắt đầu",
+  "practice.newTest": "Bài mới",
+
+  // ---- a Learn session in progress -------------------------------------------------------------
+  "learn.endSession": "Kết thúc phiên",
+  "learn.label": "Học",
+  "learn.resumed": "Học · tiếp tục",
+  "learn.learnedWord": "đã học",
+  "learn.doneWord": "đã xong",
+  "learn.retypePrompt": "Nhập đúng đáp án để tiếp tục",
+  "learn.retypePlaceholder": "Nhập đáp án ở trên…",
+  "learn.startingSession": "Đang bắt đầu phiên học…",
+  "learn.startFailedTitle": "Không bắt đầu được phiên học",
+  "learn.startFailedText": "Hãy kiểm tra kết nối và thử lại.",
+  "learn.tryAgain": "Thử lại",
+  "learn.emptyTitle": "Không có gì để học với các cài đặt này",
+  "learn.changeSettings": "Đổi cài đặt",
+  "learn.emptyStarredMastered":
+    "Mọi thẻ đã gắn sao đều đã thành thạo. Hãy gắn sao thêm thẻ, hoặc bật gồm cả thẻ đã thành thạo.",
+  "learn.emptyNoStarred":
+    "Chưa có thẻ nào được gắn sao. Hãy gắn sao vài thẻ, hoặc tắt Chỉ thẻ đã gắn sao.",
+  "learn.emptyAllMastered":
+    "Mọi thẻ ở đây đều đã thành thạo. Bật Gồm cả thẻ đã thành thạo để ôn lại.",
+  "learn.emptyNoQuizzable":
+    "Bộ thẻ này không có thẻ nào Học có thể hỏi. Mỗi thẻ cần một câu hỏi và một đáp án.",
+  "learn.choosePrompt": "Chọn cách bạn muốn học {deck}.",
+
+  // ---- the end-of-session summary --------------------------------------------------------------
+  "learn.sessionComplete": "Hoàn thành phiên học",
+  "learn.praiseFlawless": "Hoàn hảo!",
+  "learn.praiseNice": "Làm tốt lắm!",
+  "learn.praiseAllLearned": "Đã học hết mọi thẻ!",
+  "learn.praiseKeepPracticing": "Tiếp tục luyện tập nhé!",
+  "learn.answerCount": "{count} câu trả lời",
+  "learn.youLearnedPrefix": "Bạn đã học",
+  "learn.firstTryLine": "Đúng ngay lần đầu {right} thẻ, tổng cộng {answers}.",
+  "learn.youAnsweredPrefix": "Bạn đã trả lời",
+  "learn.rightMissedLine": "Đúng {right}, sai {missed}.",
+  "learn.whereStand": "Các thẻ này đang ở đâu",
+  "learn.masteryNote":
+    "Mức thành thạo sau phiên này. Mọi câu trả lời đều được tính, như trong bài trắc nghiệm.",
+  "learn.tookMoreTries": "Cần hơn một lần thử",
+  "learn.missedTimes": "sai {count} lần",
+  "learn.keepLearning": "Học tiếp",
+
+  // ---- Match -----------------------------------------------------------------------------------
+  "match.loading": "Đang tải trò ghép thẻ…",
+  "match.exit": "Thoát ghép thẻ",
+  "match.header": "Ghép thẻ · {deck}",
+  "match.tagline": "Ghép mọi thuật ngữ với nghĩa của nó",
+  "match.notEnough":
+    "Ghép thẻ cần ít nhất hai thẻ có cả thuật ngữ và định nghĩa. Bộ thẻ này chưa đủ.",
+  "match.pairsMatched": "Đã ghép {done}/{total} cặp",
+  "match.allMatched": "Đã ghép hết",
+  "match.newBest": "🎉 Kỷ lục mới!",
+  "match.best": "Tốt nhất: {time}",
+  "match.playAgain": "Chơi lại",
+
+  // ---- counts, as plural keys -------------------------------------------------------------------
+  "card.count": "{count} thẻ",
+  "card.clozeCount": "{count} thẻ cloze",
+  "deck.count": "{count} bộ thẻ",
+  "deck.publicCount": "{count} bộ thẻ công khai",
+  "follow.followerCount": "{count} người theo dõi",
+  "import.cardsDetected": "Phát hiện {count} thẻ",
+  "deckPage.noteCount": "{count} ghi chú",
+  "deckPage.hideAnswers": "Ẩn đáp án",
+  "deckPage.showAnswers": "Hiện đáp án",
+
+  // ---- shared leaf buttons ----------------------------------------------------------------------
+  "speak.read": "Đọc to đoạn văn bản (chuyển văn bản thành giọng nói)",
+  "speak.stop": "Dừng",
+  "speak.stopReading": "Dừng đọc",
+  "speak.playAudio": "Phát âm thanh",
+  "speak.stopAudio": "Dừng âm thanh",
+  "speak.nothingToRead": "Không có gì để đọc",
+  "star.star": "Gắn sao thẻ này",
+  "star.unstar": "Bỏ gắn sao thẻ này",
+  "star.starTitle": "Gắn sao để tập trung vào thẻ này",
+  "star.starredTitle": "Đã gắn sao — bấm để bỏ",
+
+  "stats.noHistory": "Chưa có lịch sử học.",
+  "stats.noHistoryHint":
+    "Làm một bài trắc nghiệm hoặc học bộ thẻ này, độ chính xác của bạn sẽ hiện trên biểu đồ.",
+
+  "quiz.keysMcq": "Bấm A–D hoặc 1–4 để trả lời",
+  "quiz.keysTrueFalse": "Bấm T / F để trả lời",
+  "quiz.keysContinue": "Bấm Enter để tiếp tục",
+  "results.end": "Kết thúc",
+
+  // ---- the flashcard editor ---------------------------------------------------------------------
+  "editor.loading": "Đang tải trình chỉnh sửa…",
+  "editor.discardConfirm": "Bỏ các thay đổi của bạn?",
+  "editor.title": "Chỉnh sửa thẻ ghi nhớ",
+  "editor.swapAll": "Đổi chỗ thuật ngữ và định nghĩa cho mọi thẻ",
+  "editor.swapAllTitle": "Đổi chỗ thuật ngữ và định nghĩa của mọi thẻ",
+  "editor.importCards": "Nhập thẻ",
+  "editor.otherTab":
+    "Bộ thẻ này đang mở ở một tab khác. Tab nào lưu sau cùng sẽ thắng.",
+  "editor.saveFailed": "Không lưu được bộ thẻ. Hãy thử lại.",
+  "editor.deckName": "Tên bộ thẻ",
+  "editor.fieldsHeading": "Trường hiển thị trên thẻ",
+  "editor.fieldsHelp":
+    "Đặt mỗi trường vào bên Thuật ngữ hay Định nghĩa (hoặc Tắt), hoặc thêm trường của riêng bạn.",
+  "editor.searchCards": "Tìm thẻ…",
+  "editor.countFiltered": "{shown} trên {total} thẻ",
+  "editor.dragToReorder": "Kéo một thẻ để sắp xếp lại.",
+  "common.save": "Lưu",
+  "fields.term": "Thuật ngữ",
+  "fields.definition": "Định nghĩa",
+
+  // ---- the single-card edit modal ---------------------------------------------------------------
+  "editCard.title": "Chỉnh sửa thẻ",
+  "editCard.clozePrefix": "Đây là thẻ cloze. Hãy giữ nguyên các dấu",
+  "editCard.clozeSuffix":
+    "— mỗi dấu sẽ thành một câu hỏi riêng.",
+  "editCard.swap": "Đổi chỗ mặt trước và mặt sau",
+  "editCard.termVoice": "Giọng thuật ngữ",
+  "editCard.definitionVoice": "Giọng định nghĩa",
+  "editCard.saveFailed": "Không lưu được thay đổi của bạn. Hãy thử lại.",
+  "editCard.voiceHelp":
+    "“Giọng” đặt ngôn ngữ đọc cho mặt đó. Hãy để Tự động nhận trừ khi nó bị đọc sai ngôn ngữ (ví dụ kanji bị đọc thành tiếng Trung).",
+  "editCard.saveChanges": "Lưu thay đổi",
+
+  // ---- bringing cards INTO the editor -----------------------------------------------------------
+  "importModal.howToAdd": "Thêm bằng cách nào",
+  "importModal.append": "Thêm vào cuối",
+  "importModal.replace": "Thay toàn bộ bộ thẻ",
+  "importModal.replaceWarning":
+    "Thay thế sẽ xóa mọi thẻ hiện có (và tiến độ học của chúng) khi bạn Lưu.",
+  "importModal.source": "Nguồn",
+  "importModal.pasteText": "Dán văn bản",
+  "importModal.uploadApkg": "Tải lên .apkg",
+  "importModal.addCards": "Thêm thẻ",
+  "importModal.replaceCards": "Thay thẻ",
+  "importModal.apkgNote":
+    "Thẻ từ tệp được thêm dưới dạng thẻ Basic (trước/sau).",
+
+  // ---- folders ----------------------------------------------------------------------------------
+  "folders.newFolder": "Thư mục mới",
+  "folders.loadFailed": "Không tải được danh sách thư mục.",
+  "folders.noneYet": "Chưa có thư mục nào.",
+  "folders.noneYetHelp":
+    "Nhóm bộ thẻ theo ý bạn — theo môn, theo kỳ thi, theo sách. Một bộ thẻ có thể nằm trong nhiều thư mục.",
+  "folders.nameLabel": "Tên thư mục",
+  "folders.renameFailed": "Không đổi tên được.",
+  "folders.deleteConfirm": "Xóa “{name}”?",
+  "folders.deleteNote": "Các bộ thẻ bên trong vẫn ở trong thư viện của bạn.",
+  "folders.rename": "Đổi tên",
+  "folders.delete": "Xóa",
+  "folders.cardOptions": "Tùy chọn {name}",
+  "folders.goneNote":
+    "Có thể nó đã bị xóa. Các bộ thẻ của bạn không bị ảnh hưởng — xóa thư mục không bao giờ động tới thứ bên trong.",
+  "folders.emptyHint":
+    "Hãy mở một bộ thẻ và dùng menu ⋯ của nó để đưa vào đây.",
+  "common.offline": "Không kết nối được tới server. Hãy kiểm tra kết nối và thử lại.",
+
+  // ---- text-to-speech voice picker --------------------------------------------------------------
+  "tts.autoDetect": "Tự động nhận",
+  "tts.autoDetectWith": "Tự động nhận ({language})",
+
+  // ---- carry-ins --------------------------------------------------------------------------------
+  "stats.chartAria":
+    "Độ chính xác qua {count} phiên học; gần nhất {pct} phần trăm.",
+  "deckPage.copyCount": "{count} bản sao",
+  "streak.dayCount": "{count} ngày",
+  "streak.title": "Chuỗi ngày học · {caption} · cao nhất {best}",
+  "streak.aria": "Chuỗi ngày học: {value}. {caption}.",
+  "folders.lede":
+    "Nhóm bộ thẻ theo môn, kỳ thi hay sách. Một bộ thẻ có thể nằm trong nhiều thư mục cùng lúc.",
+
+  // ---- compact timestamps -----------------------------------------------------------------------
+  "age.minutesShort": "{count} phút",
+  "age.hoursShort": "{count} giờ",
+  "age.daysShort": "{count} ngày",
+
+  // ---- the author-only feedback page ------------------------------------------------------------
+  "feedback.title": "Phản hồi",
+  "feedback.ledePrefix": "Những gì người khác viết khi họ đánh giá",
+  "feedback.ledeSuffix":
+    "Chỉ bạn xem được những ghi chú này. Tên người viết không được hiển thị — mỗi người chỉ đánh giá một lần, nên mỗi ghi chú là một người khác nhau.",
+  "feedback.loading": "Đang tải phản hồi…",
+  "feedback.loadFailed": "Không tải được phản hồi của bộ thẻ này.",
+  "feedback.noneYet": "Chưa có ghi chú nào.",
+  "feedback.noneYetHelp":
+    "Người khác có thể viết một ghi chú khi đánh giá bộ thẻ của bạn. Đánh giá không kèm ghi chú vẫn được tính vào điểm.",
+  "feedback.deleteConfirm": "Xóa ghi chú này?",
+  "feedback.deleteRule":
+    "Đánh giá {stars} sao của họ vẫn ở đó và vẫn được tính vào điểm — chỉ phần chữ bị xóa.",
+  "feedback.deleteNote": "Xóa ghi chú",
+  "feedback.reportToAdmin": "Báo cho quản trị viên",
+  "feedback.footer":
+    "Xóa ghi chú sẽ mất phần chữ vĩnh viễn, và đánh giá của họ vẫn được tính. Nếu ghi chú mang tính xúc phạm, hãy báo cáo thay vì xóa: quản trị viên có thể xóa toàn bộ đánh giá, và dù thế nào họ cũng sẽ cho bạn biết quyết định.",
+
+  // ---- reporting a note to an admin -------------------------------------------------------------
+  "reportNote.sent": "Đã gửi báo cáo",
+  "reportNote.title": "Báo cáo ghi chú này",
+  "reportNote.thanks":
+    "Cảm ơn bạn — quản trị viên sẽ xem xét. Bạn sẽ nhận được thông báo khi họ xong.",
+  "reportNote.stillDelete":
+    "Trong lúc đó bạn vẫn có thể tự xóa ghi chú — báo cáo giữ bản sao riêng của phần chữ, nên vẫn có thể được xem xét.",
+  "reportNote.lede":
+    "Dành cho ghi chú mang tính xúc phạm, chứ không chỉ là khó nghe. Hãy nói rõ lý do bên dưới — quản trị viên sẽ đọc, và nếu đồng ý họ sẽ xóa toàn bộ đánh giá, kể cả số sao.",
+  "reportNote.addAnything": "Muốn nói thêm",
+  "reportNote.optional": "(không bắt buộc)",
+  "reportNote.detailsPlaceholder": "Thông tin quản trị viên cần biết…",
+  "reportNote.sendFailed": "Không gửi được báo cáo đó. Hãy thử lại.",
+  "reportNote.sending": "Đang gửi",
+  "reportNote.submit": "Báo cáo",
+  "reportReason.abusive": "Xúc phạm",
+  "reportReason.harassment": "Quấy rối",
+  "reportReason.offTopic": "Không liên quan",
+
+  // ---- the notification panel -------------------------------------------------------------------
+  "notif.marking": "Đang đánh dấu…",
+  "notif.markAllRead": "Đánh dấu đã đọc hết",
+  "notif.clearAll": "Xóa hết",
+  "notif.clearConfirm": "Xóa toàn bộ thông báo của bạn?",
+  "notif.clearIrreversible": "Việc này không thể hoàn tác.",
+  "notif.clearing": "Đang xóa",
+  "notif.loadFailed": "Không tải được thông báo của bạn.",
+  "notif.noneYet": "Chưa có gì.",
+  "notif.noneYetHelp":
+    "Bộ thẻ được chia sẻ với bạn, bộ thẻ mới từ tác giả bạn theo dõi, và tin từ chúng tôi sẽ xuất hiện ở đây.",
+  "notif.deleteRow": "Xóa: {title}",
+
+  "common.deleting": "Đang xóa",
 } as const satisfies CatalogueOf<typeof en>;

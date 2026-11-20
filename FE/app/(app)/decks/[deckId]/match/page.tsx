@@ -6,11 +6,13 @@ import { useDeckContents } from "@/hooks/useDecks";
 import { deckContentsToParsed } from "@/lib/deckContents";
 import { buildFlashcards } from "@/lib/flashcards";
 import { MatchGame } from "@/components/deck/MatchGame";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // The Match screen takes over the full layout (the sidebar is hidden by AppShell
 // for any /match URL). It loads the deck's cards itself — no store handoff — so a
 // direct navigation or refresh works.
 export default function DeckMatchPage() {
+  const t = useT();
   const { deckId } = useParams<{ deckId: string }>();
   const router = useRouter();
   const contentsQuery = useDeckContents(deckId);
@@ -23,7 +25,7 @@ export default function DeckMatchPage() {
   if (contentsQuery.isLoading) {
     return (
       <div className="mx-auto max-w-2xl p-6">
-        <p className="text-sm text-muted">Loading match…</p>
+        <p className="text-sm text-muted">{t("match.loading")}</p>
       </div>
     );
   }
@@ -31,7 +33,7 @@ export default function DeckMatchPage() {
   if (contentsQuery.isError || !contentsQuery.data) {
     return (
       <div className="mx-auto max-w-2xl p-6">
-        <p className="text-sm text-muted">Deck not found.</p>
+        <p className="text-sm text-muted">{t("deckPage.notFound")}</p>
       </div>
     );
   }

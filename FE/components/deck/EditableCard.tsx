@@ -2,12 +2,14 @@
 
 import { useState, type ReactNode } from "react";
 import { canSwapRow, fieldLabel, groupFields, type EditorRow } from "@/lib/deckEditor";
-import { TTS_LANGUAGE_OPTIONS } from "@/lib/ttsLanguages";
+import { languageOptions } from "@/lib/ttsLanguages";
 import { CardImageSlot } from "@/components/deck/CardImageSlot";
 import { CardAudioSlot } from "@/components/deck/CardAudioSlot";
 import { CardAudioPlayButton } from "@/components/deck/CardAudioPlayButton";
 import { Icon } from "@/components/ui/icons";
 import { useT } from "@/components/i18n/LocaleProvider";
+import { Select } from "@/components/ui/Select";
+import { useLocale } from "@/components/i18n/LocaleProvider";
 
 // One card's editable body, shared by the saved-deck editor
 // (app/(app)/decks/[deckId]/edit), the pre-save import review screen, and the
@@ -62,7 +64,7 @@ export function EditableCard({ row, index, onField, onSwap, onDelete, onLang, on
   const fieldTextarea = (field: string, showName: boolean) => (
     <div key={field} className="space-y-1">
       {showName && (
-        <span className="font-mono text-xs font-medium text-muted">{fieldLabel(field)}</span>
+        <span className="font-mono text-xs font-medium text-muted">{fieldLabel(field, t)}</span>
       )}
       <textarea
         value={row.fields[field] ?? ""}
@@ -215,22 +217,21 @@ function LangSelect({
   value: string;
   onChange: (code: string) => void;
 }) {
+  const t = useT();
+  const { locale } = useLocale();
+
   return (
-    <label className="flex items-center gap-1 text-xs text-muted">
+    <span className="flex items-center gap-1 text-xs text-muted">
       <span className="hidden sm:inline">{label}</span>
-      <select
-        aria-label={label}
+      <Select
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="focus-ring rounded border border-line-strong bg-surface px-1.5 py-0.5 text-xs text-ink outline-none"
-      >
-        {TTS_LANGUAGE_OPTIONS.map((o) => (
-          <option key={o.code || "auto"} value={o.code}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
+        options={languageOptions(locale, t("tts.autoDetect"))}
+        onChange={onChange}
+        ariaLabel={label}
+        size="sm"
+        align="right"
+      />
+    </span>
   );
 }
 

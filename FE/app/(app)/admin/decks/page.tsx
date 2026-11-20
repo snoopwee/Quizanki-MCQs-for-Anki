@@ -7,6 +7,7 @@ import type { PublicDeckSummary } from "@/types/api";
 import { Modal } from "@/components/shared/Modal";
 import { Spinner } from "@/components/ui/Spinner";
 import { Icon } from "@/components/ui/icons";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 const PAGE_SIZE = 20;
 
@@ -16,6 +17,7 @@ const PAGE_SIZE = 20;
 export default function AdminDecksPage() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(0);
+  const t = useT();
   const decks = useAdminDecks({ q, page, pageSize: PAGE_SIZE });
   const [toDelete, setToDelete] = useState<PublicDeckSummary | null>(null);
 
@@ -50,7 +52,7 @@ export default function AdminDecksPage() {
         />
         {result && (
           <span className="shrink-0 font-mono text-xs text-muted">
-            {result.total} deck{result.total === 1 ? "" : "s"}
+            {t("deck.count", { count: result.total })}
           </span>
         )}
       </div>
@@ -72,8 +74,8 @@ export default function AdminDecksPage() {
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-ink">{deck.name}</p>
                 <p className="mt-0.5 truncate text-xs text-muted">
-                  {deck.authorName ?? "Unknown author"} · {deck.cardCount ?? 0} card
-                  {deck.cardCount === 1 ? "" : "s"}
+                  {deck.authorName ?? "Unknown author"} ·{" "}
+                  {t("card.count", { count: deck.cardCount ?? 0 })}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">

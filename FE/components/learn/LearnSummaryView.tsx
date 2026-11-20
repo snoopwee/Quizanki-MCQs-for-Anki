@@ -24,9 +24,16 @@ export function LearnSummaryView({
   const t = useT();
   const pct = summary.total > 0 ? Math.round((summary.firstTry / summary.total) * 100) : 0;
   const retried = summary.retriedMissed;
-  const headline =
-    pct === 100 ? "Flawless!" : pct >= 70 ? "Nicely done!" : retried ? "Every card learned!" : "Keep practicing!";
-  const cards = `${summary.total} card${summary.total === 1 ? "" : "s"}`;
+  const headline = t(
+    pct === 100
+      ? "learn.praiseFlawless"
+      : pct >= 70
+        ? "learn.praiseNice"
+        : retried
+          ? "learn.praiseAllLearned"
+          : "learn.praiseKeepPracticing",
+  );
+  const cards = t("card.count", { count: summary.total });
   const stageTotal = MASTERY_STAGES.reduce((sum, stage) => sum + stages[stage], 0);
 
   return (
@@ -36,17 +43,25 @@ export function LearnSummaryView({
         <div className="flex flex-col items-center gap-6 p-7 sm:flex-row">
           <Ring value={pct / 100} size={120} stroke={9} label={`${pct}%`} />
           <div className="min-w-0 flex-1 text-center sm:text-left">
-            <p className="font-mono text-xs uppercase tracking-[0.08em] text-faint">Session complete</p>
+            <p className="font-mono text-xs uppercase tracking-[0.08em] text-faint">{t("learn.sessionComplete")}</p>
             <h2 className="mt-1 font-display text-3xl font-bold tracking-tight text-ink">{headline}</h2>
             {retried ? (
               <p className="mt-1 text-sm text-muted">
-                You learned <strong className="text-ink">{cards}</strong>. {summary.firstTry} right on the first
-                try, {summary.answers} answer{summary.answers === 1 ? "" : "s"} in all.
+                {t("learn.youLearnedPrefix")}{" "}
+                <strong className="text-ink">{cards}</strong>.{" "}
+                {t("learn.firstTryLine", {
+                  right: summary.firstTry,
+                  answers: t("learn.answerCount", { count: summary.answers }),
+                })}
               </p>
             ) : (
               <p className="mt-1 text-sm text-muted">
-                You answered <strong className="text-ink">{cards}</strong>. {summary.firstTry} right,{" "}
-                {summary.missed.length} missed.
+                {t("learn.youAnsweredPrefix")}{" "}
+                <strong className="text-ink">{cards}</strong>.{" "}
+                {t("learn.rightMissedLine", {
+                  right: summary.firstTry,
+                  missed: summary.missed.length,
+                })}
               </p>
             )}
           </div>
@@ -54,9 +69,9 @@ export function LearnSummaryView({
       </Card>
 
       <Card className="p-5">
-        <h3 className="text-[0.9375rem] font-bold text-ink">Where these cards stand</h3>
+        <h3 className="text-[0.9375rem] font-bold text-ink">{t("learn.whereStand")}</h3>
         <p className="mt-0.5 text-xs text-muted">
-          Mastery after this session. Every answer counts, just like in a quiz.
+          {t("learn.masteryNote")}
         </p>
         {stageTotal > 0 && (
           <div className="mt-4 flex h-2 overflow-hidden rounded-full bg-surface-2" aria-hidden>
@@ -85,7 +100,7 @@ export function LearnSummaryView({
       {summary.missed.length > 0 && (
         <div className="space-y-2">
           <h3 className="font-mono text-xs font-medium uppercase tracking-wide text-faint">
-            {retried ? "Took more than one try" : "Missed"}
+            {retried ? t("learn.tookMoreTries") : t("results.missed")}
           </h3>
           <ul className="space-y-2">
             {summary.missed.map((card) => (
@@ -105,7 +120,7 @@ export function LearnSummaryView({
                   </span>
                 </span>
                 <span className="shrink-0 font-mono text-danger">
-                  missed {card.misses} time{card.misses === 1 ? "" : "s"}
+                  {t("learn.missedTimes", { count: card.misses })}
                 </span>
               </li>
             ))}
@@ -115,7 +130,7 @@ export function LearnSummaryView({
 
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={onExit} className={buttonClasses({ variant: "ghost", className: "grow basis-40" })}>
-          Back to deck
+          {t("shared.backToDeck")}
         </button>
         <button
           type="button"
@@ -123,7 +138,7 @@ export function LearnSummaryView({
           className={buttonClasses({ variant: "primary", className: "grow basis-40" })}
         >
           <Icon name="brain" size={16} />
-          Keep learning
+          {t("learn.keepLearning")}
         </button>
       </div>
     </div>

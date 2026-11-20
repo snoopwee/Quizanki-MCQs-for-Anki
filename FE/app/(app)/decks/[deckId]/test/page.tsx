@@ -11,12 +11,14 @@ import { QuizSession } from "@/components/quiz/QuizSession";
 import { Modal } from "@/components/shared/Modal";
 import { useStartSession } from "@/hooks/useQuizSession";
 import { reshuffleQuestions, type Question } from "@/lib/buildQuestions";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // The test screen takes over the full layout (sidebar is hidden by AppShell
 // for any URL ending in /test). It reads the questions the detail page put in
 // the quiz store; if there are none (e.g. someone navigated here directly), it
 // bounces back to the deck detail so the user can pick their settings first.
 export default function DeckTestPage() {
+  const t = useT();
   const { deckId } = useParams<{ deckId: string }>();
   const router = useRouter();
   const questions = useQuizStore((s) => s.questions);
@@ -89,7 +91,7 @@ export default function DeckTestPage() {
   if (questions.length === 0) {
     return (
       <div className="mx-auto max-w-2xl p-6">
-        <p className="text-sm text-muted">Loading test…</p>
+        <p className="text-sm text-muted">{t("quiz.loadingTest")}</p>
       </div>
     );
   }
@@ -106,14 +108,14 @@ export default function DeckTestPage() {
         onToggleStar={onToggleStar}
       />
       {settingsOpen && parsed && (
-        <Modal title="Quiz settings" onClose={() => setSettingsOpen(false)}>
+        <Modal title={t("quiz.settings")} onClose={() => setSettingsOpen(false)}>
           <ApkgQuizSetup
             parsed={parsed}
             getStats={getStats}
             deckId={deckId}
             showHeading={false}
-            backLabel="Cancel"
-            startLabel="Apply"
+            backLabel={t("common.cancel")}
+            startLabel={t("quiz.apply")}
             onBack={() => setSettingsOpen(false)}
             onStart={applySettings}
           />

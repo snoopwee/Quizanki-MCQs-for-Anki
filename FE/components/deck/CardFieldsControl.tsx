@@ -155,11 +155,11 @@ function SideSection({
                     onChange={(e) => onMove(f, e.target.checked ? side : "off")}
                     className="h-4 w-4 accent-[var(--accent)]"
                   />
-                  <span className="min-w-0 truncate font-medium">{fieldLabel(f)}</span>
+                  <span className="min-w-0 truncate font-medium">{fieldLabel(f, t)}</span>
                 </label>
                 <button
                   type="button"
-                  aria-label={t("fields.deleteField", { name: fieldLabel(f) })}
+                  aria-label={t("fields.deleteField", { name: fieldLabel(f, t) })}
                   title={
                     deletable
                       ? t("fields.deleteThisField")

@@ -13,6 +13,7 @@ import { FollowButton } from "@/components/author/FollowButton";
 import { AudienceSection } from "@/components/author/AudienceSection";
 import { useFollowStatus } from "@/hooks/useFollows";
 import { useSession } from "@/hooks/useSession";
+import { useT } from "@/components/i18n/LocaleProvider";
 
 // Somebody's public profile page, at the URL people actually share: /user/{username} — an identity
 // header plus the decks this person has published. Public decks only: you can't expose an author's
@@ -30,6 +31,7 @@ import { useSession } from "@/hooks/useSession";
 // user the backend has never heard of 404s, and that lands on <NotFound />.
 
 export default function UserProfilePage() {
+  const t = useT();
   const { username } = useParams<{ username: string }>();
   const query = useUserPage(username);
   const { user } = useSession();
@@ -76,14 +78,14 @@ export default function UserProfilePage() {
                     <Icon name="user" size={13} /> {page.deckCount > 0 ? "Author" : "Learner"}
                   </span>
                   <span className="inline-flex items-center gap-1.5">
-                    <Icon name="layers" size={13} /> {page.deckCount} public deck
-                    {page.deckCount === 1 ? "" : "s"}
+                    <Icon name="layers" size={13} />{" "}
+                    {t("deck.publicCount", { count: page.deckCount })}
                   </span>
                   {/* Public, so a guest sees it too. Whether YOU follow them is personal and
                       lives in the button. */}
                   <span className="inline-flex items-center gap-1.5">
-                    <Icon name="bookmark" size={13} /> {page.followers} follower
-                    {page.followers === 1 ? "" : "s"}
+                    <Icon name="bookmark" size={13} />{" "}
+                    {t("follow.followerCount", { count: page.followers })}
                   </span>
                 </div>
               </div>
@@ -116,7 +118,7 @@ export default function UserProfilePage() {
                           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-faint">
                             <span className="inline-flex items-center gap-1.5">
                               <Icon name="layers" size={13} />
-                              {deck.cardCount ?? 0} card{deck.cardCount === 1 ? "" : "s"}
+                              {t("card.count", { count: deck.cardCount ?? 0 })}
                             </span>
                             <StarRating
                               average={deck.ratingAverage}

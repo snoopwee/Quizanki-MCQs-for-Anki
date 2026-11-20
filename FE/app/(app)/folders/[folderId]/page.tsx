@@ -6,7 +6,7 @@ import { DeckGrid } from "@/components/home/DeckGrid";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/icons";
 import { buttonClasses } from "@/components/ui/Button";
-import { deckCountLabel, isMissingFolderError } from "@/lib/folderDisplay";
+import { isMissingFolderError } from "@/lib/folderDisplay";
 import { useFolder } from "@/hooks/useFolders";
 import { useT } from "@/components/i18n/LocaleProvider";
 
@@ -35,8 +35,7 @@ export default function FolderPage() {
           </span>
           <p className="text-sm font-medium text-ink">{t("folders.gone")}</p>
           <p className="max-w-xs text-sm text-muted">
-            It may have been deleted. Your decks are unaffected — deleting a folder never touches
-            what was inside it.
+            {t("folders.goneNote")}
           </p>
           <Link href="/folders" className={buttonClasses({ variant: "soft", size: "sm" })}>
             {t("folders.allFolders")}
@@ -69,7 +68,7 @@ export default function FolderPage() {
               )}
             </h1>
             <p className="mt-0.5 font-mono text-xs text-faint">
-              {deckCount === undefined ? " " : deckCountLabel(deckCount)}
+              {deckCount === undefined ? " " : t("deck.count", { count: deckCount })}
             </p>
           </div>
         </div>
@@ -79,7 +78,7 @@ export default function FolderPage() {
         query={{ data: folder.data?.decks, isLoading: folder.isLoading, isError: folder.isError }}
         showAuthor
         emptyTitle={t("folders.empty")}
-        emptyHint="Open a deck and use its ⋯ menu to file it here."
+        emptyHint={t("folders.emptyHint")}
         emptyAction={
           <Link href="/home" className={buttonClasses({ variant: "soft", size: "sm" })}>
             {t("folders.pickADeck")}
